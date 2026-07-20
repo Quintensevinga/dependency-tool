@@ -68,6 +68,27 @@ export const EFFECT_OP_FLOW_LEVELS = [
 
 export const OPLOSSINGSNIVEAU_LEVELS = ['team', 'samenwerking', 'opschaling', 'monitoren']
 
+// --- Teamworkflow-bord (teampagina, ketenoverzicht) ---
+// Vaste, globale werkstappen-reeks (niet per team aanpasbaar in v1).
+
+export const WORKFLOW_STAGES = [
+  'analyse_refinement',
+  'ontwikkeling_configuratie',
+  'testen',
+  'acceptatie',
+  'hardening',
+  'release_overdracht',
+  'beheer_nazorg',
+]
+
+// "Van wie/wat komt dit input-item?" — brontype van een workflow input-item.
+export const BRON_TYPES = ['team', 'rol', 'persoon', 'systeem', 'omgeving', 'stakeholder']
+
+export const SENIORITY_LEVELS = ['junior', 'medior', 'senior']
+
+// "Vormt het wegvallen van deze persoon/rol een risico voor de workflow?"
+export const RISICO_BIJ_UITVAL = ['ja', 'nee']
+
 // --- Standaard functies/rollen (seed-lijst, aanpasbaar via Instellingen) ---
 // Elke functie krijgt een stabiele id (slug) zodat filteren/groeperen op
 // eigenaarfunctie betrouwbaar blijft, ook als de naam ooit wijzigt.

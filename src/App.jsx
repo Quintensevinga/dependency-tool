@@ -6,6 +6,8 @@ import ExecutiveSummary from './components/ExecutiveSummary'
 import InsightPanel from './components/InsightPanel'
 import MatrixView from './components/MatrixView'
 import GraphView from './components/GraphView'
+import ChainOverview from './components/ChainOverview'
+import TeamPage from './components/TeamPage'
 import DependencyDetail from './components/DependencyDetail'
 import DependencyForm from './components/DependencyForm'
 import { exportElementAsPng } from './lib/export'
@@ -14,9 +16,15 @@ function AppContent() {
   const { currentTeamId, teamName, addDependency, updateDependency, deleteDependency } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('graph')
+  const [teamPageTeamId, setTeamPageTeamId] = useState(null)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
+
+  function handleTabChange(tab) {
+    setTeamPageTeamId(null)
+    setActiveTab(tab)
+  }
 
   function handleQuickCreate(sourceTeamId, categorie, scope) {
     setFormState({
@@ -51,24 +59,29 @@ function AppContent() {
     <div className="min-h-screen bg-[#f3f6f9]">
       <Header
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         onNewDependency={() => setFormState({ editing: null, teamId: currentTeamId })}
         onExportPng={handleExportPng}
+        onNavigateToTeam={setTeamPageTeamId}
       />
 
       <main className="mx-auto max-w-7xl space-y-4 px-6 py-6 md:pl-[4.75rem]">
-        <div ref={viewRef} className="bg-[#f3f6f9]">
-          {activeTab === 'matrix' ? (
-            <MatrixView onSelect={setSelectedDependency} />
-          ) : (
-            <GraphView onSelect={setSelectedDependency} onQuickCreate={handleQuickCreate} />
-          )}
-        </div>
-
-        {activeTab === 'matrix' && (
+        {teamPageTeamId ? (
+          <TeamPage key={teamPageTeamId} teamId={teamPageTeamId} onBack={() => setTeamPageTeamId(null)} />
+        ) : (
           <>
-            <ExecutiveSummary />
-            <InsightPanel />
+            <div ref={viewRef} className="bg-[#f3f6f9]">
+              {activeTab === 'matrix' && <MatrixView onSelect={setSelectedDependency} />}
+              {activeTab === 'graph' && <GraphView onSelect={setSelectedDependency} onQuickCreate={handleQuickCreate} />}
+              {activeTab === 'chain' && <ChainOverview />}
+            </div>
+
+            {activeTab === 'matrix' && (
+              <>
+                <ExecutiveSummary />
+                <InsightPanel />
+              </>
+            )}
           </>
         )}
       </main>

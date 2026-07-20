@@ -3,6 +3,7 @@ import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
+import ScopeToggle from './ScopeToggle'
 import {
   translateCategorie,
   translateImpact,
@@ -24,18 +25,20 @@ export default function MatrixView({ onSelect }) {
   const { t, language } = useLanguage()
   const [sortBy, setSortBy] = useState('risk_desc')
   const [hover, setHover] = useState(null) // { x, y, dependency, risk }
-  const [selectedTeams, setSelectedTeams] = useState(() => (currentTeamId ? [currentTeamId] : []))
+  const [selectedTeams, setSelectedTeams] = useState(() => (currentTeamId ? [currentTeamId] : teams.map((tm) => tm.id)))
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
   const [selectedEffectOpFlow, setSelectedEffectOpFlow] = useState([...EFFECT_OP_FLOW_LEVELS, ''])
   const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
   const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
 
-  // Volgt de globale actieve team-context (hamburgermenu); binnen deze view
-  // kan de gebruiker daarna zelf meer teams toevoegen via het filterpaneel.
+  // Volgt de globale actieve team-context (header-selector); staat die op
+  // 'Alle teams' (geen currentTeamId), dan toont Matrix als startpunt alle
+  // teams i.p.v. een lege tabel. Gebruiker kan daarna zelf verfijnen via het
+  // filterpaneel.
   useEffect(() => {
-    setSelectedTeams(currentTeamId ? [currentTeamId] : [])
-  }, [currentTeamId])
+    setSelectedTeams(currentTeamId ? [currentTeamId] : teams.map((tm) => tm.id))
+  }, [currentTeamId, teams])
 
   function toggleTeam(id) {
     setSelectedTeams((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -107,7 +110,6 @@ export default function MatrixView({ onSelect }) {
     selectedFunctieIds,
   ])
 
-  const scopeLabel = scope === 'intern' ? t('matrix.internLabel') : t('matrix.externLabel')
   const teamLabel =
     selectedTeams.length === 1
       ? teamName(selectedTeams[0])
@@ -121,21 +123,24 @@ export default function MatrixView({ onSelect }) {
       <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
           <h2 className="text-sm font-semibold text-slate-800">
-            {teamLabel} — {scopeLabel}
+            {teamLabel}
             <span className="ml-2 font-normal text-slate-400">({rows.length})</span>
           </h2>
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            aria-label={t('matrix.sort.label')}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.id} value={opt.id}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+          <div className="flex items-center gap-2">
+            <ScopeToggle />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              aria-label={t('matrix.sort.label')}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              {SORT_OPTIONS.map((opt) => (
+                <option key={opt.id} value={opt.id}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {rows.length === 0 ? (

@@ -1,14 +1,37 @@
-import { MOCK_TEAMS, MOCK_DEPENDENCIES } from '../data/mockData'
+import { MOCK_TEAMS, MOCK_DEPENDENCIES, MOCK_TEAM_WORKFLOWS } from '../data/mockData'
 import { DEFAULT_FUNCTIES } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
 const STORAGE_KEY = 'dependency-insight:v1'
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
+
+export const MAX_SNAPSHOTS_PER_TEAM = 10
 
 export { slugify, uniqueSlug }
 
 function todayIso() {
   return new Date().toISOString().slice(0, 10)
+}
+
+export function deepClone(value) {
+  return JSON.parse(JSON.stringify(value))
+}
+
+export function emptyApplicatieflow() {
+  return { connecties: [], details: {}, layout: {} }
+}
+
+export function emptyTeamWorkflow() {
+  return {
+    applications: [],
+    capacity: [],
+    inputs: [],
+    outputs: [],
+    layout: {},
+    annotations: [],
+    annotationEdges: [],
+    applicatieflow: emptyApplicatieflow(),
+  }
 }
 
 // --- migratie ---
@@ -113,14 +136,39 @@ export function migrateState(raw) {
     migrateDependency(dep, teamsState),
   )
   const functies = migrateFuncties(source.functies)
+  const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
+  const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
 
   return {
     schemaVersion: SCHEMA_VERSION,
     teams: teamsState.teams,
     functies,
     dependencies,
+    teamWorkflows,
+    teamSnapshots,
     usingMockData: Boolean(source.usingMockData),
   }
+}
+
+// Zorgt dat elk team een geldig teamWorkflow-record heeft (id-based, ook na
+// import van een export die dit nog niet kende). Onbekende/verweesde keys
+// (team inmiddels verwijderd) worden hier stilzwijgend niet meegenomen.
+function migrateTeamWorkflows(rawWorkflows, teams) {
+  const source = rawWorkflows && typeof rawWorkflows === 'object' ? rawWorkflows : {}
+  const result = {}
+  for (const team of teams) {
+    result[team.id] = source[team.id] && typeof source[team.id] === 'object' ? { ...emptyTeamWorkflow(), ...source[team.id] } : emptyTeamWorkflow()
+  }
+  return result
+}
+
+function migrateTeamSnapshots(rawSnapshots, teams) {
+  const source = rawSnapshots && typeof rawSnapshots === 'object' ? rawSnapshots : {}
+  const result = {}
+  for (const team of teams) {
+    result[team.id] = Array.isArray(source[team.id]) ? source[team.id] : []
+  }
+  return result
 }
 
 // Structurele validatie van een geïmporteerd JSON-bestand. Gooit een
@@ -158,16 +206,54 @@ function emptyState() {
     teams: [],
     functies: DEFAULT_FUNCTIES.map((f) => ({ ...f })),
     dependencies: [],
+    teamWorkflows: {},
+    teamSnapshots: {},
     usingMockData: false,
   }
 }
 
+// Zet de illustratieve MOCK_TEAM_WORKFLOWS (gekoppeld op teamnaam, met
+// leesbare rolnamen en teamnaam-verwijzingen) om naar het echte, id-based
+// schema — dezelfde ids die migrateTeams() voor diezelfde namen genereert,
+// dus geen aparte name->id-tabel nodig buiten wat hier lokaal wordt opgebouwd.
+function applyMockTeamWorkflows(state) {
+  const nameToId = new Map(state.teams.map((t) => [t.naam, t.id]))
+  const teamWorkflows = { ...state.teamWorkflows }
+
+  for (const [teamNaam, seed] of Object.entries(MOCK_TEAM_WORKFLOWS)) {
+    const teamId = nameToId.get(teamNaam)
+    if (!teamId) continue
+    teamWorkflows[teamId] = {
+      ...emptyTeamWorkflow(),
+      applications: seed.applications ?? [],
+      capacity: (seed.capacity ?? []).map((row) => ({
+        id: row.id,
+        functieId: row.rol ? slugify(row.rol) : '',
+        seniority: row.seniority ?? '',
+        aantal: row.aantal ?? 1,
+        fase: row.fase ?? '',
+        risico_bij_uitval: row.risico_bij_uitval ?? '',
+        risico_toelichting: row.risico_toelichting ?? '',
+      })),
+      inputs: (seed.inputs ?? []).map((item) => ({
+        ...item,
+        linkedTeam: item.linkedTeam ? (nameToId.get(item.linkedTeam) ?? '') : '',
+      })),
+      outputs: seed.outputs ?? [],
+      layout: seed.layout ?? {},
+    }
+  }
+
+  return { ...state, teamWorkflows }
+}
+
 function mockState() {
-  return migrateState({
+  const base = migrateState({
     teams: MOCK_TEAMS,
     dependencies: MOCK_DEPENDENCIES,
     usingMockData: true,
   })
+  return applyMockTeamWorkflows(base)
 }
 
 export function loadState() {

@@ -3,11 +3,11 @@ import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { useModalA11y } from '../lib/a11y'
 
-// Navigatie-drawer voor teamselectie. Vormt de basis voor toekomstige
-// team-specifieke pagina's (elke listitem kan later doorverwijzen naar een
-// eigen teamdashboard i.p.v. alleen `currentTeamId` te zetten). Beheer
-// (hernoemen/archiveren/verwijderen) staat in Instellingen, niet hier.
-export default function TeamNavDrawer({ open, onClose }) {
+// Navigatie-drawer voor teamselectie. Elk listitem stuurt door naar de eigen
+// teampagina van dat team (via onNavigateToTeam), naast het zetten van de
+// actieve teamcontext. Beheer (hernoemen/archiveren/verwijderen) staat in
+// Instellingen, niet hier.
+export default function TeamNavDrawer({ open, onClose, onNavigateToTeam }) {
   const { activeTeams, currentTeamId, setCurrentTeamId, addTeam } = useAppContext()
   const { t } = useLanguage()
   const [creating, setCreating] = useState(false)
@@ -24,6 +24,7 @@ export default function TeamNavDrawer({ open, onClose }) {
 
   function handleSelect(teamId) {
     setCurrentTeamId(teamId)
+    onNavigateToTeam?.(teamId)
     onClose()
   }
 

@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import ScopeToggle from './ScopeToggle'
 import SettingsPanel from './SettingsPanel'
 import TeamNavDrawer from './TeamNavDrawer'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
 
-const TAB_IDS = ['matrix', 'graph']
-const TAB_LABEL_KEYS = { matrix: 'tab.matrix', graph: 'tab.graph' }
+const TAB_IDS = ['matrix', 'graph', 'chain']
+const TAB_LABEL_KEYS = { matrix: 'tab.matrix', graph: 'tab.graph', chain: 'tab.chain' }
 
 function MatrixIcon() {
   return (
@@ -29,15 +28,16 @@ function NetworkIcon() {
     </svg>
   )
 }
-const TAB_ICONS = { matrix: MatrixIcon, graph: NetworkIcon }
-
-function HamburgerIcon() {
+function ChainIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-      <path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <rect x="3" y="8" width="9" height="8" rx="3" stroke="currentColor" strokeWidth="1.6" />
+      <rect x="12" y="8" width="9" height="8" rx="3" stroke="currentColor" strokeWidth="1.6" />
     </svg>
   )
 }
+const TAB_ICONS = { matrix: MatrixIcon, graph: NetworkIcon, chain: ChainIcon }
+
 function SettingsIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
@@ -88,10 +88,10 @@ function RailButton({ active, title, onClick, children }) {
   )
 }
 
-export default function Header({ activeTab, onTabChange, onNewDependency, onExportPng }) {
+export default function Header({ activeTab, onTabChange, onNewDependency, onExportPng, onNavigateToTeam }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [navOpen, setNavOpen] = useState(false)
-  const { teams, dependencies, currentTeamId, teamName } = useAppContext()
+  const { teams, activeTeams, dependencies, currentTeamId, setCurrentTeamId } = useAppContext()
   const { t } = useLanguage()
 
   const criticalCount = dependencies.filter((d) => calculateRisk(d).level === 'Kritiek').length
@@ -100,13 +100,30 @@ export default function Header({ activeTab, onTabChange, onNewDependency, onExpo
     <>
       <header className="border-b border-slate-900/10 bg-[#101a2b]">
         <div className="mx-auto flex max-w-7xl items-center gap-5 px-6 py-3">
-          <div className="flex items-center gap-2">
-            <h1 className="text-[15px] font-semibold tracking-tight text-white">{t('app.title')}</h1>
-            {currentTeamId && (
-              <span className="rounded-full bg-white/10 px-2.5 py-0.5 text-xs font-medium text-slate-200">
-                {teamName(currentTeamId)}
-              </span>
-            )}
+          <h1 className="text-[15px] font-semibold tracking-tight text-white">{t('app.title')}</h1>
+          <div className="h-5 w-px bg-white/15" />
+          <div className="flex items-center gap-1.5">
+            <select
+              value={currentTeamId ?? ''}
+              onChange={(e) => setCurrentTeamId(e.target.value || null)}
+              title={t('header.teamSelectHint')}
+              className="rounded-md border-none bg-white/8 px-2.5 py-1.5 text-xs font-medium text-slate-200 focus:outline-none focus:ring-1 focus:ring-white/30"
+            >
+              <option value="">{t('header.allTeams')}</option>
+              {activeTeams.map((team) => (
+                <option key={team.id} value={team.id} className="text-slate-900">
+                  {team.naam}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={() => setNavOpen(true)}
+              title={t('nav.teams')}
+              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-300 hover:bg-white/8 hover:text-white"
+            >
+              +
+            </button>
           </div>
           <div className="h-5 w-px bg-white/15" />
           <div className="flex items-baseline gap-1.5">
@@ -119,11 +136,6 @@ export default function Header({ activeTab, onTabChange, onNewDependency, onExpo
           </div>
 
           <div className="ml-auto flex items-center gap-2.5">
-            <span className="hidden items-center gap-2 rounded-full bg-white/6 px-3 py-1 text-xs text-slate-300 sm:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#2a5f8a]" />
-              {t('badge.privacy')}
-            </span>
-            <ScopeToggle />
             <button
               type="button"
               onClick={onNewDependency}
@@ -139,7 +151,7 @@ export default function Header({ activeTab, onTabChange, onNewDependency, onExpo
 
       <nav
         className="fixed bottom-0 left-0 top-[57px] z-30 hidden w-14 flex-col items-center gap-1 bg-[#16324a] py-3 md:flex"
-        aria-label={t('nav.teams')}
+        aria-label={t('nav.views')}
       >
         {TAB_IDS.map((id) => {
           const Icon = TAB_ICONS[id]
@@ -149,10 +161,6 @@ export default function Header({ activeTab, onTabChange, onNewDependency, onExpo
             </RailButton>
           )
         })}
-        <div className="my-1.5 h-px w-7 bg-white/10" />
-        <RailButton title={t('nav.teams')} onClick={() => setNavOpen(true)}>
-          <HamburgerIcon />
-        </RailButton>
         <div className="relative mt-auto">
           <RailButton title={t('header.settings')} onClick={() => setSettingsOpen((v) => !v)}>
             <SettingsIcon />
@@ -165,7 +173,7 @@ export default function Header({ activeTab, onTabChange, onNewDependency, onExpo
         </div>
       </nav>
 
-      <TeamNavDrawer open={navOpen} onClose={() => setNavOpen(false)} />
+      <TeamNavDrawer open={navOpen} onClose={() => setNavOpen(false)} onNavigateToTeam={onNavigateToTeam} />
     </>
   )
 }

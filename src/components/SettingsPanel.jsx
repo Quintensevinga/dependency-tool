@@ -188,6 +188,8 @@ export default function SettingsPanel({ onClose, onExportPng }) {
     dependencies,
     teams,
     functies,
+    teamWorkflows,
+    teamSnapshots,
     schemaVersion,
     usingMockData,
     loadMockData,
@@ -213,7 +215,10 @@ export default function SettingsPanel({ onClose, onExportPng }) {
   useModalA11y({ open: true, onClose, containerRef: panelRef })
 
   function handleExportJson() {
-    exportDataAsJson({ teams, dependencies, functies, usingMockData, schemaVersion }, `dependency-insight-export-${Date.now()}.json`)
+    exportDataAsJson(
+      { teams, dependencies, functies, teamWorkflows, teamSnapshots, usingMockData, schemaVersion },
+      `dependency-insight-export-${Date.now()}.json`,
+    )
   }
 
   async function handleImportFile(e) {

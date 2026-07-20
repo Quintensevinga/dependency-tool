@@ -8,6 +8,9 @@ import {
   migrateState,
   validateImportShape,
   uniqueSlug,
+  emptyTeamWorkflow,
+  deepClone,
+  MAX_SNAPSHOTS_PER_TEAM,
 } from '../lib/storage'
 
 const AppContext = createContext(null)
@@ -54,7 +57,12 @@ export function AppProvider({ children }) {
       const id = uniqueSlug(trimmed, existingIds)
       const today = new Date().toISOString().slice(0, 10)
       const team = { id, naam: trimmed, actief: true, createdAt: today, updatedAt: today }
-      const next = { ...state, teams: [...state.teams, team] }
+      const next = {
+        ...state,
+        teams: [...state.teams, team],
+        teamWorkflows: { ...state.teamWorkflows, [id]: emptyTeamWorkflow() },
+        teamSnapshots: { ...state.teamSnapshots, [id]: [] },
+      }
       persist(next)
       setCurrentTeamId(id)
       return id
@@ -109,12 +117,75 @@ export function AppProvider({ children }) {
     (id) => {
       const inUse = state.dependencies.some((d) => d.teamId === id)
       if (inUse) return false
-      const next = { ...state, teams: state.teams.filter((t) => t.id !== id) }
+      const teamWorkflows = { ...state.teamWorkflows }
+      delete teamWorkflows[id]
+      const teamSnapshots = { ...state.teamSnapshots }
+      delete teamSnapshots[id]
+      const next = { ...state, teams: state.teams.filter((t) => t.id !== id), teamWorkflows, teamSnapshots }
       persist(next)
       if (currentTeamId === id) setCurrentTeamId(firstActiveTeamId(next.teams))
       return true
     },
     [state, persist, currentTeamId],
+  )
+
+  // --- teamworkflow (teampagina: workflowbord, applicatieflow, momentopnamen) ---
+
+  const updateTeamWorkflow = useCallback(
+    (teamId, patch) => {
+      const current = state.teamWorkflows[teamId] ?? emptyTeamWorkflow()
+      const next = { ...state, teamWorkflows: { ...state.teamWorkflows, [teamId]: { ...current, ...patch } } }
+      persist(next)
+    },
+    [state, persist],
+  )
+
+  // Momentopnamen: een losstaande, volledige kopie van teamWorkflows[teamId]
+  // op een moment in de tijd. Bewust een deep clone zodat latere wijzigingen
+  // aan de live workflow de bewaarde momentopname nooit aliassen. Maximaal
+  // MAX_SNAPSHOTS_PER_TEAM per team — de oudste rolt er automatisch uit.
+  const saveSnapshot = useCallback(
+    (teamId, naam) => {
+      const workflow = state.teamWorkflows[teamId] ?? emptyTeamWorkflow()
+      const existing = state.teamSnapshots[teamId] ?? []
+      const snapshot = {
+        id: generateId(),
+        naam: naam?.trim() || `Momentopname ${existing.length + 1}`,
+        timestamp: new Date().toISOString(),
+        data: deepClone(workflow),
+      }
+      const next = [...existing, snapshot].slice(-MAX_SNAPSHOTS_PER_TEAM)
+      persist({ ...state, teamSnapshots: { ...state.teamSnapshots, [teamId]: next } })
+    },
+    [state, persist],
+  )
+
+  const renameSnapshot = useCallback(
+    (teamId, snapshotId, naam) => {
+      const trimmed = naam.trim()
+      if (!trimmed) return
+      const existing = state.teamSnapshots[teamId] ?? []
+      const next = existing.map((s) => (s.id === snapshotId ? { ...s, naam: trimmed } : s))
+      persist({ ...state, teamSnapshots: { ...state.teamSnapshots, [teamId]: next } })
+    },
+    [state, persist],
+  )
+
+  const restoreSnapshot = useCallback(
+    (teamId, snapshotId) => {
+      const snapshot = (state.teamSnapshots[teamId] ?? []).find((s) => s.id === snapshotId)
+      if (!snapshot) return
+      persist({ ...state, teamWorkflows: { ...state.teamWorkflows, [teamId]: deepClone(snapshot.data) } })
+    },
+    [state, persist],
+  )
+
+  const deleteSnapshot = useCallback(
+    (teamId, snapshotId) => {
+      const next = (state.teamSnapshots[teamId] ?? []).filter((s) => s.id !== snapshotId)
+      persist({ ...state, teamSnapshots: { ...state.teamSnapshots, [teamId]: next } })
+    },
+    [state, persist],
   )
 
   // --- functies/rollen ---
@@ -240,6 +311,8 @@ export function AppProvider({ children }) {
       functies: state.functies,
       activeFuncties,
       dependencies: state.dependencies,
+      teamWorkflows: state.teamWorkflows,
+      teamSnapshots: state.teamSnapshots,
       usingMockData: state.usingMockData,
       currentTeamId,
       setCurrentTeamId,
@@ -264,6 +337,11 @@ export function AppProvider({ children }) {
       clearAllData,
       loadMockData,
       importState,
+      updateTeamWorkflow,
+      saveSnapshot,
+      renameSnapshot,
+      restoreSnapshot,
+      deleteSnapshot,
     }),
     [
       state,
@@ -290,6 +368,11 @@ export function AppProvider({ children }) {
       clearAllData,
       loadMockData,
       importState,
+      updateTeamWorkflow,
+      saveSnapshot,
+      renameSnapshot,
+      restoreSnapshot,
+      deleteSnapshot,
     ],
   )
 

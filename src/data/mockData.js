@@ -8,6 +8,68 @@ export const MOCK_TEAMS = [
   'Team Smurfen',
 ]
 
+// Illustratieve teamworkflows voor demo-doeleinden. Bevat minstens twee
+// werkende ketenkoppelingen (Equinox -> Tiem -> Casio) zodat het
+// ketenoverzicht bij een eerste blik al iets te laten zien heeft, plus een
+// aantal losstaande (nog niet gekoppelde) input/output-items ter illustratie
+// dat dat een normale, niet-foutieve toestand is. Rolnamen en teamnaam-
+// verwijzingen worden pas in lib/storage.js omgezet naar functieId/teamId.
+export const MOCK_TEAM_WORKFLOWS = {
+  'Team Equinox': {
+    applications: [
+      { id: 'wf-eq-app1', naam: 'Kernbetaalmodule' },
+      { id: 'wf-eq-app2', naam: 'Integratielaag betalingen' },
+    ],
+    capacity: [
+      { id: 'wf-eq-cap1', rol: 'Scrum master', seniority: 'senior', aantal: 1, fase: '', risico_bij_uitval: '', risico_toelichting: '' },
+      {
+        id: 'wf-eq-cap2',
+        rol: 'Developer',
+        seniority: 'senior',
+        aantal: 2,
+        fase: 'ontwikkeling_configuratie',
+        risico_bij_uitval: 'ja',
+        risico_toelichting: 'Enige kennishouder van de kernbetaalmodule',
+      },
+      { id: 'wf-eq-cap3', rol: 'Tester', seniority: 'senior', aantal: 1, fase: 'testen', risico_bij_uitval: '', risico_toelichting: '' },
+    ],
+    inputs: [
+      { id: 'wf-eq-in1', label: 'Verzoek via product owner', linkedTeam: '', linkedOutputId: '' },
+      { id: 'wf-eq-in2', label: 'Vraag vanuit stakeholder', linkedTeam: '', linkedOutputId: '' },
+    ],
+    outputs: [{ id: 'wf-eq-out1', label: 'Geteste feature klaar voor release' }],
+    layout: {},
+  },
+  'Team Tiem': {
+    applications: [{ id: 'wf-ti-app1', naam: 'Integratieplatform' }],
+    capacity: [
+      { id: 'wf-ti-cap1', rol: 'Developer', seniority: 'medior', aantal: 1, fase: 'ontwikkeling_configuratie', risico_bij_uitval: '', risico_toelichting: '' },
+    ],
+    inputs: [{ id: 'wf-ti-in1', label: 'Feature van Team Equinox', linkedTeam: 'Team Equinox', linkedOutputId: 'wf-eq-out1' }],
+    outputs: [{ id: 'wf-ti-out1', label: 'Geconfigureerde integratie' }],
+    layout: {},
+  },
+  'Team Casio': {
+    applications: [{ id: 'wf-ca-app1', naam: 'Basisregistratie-koppelvlak' }],
+    capacity: [
+      { id: 'wf-ca-cap1', rol: 'Developer', seniority: 'medior', aantal: 1, fase: 'ontwikkeling_configuratie', risico_bij_uitval: '', risico_toelichting: '' },
+    ],
+    inputs: [{ id: 'wf-ca-in1', label: 'Integratie van Team Tiem', linkedTeam: 'Team Tiem', linkedOutputId: 'wf-ti-out1' }],
+    outputs: [{ id: 'wf-ca-out1', label: 'Basisregistratie-koppeling live' }],
+    layout: {},
+  },
+  'Team Polis': {
+    applications: [{ id: 'wf-po-app1', naam: 'Polisadministratiesysteem' }],
+    capacity: [{ id: 'wf-po-cap1', rol: 'Product owner', seniority: 'senior', aantal: 1, fase: '', risico_bij_uitval: '', risico_toelichting: '' }],
+    inputs: [{ id: 'wf-po-in1', label: 'Wijzigingsverzoek polisvoorwaarden', linkedTeam: '', linkedOutputId: '' }],
+    outputs: [{ id: 'wf-po-out1', label: 'Nieuw premiemodel gepubliceerd' }],
+    layout: {},
+  },
+  'Team Freggels': { capacity: [], inputs: [], outputs: [], layout: {} },
+  'Team Sterke verhalen': { capacity: [], inputs: [], outputs: [], layout: {} },
+  'Team Smurfen': { capacity: [], inputs: [], outputs: [], layout: {} },
+}
+
 // Fictieve, niet-herleidbare demo-data. Rollen bevatten bewust geen namen.
 // Ruwe records blijven in het oude (v1) formaat: team als naam-string. Dit
 // wordt met opzet niet hier al naar teamId/functieId omgezet, maar via

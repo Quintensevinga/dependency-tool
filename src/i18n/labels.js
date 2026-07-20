@@ -173,6 +173,36 @@ export const OPLOSSINGSNIVEAU_LABELS = {
   monitoren: { nl: 'Monitoren', en: 'Monitor' },
 }
 
+export const WORKFLOW_STAGE_LABELS = {
+  analyse_refinement: { nl: 'Analyse/refinement', en: 'Analysis/refinement' },
+  ontwikkeling_configuratie: { nl: 'Ontwikkeling/configuratie', en: 'Development/configuration' },
+  testen: { nl: 'Testen', en: 'Testing' },
+  acceptatie: { nl: 'Acceptatie', en: 'Acceptance' },
+  hardening: { nl: 'Hardening', en: 'Hardening' },
+  release_overdracht: { nl: 'Release/overdracht', en: 'Release/handover' },
+  beheer_nazorg: { nl: 'Beheer/nazorg', en: 'Operations/aftercare' },
+}
+
+export const BRON_TYPE_LABELS = {
+  team: { nl: 'Team', en: 'Team' },
+  rol: { nl: 'Rol', en: 'Role' },
+  persoon: { nl: 'Persoon', en: 'Person' },
+  systeem: { nl: 'Systeem', en: 'System' },
+  omgeving: { nl: 'Omgeving', en: 'Environment' },
+  stakeholder: { nl: 'Stakeholder', en: 'Stakeholder' },
+}
+
+export const SENIORITY_LABELS = {
+  junior: { nl: 'Junior', en: 'Junior' },
+  medior: { nl: 'Medior', en: 'Medior' },
+  senior: { nl: 'Senior', en: 'Senior' },
+}
+
+export const RISICO_BIJ_UITVAL_LABELS = {
+  ja: { nl: 'Ja', en: 'Yes' },
+  nee: { nl: 'Nee', en: 'No' },
+}
+
 function lookup(map, key, lang) {
   return map[key]?.[lang] ?? key
 }
@@ -186,6 +216,10 @@ export const translateScope = (key, lang) => lookup(SCOPE_LABELS, key, lang)
 export const translateWorkflowStap = (key, lang) => (key ? lookup(WORKFLOW_STAP_LABELS, key, lang) : '')
 export const translateEffectOpFlow = (key, lang) => (key ? lookup(EFFECT_OP_FLOW_LABELS, key, lang) : '')
 export const translateOplossingsniveau = (key, lang) => (key ? lookup(OPLOSSINGSNIVEAU_LABELS, key, lang) : '')
+export const translateWorkflowStage = (key, lang) => (key ? lookup(WORKFLOW_STAGE_LABELS, key, lang) : '')
+export const translateBronType = (key, lang) => (key ? lookup(BRON_TYPE_LABELS, key, lang) : '')
+export const translateSeniority = (key, lang) => (key ? lookup(SENIORITY_LABELS, key, lang) : '')
+export const translateRisicoBijUitval = (key, lang) => (key ? lookup(RISICO_BIJ_UITVAL_LABELS, key, lang) : '')
 
 export function getCategoryDescription(categorie, scope, lang) {
   return CATEGORY_DESCRIPTIONS[scope]?.[categorie]?.[lang] ?? ''
