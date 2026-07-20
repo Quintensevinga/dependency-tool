@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { AppProvider, useAppContext } from './context/AppContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Header from './components/Header'
+import Sidebar from './components/Sidebar'
 import ExecutiveSummary from './components/ExecutiveSummary'
 import InsightPanel from './components/InsightPanel'
 import MatrixView from './components/MatrixView'
@@ -13,7 +14,7 @@ import DependencyForm from './components/DependencyForm'
 import { exportElementAsPng } from './lib/export'
 
 function AppContent() {
-  const { currentTeamId, teamName, addDependency, updateDependency, deleteDependency } = useAppContext()
+  const { currentTeamId, setCurrentTeamId, teamName, addDependency, updateDependency, deleteDependency } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('graph')
   const [teamPageTeamId, setTeamPageTeamId] = useState(null)
@@ -24,6 +25,15 @@ function AppContent() {
   function handleTabChange(tab) {
     setTeamPageTeamId(null)
     setActiveTab(tab)
+  }
+
+  // Sidebar-navigatie is puur navigatie (naar de teampagina), maar we
+  // onthouden het team ook stilzwijgend als 'laatst bezocht' zodat
+  // "+ Nieuwe dependency" in de topbar een zinnig standaardteam heeft —
+  // geen zichtbare teamkeuze-UI meer, enkel deze achtergrondstate.
+  function handleNavigateToTeam(teamId) {
+    setTeamPageTeamId(teamId)
+    setCurrentTeamId(teamId)
   }
 
   function handleQuickCreate(sourceTeamId, categorie, scope) {
@@ -57,15 +67,16 @@ function AppContent() {
 
   return (
     <div className="min-h-screen bg-[#f3f6f9]">
-      <Header
+      <Header onNewDependency={() => setFormState({ editing: null, teamId: currentTeamId })} />
+      <Sidebar
         activeTab={activeTab}
         onTabChange={handleTabChange}
-        onNewDependency={() => setFormState({ editing: null, teamId: currentTeamId })}
         onExportPng={handleExportPng}
-        onNavigateToTeam={setTeamPageTeamId}
+        onNavigateToTeam={handleNavigateToTeam}
+        activeTeamId={teamPageTeamId}
       />
 
-      <main className="mx-auto max-w-7xl space-y-4 px-6 py-6 md:pl-[4.75rem]">
+      <main className="mx-auto max-w-7xl space-y-4 px-6 py-6 md:pl-60">
         {teamPageTeamId ? (
           <TeamPage key={teamPageTeamId} teamId={teamPageTeamId} onBack={() => setTeamPageTeamId(null)} />
         ) : (

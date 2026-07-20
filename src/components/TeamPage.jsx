@@ -692,6 +692,9 @@ export default function TeamPage({ teamId, onBack }) {
 
   return (
     <div className="space-y-4">
+      {/* Eén omsluitend kader zodat workflow/applicaties/capaciteit/dependencies
+          visueel als één teamcontext-geheel lezen i.p.v. losse kaarten. */}
+      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/60 p-5">
       <div className="flex items-center justify-between">
         <button type="button" onClick={onBack} className="text-sm font-medium text-[#2a5f8a] hover:underline">
           {t('teampage.back')}
@@ -1085,6 +1088,7 @@ export default function TeamPage({ teamId, onBack }) {
           </div>
         </>
       )}
+      </div>
 
       {selectedDependency && (
         <DependencyDetail

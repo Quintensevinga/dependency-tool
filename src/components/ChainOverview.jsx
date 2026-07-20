@@ -47,6 +47,22 @@ function TeamHeaderNode({ data }) {
   )
 }
 
+// Decoratieve swimlane-achtergrond per teamkolom — een gewone ReactFlow-node
+// (geen los gepositioneerde div) zodat hij meepant/zoomt met de rest van het
+// canvas i.p.v. los te raken van de andere nodes.
+function LaneNode({ data }) {
+  return (
+    <div
+      className="pointer-events-none rounded-lg"
+      style={{
+        width: COLUMN_WIDTH - 40,
+        height: data.height,
+        backgroundColor: data.index % 2 === 0 ? 'rgba(100,116,139,0.05)' : 'rgba(100,116,139,0.09)',
+      }}
+    />
+  )
+}
+
 function ChainIoNode({ data }) {
   return (
     <div className="relative w-48 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 shadow-sm">
@@ -60,14 +76,36 @@ function ChainIoNode({ data }) {
   )
 }
 
-const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode }
+const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode }
 
 function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
   const nodes = []
   const edges = []
 
+  // Vooraf berekend (i.p.v. pas na de node-loop) zodat de swimlane-achtergrond
+  // precies zo hoog is als de content — een te hoge lane-node zou fitView's
+  // begrenzing opblazen en de eigenlijke kaartjes piepklein maken.
+  const maxIoCount = Math.max(
+    1,
+    ...visibleTeams.map((team) => {
+      const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
+      return Math.max(wf.inputs.length, wf.outputs.length)
+    }),
+  )
+  const canvasHeight = Math.max(420, IO_Y_START + maxIoCount * IO_Y_GAP + 60)
+
   visibleTeams.forEach((team, ti) => {
     const columnX = ti * COLUMN_WIDTH
+    nodes.push({
+      id: `lane:${team.id}`,
+      type: 'lane',
+      position: { x: columnX - 20, y: 0 },
+      data: { index: ti, height: canvasHeight },
+      draggable: false,
+      selectable: false,
+      focusable: false,
+      zIndex: -1,
+    })
     const workflow = teamWorkflows[team.id] ?? emptyTeamWorkflow()
     const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
     const empty = workflow.inputs.length === 0 && workflow.outputs.length === 0
@@ -115,16 +153,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
     })
   })
 
-  const maxIoCount = Math.max(
-    1,
-    ...visibleTeams.map((team) => {
-      const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
-      return Math.max(wf.inputs.length, wf.outputs.length)
-    }),
-  )
-
   const canvasWidth = Math.max(visibleTeams.length * COLUMN_WIDTH + 260, 600)
-  const canvasHeight = Math.max(420, IO_Y_START + maxIoCount * IO_Y_GAP + 60)
 
   return { nodes, edges, canvasWidth, canvasHeight }
 }

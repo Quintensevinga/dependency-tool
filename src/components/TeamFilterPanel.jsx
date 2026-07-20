@@ -83,7 +83,7 @@ export default function TeamFilterPanel({
   return (
     <div className="w-56 shrink-0 space-y-4">
       <CheckboxGroup
-        title={t('nav.teams')}
+        title={t('filter.teams')}
         options={teams}
         selected={selected}
         onToggle={onToggle}

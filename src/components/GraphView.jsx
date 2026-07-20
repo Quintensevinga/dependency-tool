@@ -93,6 +93,9 @@ function CategoryNode({ data }) {
         <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
         {data.count}
       </div>
+      <div className="mt-1 text-[10px] text-slate-400">
+        {data.teamCount} {t('graph.linkedTeams')}
+      </div>
     </div>
   )
 }
@@ -136,11 +139,12 @@ function computeLayout(visibleTeams, visibleDependencies) {
 
   categoriesPresent.forEach((categorie, i) => {
     const catDeps = visibleDependencies.filter((d) => d.categorie === categorie)
+    const teamCount = new Set(catDeps.map((d) => d.teamId)).size
     nodeList.push({
       id: `cat:${categorie}`,
       type: 'category',
       position: { x: TEAM_NODE_WIDTH + COLUMN_GAP, y: 20 + i * ROW_H },
-      data: { categorie, count: catDeps.length, risk: highestRisk(catDeps), deps: catDeps },
+      data: { categorie, count: catDeps.length, teamCount, risk: highestRisk(catDeps), deps: catDeps },
       draggable: true,
     })
   })
@@ -184,7 +188,10 @@ export default function GraphView({ onSelect, onQuickCreate }) {
   const [deselectedTeamIds, setDeselectedTeamIds] = useState(() => new Set(teams.filter((tm) => !tm.actief).map((tm) => tm.id)))
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [highlightedCategory, setHighlightedCategory] = useState(null)
-  const [hoverTeamId, setHoverTeamId] = useState(null) // presentatie-only focus-op-hover, geen databewerking
+  // Presentatie-only focus-op-hover, geen databewerking. Bevat de node-id
+  // ('team:x' of 'cat:y') van de gehoverde node — symmetrisch: hoveren op
+  // een team dimt niet-gekoppelde categorieën en vice versa.
+  const [hoverNodeId, setHoverNodeId] = useState(null)
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
   const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
   const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
@@ -246,16 +253,17 @@ export default function GraphView({ onSelect, onQuickCreate }) {
         return { ...n, data: { ...n.data, dimmed: !hasMatch } }
       })
     }
-    if (hoverTeamId) {
+    if (hoverNodeId) {
+      const isTeamHover = hoverNodeId.startsWith('team:')
       return nodes.map((n) => {
-        if (n.id === hoverTeamId) return { ...n, data: { ...n.data, dimmed: false } }
-        if (n.type === 'team') return { ...n, data: { ...n.data, dimmed: true } }
-        const hasMatch = n.data.deps?.some((d) => `team:${d.teamId}` === hoverTeamId)
+        if (n.id === hoverNodeId) return { ...n, data: { ...n.data, dimmed: false } }
+        if (isTeamHover ? n.type === 'team' : n.type === 'category') return { ...n, data: { ...n.data, dimmed: true } }
+        const hasMatch = n.data.deps?.some((d) => (isTeamHover ? `team:${d.teamId}` : `cat:${d.categorie}`) === hoverNodeId)
         return { ...n, data: { ...n.data, dimmed: !hasMatch } }
       })
     }
     return nodes
-  }, [nodes, highlightedCategory, hoverTeamId])
+  }, [nodes, highlightedCategory, hoverNodeId])
 
   const displayEdges = useMemo(() => {
     if (highlightedCategory) {
@@ -264,14 +272,14 @@ export default function GraphView({ onSelect, onQuickCreate }) {
         return { ...e, style: { ...e.style, opacity: match ? 1 : 0.12 }, zIndex: match ? 10 : 0 }
       })
     }
-    if (hoverTeamId) {
+    if (hoverNodeId) {
       return edges.map((e) => {
-        const match = e.source === hoverTeamId
+        const match = e.source === hoverNodeId || e.target === hoverNodeId
         return { ...e, style: { ...e.style, opacity: match ? 0.95 : 0.06 }, zIndex: match ? 10 : 0 }
       })
     }
     return edges
-  }, [edges, highlightedCategory, hoverTeamId])
+  }, [edges, highlightedCategory, hoverNodeId])
 
   function toggleTeam(teamId) {
     setDeselectedTeamIds((prev) => {
@@ -410,7 +418,7 @@ export default function GraphView({ onSelect, onQuickCreate }) {
             isValidConnection={(connection) => connection.source?.startsWith('team:')}
             onNodeClick={(_, node) => openNodeListPanel(node)}
             onNodeMouseEnter={(event, node) => {
-              if (node.type === 'team') setHoverTeamId(node.id)
+              if (node.type === 'team' || node.type === 'category') setHoverNodeId(node.id)
               if (node.data.deps.length === 0) return
               setHover({ x: event.clientX, y: event.clientY, kind: 'node', payload: node.data })
             }}
@@ -419,7 +427,7 @@ export default function GraphView({ onSelect, onQuickCreate }) {
               setHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))
             }}
             onNodeMouseLeave={() => {
-              setHoverTeamId(null)
+              setHoverNodeId(null)
               setHover(null)
             }}
             onEdgeClick={(_, edge) => {
@@ -527,6 +535,21 @@ export default function GraphView({ onSelect, onQuickCreate }) {
                   </button>
                 )
               })}
+            </div>
+
+            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2.5">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                {t('graph.riskLegendTitle')}
+              </span>
+              {RISK_LEVELS.slice()
+                .reverse()
+                .map((level) => (
+                  <span key={level} className="flex items-center gap-1.5 text-xs text-slate-500">
+                    <span className="h-1.5 w-4 shrink-0 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />
+                    {translateRiskLevel(level, language)}
+                  </span>
+                ))}
+              <span className="text-[11px] text-slate-400">{t('graph.lineWidthHint')}</span>
             </div>
           </div>
         )}

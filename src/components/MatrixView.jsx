@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
@@ -21,24 +21,18 @@ import { CategoryIcon } from '../data/categoryIcons'
 import { RISK_LEVELS, WORKFLOW_STAP_LEVELS, EFFECT_OP_FLOW_LEVELS, OPLOSSINGSNIVEAU_LEVELS } from '../data/constants'
 
 export default function MatrixView({ onSelect }) {
-  const { dependencies, teams, functies, currentTeamId, teamName, functieNames, scope } = useAppContext()
+  const { dependencies, teams, functies, teamName, functieNames, scope } = useAppContext()
   const { t, language } = useLanguage()
   const [sortBy, setSortBy] = useState('risk_desc')
   const [hover, setHover] = useState(null) // { x, y, dependency, risk }
-  const [selectedTeams, setSelectedTeams] = useState(() => (currentTeamId ? [currentTeamId] : teams.map((tm) => tm.id)))
+  // Matrix is een organisatiebreed overzicht en start dus altijd bij alle
+  // teams — teamnavigatie (sidebar) en view-filtering (hier) zijn losgekoppeld.
+  const [selectedTeams, setSelectedTeams] = useState(() => teams.map((tm) => tm.id))
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
   const [selectedEffectOpFlow, setSelectedEffectOpFlow] = useState([...EFFECT_OP_FLOW_LEVELS, ''])
   const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
   const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
-
-  // Volgt de globale actieve team-context (header-selector); staat die op
-  // 'Alle teams' (geen currentTeamId), dan toont Matrix als startpunt alle
-  // teams i.p.v. een lege tabel. Gebruiker kan daarna zelf verfijnen via het
-  // filterpaneel.
-  useEffect(() => {
-    setSelectedTeams(currentTeamId ? [currentTeamId] : teams.map((tm) => tm.id))
-  }, [currentTeamId, teams])
 
   function toggleTeam(id) {
     setSelectedTeams((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
