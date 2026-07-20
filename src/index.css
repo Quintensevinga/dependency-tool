@@ -8,7 +8,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: #f6f1e7;
+  background: #f3f6f9;
 }
 
 #root {
@@ -28,9 +28,9 @@ html, body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #d9cfc0;
+  background: #cbd5e1;
   border-radius: 6px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #b8a891;
+  background: #94a3b8;
 }

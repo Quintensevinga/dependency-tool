@@ -48,7 +48,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f1e7]">
+    <div className="min-h-screen bg-[#f3f6f9]">
       <Header
         activeTab={activeTab}
         onTabChange={setActiveTab}
@@ -56,8 +56,8 @@ function AppContent() {
         onExportPng={handleExportPng}
       />
 
-      <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
-        <div ref={viewRef} className="bg-[#f6f1e7]">
+      <main className="mx-auto max-w-7xl space-y-4 px-6 py-6 md:pl-[4.75rem]">
+        <div ref={viewRef} className="bg-[#f3f6f9]">
           {activeTab === 'matrix' ? (
             <MatrixView onSelect={setSelectedDependency} />
           ) : (

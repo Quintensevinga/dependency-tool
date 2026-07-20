@@ -7,14 +7,14 @@ import { riskStyle } from '../lib/riskStyles'
 
 function StatCard({ label, value, valueColor }) {
   return (
-    <div className="flex-1 rounded-xl border border-stone-200 bg-white px-4 py-3.5 shadow-sm">
+    <div className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
       <div
-        className="text-2xl font-semibold tracking-tight tabular-nums text-stone-900"
+        className="text-2xl font-semibold tracking-tight tabular-nums text-slate-900"
         style={valueColor ? { color: valueColor } : undefined}
       >
         {value}
       </div>
-      <div className="mt-0.5 text-xs leading-snug text-stone-500">{label}</div>
+      <div className="mt-0.5 text-xs leading-snug text-slate-500">{label}</div>
     </div>
   )
 }

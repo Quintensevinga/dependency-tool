@@ -1,7 +1,7 @@
-// Warme, ingetogen severity-ramp binnen één huisfamilie (dieptan → terracotta →
-// verbrande oker → dieppaars-bordeaux). Ordinaal: leesbaar als oplopende
-// ernst, niet als vier losse categorieën. Gevalideerd met de dataviz-skill
-// validator (ordinal mode): monotone lightness, hue spread 19°, alle checks PASS.
+// Rustige, functionele severity-ramp (grijsgroen → amber → warm rood/oranje →
+// bordeaux). Ordinaal: leesbaar als oplopende ernst. Bewust gedempt/getemperd
+// in plaats van felle stoplichtkleuren — kleur is nooit de enige drager
+// (badges combineren altijd met het tekstlabel).
 //
 // `hex` is gekalibreerd voor gebruik op lichte oppervlakken (badges/dots/edges).
 // `onDark` is een opgelichte variant van dezelfde tint, voor tekst op de
@@ -9,28 +9,28 @@
 // om als tekstkleur op een donkere achtergrond te lezen.
 export const RISK_STYLES = {
   Laag: {
-    badge: 'bg-[#b8a08e]/[0.16] text-[#6b5645] border border-[#b8a08e]/40',
-    dot: 'bg-[#b8a08e]',
-    hex: '#b8a08e',
-    onDark: '#ddccc0',
+    badge: 'bg-[#6b8f76]/[0.16] text-[#3f5943] border border-[#6b8f76]/40',
+    dot: 'bg-[#6b8f76]',
+    hex: '#6b8f76',
+    onDark: '#a9c9b0',
   },
   Gemiddeld: {
-    badge: 'bg-[#c17d54]/[0.16] text-[#8a4620] border border-[#c17d54]/40',
-    dot: 'bg-[#c17d54]',
-    hex: '#c17d54',
-    onDark: '#e3a67c',
+    badge: 'bg-[#b8842c]/[0.16] text-[#7a5a1a] border border-[#b8842c]/40',
+    dot: 'bg-[#b8842c]',
+    hex: '#b8842c',
+    onDark: '#e0b568',
   },
   Hoog: {
-    badge: 'bg-[#a8502c]/[0.16] text-[#7a3315] border border-[#a8502c]/40',
-    dot: 'bg-[#a8502c]',
-    hex: '#a8502c',
-    onDark: '#e0946a',
+    badge: 'bg-[#c1552c]/[0.16] text-[#8a3b1c] border border-[#c1552c]/40',
+    dot: 'bg-[#c1552c]',
+    hex: '#c1552c',
+    onDark: '#e8916a',
   },
   Kritiek: {
-    badge: 'bg-[#6e2a1e]/[0.16] text-[#5c2015] border border-[#6e2a1e]/45',
-    dot: 'bg-[#6e2a1e]',
-    hex: '#6e2a1e',
-    onDark: '#e29a89',
+    badge: 'bg-[#7a2331]/[0.16] text-[#5c1620] border border-[#7a2331]/45',
+    dot: 'bg-[#7a2331]',
+    hex: '#7a2331',
+    onDark: '#d98a92',
   },
 }
 

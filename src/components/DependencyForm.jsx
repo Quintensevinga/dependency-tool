@@ -41,10 +41,10 @@ const EMPTY_FORM = {
 
 function Label({ children, required, htmlFor }) {
   return (
-    <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-stone-600">
+    <label htmlFor={htmlFor} className="mb-1 block text-xs font-medium text-slate-600">
       {children}
       {required && (
-        <span className="ml-0.5 text-stone-400" aria-hidden="true">
+        <span className="ml-0.5 text-slate-400" aria-hidden="true">
           *
         </span>
       )}
@@ -55,14 +55,14 @@ function Label({ children, required, htmlFor }) {
 function FieldError({ id, message }) {
   if (!message) return null
   return (
-    <p id={id} role="alert" className="mt-1 text-xs text-stone-400">
+    <p id={id} role="alert" className="mt-1 text-xs text-slate-400">
       {message}
     </p>
   )
 }
 
 const inputClass =
-  'w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm text-stone-800 placeholder:text-stone-400 focus:border-[#33493c] focus:outline-none'
+  'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none'
 
 export default function DependencyForm({ teamId, teamName, initialData, prefill, onSave, onCancel }) {
   const { activeFuncties, functies } = useAppContext()
@@ -133,7 +133,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
   const functieChoices = [...activeFuncties, ...archivedButSelected]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div
         ref={dialogRef}
         role="dialog"
@@ -141,17 +141,17 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
         aria-labelledby="dependency-form-title"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-2xl"
       >
-        <div className="border-b border-stone-200 px-5 py-4">
-          <h3 id="dependency-form-title" className="text-base font-semibold text-stone-900">
+        <div className="border-b border-slate-200 px-5 py-4">
+          <h3 id="dependency-form-title" className="text-base font-semibold text-slate-900">
             {initialData ? t('form.titleEdit') : t('form.titleNew')}
           </h3>
-          <p className="mt-0.5 text-xs text-stone-400">{teamName}</p>
+          <p className="mt-0.5 text-xs text-slate-400">{teamName}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
           <div>
             <Label required>{t('form.scope')}</Label>
-            <div className="inline-flex rounded-md border border-stone-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
+            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
               {['intern', 'extern'].map((value) => (
                 <button
                   key={value}
@@ -159,7 +159,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
                   onClick={() => update('scope', value)}
                   aria-pressed={form.scope === value}
                   className={`rounded px-3 py-1 capitalize transition-colors ${
-                    form.scope === value ? 'bg-[#33493c] text-white' : 'text-stone-600 hover:text-stone-900'
+                    form.scope === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   {value === 'intern' ? t('form.scopeIntern') : t('form.scopeExtern')}
@@ -173,11 +173,11 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
               <Label required htmlFor="dep-categorie">{t('form.categorie')}</Label>
               {form.categorie && (
                 <div className="group relative -mt-1 flex items-center">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="cursor-help text-stone-400" aria-hidden="true">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="cursor-help text-slate-400" aria-hidden="true">
                     <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
                     <path d="M12 11v5.5M12 8v.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                   </svg>
-                  <div className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden w-64 rounded-lg bg-[#241f1a] px-3 py-2.5 text-xs leading-relaxed text-stone-100 shadow-xl group-hover:block">
+                  <div className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden w-64 rounded-lg bg-[#1e293b] px-3 py-2.5 text-xs leading-relaxed text-slate-100 shadow-xl group-hover:block">
                     {getCategoryDescription(form.categorie, form.scope, language)}
                   </div>
                 </div>
@@ -229,9 +229,9 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
 
           <div>
             <Label required>{t('form.eigenaar')}</Label>
-            <p className="mb-1.5 text-xs text-stone-400">{t('form.eigenaarHelper')}</p>
+            <p className="mb-1.5 text-xs text-slate-400">{t('form.eigenaarHelper')}</p>
             <div className="flex flex-wrap gap-1.5" role="group" aria-describedby={touched.eigenaarFunctieIds && errors.eigenaarFunctieIds ? 'err-eigenaar' : undefined}>
-              {functieChoices.length === 0 && <span className="text-xs text-stone-400">{t('form.eigenaarNone')}</span>}
+              {functieChoices.length === 0 && <span className="text-xs text-slate-400">{t('form.eigenaarNone')}</span>}
               {functieChoices.map((functie) => {
                 const selected = form.eigenaarFunctieIds.includes(functie.id)
                 return (
@@ -242,8 +242,8 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
                     aria-pressed={selected}
                     className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
                       selected
-                        ? 'border-[#33493c] bg-[#33493c] text-white'
-                        : 'border-stone-300 bg-white text-stone-600 hover:border-stone-400'
+                        ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white'
+                        : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'
                     } ${!functie.actief ? 'opacity-60' : ''}`}
                   >
                     {functie.naam}
@@ -342,7 +342,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-stone-400">{t('form.workflowStapHelper')}</p>
+              <p className="mt-1 text-xs text-slate-400">{t('form.workflowStapHelper')}</p>
             </div>
             <div>
               <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
@@ -354,7 +354,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-stone-400">{t('form.effectOpFlowHelper')}</p>
+              <p className="mt-1 text-xs text-slate-400">{t('form.effectOpFlowHelper')}</p>
             </div>
             <div>
               <Label htmlFor="dep-oplossingsniveau">{t('form.oplossingsniveau')}</Label>
@@ -366,7 +366,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-stone-400">{t('form.oplossingsniveauHelper')}</p>
+              <p className="mt-1 text-xs text-slate-400">{t('form.oplossingsniveauHelper')}</p>
             </div>
           </div>
 
@@ -394,17 +394,17 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
             />
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-stone-200 pt-4">
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
               onClick={onCancel}
-              className="rounded-md border border-stone-300 px-3.5 py-2 text-sm font-medium text-stone-600 hover:bg-stone-50"
+              className="rounded-md border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               {t('form.cancel')}
             </button>
             <button
               type="submit"
-              className="rounded-md bg-[#33493c] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#263a2f]"
+              className="rounded-md bg-[#2a5f8a] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#1f4a6c]"
             >
               {t('form.save')}
             </button>
