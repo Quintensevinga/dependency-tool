@@ -11,17 +11,17 @@ import DependencyForm from './components/DependencyForm'
 import { exportElementAsPng } from './lib/export'
 
 function AppContent() {
-  const { currentTeam, addDependency, updateDependency, deleteDependency } = useAppContext()
+  const { currentTeamId, teamName, addDependency, updateDependency, deleteDependency } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('graph')
   const [selectedDependency, setSelectedDependency] = useState(null)
-  const [formState, setFormState] = useState(null) // null | { editing, team, prefill? }
+  const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
 
-  function handleQuickCreate(sourceTeam, categorie, scope) {
+  function handleQuickCreate(sourceTeamId, categorie, scope) {
     setFormState({
       editing: null,
-      team: sourceTeam,
+      teamId: sourceTeamId,
       prefill: { scope, categorie },
     })
   }
@@ -52,7 +52,7 @@ function AppContent() {
       <Header
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onNewDependency={() => setFormState({ editing: null, team: currentTeam })}
+        onNewDependency={() => setFormState({ editing: null, teamId: currentTeamId })}
         onExportPng={handleExportPng}
       />
 
@@ -79,7 +79,7 @@ function AppContent() {
           onClose={() => setSelectedDependency(null)}
           onEdit={(dep) => {
             setSelectedDependency(null)
-            setFormState({ editing: dep, team: dep.team })
+            setFormState({ editing: dep, teamId: dep.teamId })
           }}
           onDelete={handleDelete}
         />
@@ -87,7 +87,8 @@ function AppContent() {
 
       {formState && (
         <DependencyForm
-          team={formState.team}
+          teamId={formState.teamId}
+          teamName={teamName(formState.teamId)}
           initialData={formState.editing}
           prefill={formState.prefill}
           onSave={handleSave}

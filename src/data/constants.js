@@ -38,3 +38,54 @@ export const RISK_LEVELS = ['Laag', 'Gemiddeld', 'Hoog', 'Kritiek']
 export function categoriesForScope(scope) {
   return scope === 'extern' ? CATEGORIES_EXTERN : CATEGORIES_INTERN
 }
+
+// --- Workflowstap, effect op flow, oplossingsniveau ---
+// Vaste, canonieke sleutels (geen vrije tekst) zodat later betrouwbaar
+// gefilterd en gegroepeerd kan worden. Labels/vertalingen staan in i18n/labels.js.
+
+export const WORKFLOW_STAP_LEVELS = [
+  'idee_input',
+  'refinement',
+  'ready',
+  'build',
+  'test',
+  'acceptatie',
+  'release',
+  'beheer',
+]
+
+export const EFFECT_OP_FLOW_LEVELS = [
+  'wachten',
+  'herwerk',
+  'contextswitch',
+  'vertraging',
+  'onduidelijkheid',
+  'blokkade',
+  'extra_afstemming',
+  'niet_startklaar',
+  'anders',
+]
+
+export const OPLOSSINGSNIVEAU_LEVELS = ['team', 'samenwerking', 'opschaling', 'monitoren']
+
+// --- Standaard functies/rollen (seed-lijst, aanpasbaar via Instellingen) ---
+// Elke functie krijgt een stabiele id (slug) zodat filteren/groeperen op
+// eigenaarfunctie betrouwbaar blijft, ook als de naam ooit wijzigt.
+export const DEFAULT_FUNCTIES = [
+  { id: 'product-owner', naam: 'Product Owner', actief: true },
+  { id: 'scrum-master', naam: 'Scrum Master', actief: true },
+  { id: 'developer', naam: 'Developer', actief: true },
+  { id: 'tester', naam: 'Tester', actief: true },
+  { id: 'testcoordinator', naam: 'Testcoördinator', actief: true },
+  { id: 'architect', naam: 'Architect', actief: true },
+  { id: 'business-analist', naam: 'Business analist', actief: true },
+  { id: 'beheerder', naam: 'Beheerder', actief: true },
+  { id: 'functioneel-beheerder', naam: 'Functioneel beheerder', actief: true },
+  { id: 'technisch-beheerder', naam: 'Technisch beheerder', actief: true },
+  { id: 'security-officer', naam: 'Security officer', actief: true },
+  { id: 'privacy-officer', naam: 'Privacy officer', actief: true },
+  { id: 'manager', naam: 'Manager', actief: true },
+  { id: 'leverancier', naam: 'Leverancier', actief: true },
+  { id: 'stakeholder-business', naam: 'Stakeholder / business', actief: true },
+  { id: 'overig', naam: 'Overig', actief: true },
+]

@@ -9,7 +9,11 @@ export const MOCK_TEAMS = [
 ]
 
 // Fictieve, niet-herleidbare demo-data. Rollen bevatten bewust geen namen.
-export const MOCK_DEPENDENCIES = [
+// Ruwe records blijven in het oude (v1) formaat: team als naam-string. Dit
+// wordt met opzet niet hier al naar teamId/functieId omgezet, maar via
+// dezelfde migrateState()-functie als echte oude gebruikersdata (zie
+// lib/storage.js) — zo dogfoodt de demo-data het migratiepad.
+const RAW_MOCK_DEPENDENCIES = [
   // ============== Team Equinox ==============
   {
     id: 'seed-eq-i1',
@@ -836,3 +840,49 @@ export const MOCK_DEPENDENCIES = [
     laatst_bijgewerkt: '2026-06-03',
   },
 ]
+
+// Demo-waarden voor de nieuwe velden (workflowstap, effect op flow,
+// oplossingsniveau, eigenaarfunctie(s), actie/afspraak). Cyclisch toegekend
+// op basis van index i.p.v. handmatig per record uitgeschreven, puur om de
+// nieuwe filters/kolommen in de demo-data zichtbaar te maken.
+const DEMO_WORKFLOW_CYCLE = ['idee_input', 'refinement', 'ready', 'build', 'test', 'acceptatie', 'release', 'beheer']
+const DEMO_EFFECT_CYCLE = [
+  'wachten',
+  'herwerk',
+  'contextswitch',
+  'vertraging',
+  'onduidelijkheid',
+  'blokkade',
+  'extra_afstemming',
+  'niet_startklaar',
+  'anders',
+]
+const DEMO_OPLOSSING_CYCLE = ['team', 'samenwerking', 'opschaling', 'monitoren']
+const DEMO_EIGENAAR_CYCLE = [
+  ['scrum-master'],
+  ['product-owner'],
+  ['architect'],
+  ['developer'],
+  ['scrum-master', 'product-owner'],
+  ['technisch-beheerder'],
+  ['security-officer'],
+  ['manager'],
+  ['functioneel-beheerder'],
+  ['business-analist'],
+]
+const DEMO_ACTIE_CYCLE = [
+  'Scrum Master plant overleg met betrokken partijen over vervolgstappen.',
+  'Product Owner neemt dit mee in de eerstvolgende refinement.',
+  'Architect onderzoekt een alternatieve technische aanpak.',
+  '',
+  '',
+]
+
+export const MOCK_DEPENDENCIES = RAW_MOCK_DEPENDENCIES.map((dep, i) => ({
+  ...dep,
+  workflowStap: DEMO_WORKFLOW_CYCLE[i % DEMO_WORKFLOW_CYCLE.length],
+  effectOpFlow: DEMO_EFFECT_CYCLE[i % DEMO_EFFECT_CYCLE.length],
+  oplossingsniveau: DEMO_OPLOSSING_CYCLE[i % DEMO_OPLOSSING_CYCLE.length],
+  eigenaarFunctieIds: DEMO_EIGENAAR_CYCLE[i % DEMO_EIGENAAR_CYCLE.length],
+  actieAfspraak: DEMO_ACTIE_CYCLE[i % DEMO_ACTIE_CYCLE.length],
+}))

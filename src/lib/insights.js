@@ -2,9 +2,18 @@ import { calculateRisk, riskLevelRank } from './risk'
 import { translateCategorie, translateStatus } from '../i18n/labels'
 
 const HIGH_RISK_MIN_RANK = riskLevelRank('Hoog')
+const UNKNOWN_TEAM = 'Onbekend team'
 
 function isHighRisk(dep) {
   return riskLevelRank(calculateRisk(dep).level) >= HIGH_RISK_MIN_RANK
+}
+
+function teamNaam(teams, teamId) {
+  return teams.find((t) => t.id === teamId)?.naam ?? UNKNOWN_TEAM
+}
+
+function functieNaam(functies, functieId) {
+  return functies.find((f) => f.id === functieId)?.naam ?? functieId
 }
 
 function groupCount(items, keyFn) {
@@ -13,6 +22,18 @@ function groupCount(items, keyFn) {
     const key = keyFn(item)
     if (key == null) continue
     map.set(key, (map.get(key) ?? 0) + 1)
+  }
+  return map
+}
+
+// Voor velden die meerdere waarden per item kunnen hebben (bv.
+// eigenaarFunctieIds): elk item telt mee voor elke waarde in de lijst.
+function groupCountMulti(items, valuesFn) {
+  const map = new Map()
+  for (const item of items) {
+    for (const key of valuesFn(item) ?? []) {
+      map.set(key, (map.get(key) ?? 0) + 1)
+    }
   }
   return map
 }
@@ -27,14 +48,14 @@ function maxEntry(map) {
 
 // --- Executive summary (organisatiebreed, boven de matrix) ---
 
-export function generateExecutiveStats(dependencies) {
+export function generateExecutiveStats(dependencies, teams) {
   const criticalCount = dependencies.filter((d) => calculateRisk(d).level === 'Kritiek').length
 
   const knowledgeRiskByTeam = groupCount(
     dependencies.filter(
       (d) => d.scope === 'intern' && d.categorie === 'Kennis-concentratie' && isHighRisk(d),
     ),
-    (d) => d.team,
+    (d) => d.teamId,
   )
   const topKnowledgeTeam = maxEntry(knowledgeRiskByTeam)
 
@@ -45,7 +66,7 @@ export function generateExecutiveStats(dependencies) {
   return {
     criticalCount,
     topKnowledgeTeam: topKnowledgeTeam
-      ? { team: topKnowledgeTeam.key, count: topKnowledgeTeam.count }
+      ? { team: teamNaam(teams, topKnowledgeTeam.key), count: topKnowledgeTeam.count }
       : null,
     topExternCategory: topExternCategory
       ? { categorie: topExternCategory.key, count: topExternCategory.count, total: externDeps.length }
@@ -61,19 +82,22 @@ const ROLE_CONCENTRATION_MIN_SHARE = 0.4
 const ROLE_CONCENTRATION_MIN_COUNT = 2
 const SHARED_EXTERNAL_MIN_COUNT = 3
 
-function ruleRoleConcentration(dependencies) {
-  const teams = [...new Set(dependencies.map((d) => d.team))]
+// Groepeert eerst op teamId (technisch, stabiel), en binnen elk team op
+// eigenaarfunctie. Een dependency met meerdere eigenaarfuncties telt mee
+// voor elke functie waaraan hij is toegekend.
+function ruleRoleConcentration(dependencies, teams, functies) {
+  const teamIds = [...new Set(dependencies.map((d) => d.teamId))]
   let best = null
 
-  for (const team of teams) {
-    const teamHighRisk = dependencies.filter((d) => d.team === team && isHighRisk(d))
+  for (const teamId of teamIds) {
+    const teamHighRisk = dependencies.filter((d) => d.teamId === teamId && isHighRisk(d))
     if (teamHighRisk.length === 0) continue
-    const byRole = groupCount(teamHighRisk, (d) => d.rol_betrokkene)
-    const top = maxEntry(byRole)
+    const byFunctie = groupCountMulti(teamHighRisk, (d) => d.eigenaarFunctieIds)
+    const top = maxEntry(byFunctie)
     if (!top) continue
     const share = top.count / teamHighRisk.length
     if (top.count >= ROLE_CONCENTRATION_MIN_COUNT && share >= ROLE_CONCENTRATION_MIN_SHARE) {
-      const candidate = { team, role: top.key, count: top.count, total: teamHighRisk.length, share }
+      const candidate = { teamId, functieId: top.key, count: top.count, total: teamHighRisk.length, share }
       if (!best || candidate.share > best.share || (candidate.share === best.share && candidate.count > best.count)) {
         best = candidate
       }
@@ -83,26 +107,28 @@ function ruleRoleConcentration(dependencies) {
   if (!best) return null
   return {
     type: 'roleConcentration',
-    team: best.team,
-    role: best.role,
+    team: teamNaam(teams, best.teamId),
+    role: functieNaam(functies, best.functieId),
     count: best.count,
     total: best.total,
-    detail: dependencies.filter((d) => d.team === best.team && isHighRisk(d) && d.rol_betrokkene === best.role),
+    detail: dependencies.filter(
+      (d) => d.teamId === best.teamId && isHighRisk(d) && (d.eigenaarFunctieIds ?? []).includes(best.functieId),
+    ),
   }
 }
 
-function ruleSharedExternalTeam(dependencies) {
-  const teams = [...new Set(dependencies.map((d) => d.team))]
+function ruleSharedExternalTeam(dependencies, teams) {
+  const teamIds = [...new Set(dependencies.map((d) => d.teamId))]
   let best = null
 
-  for (const team of teams) {
-    const externDeps = dependencies.filter((d) => d.team === team && d.scope === 'extern')
+  for (const teamId of teamIds) {
+    const externDeps = dependencies.filter((d) => d.teamId === teamId && d.scope === 'extern')
     const bySource = groupCount(externDeps, (d) => d.geraakte_team_extern)
     const top = maxEntry(bySource)
     if (!top) continue
     if (top.count >= SHARED_EXTERNAL_MIN_COUNT) {
       if (!best || top.count > best.count) {
-        best = { team, source: top.key, count: top.count }
+        best = { teamId, source: top.key, count: top.count }
       }
     }
   }
@@ -110,11 +136,11 @@ function ruleSharedExternalTeam(dependencies) {
   if (!best) return null
   return {
     type: 'sharedExternalTeam',
-    team: best.team,
+    team: teamNaam(teams, best.teamId),
     source: best.source,
     count: best.count,
     detail: dependencies.filter(
-      (d) => d.team === best.team && d.scope === 'extern' && d.geraakte_team_extern === best.source,
+      (d) => d.teamId === best.teamId && d.scope === 'extern' && d.geraakte_team_extern === best.source,
     ),
   }
 }
@@ -137,7 +163,7 @@ function ruleMostCommonExternalCategory(dependencies) {
 function ruleActiveBlockers(dependencies) {
   const blockers = dependencies.filter((d) => d.status === 'actief blokkerend')
   if (blockers.length === 0) return null
-  const teamCount = new Set(blockers.map((d) => d.team)).size
+  const teamCount = new Set(blockers.map((d) => d.teamId)).size
   return {
     type: 'activeBlockers',
     count: blockers.length,
@@ -146,8 +172,13 @@ function ruleActiveBlockers(dependencies) {
   }
 }
 
-export function generateInsights(dependencies) {
-  const rules = [ruleRoleConcentration, ruleSharedExternalTeam, ruleMostCommonExternalCategory, ruleActiveBlockers]
+export function generateInsights(dependencies, teams, functies) {
+  const rules = [
+    (deps) => ruleRoleConcentration(deps, teams, functies),
+    (deps) => ruleSharedExternalTeam(deps, teams),
+    ruleMostCommonExternalCategory,
+    ruleActiveBlockers,
+  ]
   return rules.map((rule) => rule(dependencies)).filter(Boolean).slice(0, 4)
 }
 

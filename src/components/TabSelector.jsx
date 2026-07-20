@@ -8,11 +8,13 @@ export default function TabSelector({ activeTab, onChange }) {
   ]
 
   return (
-    <div className="flex gap-6 border-b border-stone-200">
+    <div role="tablist" className="flex gap-6 border-b border-stone-200">
       {TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
+          role="tab"
+          aria-selected={activeTab === tab.id}
           onClick={() => onChange(tab.id)}
           className={`-mb-px border-b-2 px-1 py-2.5 text-sm font-medium transition-colors ${
             activeTab === tab.id

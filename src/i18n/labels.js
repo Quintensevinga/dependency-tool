@@ -143,6 +143,36 @@ export const SCOPE_LABELS = {
   extern: { nl: 'ketenniveau', en: 'chain level' },
 }
 
+export const WORKFLOW_STAP_LABELS = {
+  idee_input: { nl: 'Idee / input', en: 'Idea / input' },
+  refinement: { nl: 'Refinement', en: 'Refinement' },
+  ready: { nl: 'Ready', en: 'Ready' },
+  build: { nl: 'Build', en: 'Build' },
+  test: { nl: 'Test', en: 'Test' },
+  acceptatie: { nl: 'Acceptatie', en: 'Acceptance' },
+  release: { nl: 'Release', en: 'Release' },
+  beheer: { nl: 'Beheer', en: 'Operations' },
+}
+
+export const EFFECT_OP_FLOW_LABELS = {
+  wachten: { nl: 'Wachten', en: 'Waiting' },
+  herwerk: { nl: 'Herwerk', en: 'Rework' },
+  contextswitch: { nl: 'Contextswitch', en: 'Context switch' },
+  vertraging: { nl: 'Vertraging', en: 'Delay' },
+  onduidelijkheid: { nl: 'Onduidelijkheid', en: 'Ambiguity' },
+  blokkade: { nl: 'Blokkade', en: 'Blockage' },
+  extra_afstemming: { nl: 'Extra afstemming nodig', en: 'Extra alignment needed' },
+  niet_startklaar: { nl: 'Niet startklaar', en: 'Not ready to start' },
+  anders: { nl: 'Anders', en: 'Other' },
+}
+
+export const OPLOSSINGSNIVEAU_LABELS = {
+  team: { nl: 'Team', en: 'Team' },
+  samenwerking: { nl: 'Samenwerking', en: 'Collaboration' },
+  opschaling: { nl: 'Opschaling', en: 'Escalation' },
+  monitoren: { nl: 'Monitoren', en: 'Monitor' },
+}
+
 function lookup(map, key, lang) {
   return map[key]?.[lang] ?? key
 }
@@ -153,6 +183,9 @@ export const translateFrequentie = (key, lang) => lookup(FREQUENTIE_LABELS, key,
 export const translateStatus = (key, lang) => lookup(STATUS_LABELS, key, lang)
 export const translateRiskLevel = (key, lang) => lookup(RISK_LEVEL_LABELS, key, lang)
 export const translateScope = (key, lang) => lookup(SCOPE_LABELS, key, lang)
+export const translateWorkflowStap = (key, lang) => (key ? lookup(WORKFLOW_STAP_LABELS, key, lang) : '')
+export const translateEffectOpFlow = (key, lang) => (key ? lookup(EFFECT_OP_FLOW_LABELS, key, lang) : '')
+export const translateOplossingsniveau = (key, lang) => (key ? lookup(OPLOSSINGSNIVEAU_LABELS, key, lang) : '')
 
 export function getCategoryDescription(categorie, scope, lang) {
   return CATEGORY_DESCRIPTIONS[scope]?.[categorie]?.[lang] ?? ''

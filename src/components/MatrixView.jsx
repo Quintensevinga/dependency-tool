@@ -9,34 +9,64 @@ import {
   translateFrequentie,
   translateStatus,
   translateRiskLevel,
+  translateWorkflowStap,
+  translateEffectOpFlow,
+  translateOplossingsniveau,
   getCategoryDescription,
 } from '../i18n/labels'
 import FloatingTooltip from './FloatingTooltip'
 import TeamFilterPanel from './TeamFilterPanel'
 import { CategoryIcon } from '../data/categoryIcons'
-import { RISK_LEVELS } from '../data/constants'
+import { RISK_LEVELS, WORKFLOW_STAP_LEVELS, EFFECT_OP_FLOW_LEVELS, OPLOSSINGSNIVEAU_LEVELS } from '../data/constants'
 
 export default function MatrixView({ onSelect }) {
-  const { dependencies, teams, currentTeam, scope } = useAppContext()
+  const { dependencies, teams, functies, currentTeamId, teamName, functieNames, scope } = useAppContext()
   const { t, language } = useLanguage()
   const [sortBy, setSortBy] = useState('risk_desc')
   const [hover, setHover] = useState(null) // { x, y, dependency, risk }
-  const [selectedTeams, setSelectedTeams] = useState(() => (currentTeam ? [currentTeam] : []))
+  const [selectedTeams, setSelectedTeams] = useState(() => (currentTeamId ? [currentTeamId] : []))
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
+  const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
+  const [selectedEffectOpFlow, setSelectedEffectOpFlow] = useState([...EFFECT_OP_FLOW_LEVELS, ''])
+  const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
+  const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
 
   // Volgt de globale actieve team-context (hamburgermenu); binnen deze view
   // kan de gebruiker daarna zelf meer teams toevoegen via het filterpaneel.
   useEffect(() => {
-    setSelectedTeams(currentTeam ? [currentTeam] : [])
-  }, [currentTeam])
+    setSelectedTeams(currentTeamId ? [currentTeamId] : [])
+  }, [currentTeamId])
 
-  function toggleTeam(team) {
-    setSelectedTeams((prev) => (prev.includes(team) ? prev.filter((x) => x !== team) : [...prev, team]))
+  function toggleTeam(id) {
+    setSelectedTeams((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
   }
 
   function toggleRiskLevel(level) {
     setSelectedRiskLevels((prev) => (prev.includes(level) ? prev.filter((x) => x !== level) : [...prev, level]))
   }
+  function toggleWorkflowStap(v) {
+    setSelectedWorkflowStap((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+  }
+  function toggleEffectOpFlow(v) {
+    setSelectedEffectOpFlow((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+  }
+  function toggleOplossingsniveau(v) {
+    setSelectedOplossingsniveau((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+  }
+  // Uitsluitingsset i.p.v. inclusielijst, zodat een later toegevoegde
+  // functie automatisch zichtbaar blijft in het filter i.p.v. verborgen.
+  function toggleFunctieFilter(id) {
+    setExcludedFunctieIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+  const selectedFunctieIds = useMemo(
+    () => [...functies.map((f) => f.id), ''].filter((id) => !excludedFunctieIds.has(id)),
+    [functies, excludedFunctieIds],
+  )
 
   const SORT_OPTIONS = [
     { id: 'risk_desc', label: t('matrix.sort.riskDesc') },
@@ -45,7 +75,15 @@ export default function MatrixView({ onSelect }) {
   ]
 
   const rows = useMemo(() => {
-    const filtered = dependencies.filter((d) => selectedTeams.includes(d.team) && d.scope === scope)
+    const filtered = dependencies.filter((d) => {
+      if (!selectedTeams.includes(d.teamId) || d.scope !== scope) return false
+      if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
+      if (!selectedEffectOpFlow.includes(d.effectOpFlow ?? '')) return false
+      if (!selectedOplossingsniveau.includes(d.oplossingsniveau ?? '')) return false
+      const owners = Array.isArray(d.eigenaarFunctieIds) ? d.eigenaarFunctieIds : []
+      const ownerMatch = owners.length > 0 ? owners.some((id) => selectedFunctieIds.includes(id)) : selectedFunctieIds.includes('')
+      return ownerMatch
+    })
     const withRisk = filtered
       .map((d) => ({ dependency: d, risk: calculateRisk(d) }))
       .filter(({ risk }) => selectedRiskLevels.includes(risk.level))
@@ -57,11 +95,25 @@ export default function MatrixView({ onSelect }) {
     })
 
     return withRisk
-  }, [dependencies, selectedTeams, scope, sortBy, selectedRiskLevels])
+  }, [
+    dependencies,
+    selectedTeams,
+    scope,
+    sortBy,
+    selectedRiskLevels,
+    selectedWorkflowStap,
+    selectedEffectOpFlow,
+    selectedOplossingsniveau,
+    selectedFunctieIds,
+  ])
 
   const scopeLabel = scope === 'intern' ? t('matrix.internLabel') : t('matrix.externLabel')
   const teamLabel =
-    selectedTeams.length === 1 ? selectedTeams[0] : selectedTeams.length === 0 ? t('matrix.count') : t('matrix.multipleTeams', { count: selectedTeams.length })
+    selectedTeams.length === 1
+      ? teamName(selectedTeams[0])
+      : selectedTeams.length === 0
+        ? t('matrix.count')
+        : t('matrix.multipleTeams', { count: selectedTeams.length })
   const showTeamColumn = selectedTeams.length !== 1
 
   return (
@@ -75,6 +127,7 @@ export default function MatrixView({ onSelect }) {
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value)}
+            aria-label={t('matrix.sort.label')}
             className="rounded-md border border-stone-300 bg-white px-2 py-1 text-xs text-stone-600 focus:border-[#33493c] focus:outline-none"
           >
             {SORT_OPTIONS.map((opt) => (
@@ -95,7 +148,10 @@ export default function MatrixView({ onSelect }) {
                 {showTeamColumn && <th className="px-5 py-2.5 font-medium">{t('matrix.col.team')}</th>}
                 <th className="px-5 py-2.5 font-medium">{t('matrix.col.titel')}</th>
                 <th className="px-5 py-2.5 font-medium">{t('matrix.col.categorie')}</th>
-                <th className="px-5 py-2.5 font-medium">{t('matrix.col.rol')}</th>
+                <th className="px-5 py-2.5 font-medium">{t('matrix.col.eigenaar')}</th>
+                <th className="px-5 py-2.5 font-medium">{t('matrix.col.workflowstap')}</th>
+                <th className="px-5 py-2.5 font-medium">{t('matrix.col.effectOpFlow')}</th>
+                <th className="px-5 py-2.5 font-medium">{t('matrix.col.oplossingsniveau')}</th>
                 <th className="px-5 py-2.5 font-medium">{t('matrix.col.impact')}</th>
                 <th className="px-5 py-2.5 font-medium">{t('matrix.col.frequentie')}</th>
                 <th className="px-5 py-2.5 font-medium">{t('matrix.col.status')}</th>
@@ -116,7 +172,7 @@ export default function MatrixView({ onSelect }) {
                     onMouseLeave={() => setHover(null)}
                     className="cursor-pointer border-b border-stone-100 last:border-b-0 hover:bg-[#33493c]/[0.03]"
                   >
-                    {showTeamColumn && <td className="px-5 py-3 text-stone-500">{dependency.team}</td>}
+                    {showTeamColumn && <td className="px-5 py-3 text-stone-500">{teamName(dependency.teamId)}</td>}
                     <td className="px-5 py-3 font-medium text-stone-800">{dependency.titel}</td>
                     <td className="px-5 py-3 text-stone-500">
                       <span className="flex items-center gap-1.5">
@@ -124,7 +180,10 @@ export default function MatrixView({ onSelect }) {
                         {translateCategorie(dependency.categorie, language)}
                       </span>
                     </td>
-                    <td className="px-5 py-3 text-stone-500">{dependency.rol_betrokkene}</td>
+                    <td className="px-5 py-3 text-stone-500">{functieNames(dependency.eigenaarFunctieIds) || '—'}</td>
+                    <td className="px-5 py-3 text-stone-500">{translateWorkflowStap(dependency.workflowStap, language) || '—'}</td>
+                    <td className="px-5 py-3 text-stone-500">{translateEffectOpFlow(dependency.effectOpFlow, language) || '—'}</td>
+                    <td className="px-5 py-3 text-stone-500">{translateOplossingsniveau(dependency.oplossingsniveau, language) || '—'}</td>
                     <td className="px-5 py-3 capitalize text-stone-500">{translateImpact(dependency.impact, language)}</td>
                     <td className="px-5 py-3 capitalize text-stone-500">
                       {translateFrequentie(dependency.frequentie, language)}
@@ -156,6 +215,13 @@ export default function MatrixView({ onSelect }) {
               {getCategoryDescription(hover.dependency.categorie, hover.dependency.scope, language)}
             </div>
             {hover.dependency.toelichting && <div className="mb-2 text-stone-300">{hover.dependency.toelichting}</div>}
+            {(hover.dependency.workflowStap || hover.dependency.effectOpFlow || hover.dependency.oplossingsniveau) && (
+              <div className="mb-2 space-y-0.5 text-stone-300">
+                {hover.dependency.workflowStap && <div>{t('detail.workflowStap')}: {translateWorkflowStap(hover.dependency.workflowStap, language)}</div>}
+                {hover.dependency.effectOpFlow && <div>{t('detail.effectOpFlow')}: {translateEffectOpFlow(hover.dependency.effectOpFlow, language)}</div>}
+                {hover.dependency.oplossingsniveau && <div>{t('detail.oplossingsniveau')}: {translateOplossingsniveau(hover.dependency.oplossingsniveau, language)}</div>}
+              </div>
+            )}
             <div className="space-y-1 border-t border-stone-600/50 pt-2">
               <div className="flex justify-between gap-3">
                 <span className="text-stone-400">
@@ -190,12 +256,35 @@ export default function MatrixView({ onSelect }) {
         teams={teams}
         selected={selectedTeams}
         onToggle={toggleTeam}
-        onSelectAll={() => setSelectedTeams(teams)}
+        onSelectAll={() => setSelectedTeams(teams.map((tm) => tm.id))}
         onSelectNone={() => setSelectedTeams([])}
         riskLevels={selectedRiskLevels}
         onToggleRisk={toggleRiskLevel}
         onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}
         onShowAllRisk={() => setSelectedRiskLevels(RISK_LEVELS)}
+        workflowStap={{
+          options: [...WORKFLOW_STAP_LEVELS, ''],
+          selected: selectedWorkflowStap,
+          onToggle: toggleWorkflowStap,
+          renderLabel: (v) => (v === '' ? t('filter.notSet') : translateWorkflowStap(v, language)),
+        }}
+        effectOpFlow={{
+          options: [...EFFECT_OP_FLOW_LEVELS, ''],
+          selected: selectedEffectOpFlow,
+          onToggle: toggleEffectOpFlow,
+          renderLabel: (v) => (v === '' ? t('filter.notSet') : translateEffectOpFlow(v, language)),
+        }}
+        oplossingsniveau={{
+          options: [...OPLOSSINGSNIVEAU_LEVELS, ''],
+          selected: selectedOplossingsniveau,
+          onToggle: toggleOplossingsniveau,
+          renderLabel: (v) => (v === '' ? t('filter.notSet') : translateOplossingsniveau(v, language)),
+        }}
+        eigenaarFunctie={{
+          options: [...functies, { id: '', naam: t('filter.notSet') }],
+          selected: selectedFunctieIds,
+          onToggle: toggleFunctieFilter,
+        }}
       />
     </div>
   )

@@ -1,15 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactFlow, { Background, Controls, Handle, Position, applyNodeChanges } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
-import { translateRiskLevel, translateCategorie } from '../i18n/labels'
-import { RISK_LEVELS, CATEGORIES_INTERN } from '../data/constants'
+import {
+  translateRiskLevel,
+  translateCategorie,
+  translateWorkflowStap,
+  translateEffectOpFlow,
+  translateOplossingsniveau,
+} from '../i18n/labels'
+import { RISK_LEVELS, CATEGORIES_INTERN, WORKFLOW_STAP_LEVELS, OPLOSSINGSNIVEAU_LEVELS } from '../data/constants'
 import { CategoryIcon } from '../data/categoryIcons'
 import FloatingTooltip from './FloatingTooltip'
 import TeamFilterPanel from './TeamFilterPanel'
+import { useModalA11y } from '../lib/a11y'
 
 function highestRisk(deps) {
   let best = { level: 'Laag', score: 0 }
@@ -121,12 +128,12 @@ function computeLayout(visibleTeams, visibleDependencies) {
   const columnX = (index, count, nodeWidth) => (canvasWidth / count) * (index + 0.5) - nodeWidth / 2
 
   const nodeList = visibleTeams.map((team, i) => {
-    const teamDeps = visibleDependencies.filter((d) => d.team === team)
+    const teamDeps = visibleDependencies.filter((d) => d.teamId === team.id)
     return {
-      id: `team:${team}`,
+      id: `team:${team.id}`,
       type: 'team',
       position: { x: columnX(i, visibleTeams.length, TEAM_NODE_WIDTH), y: 20 },
-      data: { label: team, count: teamDeps.length, risk: highestRisk(teamDeps), deps: teamDeps },
+      data: { label: team.naam, count: teamDeps.length, risk: highestRisk(teamDeps), deps: teamDeps },
       draggable: true,
     }
   })
@@ -147,7 +154,7 @@ function computeLayout(visibleTeams, visibleDependencies) {
 
   const edgeMap = new Map()
   for (const dep of visibleDependencies) {
-    const key = `team:${dep.team}->cat:${dep.categorie}`
+    const key = `team:${dep.teamId}->cat:${dep.categorie}`
     if (!edgeMap.has(key)) edgeMap.set(key, [])
     edgeMap.get(key).push(dep)
   }
@@ -157,13 +164,14 @@ function computeLayout(visibleTeams, visibleDependencies) {
     const risk = highestRisk(deps)
     const style = riskStyle(risk.level)
     const categorie = deps[0].categorie
+    const teamLabel = visibleTeams.find((tm) => tm.id === deps[0].teamId)?.naam ?? source.replace('team:', '')
     return {
       id: key,
       source,
       target,
       label: <EdgeLabel categorie={categorie} count={deps.length} />,
       style: { stroke: style.hex, strokeWidth: 1.5 + Math.min(deps.length, 4) },
-      data: { deps, categorie, sourceLabel: source.replace('team:', ''), targetLabel: target.replace('cat:', '') },
+      data: { deps, categorie, sourceLabel: teamLabel, targetLabel: target.replace('cat:', '') },
     }
   })
 
@@ -173,20 +181,37 @@ function computeLayout(visibleTeams, visibleDependencies) {
 }
 
 export default function GraphView({ onSelect, onQuickCreate }) {
-  const { teams, dependencies } = useAppContext()
+  const { teams, dependencies, functies } = useAppContext()
   const { t, language } = useLanguage()
   const [listPanel, setListPanel] = useState(null)
   const [hover, setHover] = useState(null) // { x, y, kind: 'node'|'edge', payload }
-  const [deselectedTeams, setDeselectedTeams] = useState(() => new Set())
+  // Gearchiveerde teams staan bij openen standaard uit (verdwijnen uit de
+  // standaardselectie), maar blijven aan- te vinken zodat historische data
+  // opvraagbaar blijft.
+  const [deselectedTeamIds, setDeselectedTeamIds] = useState(() => new Set(teams.filter((tm) => !tm.actief).map((tm) => tm.id)))
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [highlightedCategory, setHighlightedCategory] = useState(null)
+  const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
+  const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
+  const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
 
-  const selectedTeams = useMemo(() => teams.filter((tm) => !deselectedTeams.has(tm)), [teams, deselectedTeams])
+  const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
 
-  const visibleTeams = useMemo(() => teams.filter((tm) => selectedTeams.includes(tm)), [teams, selectedTeams])
+  const visibleTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
+  const selectedFunctieIds = useMemo(
+    () => [...functies.map((f) => f.id), ''].filter((id) => !excludedFunctieIds.has(id)),
+    [functies, excludedFunctieIds],
+  )
   const visibleDependencies = useMemo(
-    () => dependencies.filter((d) => selectedTeams.includes(d.team) && selectedRiskLevels.includes(calculateRisk(d).level)),
-    [dependencies, selectedTeams, selectedRiskLevels],
+    () =>
+      dependencies.filter((d) => {
+        if (!selectedTeamIds.includes(d.teamId) || !selectedRiskLevels.includes(calculateRisk(d).level)) return false
+        if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
+        if (!selectedOplossingsniveau.includes(d.oplossingsniveau ?? '')) return false
+        const owners = Array.isArray(d.eigenaarFunctieIds) ? d.eigenaarFunctieIds : []
+        return owners.length > 0 ? owners.some((id) => selectedFunctieIds.includes(id)) : selectedFunctieIds.includes('')
+      }),
+    [dependencies, selectedTeamIds, selectedRiskLevels, selectedWorkflowStap, selectedOplossingsniveau, selectedFunctieIds],
   )
 
   const [nodes, setNodes] = useState(() => computeLayout(visibleTeams, visibleDependencies).nodes)
@@ -240,17 +265,36 @@ export default function GraphView({ onSelect, onQuickCreate }) {
     })
   }, [edges, highlightedCategory])
 
-  function toggleTeam(team) {
-    setDeselectedTeams((prev) => {
+  function toggleTeam(teamId) {
+    setDeselectedTeamIds((prev) => {
       const next = new Set(prev)
-      if (next.has(team)) next.delete(team)
-      else next.add(team)
+      if (next.has(teamId)) next.delete(teamId)
+      else next.add(teamId)
       return next
     })
   }
 
   function toggleRiskLevel(level) {
     setSelectedRiskLevels((prev) => (prev.includes(level) ? prev.filter((x) => x !== level) : [...prev, level]))
+  }
+
+  function toggleWorkflowStap(v) {
+    setSelectedWorkflowStap((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+  }
+
+  function toggleOplossingsniveau(v) {
+    setSelectedOplossingsniveau((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
+  }
+
+  // Uitsluitingsset i.p.v. inclusielijst, zodat een later toegevoegde functie
+  // automatisch zichtbaar blijft i.p.v. verborgen (zelfde patroon als Matrix).
+  function toggleFunctieFilter(id) {
+    setExcludedFunctieIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   function toggleHighlight(categorie) {
@@ -296,22 +340,30 @@ export default function GraphView({ onSelect, onQuickCreate }) {
           {deps.length} {t('tooltip.dependencies')} · {t('tooltip.highestRisk')}: {translateRiskLevel(risk.level, language)}
         </div>
         <ul className="space-y-1">
-          {preview.map((dep) => (
-            <li key={dep.id} className="text-stone-200">
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: riskStyle(calculateRisk(dep).level).hex }}
-                />
-                <span className="truncate">{dep.titel}</span>
-              </div>
-              {dep.geraakte_team_extern && (
-                <div className="ml-3 truncate text-[11px] text-stone-400">
-                  {t('graph.viaExternalParty', { party: dep.geraakte_team_extern })}
+          {preview.map((dep) => {
+            const meta = [
+              dep.workflowStap && translateWorkflowStap(dep.workflowStap, language),
+              dep.effectOpFlow && translateEffectOpFlow(dep.effectOpFlow, language),
+              dep.oplossingsniveau && translateOplossingsniveau(dep.oplossingsniveau, language),
+            ].filter(Boolean)
+            return (
+              <li key={dep.id} className="text-stone-200">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: riskStyle(calculateRisk(dep).level).hex }}
+                  />
+                  <span className="truncate">{dep.titel}</span>
                 </div>
-              )}
-            </li>
-          ))}
+                {dep.geraakte_team_extern && (
+                  <div className="ml-3 truncate text-[11px] text-stone-400">
+                    {t('graph.viaExternalParty', { party: dep.geraakte_team_extern })}
+                  </div>
+                )}
+                {meta.length > 0 && <div className="ml-3 truncate text-[11px] text-stone-400">{meta.join(' · ')}</div>}
+              </li>
+            )
+          })}
         </ul>
         {deps.length > preview.length && (
           <div className="mt-1 text-stone-400">{t('tooltip.moreItems', { count: deps.length - preview.length })}</div>
@@ -322,10 +374,10 @@ export default function GraphView({ onSelect, onQuickCreate }) {
 
   function handleConnect(connection) {
     if (!onQuickCreate || !connection.source || !connection.target || connection.source === connection.target) return
-    const sourceTeam = connection.source.replace(/^team:/, '')
+    const sourceTeamId = connection.source.replace(/^team:/, '')
     const categorie = connection.target.replace(/^cat:/, '')
     const scope = CATEGORIES_INTERN.includes(categorie) ? 'intern' : 'extern'
-    onQuickCreate(sourceTeam, categorie, scope)
+    onQuickCreate(sourceTeamId, categorie, scope)
   }
 
   function openNodeListPanel(node) {
@@ -333,6 +385,9 @@ export default function GraphView({ onSelect, onQuickCreate }) {
     const title = node.type === 'team' ? node.data.label : translateCategorie(node.data.categorie, language)
     setListPanel({ title, deps: node.data.deps })
   }
+
+  const listPanelRef = useRef(null)
+  useModalA11y({ open: Boolean(listPanel), onClose: () => setListPanel(null), containerRef: listPanelRef })
 
   return (
     <div className="flex items-start gap-4">
@@ -391,10 +446,21 @@ export default function GraphView({ onSelect, onQuickCreate }) {
           )}
 
           {listPanel && (
-            <div className="absolute right-4 top-4 w-72 rounded-xl border border-stone-200 bg-white shadow-lg">
+            <div
+              ref={listPanelRef}
+              role="dialog"
+              aria-modal="false"
+              aria-label={listPanel.title}
+              className="absolute right-4 top-4 w-72 rounded-xl border border-stone-200 bg-white shadow-lg"
+            >
               <div className="flex items-center justify-between border-b border-stone-100 px-3 py-2">
                 <span className="text-xs font-semibold text-stone-700">{listPanel.title}</span>
-                <button onClick={() => setListPanel(null)} className="text-stone-400 hover:text-stone-600">
+                <button
+                  type="button"
+                  onClick={() => setListPanel(null)}
+                  aria-label={t('nav.close')}
+                  className="text-stone-400 hover:text-stone-600"
+                >
                   ✕
                 </button>
               </div>
@@ -405,6 +471,7 @@ export default function GraphView({ onSelect, onQuickCreate }) {
                   return (
                     <li key={dep.id}>
                       <button
+                        type="button"
                         onClick={() => {
                           onSelect(dep)
                           setListPanel(null)
@@ -436,6 +503,8 @@ export default function GraphView({ onSelect, onQuickCreate }) {
                 return (
                   <button
                     key={cat}
+                    type="button"
+                    aria-pressed={active}
                     onClick={() => toggleHighlight(cat)}
                     className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors ${
                       active ? 'bg-[#33493c]/10 text-[#33493c] font-medium' : 'text-stone-500 hover:bg-stone-50'
@@ -453,14 +522,31 @@ export default function GraphView({ onSelect, onQuickCreate }) {
 
       <TeamFilterPanel
         teams={teams}
-        selected={selectedTeams}
+        selected={selectedTeamIds}
         onToggle={toggleTeam}
-        onSelectAll={() => setDeselectedTeams(new Set())}
-        onSelectNone={() => setDeselectedTeams(new Set(teams))}
+        onSelectAll={() => setDeselectedTeamIds(new Set())}
+        onSelectNone={() => setDeselectedTeamIds(new Set(teams.map((tm) => tm.id)))}
         riskLevels={selectedRiskLevels}
         onToggleRisk={toggleRiskLevel}
         onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}
         onShowAllRisk={() => setSelectedRiskLevels(RISK_LEVELS)}
+        workflowStap={{
+          options: [...WORKFLOW_STAP_LEVELS, ''],
+          selected: selectedWorkflowStap,
+          onToggle: toggleWorkflowStap,
+          renderLabel: (v) => (v === '' ? t('filter.notSet') : translateWorkflowStap(v, language)),
+        }}
+        oplossingsniveau={{
+          options: [...OPLOSSINGSNIVEAU_LEVELS, ''],
+          selected: selectedOplossingsniveau,
+          onToggle: toggleOplossingsniveau,
+          renderLabel: (v) => (v === '' ? t('filter.notSet') : translateOplossingsniveau(v, language)),
+        }}
+        eigenaarFunctie={{
+          options: [...functies, { id: '', naam: t('filter.notSet') }],
+          selected: selectedFunctieIds,
+          onToggle: toggleFunctieFilter,
+        }}
       />
     </div>
   )

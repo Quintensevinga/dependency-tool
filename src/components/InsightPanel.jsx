@@ -6,7 +6,7 @@ import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import { translateRiskLevel } from '../i18n/labels'
 
-function InsightRow({ insight, text }) {
+function InsightRow({ insight, text, teamName }) {
   const [expanded, setExpanded] = useState(false)
   const { t, language } = useLanguage()
 
@@ -17,6 +17,7 @@ function InsightRow({ insight, text }) {
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
           className="shrink-0 whitespace-nowrap text-xs font-medium text-[#33493c] hover:underline"
         >
           {expanded ? t('insights.hideDetail') : t('insights.showDetail')}
@@ -32,7 +33,7 @@ function InsightRow({ insight, text }) {
                 return (
                   <tr key={dep.id} className="border-t border-stone-100 first:border-t-0">
                     <td className="px-3 py-1.5 text-stone-700">{dep.titel}</td>
-                    <td className="px-3 py-1.5 text-stone-500">{dep.team}</td>
+                    <td className="px-3 py-1.5 text-stone-500">{teamName(dep.teamId)}</td>
                     <td className="px-3 py-1.5">
                       <span className={`rounded px-1.5 py-0.5 ${style.badge}`}>
                         {translateRiskLevel(risk.level, language)}
@@ -50,10 +51,10 @@ function InsightRow({ insight, text }) {
 }
 
 export default function InsightPanel() {
-  const { dependencies } = useAppContext()
+  const { dependencies, teams, functies, teamName } = useAppContext()
   const { t, language } = useLanguage()
   const [open, setOpen] = useState(false)
-  const insights = useMemo(() => generateInsights(dependencies), [dependencies])
+  const insights = useMemo(() => generateInsights(dependencies, teams, functies), [dependencies, teams, functies])
 
   if (insights.length === 0) return null
 
@@ -62,6 +63,7 @@ export default function InsightPanel() {
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
         className="flex w-full items-center justify-between gap-3 px-4 py-3"
       >
         <span className="flex items-center gap-2">
@@ -93,7 +95,7 @@ export default function InsightPanel() {
         <div className="border-t border-stone-100 px-4 pb-1">
           <ul className="divide-y divide-stone-100">
             {insights.map((insight, i) => (
-              <InsightRow key={i} insight={insight} text={formatInsightText(insight, language)} />
+              <InsightRow key={i} insight={insight} text={formatInsightText(insight, language)} teamName={teamName} />
             ))}
           </ul>
         </div>
