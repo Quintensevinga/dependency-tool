@@ -68,19 +68,38 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
   const { activeFuncties, functies } = useAppContext()
   const { t, language } = useLanguage()
   const dialogRef = useRef(null)
-  useModalA11y({ open: true, onClose: onCancel, containerRef: dialogRef })
 
-  const [form, setForm] = useState(() => ({
-    ...EMPTY_FORM,
-    ...prefill,
-    ...initialData,
-    eigenaarFunctieIds: Array.isArray(initialData?.eigenaarFunctieIds) ? [...initialData.eigenaarFunctieIds] : [],
-    workflowStap: initialData?.workflowStap ?? '',
-    effectOpFlow: initialData?.effectOpFlow ?? '',
-    oplossingsniveau: initialData?.oplossingsniveau ?? '',
-    actieAfspraak: initialData?.actieAfspraak ?? '',
-  }))
+  // Eenmalig berekende startwaarde, ook bewaard (niet alleen als useState-
+  // initializer) zodat we 'm later kunnen vergelijken met de live formstate
+  // om te bepalen of de gebruiker iets heeft ingevuld/gewijzigd.
+  const initialFormRef = useRef(null)
+  if (initialFormRef.current === null) {
+    initialFormRef.current = {
+      ...EMPTY_FORM,
+      ...prefill,
+      ...initialData,
+      eigenaarFunctieIds: Array.isArray(initialData?.eigenaarFunctieIds) ? [...initialData.eigenaarFunctieIds] : [],
+      workflowStap: initialData?.workflowStap ?? '',
+      effectOpFlow: initialData?.effectOpFlow ?? '',
+      oplossingsniveau: initialData?.oplossingsniveau ?? '',
+      actieAfspraak: initialData?.actieAfspraak ?? '',
+    }
+  }
+  const [form, setForm] = useState(() => initialFormRef.current)
   const [touched, setTouched] = useState({})
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+
+  const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
+
+  function handleClose() {
+    if (isDirty) {
+      setConfirmDiscard(true)
+      return
+    }
+    onCancel()
+  }
+
+  useModalA11y({ open: true, onClose: handleClose, containerRef: dialogRef })
 
   const requiredFields = ['categorie', 'titel', 'impact', 'frequentie', 'status']
   const errors = {}
@@ -141,11 +160,23 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
         aria-labelledby="dependency-form-title"
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-2xl"
       >
-        <div className="border-b border-slate-200 px-5 py-4">
-          <h3 id="dependency-form-title" className="text-base font-semibold text-slate-900">
-            {initialData ? t('form.titleEdit') : t('form.titleNew')}
-          </h3>
-          <p className="mt-0.5 text-xs text-slate-400">{teamName}</p>
+        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+          <div>
+            <h3 id="dependency-form-title" className="text-base font-semibold text-slate-900">
+              {initialData ? t('form.titleEdit') : t('form.titleNew')}
+            </h3>
+            <p className="mt-0.5 text-xs text-slate-400">{teamName}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label={t('form.close')}
+            className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
@@ -397,7 +428,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
           <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={handleClose}
               className="rounded-md border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
             >
               {t('form.cancel')}
@@ -411,6 +442,32 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
           </div>
         </form>
       </div>
+
+      {confirmDiscard && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="discard-confirm-title" className="w-full max-w-sm rounded-xl bg-white p-5 shadow-2xl">
+            <p id="discard-confirm-title" className="text-sm text-slate-700">
+              {t('form.discardConfirm')}
+            </p>
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setConfirmDiscard(false)}
+                className="rounded-md border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                {t('form.discardContinue')}
+              </button>
+              <button
+                type="button"
+                onClick={onCancel}
+                className="rounded-md bg-[#9a3b2e] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#7f3125]"
+              >
+                {t('form.discardClose')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

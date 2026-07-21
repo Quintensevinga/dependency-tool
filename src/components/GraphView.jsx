@@ -120,8 +120,8 @@ function EdgeLabel({ categorie, count }) {
 function computeLayout(visibleTeams, visibleDependencies) {
   const TEAM_NODE_WIDTH = 210
   const CAT_NODE_WIDTH = 200
-  const ROW_H = 92
-  const COLUMN_GAP = 520
+  const ROW_H = 96
+  const COLUMN_GAP = 640
 
   const categoriesPresent = [...new Set(visibleDependencies.map((d) => d.categorie))].sort()
   const rowCount = Math.max(visibleTeams.length, categoriesPresent.length)
@@ -215,16 +215,19 @@ export default function GraphView({ onSelect, onQuickCreate }) {
     [dependencies, selectedTeamIds, selectedRiskLevels, selectedWorkflowStap, selectedOplossingsniveau, selectedFunctieIds],
   )
 
-  const [nodes, setNodes] = useState(() => computeLayout(visibleTeams, visibleDependencies).nodes)
-  const [edges, setEdges] = useState([])
-  const [categoriesPresent, setCategoriesPresent] = useState([])
-  const [graphHeight, setGraphHeight] = useState(560)
+  // Puur/synchroon afgeleid (i.p.v. via een losse useState + useEffect die pas
+  // ná de eerste render bijwerkt) zodat de containerhoogte al bij de allereerste
+  // render klopt — React Flow's fitView meet bij mount de dan-actuele
+  // containergrootte, en met een tijdelijk verouderde (kleinere) hoogte zoomde
+  // het canvas veel verder uit dan nodig, ook op brede schermen.
+  const layout = useMemo(() => computeLayout(visibleTeams, visibleDependencies), [visibleTeams, visibleDependencies])
+  const { edges, categoriesPresent } = layout
 
-  // Herberekent de layout zodra teams/afhankelijkheden/filters wijzigen, maar
-  // behoudt de positie van blokjes die de gebruiker handmatig heeft versleept
+  const [nodes, setNodes] = useState(() => layout.nodes)
+
+  // Behoudt de positie van blokjes die de gebruiker handmatig heeft versleept
   // (alleen echt nieuwe blokjes krijgen een verse berekende positie).
   useEffect(() => {
-    const layout = computeLayout(visibleTeams, visibleDependencies)
     setNodes((prevNodes) => {
       const prevById = new Map(prevNodes.map((n) => [n.id, n]))
       return layout.nodes.map((n) => {
@@ -232,10 +235,7 @@ export default function GraphView({ onSelect, onQuickCreate }) {
         return prev ? { ...n, position: prev.position } : n
       })
     })
-    setEdges(layout.edges)
-    setCategoriesPresent(layout.categoriesPresent)
-    setGraphHeight(layout.graphHeight)
-  }, [visibleTeams, visibleDependencies])
+  }, [layout])
 
   const onNodesChange = useCallback((changes) => {
     setNodes((nds) => applyNodeChanges(changes, nds))
@@ -408,7 +408,10 @@ export default function GraphView({ onSelect, onQuickCreate }) {
   return (
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1">
-        <div className="relative rounded-xl border border-slate-200 bg-white shadow-sm" style={{ height: graphHeight }}>
+        <div
+          className="relative rounded-xl border border-slate-200 bg-white shadow-sm"
+          style={{ height: 'max(640px, calc(100vh - 232px))' }}
+        >
           <ReactFlow
             nodes={displayNodes}
             edges={displayEdges}
@@ -440,7 +443,7 @@ export default function GraphView({ onSelect, onQuickCreate }) {
             onEdgeMouseMove={(event) => setHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
             onEdgeMouseLeave={() => setHover(null)}
             fitView
-            fitViewOptions={{ padding: 0.2 }}
+            fitViewOptions={{ padding: 0.15 }}
             minZoom={0.2}
             maxZoom={2}
             proOptions={{ hideAttribution: true }}

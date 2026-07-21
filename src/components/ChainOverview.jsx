@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Handle, Position } from 'reactflow'
+import { Handle, Position, ReactFlowProvider, useReactFlow } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
@@ -12,7 +12,7 @@ import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
 import TeamFilterPanel from './TeamFilterPanel'
 
-const COLUMN_WIDTH = 420
+const COLUMN_WIDTH = 480
 const INPUT_X = 0
 const OUTPUT_X = 220
 const HEADER_Y = 20
@@ -60,6 +60,42 @@ function LaneNode({ data }) {
         backgroundColor: data.index % 2 === 0 ? 'rgba(100,116,139,0.05)' : 'rgba(100,116,139,0.09)',
       }}
     />
+  )
+}
+
+// Zichtbare zoom-toolbar boven het canvas (i.p.v. enkel React Flow's kleine
+// standaard knoppen linksonder) — moet binnen een ReactFlowProvider zitten
+// om via useReactFlow() bij de zoom/fitView-acties van déze canvas-instantie
+// te kunnen.
+function ChainZoomToolbar() {
+  const { zoomIn, zoomOut, fitView } = useReactFlow()
+  const { t } = useLanguage()
+  return (
+    <div className="mb-2 flex items-center gap-1.5">
+      <button
+        type="button"
+        onClick={() => zoomOut()}
+        title={t('chain.zoomOut')}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-sm text-slate-600 hover:bg-slate-50"
+      >
+        −
+      </button>
+      <button
+        type="button"
+        onClick={() => fitView({ padding: 0.15, duration: 200 })}
+        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+      >
+        {t('chain.fitToScreen')}
+      </button>
+      <button
+        type="button"
+        onClick={() => zoomIn()}
+        title={t('chain.zoomIn')}
+        className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-sm text-slate-600 hover:bg-slate-50"
+      >
+        +
+      </button>
+    </div>
   )
 }
 
@@ -178,7 +214,7 @@ export default function ChainOverview() {
     return result
   }, [visibleTeams, dependencies, selectedRiskLevels])
 
-  const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeChainLayout, [
+  const [{ nodes, edges }, onNodesChange] = useMergedLayout(computeChainLayout, [
     visibleTeams,
     teamWorkflows,
     teamRisk,
@@ -206,9 +242,15 @@ export default function ChainOverview() {
             {t('chain.noTeams')}
           </div>
         ) : (
-          <div className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm" style={{ height: Math.min(canvasHeight, 640) }}>
-            <PannableFlowCanvas nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} />
-          </div>
+          <ReactFlowProvider>
+            <ChainZoomToolbar />
+            <div
+              className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
+              style={{ height: 'max(560px, calc(100vh - 280px))' }}
+            >
+              <PannableFlowCanvas nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} />
+            </div>
+          </ReactFlowProvider>
         )}
       </div>
 

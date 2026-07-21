@@ -116,6 +116,10 @@ export const STRINGS = {
     'form.required': 'Verplicht veld',
     'form.cancel': 'Annuleren',
     'form.save': 'Opslaan',
+    'form.close': 'Sluiten',
+    'form.discardConfirm': 'Je ingevoerde gegevens gaan verloren. Weet je zeker dat je wilt sluiten?',
+    'form.discardContinue': 'Doorgaan met invullen',
+    'form.discardClose': 'Sluiten zonder opslaan',
 
     'graph.totalCount': 'afhankelijkheden',
     'graph.noDeps': 'Geen dependencies',
@@ -272,6 +276,9 @@ export const STRINGS = {
     'chain.hint': 'Elke kolom is een team. Een lijn tussen een output- en inputblokje is een expliciete koppeling die op de teampagina is gelegd — losse blokjes zijn nog niet gekoppeld.',
     'chain.noTeams': 'Selecteer minstens één team om het ketenoverzicht te tonen.',
     'chain.emptyTeam': 'Nog geen workflow ingevuld',
+    'chain.zoomIn': 'Inzoomen',
+    'chain.zoomOut': 'Uitzoomen',
+    'chain.fitToScreen': 'Passend maken',
   },
   en: {
     'app.title': 'Dependency Insight',
@@ -390,6 +397,10 @@ export const STRINGS = {
     'form.required': 'Required field',
     'form.cancel': 'Cancel',
     'form.save': 'Save',
+    'form.close': 'Close',
+    'form.discardConfirm': 'Your entered data will be lost. Are you sure you want to close?',
+    'form.discardContinue': 'Keep editing',
+    'form.discardClose': 'Close without saving',
 
     'graph.totalCount': 'dependencies',
     'graph.noDeps': 'No dependencies',
@@ -546,6 +557,9 @@ export const STRINGS = {
     'chain.hint': "Each column is a team. A line between an output and input block is an explicit link created on that team's page — standalone blocks aren't linked yet.",
     'chain.noTeams': 'Select at least one team to show the chain overview.',
     'chain.emptyTeam': 'No workflow filled in yet',
+    'chain.zoomIn': 'Zoom in',
+    'chain.zoomOut': 'Zoom out',
+    'chain.fitToScreen': 'Fit to screen',
   },
 }
 

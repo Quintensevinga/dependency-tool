@@ -172,7 +172,7 @@ export default function ApplicatieflowTab({ workflow, patch }) {
 
   if (applications.length === 0) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-400 shadow-sm">
+      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-400 shadow-sm">
         {t('appflow.noApplications')}
       </div>
     )
@@ -207,7 +207,7 @@ export default function ApplicatieflowTab({ workflow, patch }) {
           <h3 className="text-sm font-semibold text-slate-800">{t('appflow.canvasTitle')}</h3>
           <span className="text-[11px] text-slate-400">{t('appflow.canvasHint')}</span>
         </div>
-        <div className="relative rounded-lg border border-slate-100" style={{ height: Math.min(canvasHeight, 520) }}>
+        <div className="relative rounded-lg border border-slate-100" style={{ height: Math.min(Math.max(canvasHeight, 460), 640) }}>
           <PannableFlowCanvas
             // Remount bij een wijzigend aantal koppelingen: de vragenlijst erboven
             // verandert dan van hoogte, wat de canvas-container in dezelfde tick

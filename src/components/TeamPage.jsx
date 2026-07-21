@@ -851,7 +851,7 @@ export default function TeamPage({ teamId, onBack }) {
               {lineToolActive && <span className="ml-auto text-[11px] font-medium text-[#2a5f8a]">{t('teampage.toolbarLineActive')}</span>}
             </div>
 
-            <div data-tour="workflow-canvas" className="relative rounded-lg border border-slate-100" style={{ height: Math.min(canvasHeight, 520) }}>
+            <div data-tour="workflow-canvas" className="relative rounded-lg border border-slate-100" style={{ height: Math.min(Math.max(canvasHeight, 460), 640) }}>
               <PannableFlowCanvas
                 nodes={nodes}
                 edges={edges}

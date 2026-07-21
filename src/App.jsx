@@ -76,23 +76,27 @@ function AppContent() {
         activeTeamId={teamPageTeamId}
       />
 
-      <main className="mx-auto max-w-7xl space-y-4 px-6 py-6 md:pl-60">
+      {/* Matrix blijft op de vertrouwde leesbreedte (tabel/kaarten lezen niet
+          prettiger op ultra-brede schermen); de canvasgerichte schermen
+          (netwerk/keten/teampagina) mogen de volledige beschikbare breedte
+          benutten — daar was juist de klacht dat ze te smal/gecentreerd stonden. */}
+      <main className={`mx-auto space-y-4 px-6 py-6 md:pl-60 ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}>
         {teamPageTeamId ? (
           <TeamPage key={teamPageTeamId} teamId={teamPageTeamId} onBack={() => setTeamPageTeamId(null)} />
         ) : (
           <>
-            <div ref={viewRef} className="bg-[#f3f6f9]">
-              {activeTab === 'matrix' && <MatrixView onSelect={setSelectedDependency} />}
-              {activeTab === 'graph' && <GraphView onSelect={setSelectedDependency} onQuickCreate={handleQuickCreate} />}
-              {activeTab === 'chain' && <ChainOverview />}
-            </div>
-
             {activeTab === 'matrix' && (
               <>
                 <ExecutiveSummary />
                 <InsightPanel />
               </>
             )}
+
+            <div ref={viewRef} className="bg-[#f3f6f9]">
+              {activeTab === 'matrix' && <MatrixView onSelect={setSelectedDependency} />}
+              {activeTab === 'graph' && <GraphView onSelect={setSelectedDependency} onQuickCreate={handleQuickCreate} />}
+              {activeTab === 'chain' && <ChainOverview />}
+            </div>
           </>
         )}
       </main>
