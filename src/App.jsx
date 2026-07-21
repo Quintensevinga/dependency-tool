@@ -17,6 +17,9 @@ function AppContent() {
   const { currentTeamId, setCurrentTeamId, teamName, addDependency, updateDependency, deleteDependency } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('graph')
+  // Weergavemodus van Netwerkweergave (bipartite/cluster/heatmap) leeft hier
+  // i.p.v. lokaal in GraphView, zodat de Sidebar 'm ook kan tonen/wijzigen.
+  const [graphViewMode, setGraphViewMode] = useState('bipartite')
   const [teamPageTeamId, setTeamPageTeamId] = useState(null)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
@@ -66,7 +69,7 @@ function AppContent() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f6f9]">
+    <div className="h-screen overflow-hidden bg-[#f3f6f9]">
       <Header onNewDependency={() => setFormState({ editing: null, teamId: currentTeamId })} />
       <Sidebar
         activeTab={activeTab}
@@ -74,13 +77,19 @@ function AppContent() {
         onExportPng={handleExportPng}
         onNavigateToTeam={handleNavigateToTeam}
         activeTeamId={teamPageTeamId}
+        graphViewMode={graphViewMode}
+        onGraphViewModeChange={setGraphViewMode}
       />
 
-      {/* Matrix blijft op de vertrouwde leesbreedte (tabel/kaarten lezen niet
+      {/* Topbar en sidebar staan vast (position:fixed); alleen <main> scrolt,
+          met pt-[73px] om onder de 57px-hoge fixed header uit te komen.
+          Matrix blijft op de vertrouwde leesbreedte (tabel/kaarten lezen niet
           prettiger op ultra-brede schermen); de canvasgerichte schermen
           (netwerk/keten/teampagina) mogen de volledige beschikbare breedte
           benutten — daar was juist de klacht dat ze te smal/gecentreerd stonden. */}
-      <main className={`mx-auto space-y-4 px-6 py-6 md:pl-60 ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}>
+      <main
+        className={`mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] md:pl-60 ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
+      >
         {teamPageTeamId ? (
           <TeamPage key={teamPageTeamId} teamId={teamPageTeamId} onBack={() => setTeamPageTeamId(null)} />
         ) : (
@@ -94,7 +103,9 @@ function AppContent() {
 
             <div ref={viewRef} className="bg-[#f3f6f9]">
               {activeTab === 'matrix' && <MatrixView onSelect={setSelectedDependency} />}
-              {activeTab === 'graph' && <GraphView onSelect={setSelectedDependency} onQuickCreate={handleQuickCreate} />}
+              {activeTab === 'graph' && (
+                <GraphView onSelect={setSelectedDependency} onQuickCreate={handleQuickCreate} viewMode={graphViewMode} />
+              )}
               {activeTab === 'chain' && <ChainOverview />}
             </div>
           </>

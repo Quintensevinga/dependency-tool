@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import ReactFlow, { Background, Controls, Handle, Position, applyNodeChanges } from 'reactflow'
+import { useMemo, useRef, useState } from 'react'
+import ReactFlow, { Background, Controls, Handle, Position } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -16,7 +16,9 @@ import { RISK_LEVELS, CATEGORIES_INTERN, WORKFLOW_STAP_LEVELS, OPLOSSINGSNIVEAU_
 import { CategoryIcon } from '../data/categoryIcons'
 import FloatingTooltip from './FloatingTooltip'
 import TeamFilterPanel from './TeamFilterPanel'
+import ScopeToggle from './ScopeToggle'
 import { useModalA11y } from '../lib/a11y'
+import { useMergedLayout } from './flow/useMergedLayout'
 
 function highestRisk(deps) {
   let best = { level: 'Laag', score: 0 }
@@ -31,6 +33,19 @@ function riskBreakdown(deps) {
   const counts = Object.fromEntries(RISK_LEVELS.map((l) => [l, 0]))
   for (const d of deps) counts[calculateRisk(d).level]++
   return counts
+}
+
+// Gedeelde groepering (team × categorie -> deps), gebruikt door zowel de
+// bipartite-edges als de Cluster/Heatmap-weergaven, zodat alle drie modi
+// exact dezelfde onderliggende data tonen.
+function groupByTeamCategory(visibleDependencies) {
+  const map = new Map()
+  for (const dep of visibleDependencies) {
+    const key = `${dep.teamId}::${dep.categorie}`
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(dep)
+  }
+  return map
 }
 
 // Brede, permanent zichtbare 'connector-balk' i.p.v. een kleine stip: een
@@ -149,26 +164,20 @@ function computeLayout(visibleTeams, visibleDependencies) {
     })
   })
 
-  const edgeMap = new Map()
-  for (const dep of visibleDependencies) {
-    const key = `team:${dep.teamId}->cat:${dep.categorie}`
-    if (!edgeMap.has(key)) edgeMap.set(key, [])
-    edgeMap.get(key).push(dep)
-  }
-
-  const edgeList = [...edgeMap.entries()].map(([key, deps]) => {
-    const [source, target] = key.split('->')
+  const edgeList = [...groupByTeamCategory(visibleDependencies).entries()].map(([key, deps]) => {
+    const [teamId, categorie] = key.split('::')
+    const source = `team:${teamId}`
+    const target = `cat:${categorie}`
     const risk = highestRisk(deps)
     const style = riskStyle(risk.level)
-    const categorie = deps[0].categorie
-    const teamLabel = visibleTeams.find((tm) => tm.id === deps[0].teamId)?.naam ?? source.replace('team:', '')
+    const teamLabel = visibleTeams.find((tm) => tm.id === teamId)?.naam ?? teamId
     return {
-      id: key,
+      id: `${source}->${target}`,
       source,
       target,
       label: <EdgeLabel categorie={categorie} count={deps.length} />,
       style: { stroke: style.hex, strokeWidth: 1.5 + Math.min(deps.length, 4) },
-      data: { deps, categorie, sourceLabel: teamLabel, targetLabel: target.replace('cat:', '') },
+      data: { deps, categorie, sourceLabel: teamLabel, targetLabel: categorie },
     }
   })
 
@@ -177,7 +186,7 @@ function computeLayout(visibleTeams, visibleDependencies) {
   return { nodes: nodeList, edges: edgeList, categoriesPresent, graphHeight }
 }
 
-export default function GraphView({ onSelect, onQuickCreate }) {
+export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
   const { teams, dependencies, functies } = useAppContext()
   const { t, language } = useLanguage()
   const [listPanel, setListPanel] = useState(null)
@@ -195,6 +204,14 @@ export default function GraphView({ onSelect, onQuickCreate }) {
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
   const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
   const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
+  // Lokale scope-filter (i.p.v. de globale AppContext-scope die Matrix
+  // gebruikt) zodat Netwerkweergave standaard alles blijft tonen — mixen van
+  // Teamniveau/Ketenniveau was hier altijd al het gedrag, dit voegt enkel de
+  // mogelijkheid toe om te versmallen.
+  const [scope, setScope] = useState('alle')
+  // Kolom-hover in Heatmap-modus: presentatie-only, dimt/markeert cellen
+  // buiten/binnen de gehoverde kolom.
+  const [hoverHeatmapCol, setHoverHeatmapCol] = useState(null)
 
   const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
 
@@ -207,39 +224,28 @@ export default function GraphView({ onSelect, onQuickCreate }) {
     () =>
       dependencies.filter((d) => {
         if (!selectedTeamIds.includes(d.teamId) || !selectedRiskLevels.includes(calculateRisk(d).level)) return false
+        if (scope !== 'alle' && d.scope !== scope) return false
         if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
         if (!selectedOplossingsniveau.includes(d.oplossingsniveau ?? '')) return false
         const owners = Array.isArray(d.eigenaarFunctieIds) ? d.eigenaarFunctieIds : []
         return owners.length > 0 ? owners.some((id) => selectedFunctieIds.includes(id)) : selectedFunctieIds.includes('')
       }),
-    [dependencies, selectedTeamIds, selectedRiskLevels, selectedWorkflowStap, selectedOplossingsniveau, selectedFunctieIds],
+    [dependencies, selectedTeamIds, selectedRiskLevels, scope, selectedWorkflowStap, selectedOplossingsniveau, selectedFunctieIds],
   )
 
-  // Puur/synchroon afgeleid (i.p.v. via een losse useState + useEffect die pas
-  // ná de eerste render bijwerkt) zodat de containerhoogte al bij de allereerste
-  // render klopt — React Flow's fitView meet bij mount de dan-actuele
-  // containergrootte, en met een tijdelijk verouderde (kleinere) hoogte zoomde
-  // het canvas veel verder uit dan nodig, ook op brede schermen.
-  const layout = useMemo(() => computeLayout(visibleTeams, visibleDependencies), [visibleTeams, visibleDependencies])
-  const { edges, categoriesPresent } = layout
-
-  const [nodes, setNodes] = useState(() => layout.nodes)
-
-  // Behoudt de positie van blokjes die de gebruiker handmatig heeft versleept
-  // (alleen echt nieuwe blokjes krijgen een verse berekende positie).
-  useEffect(() => {
-    setNodes((prevNodes) => {
-      const prevById = new Map(prevNodes.map((n) => [n.id, n]))
-      return layout.nodes.map((n) => {
-        const prev = prevById.get(n.id)
-        return prev ? { ...n, position: prev.position } : n
-      })
-    })
-  }, [layout])
-
-  const onNodesChange = useCallback((changes) => {
-    setNodes((nds) => applyNodeChanges(changes, nds))
-  }, [])
+  // useMergedLayout (dezelfde hulp-hook als Ketenoverzicht/Teampagina) onthoudt
+  // alleen de positie van nodes die de gebruiker zelf heeft versleept
+  // (moved: true). Alle overige nodes krijgen bij elke wijziging — bv. een
+  // team aan/uitvinken — altijd hun vers berekende positie. De vorige,
+  // eigen implementatie hield voor élke al eerder geziene node-id de oude
+  // positie vast, ook als die node ondertussen van index/rij was gewisseld
+  // (bv. omdat een team ervoor werd uit-/aangevinkt) — daardoor belandden
+  // teruggezette teams boven op een ander blokje i.p.v. op hun eigen rij.
+  const [layout, onNodesChange] = useMergedLayout(computeLayout, [visibleTeams, visibleDependencies])
+  const { nodes, edges, categoriesPresent } = layout
+  // Zelfde team×categorie-groepering als de bipartite-edges, herbruikt door
+  // Cluster/Heatmap zodat alle drie modi exact dezelfde data tonen.
+  const groups = useMemo(() => groupByTeamCategory(visibleDependencies), [visibleDependencies])
 
   // Highlight-status toepassen op de weergegeven (niet de bewaarde) nodes/edges,
   // zodat het klikken op de legenda geen posities beïnvloedt.
@@ -321,9 +327,13 @@ export default function GraphView({ onSelect, onQuickCreate }) {
     if (!hover) return null
     if (hover.kind === 'node') {
       const breakdown = riskBreakdown(hover.payload.deps)
+      // Teamnodes hebben data.label, categorienodes (en de Heatmap-tooltip
+      // hieronder) alleen data.categorie — zonder deze fallback toonde een
+      // categorie-hover een lege titel.
+      const title = hover.payload.label ?? translateCategorie(hover.payload.categorie, language)
       return (
         <div>
-          <div className="mb-1.5 font-semibold text-slate-50">{hover.payload.label}</div>
+          <div className="mb-1.5 font-semibold text-slate-50">{title}</div>
           <div className="space-y-1">
             {RISK_LEVELS.slice()
               .reverse()
@@ -402,16 +412,28 @@ export default function GraphView({ onSelect, onQuickCreate }) {
     setListPanel({ title, deps: node.data.deps })
   }
 
+  // Zelfde detailpaneel als bipartite-nodes/edges, hergebruikt door Cluster-
+  // chips en Heatmap-cellen zodat alle drie modi identiek gedrag hebben.
+  function openCellListPanel(teamLabel, categorie, deps) {
+    if (deps.length === 0) return
+    setListPanel({ title: `${teamLabel} → ${translateCategorie(categorie, language)}`, deps })
+  }
+
   const listPanelRef = useRef(null)
   useModalA11y({ open: Boolean(listPanel), onClose: () => setListPanel(null), containerRef: listPanelRef })
 
   return (
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1">
+        <div className="mb-3 flex items-center justify-end">
+          <ScopeToggle scope={scope} onChange={setScope} />
+        </div>
+
         <div
-          className="relative rounded-xl border border-slate-200 bg-white shadow-sm"
+          className={`relative rounded-xl border border-slate-200 bg-white shadow-sm ${viewMode !== 'bipartite' ? 'overflow-auto' : ''}`}
           style={{ height: 'max(640px, calc(100vh - 232px))' }}
         >
+          {viewMode === 'bipartite' && (
           <ReactFlow
             nodes={displayNodes}
             edges={displayEdges}
@@ -457,12 +479,151 @@ export default function GraphView({ onSelect, onQuickCreate }) {
             <Background color="#e2e8f0" gap={24} />
             <Controls showInteractive={false} />
           </ReactFlow>
+          )}
 
-          <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] text-slate-400 shadow-sm">
-            {t('graph.hint')}
-          </div>
+          {viewMode === 'cluster' && (
+            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
+              {categoriesPresent.length === 0 && (
+                <div className="col-span-full flex h-full items-center justify-center text-sm text-slate-400">{t('graph.noDeps')}</div>
+              )}
+              {categoriesPresent.map((categorie) => {
+                const catTeams = visibleTeams
+                  .map((team) => ({ team, deps: groups.get(`${team.id}::${categorie}`) ?? [] }))
+                  .filter(({ deps }) => deps.length > 0)
+                const catRisk = highestRisk(catTeams.flatMap(({ deps }) => deps))
+                const catStyle = riskStyle(catRisk.level)
+                return (
+                  <div key={categorie} className="rounded-xl border-2 bg-white p-3.5 shadow-sm" style={{ borderColor: catStyle.hex }}>
+                    <div className="mb-2.5 flex items-center gap-1.5">
+                      <CategoryIcon categorie={categorie} className="h-4 w-4 shrink-0 text-slate-500" />
+                      <span className="text-sm font-medium text-slate-800">{translateCategorie(categorie, language)}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {catTeams.map(({ team, deps }) => {
+                        const style = riskStyle(highestRisk(deps).level)
+                        return (
+                          <button
+                            key={team.id}
+                            type="button"
+                            onClick={() => openCellListPanel(team.naam, categorie, deps)}
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${style.badge}`}
+                          >
+                            {team.naam} · {deps.length}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
-          {hover && (
+          {viewMode === 'heatmap' && (
+            <div className="flex h-full flex-col">
+              <div className="min-h-0 flex-1 overflow-auto p-4">
+                {categoriesPresent.length === 0 ? (
+                  <div className="flex h-full items-center justify-center text-sm text-slate-400">{t('graph.noDeps')}</div>
+                ) : (
+                  <div
+                    className="grid gap-2"
+                    style={{
+                      // 1fr i.p.v. een vaste max-breedte/hoogte: cellen vullen exact de
+                      // beschikbare ruimte en schalen dus mee met het scherm, met een
+                      // ondergrens zodat ze bij heel veel teams/categorieën leesbaar
+                      // blijven (dan schakelt overflow-auto over op scrollen).
+                      gridTemplateColumns: `minmax(140px, 220px) repeat(${categoriesPresent.length}, minmax(56px, 1fr))`,
+                      gridTemplateRows: `auto repeat(${visibleTeams.length}, minmax(48px, 1fr))`,
+                    }}
+                  >
+                    <div className="sticky top-0 z-20 bg-white" />
+                    {categoriesPresent.map((cat) => {
+                      const catDeps = visibleTeams.flatMap((team) => groups.get(`${team.id}::${cat}`) ?? [])
+                      return (
+                        <div
+                          key={`head-${cat}`}
+                          onMouseEnter={(event) => {
+                            setHoverHeatmapCol(cat)
+                            setHover({ x: event.clientX, y: event.clientY, kind: 'node', payload: { categorie: cat, deps: catDeps } })
+                          }}
+                          onMouseMove={(event) => setHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
+                          onMouseLeave={() => {
+                            setHoverHeatmapCol(null)
+                            setHover(null)
+                          }}
+                          className={`sticky top-0 z-20 flex cursor-default flex-col items-center gap-1 rounded-md px-1 pb-1.5 pt-1 transition-colors ${
+                            hoverHeatmapCol === cat ? 'bg-[#2a5f8a]/10' : 'bg-white'
+                          }`}
+                        >
+                          <CategoryIcon categorie={cat} className="h-5 w-5 shrink-0 text-slate-400" />
+                          <span className="w-full truncate text-center text-[9px] font-medium leading-tight text-slate-500">
+                            {translateCategorie(cat, language)}
+                          </span>
+                        </div>
+                      )
+                    })}
+                    {visibleTeams.flatMap((team) => [
+                      <div
+                        key={`label-${team.id}`}
+                        className="flex items-center whitespace-nowrap px-2 text-sm font-medium text-slate-700"
+                      >
+                        {team.naam}
+                      </div>,
+                      ...categoriesPresent.map((cat) => {
+                        const deps = groups.get(`${team.id}::${cat}`) ?? []
+                        const dimmed = Boolean(hoverHeatmapCol) && hoverHeatmapCol !== cat
+                        if (deps.length === 0) {
+                          return (
+                            <div
+                              key={`${team.id}-${cat}`}
+                              className="rounded-lg bg-slate-50 transition-opacity"
+                              style={{ opacity: dimmed ? 0.35 : 1 }}
+                            />
+                          )
+                        }
+                        const risk = highestRisk(deps)
+                        const style = riskStyle(risk.level)
+                        return (
+                          <button
+                            key={`${team.id}-${cat}`}
+                            type="button"
+                            onClick={() => openCellListPanel(team.naam, cat, deps)}
+                            onMouseEnter={() => setHoverHeatmapCol(cat)}
+                            onMouseLeave={() => setHoverHeatmapCol(null)}
+                            title={`${team.naam} · ${translateCategorie(cat, language)} · ${translateRiskLevel(risk.level, language)}`}
+                            className={`flex items-center justify-center rounded-lg text-sm font-semibold transition-all hover:opacity-80 ${style.badge}`}
+                            style={{ opacity: dimmed ? 0.35 : 1 }}
+                          >
+                            {deps.length}
+                          </button>
+                        )
+                      }),
+                    ])}
+                  </div>
+                )}
+              </div>
+
+              {categoriesPresent.length > 0 && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 bg-white px-4 py-2.5">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{t('graph.legendHint')}</span>
+                  {categoriesPresent.map((cat) => (
+                    <span key={`legend-${cat}`} className="flex items-center gap-1 text-xs text-slate-500">
+                      <CategoryIcon categorie={cat} className="h-3.5 w-3.5 shrink-0" />
+                      {translateCategorie(cat, language)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {viewMode === 'bipartite' && (
+            <div className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-[11px] text-slate-400 shadow-sm">
+              {t('graph.hint')}
+            </div>
+          )}
+
+          {hover && (viewMode === 'bipartite' || viewMode === 'heatmap') && (
             <FloatingTooltip x={hover.x} y={hover.y}>
               {renderHoverContent()}
             </FloatingTooltip>
@@ -515,7 +676,7 @@ export default function GraphView({ onSelect, onQuickCreate }) {
           )}
         </div>
 
-        {categoriesPresent.length > 0 && (
+        {categoriesPresent.length > 0 && viewMode === 'bipartite' && (
           <div className="mt-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
             <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
               {t('graph.legendHint')}
@@ -572,18 +733,24 @@ export default function GraphView({ onSelect, onQuickCreate }) {
           options: [...WORKFLOW_STAP_LEVELS, ''],
           selected: selectedWorkflowStap,
           onToggle: toggleWorkflowStap,
+          onSelectAll: () => setSelectedWorkflowStap([...WORKFLOW_STAP_LEVELS, '']),
+          onSelectNone: () => setSelectedWorkflowStap([]),
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateWorkflowStap(v, language)),
         }}
         oplossingsniveau={{
           options: [...OPLOSSINGSNIVEAU_LEVELS, ''],
           selected: selectedOplossingsniveau,
           onToggle: toggleOplossingsniveau,
+          onSelectAll: () => setSelectedOplossingsniveau([...OPLOSSINGSNIVEAU_LEVELS, '']),
+          onSelectNone: () => setSelectedOplossingsniveau([]),
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateOplossingsniveau(v, language)),
         }}
         eigenaarFunctie={{
           options: [...functies, { id: '', naam: t('filter.notSet') }],
           selected: selectedFunctieIds,
           onToggle: toggleFunctieFilter,
+          onSelectAll: () => setExcludedFunctieIds(new Set()),
+          onSelectNone: () => setExcludedFunctieIds(new Set([...functies.map((f) => f.id), ''])),
         }}
       />
     </div>

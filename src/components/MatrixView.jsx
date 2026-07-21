@@ -21,7 +21,7 @@ import { CategoryIcon } from '../data/categoryIcons'
 import { RISK_LEVELS, WORKFLOW_STAP_LEVELS, EFFECT_OP_FLOW_LEVELS, OPLOSSINGSNIVEAU_LEVELS } from '../data/constants'
 
 export default function MatrixView({ onSelect }) {
-  const { dependencies, teams, functies, teamName, functieNames, scope } = useAppContext()
+  const { dependencies, teams, functies, teamName, functieNames, scope, setScope } = useAppContext()
   const { t, language } = useLanguage()
   const [sortBy, setSortBy] = useState('risk_desc')
   const [hover, setHover] = useState(null) // { x, y, dependency, risk }
@@ -73,7 +73,8 @@ export default function MatrixView({ onSelect }) {
 
   const rows = useMemo(() => {
     const filtered = dependencies.filter((d) => {
-      if (!selectedTeams.includes(d.teamId) || d.scope !== scope) return false
+      if (!selectedTeams.includes(d.teamId)) return false
+      if (scope !== 'alle' && d.scope !== scope) return false
       if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
       if (!selectedEffectOpFlow.includes(d.effectOpFlow ?? '')) return false
       if (!selectedOplossingsniveau.includes(d.oplossingsniveau ?? '')) return false
@@ -121,7 +122,7 @@ export default function MatrixView({ onSelect }) {
             <span className="ml-2 font-normal text-slate-400">({rows.length})</span>
           </h2>
           <div className="flex items-center gap-2">
-            <ScopeToggle />
+            <ScopeToggle scope={scope} onChange={setScope} />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -272,24 +273,32 @@ export default function MatrixView({ onSelect }) {
           options: [...WORKFLOW_STAP_LEVELS, ''],
           selected: selectedWorkflowStap,
           onToggle: toggleWorkflowStap,
+          onSelectAll: () => setSelectedWorkflowStap([...WORKFLOW_STAP_LEVELS, '']),
+          onSelectNone: () => setSelectedWorkflowStap([]),
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateWorkflowStap(v, language)),
         }}
         effectOpFlow={{
           options: [...EFFECT_OP_FLOW_LEVELS, ''],
           selected: selectedEffectOpFlow,
           onToggle: toggleEffectOpFlow,
+          onSelectAll: () => setSelectedEffectOpFlow([...EFFECT_OP_FLOW_LEVELS, '']),
+          onSelectNone: () => setSelectedEffectOpFlow([]),
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateEffectOpFlow(v, language)),
         }}
         oplossingsniveau={{
           options: [...OPLOSSINGSNIVEAU_LEVELS, ''],
           selected: selectedOplossingsniveau,
           onToggle: toggleOplossingsniveau,
+          onSelectAll: () => setSelectedOplossingsniveau([...OPLOSSINGSNIVEAU_LEVELS, '']),
+          onSelectNone: () => setSelectedOplossingsniveau([]),
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateOplossingsniveau(v, language)),
         }}
         eigenaarFunctie={{
           options: [...functies, { id: '', naam: t('filter.notSet') }],
           selected: selectedFunctieIds,
           onToggle: toggleFunctieFilter,
+          onSelectAll: () => setExcludedFunctieIds(new Set()),
+          onSelectNone: () => setExcludedFunctieIds(new Set([...functies.map((f) => f.id), ''])),
         }}
       />
     </div>

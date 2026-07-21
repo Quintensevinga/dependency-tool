@@ -30,20 +30,29 @@ export default function Header({ onNewDependency }) {
   const criticalCount = dependencies.filter((d) => calculateRisk(d).level === 'Kritiek').length
 
   return (
-    <header className="border-b border-slate-900/10 bg-[#101a2b]">
-      <div className="mx-auto flex max-w-7xl items-center gap-5 px-6 py-3">
-        <h1 className="text-[15px] font-semibold tracking-tight text-white">{t('app.title')}</h1>
-        <div className="h-5 w-px bg-white/15" />
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[17px] font-bold text-[#e8a2ab]">{criticalCount}</span>
-          <span className="text-[11px] text-slate-400">{t('stats.critical')}</span>
-        </div>
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[17px] font-bold text-white">{teams.length}</span>
-          <span className="text-[11px] text-slate-400">{t('nav.teams')}</span>
+    <header className="fixed inset-x-0 top-0 z-40 border-b border-slate-900/10 bg-[#101a2b]">
+      <div className="flex items-center justify-between gap-5 px-6 py-2.5">
+        <div className="flex items-center gap-5">
+          <div className="flex min-w-0 flex-col leading-tight">
+            <h1 className="text-[15px] font-semibold tracking-tight text-white">{t('app.title')}</h1>
+            <span className="text-[11px] text-slate-400">{t('app.subtitle')}</span>
+          </div>
+
+          <div className="h-7 w-px bg-white/15" />
+
+          <div className="flex items-center gap-4">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[15px] font-bold text-[#e8a2ab]">{criticalCount}</span>
+              <span className="text-[11px] text-slate-400">{t('stats.critical')}</span>
+            </div>
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[15px] font-bold text-white">{teams.length}</span>
+              <span className="text-[11px] text-slate-400">{t('nav.teams')}</span>
+            </div>
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5">
           <button
             type="button"
             onClick={onNewDependency}

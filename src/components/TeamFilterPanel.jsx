@@ -18,6 +18,24 @@ function ChevronIcon({ open }) {
   )
 }
 
+function AllNoneFooter({ onSelectAll, onSelectNone, t }) {
+  if (!onSelectAll && !onSelectNone) return null
+  return (
+    <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
+      {onSelectAll && (
+        <button type="button" onClick={onSelectAll} className="font-medium text-[#2a5f8a] hover:underline">
+          {t('filter.selectAll')}
+        </button>
+      )}
+      {onSelectNone && (
+        <button type="button" onClick={onSelectNone} className="font-medium text-slate-400 hover:underline">
+          {t('filter.selectNone')}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function CheckboxGroup({ title, options, selected, onToggle, renderLabel, renderDot, footer, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
   const narrowed = selected.length > 0 && selected.length < options.length
@@ -128,6 +146,7 @@ export default function TeamFilterPanel({
           selected={workflowStap.selected}
           onToggle={workflowStap.onToggle}
           renderLabel={workflowStap.renderLabel}
+          footer={<AllNoneFooter onSelectAll={workflowStap.onSelectAll} onSelectNone={workflowStap.onSelectNone} t={t} />}
         />
       )}
 
@@ -138,6 +157,7 @@ export default function TeamFilterPanel({
           selected={effectOpFlow.selected}
           onToggle={effectOpFlow.onToggle}
           renderLabel={effectOpFlow.renderLabel}
+          footer={<AllNoneFooter onSelectAll={effectOpFlow.onSelectAll} onSelectNone={effectOpFlow.onSelectNone} t={t} />}
         />
       )}
 
@@ -148,6 +168,7 @@ export default function TeamFilterPanel({
           selected={oplossingsniveau.selected}
           onToggle={oplossingsniveau.onToggle}
           renderLabel={oplossingsniveau.renderLabel}
+          footer={<AllNoneFooter onSelectAll={oplossingsniveau.onSelectAll} onSelectNone={oplossingsniveau.onSelectNone} t={t} />}
         />
       )}
 
@@ -157,6 +178,7 @@ export default function TeamFilterPanel({
           options={eigenaarFunctie.options}
           selected={eigenaarFunctie.selected}
           onToggle={eigenaarFunctie.onToggle}
+          footer={<AllNoneFooter onSelectAll={eigenaarFunctie.onSelectAll} onSelectNone={eigenaarFunctie.onSelectNone} t={t} />}
         />
       )}
     </div>

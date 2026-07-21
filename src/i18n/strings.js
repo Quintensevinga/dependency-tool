@@ -1,10 +1,12 @@
 export const STRINGS = {
   nl: {
     'app.title': 'Dependency Insight',
+    'app.subtitle': 'UWV — interne tool',
     'badge.privacy': 'Geen persoonsgegevens — alleen rollen en teamniveau-informatie',
 
     'scope.intern': 'Teamniveau',
     'scope.extern': 'Ketenniveau',
+    'scope.alle': 'Alles',
 
     'tab.matrix': 'Matrix-overzicht',
     'tab.graph': 'Netwerkweergave',
@@ -13,12 +15,8 @@ export const STRINGS = {
     'nav.views': 'Weergaven',
     'nav.close': 'Sluiten',
     'header.openTeamPageDisabledHint': 'Bezoek eerst een teampagina om een dependency voor dat team aan te maken',
-    'sidebar.teamsHint': 'Klik = naar teampagina',
     'filter.teams': 'Teams tonen',
     'team.noTeams': 'Geen teams',
-    'team.add': '+ Team',
-    'team.newPlaceholder': 'Naam nieuw team',
-    'team.confirmAdd': 'Toevoegen',
     'team.cancel': 'Annuleer',
 
     'header.newDependency': '+ Nieuwe dependency',
@@ -128,6 +126,9 @@ export const STRINGS = {
     'graph.legendHint': 'Categorieën — klik om bijbehorende connecties te markeren',
     'graph.hint': 'Klik voor details · sleep van een team naar een blokje om een nieuwe dependency te leggen',
     'graph.linkedTeams': 'gekoppelde teams',
+    'graph.mode.bipartite': 'Bipartite',
+    'graph.mode.cluster': 'Cluster',
+    'graph.mode.heatmap': 'Heatmap',
     'graph.riskLegendTitle': 'Risiconiveau (lijnkleur)',
     'graph.lineWidthHint': 'Lijndikte = aantal dependencies',
 
@@ -282,10 +283,12 @@ export const STRINGS = {
   },
   en: {
     'app.title': 'Dependency Insight',
+    'app.subtitle': 'UWV — internal tool',
     'badge.privacy': 'No personal data — roles and team-level information only',
 
     'scope.intern': 'Team level',
     'scope.extern': 'Chain level',
+    'scope.alle': 'All',
 
     'tab.matrix': 'Matrix overview',
     'tab.graph': 'Network view',
@@ -294,12 +297,8 @@ export const STRINGS = {
     'nav.views': 'Views',
     'nav.close': 'Close',
     'header.openTeamPageDisabledHint': 'Visit a team page first to create a dependency for that team',
-    'sidebar.teamsHint': 'Click = go to team page',
     'filter.teams': 'Show teams',
     'team.noTeams': 'No teams',
-    'team.add': '+ Team',
-    'team.newPlaceholder': 'New team name',
-    'team.confirmAdd': 'Add',
     'team.cancel': 'Cancel',
 
     'header.newDependency': '+ New dependency',
@@ -409,6 +408,9 @@ export const STRINGS = {
     'graph.legendHint': 'Categories — click to highlight matching connections',
     'graph.hint': 'Click for details · drag from a team to a block to create a new dependency',
     'graph.linkedTeams': 'linked teams',
+    'graph.mode.bipartite': 'Bipartite',
+    'graph.mode.cluster': 'Cluster',
+    'graph.mode.heatmap': 'Heatmap',
     'graph.riskLegendTitle': 'Risk level (line color)',
     'graph.lineWidthHint': 'Line width = number of dependencies',
 
