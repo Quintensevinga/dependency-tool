@@ -15,7 +15,7 @@ import {
 import { stageColor, bronTypeColor, ANNOTATION_PALETTE } from '../lib/workflowStyles'
 import { calculateRisk, compareRiskDesc } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
-import { generateId, emptyTeamWorkflow } from '../lib/storage'
+import { generateId, emptyTeamWorkflow, emptyApplicatieflow } from '../lib/storage'
 import { CategoryIcon } from '../data/categoryIcons'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -123,24 +123,46 @@ function ApplicatieflowBannerNode({ data }) {
     <button
       type="button"
       onClick={data.onClick}
-      className="relative flex cursor-pointer items-center justify-between rounded-xl border-2 border-dashed border-[#2a5f8a]/40 bg-[#2a5f8a]/5 px-4 py-2 text-left shadow-sm transition-colors hover:bg-[#2a5f8a]/10"
+      className="relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-[#2a5f8a]/50 bg-[#2a5f8a]/10 px-4 py-2 text-left shadow-sm transition-colors hover:bg-[#2a5f8a]/[0.16]"
       style={{ width: data.width }}
     >
       {/* Onzichtbare handles zodat app-naar-app-koppelingen (uit de
           Applicatieflow-vragenlijst) hier als lijn op kunnen aansluiten. */}
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
       <span className="truncate text-sm font-semibold text-[#2a5f8a]">{data.label}</span>
-      <span className="shrink-0 text-xs text-slate-500">{data.count > 0 ? data.count : data.emptyLabel}</span>
+      <span className="shrink-0 text-xs text-[#2a5f8a]/70">{data.count > 0 ? data.count : data.emptyLabel}</span>
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </button>
   )
 }
 
-// Lichte tekstlabel, gebruikt als kolomkop binnen een Applicatieflow-lane
-// (7x herhaald per lane) — bewust geen volwaardige StageNode-box, anders
-// wordt elke lane met meerdere applicaties al snel te hoog.
+// Achtergrondkader dat banner + kolomkoppen + markers van één Applicatieflow-
+// lane omsluit, zodat de lane als één geheel oogt in plaats van losse
+// zwevende elementen. Niet interactief (pointer-events-none, ongedragbaar,
+// laagste zIndex) zodat het canvas pannen/klikken op de echte nodes eronder
+// niet in de weg zit.
+function LaneGroupNode({ data }) {
+  return (
+    <div
+      className="pointer-events-none rounded-2xl border border-[#2a5f8a]/25 bg-[#2a5f8a]/[0.04]"
+      style={{ width: data.width, height: data.height }}
+    />
+  )
+}
+
+// Kolomkop binnen een Applicatieflow-lane (7x herhaald per lane), gestyled
+// als mini-variant van StageNode (zelfde kleurstrip per stage) zodat de
+// kolommen visueel bij de stage-rij eronder passen i.p.v. losse tekst.
 function SmallLabelNode({ data }) {
-  return <div className="w-40 truncate px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">{data.text}</div>
+  return (
+    <div
+      className="relative w-40 truncate rounded-md border bg-white/90 px-2 py-1 text-center"
+      style={{ borderColor: data.color ? `${data.color}66` : '#e2e8f0' }}
+    >
+      {data.color && <div className="absolute inset-x-0 top-0 h-1 rounded-t-md" style={{ backgroundColor: data.color }} />}
+      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{data.text}</span>
+    </div>
+  )
 }
 
 function AnnotationNode({ data }) {
@@ -201,6 +223,7 @@ const nodeTypes = {
   dependencyMarker: DependencyMarkerNode,
   applicatieflowBanner: ApplicatieflowBannerNode,
   smallLabel: SmallLabelNode,
+  laneGroup: LaneGroupNode,
 }
 
 function computeWorkflowLayout(
@@ -361,9 +384,24 @@ function computeWorkflowLayout(
     return { byStage, noStage, stageRowsHeight, height: stageRowsHeight + extraHeight }
   }
 
+  const LANE_PAD_X = 14
+  const LANE_PAD_TOP = 10
+  const LANE_PAD_BOTTOM = 14
+
   function pushApplicatieflowLane(id, label, deps, y) {
     const bid = `appbanner:${id}`
-    const { byStage, noStage, stageRowsHeight } = groupApplicatieflowDeps(deps)
+    const { byStage, noStage, stageRowsHeight, height } = groupApplicatieflowDeps(deps)
+
+    const bgId = `${bid}:bg`
+    nodes.push({
+      id: bgId,
+      type: 'laneGroup',
+      position: { x: STAGE_START_X - LANE_PAD_X, y: y - LANE_PAD_TOP },
+      data: { width: BANNER_WIDTH + LANE_PAD_X * 2, height: height + LANE_PAD_TOP + LANE_PAD_BOTTOM },
+      draggable: false,
+      selectable: false,
+      zIndex: -1,
+    })
 
     nodes.push({
       id: bid,
@@ -379,7 +417,7 @@ function computeWorkflowLayout(
         id: labelId,
         type: 'smallLabel',
         position: withSavedPosition(labelId, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H }),
-        data: { text: translateWorkflowStage(stage, language) },
+        data: { text: translateWorkflowStage(stage, language), color: stageColor(stage) },
         draggable: false,
       })
       const stageDeps = byStage[stage] ?? []
@@ -781,6 +819,78 @@ function IoListEditor({ title, kind, items, onAdd, onUpdate, onRemove, showLink,
   )
 }
 
+// Klein modal voor de toelichting/risico-bij-uitval van één applicatie —
+// getriggerd vanuit 'Applicaties in beheer/ontwikkeling' zelf. Stond eerder
+// in een eigen 'Applicatie-details'-blok naast de koppel-vragenlijst, wat
+// samen met die lijst als dubbelop aanvoelde.
+function ApplicationDetailModal({ app, data, onSave, onClose, t, language }) {
+  const [draft, setDraft] = useState(() => ({ toelichting: '', risico_bij_uitval: '', risico_toelichting: '', ...data }))
+
+  function update(fields) {
+    const next = { ...draft, ...fields }
+    setDraft(next)
+    onSave(next)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900">{app.naam || '—'}</h3>
+          <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+        <div className="space-y-4 px-5 py-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('appflow.detailToelichting')}</label>
+            <textarea
+              value={draft.toelichting ?? ''}
+              onChange={(e) => update({ toelichting: e.target.value })}
+              rows={3}
+              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs font-medium text-slate-600">{t('appflow.detailRisico')}</label>
+            <select
+              value={draft.risico_bij_uitval ?? ''}
+              onChange={(e) => update({ risico_bij_uitval: e.target.value })}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              <option value="">—</option>
+              {RISICO_BIJ_UITVAL.map((val) => (
+                <option key={val} value={val}>
+                  {translateRisicoBijUitval(val, language)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {draft.risico_bij_uitval === 'ja' && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t('appflow.detailRisicoToelichting')}</label>
+              <input
+                value={draft.risico_toelichting ?? ''}
+                onChange={(e) => update({ risico_toelichting: e.target.value })}
+                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+              />
+            </div>
+          )}
+        </div>
+        <div className="flex justify-end border-t border-slate-200 px-5 py-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md bg-[#2a5f8a] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#1f4a6c]"
+          >
+            {t('appflow.detailClose')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function emptyCapacityRow() {
   return { id: generateId(), functieId: '', seniority: '', risico_bij_uitval: '', risico_toelichting: '', aantal: 1, fase: '' }
 }
@@ -1006,6 +1116,7 @@ export default function TeamPage({ teamId, onBack }) {
   const [lineToolActive, setLineToolActive] = useState(false)
   const [lineStart, setLineStart] = useState(null)
   const [capacityModalRow, setCapacityModalRow] = useState(undefined)
+  const [appDetailId, setAppDetailId] = useState(null)
   const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
@@ -1243,6 +1354,11 @@ export default function TeamPage({ teamId, onBack }) {
   }
   function removeApplication(id) {
     patch({ applications: workflow.applications.filter((a) => a.id !== id) })
+  }
+
+  function saveAppDetail(appId, fields) {
+    const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
+    patch({ applicatieflow: { ...applicatieflow, details: { ...applicatieflow.details, [appId]: { ...applicatieflow.details[appId], ...fields } } } })
   }
 
   function addInput(item) {
@@ -1485,29 +1601,59 @@ export default function TeamPage({ teamId, onBack }) {
             <p className="mb-3 text-[11px] text-slate-400">{t('teampage.applicationsHint')}</p>
             {workflow.applications.length === 0 && <p className="text-xs text-slate-400">{t('teampage.applicationsEmpty')}</p>}
             <ul className="space-y-2">
-              {workflow.applications.map((app) => (
-                <li key={app.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
-                  <input
-                    value={app.naam}
-                    onChange={(e) => updateApplication(app.id, { naam: e.target.value })}
-                    placeholder={t('teampage.applicationsPlaceholder')}
-                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => removeApplication(app.id)}
-                    aria-label={t('teampage.remove')}
-                    title={t('teampage.remove')}
-                    className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                      <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                    </svg>
-                  </button>
-                </li>
-              ))}
+              {workflow.applications.map((app) => {
+                const detail = workflow.applicatieflow?.details?.[app.id]
+                const hasDetail = Boolean(detail?.toelichting || detail?.risico_bij_uitval)
+                return (
+                  <li key={app.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
+                    <input
+                      value={app.naam}
+                      onChange={(e) => updateApplication(app.id, { naam: e.target.value })}
+                      placeholder={t('teampage.applicationsPlaceholder')}
+                      className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                    />
+                    {detail?.risico_bij_uitval === 'ja' && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('appflow.detailRisico')} />
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setAppDetailId(app.id)}
+                      className={`shrink-0 text-xs font-medium ${hasDetail ? 'text-[#2a5f8a]' : 'text-slate-400 hover:text-[#2a5f8a]'}`}
+                    >
+                      {hasDetail ? t('appflow.detailEdit') : t('appflow.detailAdd')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => removeApplication(app.id)}
+                      aria-label={t('teampage.remove')}
+                      title={t('teampage.remove')}
+                      className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                        <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      </svg>
+                    </button>
+                  </li>
+                )
+              })}
             </ul>
           </div>
+
+          {appDetailId &&
+            (() => {
+              const app = workflow.applications.find((a) => a.id === appDetailId)
+              if (!app) return null
+              return (
+                <ApplicationDetailModal
+                  app={app}
+                  data={workflow.applicatieflow?.details?.[appDetailId] ?? {}}
+                  onSave={(fields) => saveAppDetail(appDetailId, fields)}
+                  onClose={() => setAppDetailId(null)}
+                  t={t}
+                  language={language}
+                />
+              )
+            })()}
 
           <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3">
