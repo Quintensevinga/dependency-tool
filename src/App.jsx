@@ -26,9 +26,12 @@ function AppContent() {
   // Relatiekaart totdat de gebruiker 'm zelf wist (niet enkel hover-gedreven).
   const [graphHighlight, setGraphHighlight] = useState(null)
 
+  // team of categorie mag null zijn: een Heatmap-rijklik pint enkel het team
+  // (hele rij), een kolomklik enkel de categorie (hele kolom), een celklik
+  // pint beide (exacte combinatie).
   function handleDrillToRelatie(team, categorie) {
     setGraphViewMode('bipartite')
-    setGraphHighlight({ teamId: team.id, categorie })
+    setGraphHighlight({ teamId: team ? team.id : null, categorie: categorie ?? null })
   }
 
   // Handmatig van weergavemodus wisselen (sidebar-subtab) wist een eventuele

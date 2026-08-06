@@ -112,6 +112,25 @@ function DependencyMarkerNode({ data }) {
   )
 }
 
+// Lange 'lane'-balk boven de workflow-stage-rij die de Applicatieflow-kant
+// van het team samenvat (of, gesplitst, per applicatie een eigen lane) —
+// analoog aan de stage-rij voor Ontwikkelflow, maar zonder vaste kolommen
+// omdat Applicatieflow geen workflowstap kent. Klikbaar: springt naar het
+// Applicatieflow-tabblad.
+function ApplicatieflowBannerNode({ data }) {
+  return (
+    <button
+      type="button"
+      onClick={data.onClick}
+      className="flex cursor-pointer items-center justify-between rounded-xl border-2 border-dashed border-[#2a5f8a]/40 bg-[#2a5f8a]/5 px-4 py-2 text-left shadow-sm transition-colors hover:bg-[#2a5f8a]/10"
+      style={{ width: data.width }}
+    >
+      <span className="truncate text-sm font-semibold text-[#2a5f8a]">{data.label}</span>
+      <span className="shrink-0 text-xs text-slate-500">{data.count > 0 ? data.count : data.emptyLabel}</span>
+    </button>
+  )
+}
+
 function AnnotationNode({ data }) {
   const shapeClass =
     data.shape === 'circle' ? 'rounded-full' : data.shape === 'diamond' ? 'rounded-md rotate-45' : 'rounded-md'
@@ -168,6 +187,7 @@ const nodeTypes = {
   annotation: AnnotationNode,
   capacityBadge: CapacityBadgeNode,
   dependencyMarker: DependencyMarkerNode,
+  applicatieflowBanner: ApplicatieflowBannerNode,
 }
 
 function computeWorkflowLayout(
@@ -181,6 +201,10 @@ function computeWorkflowLayout(
   capacity,
   teamDependencies,
   functieName,
+  applications,
+  splitApplicaties,
+  t,
+  onOpenApplicatieflow,
 ) {
   const nodes = []
   const edges = []
@@ -285,6 +309,72 @@ function computeWorkflowLayout(
     })
   })
 
+  // --- Applicatieflow-lane(s) boven de stage-rij ---
+  // Ontwikkelflow heeft vaste kolommen (WORKFLOW_STAGES); Applicatieflow niet
+  // — dus in plaats van kolommen krijgt elke lane een brede, klikbare
+  // 'banner' (zelfde breedte als de stage-rij), met de bijbehorende
+  // dependency-markers er los onder gewrapt. In samengevoegde modus is dat
+  // één lane; met splitApplicaties aan krijgt elke applicatie een eigen lane,
+  // plus een aparte lane voor nog niet gelabelde dependencies.
+  const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
+  const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
+  const MARKER_W = 170
+  const MARKERS_PER_ROW = Math.max(1, Math.floor(BANNER_WIDTH / MARKER_W))
+  const BANNER_TITLE_H = 44
+  const MARKER_ROW_H = 40
+  const LANE_GAP = 22
+
+  function laneHeight(count) {
+    return BANNER_TITLE_H + Math.max(1, Math.ceil(count / MARKERS_PER_ROW)) * MARKER_ROW_H
+  }
+
+  function pushApplicatieflowLane(id, label, deps, y) {
+    const bid = `appbanner:${id}`
+    nodes.push({
+      id: bid,
+      type: 'applicatieflowBanner',
+      position: withSavedPosition(bid, { x: STAGE_START_X, y }),
+      data: { width: BANNER_WIDTH, label, count: deps.length, emptyLabel: t('teampage.applicatieflowBannerEmpty'), onClick: onOpenApplicatieflow },
+      draggable: true,
+    })
+    deps.forEach((dep, di) => {
+      const row = Math.floor(di / MARKERS_PER_ROW)
+      const col = di % MARKERS_PER_ROW
+      const mid = `${bid}:dep:${dep.id}`
+      nodes.push({
+        id: mid,
+        type: 'dependencyMarker',
+        position: withSavedPosition(mid, { x: STAGE_START_X + col * MARKER_W, y: y + BANNER_TITLE_H + row * MARKER_ROW_H }),
+        data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
+        draggable: true,
+      })
+      edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+    })
+  }
+
+  let applicatieflowTop = STAGE_Y - LANE_GAP
+  if (splitApplicaties && applications.length > 0) {
+    const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
+    // Applicatie-lanen dichtst bij de stage-rij (eerste applicatie het
+    // dichtst), de 'nog niet gelabeld'-lane bovenaan zodat die opvalt.
+    for (let i = applications.length - 1; i >= 0; i -= 1) {
+      const app = applications[i]
+      const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
+      applicatieflowTop -= laneHeight(appDeps.length)
+      pushApplicatieflowLane(app.id, app.naam || '—', appDeps, applicatieflowTop)
+      applicatieflowTop -= LANE_GAP
+    }
+    if (unlabeled.length > 0) {
+      applicatieflowTop -= laneHeight(unlabeled.length)
+      pushApplicatieflowLane('unlabeled', t('teampage.appLabelNone'), unlabeled, applicatieflowTop)
+      applicatieflowTop -= LANE_GAP
+    }
+  } else {
+    applicatieflowTop -= laneHeight(applicatieflowDeps.length)
+    pushApplicatieflowLane('all', t('teampage.flowtypeApplicatieflow'), applicatieflowDeps, applicatieflowTop)
+    applicatieflowTop -= LANE_GAP
+  }
+
   const lastStage = WORKFLOW_STAGES[WORKFLOW_STAGES.length - 1]
   outputs.forEach((item, i) => {
     const id = `output:${item.id}`
@@ -341,7 +431,10 @@ function computeWorkflowLayout(
   const annotationRows = Math.ceil(annotations.length / 6)
   const annotationBaseY = Math.max(STAGE_Y + 100 + maxStackPerStage * 38, canvasHeightFor(inputs, outputs) + 40)
   const canvasWidth = STAGE_START_X + (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 460
-  const canvasHeight = Math.max(420, annotationBaseY + annotationRows * 190 + 100)
+  // applicatieflowTop is negatief zodra er lanes boven de stage-rij staan;
+  // die extra ruimte (naar boven) telt hier mee zodat het canvas niet te
+  // krap oogt met meerdere gesplitste applicatie-lanes.
+  const canvasHeight = Math.max(420, annotationBaseY + annotationRows * 190 + 100, STAGE_Y - applicatieflowTop + 300)
 
   return { nodes, edges, canvasWidth, canvasHeight }
 }
@@ -350,7 +443,7 @@ function canvasHeightFor(inputs, outputs) {
   return IO_Y_START + Math.max(inputs.length, outputs.length) * IO_Y_GAP
 }
 
-function IoListEditor({ title, items, onAdd, onUpdate, onRemove, showLink, showBron, teams, currentTeamId, teamWorkflows, teamName, t, language }) {
+function IoListEditor({ title, items, onAdd, onUpdate, onRemove, showLink, showBron, teams, currentTeamId, teamWorkflows, teamName, applications, t, language }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
@@ -435,6 +528,23 @@ function IoListEditor({ title, items, onAdd, onUpdate, onRemove, showLink, showB
                 )}
               </div>
             )}
+            {applications.length > 0 && (
+              <div className="mt-2 flex items-center gap-1.5">
+                <span className="shrink-0 text-[11px] text-slate-400">{t('teampage.ioApplicatieLabel')}</span>
+                <select
+                  value={item.applicatieId ?? ''}
+                  onChange={(e) => onUpdate(item.id, { applicatieId: e.target.value })}
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                >
+                  <option value="">{t('teampage.ioApplicatieNone')}</option>
+                  {applications.map((app) => (
+                    <option key={app.id} value={app.id}>
+                      {app.naam || '—'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -474,6 +584,7 @@ export default function TeamPage({ teamId, onBack }) {
   const [activeTeamTab, setActiveTeamTab] = useState('workflow')
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
+  const [splitApplicaties, setSplitApplicaties] = useState(false)
 
   useEffect(() => {
     if (!localStorage.getItem(TOUR_SEEN_KEY)) {
@@ -600,6 +711,8 @@ export default function TeamPage({ teamId, onBack }) {
     )
   }
 
+  const onOpenApplicatieflow = useCallback(() => setActiveTeamTab('applicatieflow'), [])
+
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     workflow.inputs,
     workflow.outputs,
@@ -611,6 +724,10 @@ export default function TeamPage({ teamId, onBack }) {
     workflow.capacity,
     teamDependencies,
     functieName,
+    workflow.applications,
+    splitApplicaties,
+    t,
+    onOpenApplicatieflow,
   ])
 
   function handleNodesChange(changes) {
@@ -911,7 +1028,17 @@ export default function TeamPage({ teamId, onBack }) {
               </button>
               <span className="ml-1 text-[11px] text-slate-400">{t('teampage.toolbarColorLabel')}</span>
               <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
-              {lineToolActive && <span className="ml-auto text-[11px] font-medium text-[#2a5f8a]">{t('teampage.toolbarLineActive')}</span>}
+              {lineToolActive && <span className="text-[11px] font-medium text-[#2a5f8a]">{t('teampage.toolbarLineActive')}</span>}
+              <button
+                type="button"
+                onClick={() => setSplitApplicaties((v) => !v)}
+                aria-pressed={splitApplicaties}
+                className={`ml-auto rounded-md border px-2.5 py-1 text-xs font-medium ${
+                  splitApplicaties ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {splitApplicaties ? t('teampage.splitApplicatiesOff') : t('teampage.splitApplicaties')}
+              </button>
             </div>
 
             <div data-tour="workflow-canvas" className="relative rounded-lg border border-slate-100" style={{ height: Math.min(Math.max(canvasHeight, 460), 640) }}>
@@ -968,6 +1095,7 @@ export default function TeamPage({ teamId, onBack }) {
               currentTeamId={teamId}
               teamWorkflows={teamWorkflows}
               teamName={teamName}
+              applications={workflow.applications}
               t={t}
               language={language}
             />
@@ -982,6 +1110,7 @@ export default function TeamPage({ teamId, onBack }) {
               currentTeamId={teamId}
               teamWorkflows={teamWorkflows}
               teamName={teamName}
+              applications={workflow.applications}
               t={t}
             />
           </div>
@@ -1163,11 +1292,14 @@ export default function TeamPage({ teamId, onBack }) {
               </div>
             )}
 
-            {applicatieflowDeps.length > 0 && (
+            {(
               <div>
                 <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t('teampage.flowtypeApplicatieflow')} · {applicatieflowDeps.length}
                 </h4>
+                {applicatieflowDeps.length === 0 && (
+                  <p className="mb-2 text-xs text-slate-400">{t('teampage.applicatieflowEmpty')}</p>
+                )}
                 {workflow.applications.length > 3 && (
                   <input
                     value={appFilterQuery}

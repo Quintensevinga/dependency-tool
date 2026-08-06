@@ -3,10 +3,6 @@ import SettingsPanel from './SettingsPanel'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 
-const TAB_IDS = ['matrix', 'graph', 'chain']
-const TAB_LABEL_KEYS = { matrix: 'tab.matrix', graph: 'tab.graph', chain: 'tab.chain' }
-const GRAPH_MODES = ['heatmap', 'bipartite']
-
 function MatrixIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
@@ -35,7 +31,33 @@ function ChainIcon() {
     </svg>
   )
 }
-const TAB_ICONS = { matrix: MatrixIcon, graph: NetworkIcon, chain: ChainIcon }
+function HeatmapIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+      <rect x="3" y="3" width="5" height="5" rx="1" fill="currentColor" opacity="0.9" />
+      <rect x="9.5" y="3" width="5" height="5" rx="1" fill="currentColor" opacity="0.45" />
+      <rect x="16" y="3" width="5" height="5" rx="1" fill="currentColor" opacity="0.2" />
+      <rect x="3" y="9.5" width="5" height="5" rx="1" fill="currentColor" opacity="0.45" />
+      <rect x="9.5" y="9.5" width="5" height="5" rx="1" fill="currentColor" opacity="0.9" />
+      <rect x="16" y="9.5" width="5" height="5" rx="1" fill="currentColor" opacity="0.45" />
+      <rect x="3" y="16" width="5" height="5" rx="1" fill="currentColor" opacity="0.2" />
+      <rect x="9.5" y="16" width="5" height="5" rx="1" fill="currentColor" opacity="0.45" />
+      <rect x="16" y="16" width="5" height="5" rx="1" fill="currentColor" opacity="0.9" />
+    </svg>
+  )
+}
+
+// Platte navigatielijst i.p.v. Netwerkweergave met geneste Heatmap/Relatiekaart-
+// subtabs: Heatmap en Relatiekaart zijn nu evenwaardige top-level items, in de
+// door de gebruiker gevraagde volgorde. 'graphMode' bepaalt zowel welke
+// GraphView-modus als de actieve/hoogtelichte status; 'tab' bepaalt welk
+// hoofdtabblad (activeTab in App.jsx) actief wordt.
+const NAV_ITEMS = [
+  { key: 'heatmap', tab: 'graph', graphMode: 'heatmap', icon: HeatmapIcon, labelKey: 'graph.mode.heatmap' },
+  { key: 'bipartite', tab: 'graph', graphMode: 'bipartite', icon: NetworkIcon, labelKey: 'graph.mode.bipartite' },
+  { key: 'matrix', tab: 'matrix', graphMode: null, icon: MatrixIcon, labelKey: 'tab.matrix' },
+  { key: 'chain', tab: 'chain', graphMode: null, icon: ChainIcon, labelKey: 'tab.chain' },
+]
 
 function SettingsIcon() {
   return (
@@ -271,37 +293,23 @@ export default function Sidebar({
         <CollapseIcon collapsed={collapsed} />
       </button>
 
-      {TAB_IDS.map((id) => {
-        const Icon = TAB_ICONS[id]
+      {NAV_ITEMS.map((item) => {
+        const Icon = item.icon
+        const active = item.graphMode ? activeTab === 'graph' && graphViewMode === item.graphMode : activeTab === item.tab
         return (
-          <div key={id}>
-            <RailButton
-              active={activeTab === id}
-              title={t(TAB_LABEL_KEYS[id])}
-              label={t(TAB_LABEL_KEYS[id])}
-              onClick={() => onTabChange(id)}
-              collapsed={collapsed}
-            >
-              <Icon />
-            </RailButton>
-            {!collapsed && id === 'graph' && activeTab === 'graph' && (
-              <div className="ml-8 mt-0.5 flex flex-col gap-0.5 border-l border-white/10 pl-2.5">
-                {GRAPH_MODES.map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    aria-pressed={graphViewMode === mode}
-                    onClick={() => onGraphViewModeChange(mode)}
-                    className={`rounded-md px-2.5 py-1 text-left text-xs font-medium transition-colors ${
-                      graphViewMode === mode ? 'bg-[#2a5f8a]/70 text-white' : 'text-slate-400 hover:bg-white/8 hover:text-slate-200'
-                    }`}
-                  >
-                    {t(`graph.mode.${mode}`)}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <RailButton
+            key={item.key}
+            active={active}
+            title={t(item.labelKey)}
+            label={t(item.labelKey)}
+            onClick={() => {
+              if (item.graphMode) onGraphViewModeChange(item.graphMode)
+              onTabChange(item.tab)
+            }}
+            collapsed={collapsed}
+          >
+            <Icon />
+          </RailButton>
         )
       })}
 
