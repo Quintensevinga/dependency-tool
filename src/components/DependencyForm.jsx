@@ -126,9 +126,6 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
       if (field === 'scope') {
         return { ...f, scope: value, categorie: '' }
       }
-      if (field === 'flowtype' && value === 'applicatieflow') {
-        return { ...f, flowtype: value, workflowStap: '' }
-      }
       return { ...f, [field]: value }
     })
   }
@@ -149,7 +146,6 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
     if (Object.keys(errors).length > 0) return
     const payload = { ...form, teamId }
     if (form.scope === 'intern') delete payload.geraakte_team_extern
-    if (form.flowtype === 'applicatieflow') payload.workflowStap = ''
     onSave(payload)
   }
 
@@ -168,9 +164,9 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
         role="dialog"
         aria-modal="true"
         aria-labelledby="dependency-form-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-2xl"
+        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
+        <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
             <h3 id="dependency-form-title" className="text-base font-semibold text-slate-900">
               {initialData ? t('form.titleEdit') : t('form.titleNew')}
@@ -189,7 +185,13 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
+        {/* Formulier als flex-kolom zodat alleen de veldensectie scrolt en de
+            Opslaan/Annuleren-knoppen altijd zichtbaar blijven onderaan —
+            voorheen scrollde de hele dialoog inclusief knoppenrij mee, wat bij
+            een lang formulier (nu met Flowtype erbij) de knoppen soms buiten
+            beeld liet vallen. */}
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div>
             <Label required>{t('form.scope')}</Label>
             <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
@@ -399,9 +401,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
               <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
                 {t('form.workflowStap')}
               </Label>
-              {form.flowtype === 'applicatieflow' ? (
-                <p className="mt-1 text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
-              ) : (
+              {(
                 <>
                   <select
                     id="dep-workflowstap"
@@ -419,7 +419,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-slate-400">
-                    {form.flowtype === 'ontwikkelflow' ? t('form.workflowStapRequiredHelper') : t('form.workflowStapHelper')}
+                    {form.flowtype === 'ontwikkelflow' ? t('form.workflowStapRequiredHelper') : t('form.workflowStapOptionalHelper')}
                   </p>
                   {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
                 </>
@@ -475,7 +475,9 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
             />
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+        </div>
+
+          <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-5 py-4">
             <button
               type="button"
               onClick={handleClose}

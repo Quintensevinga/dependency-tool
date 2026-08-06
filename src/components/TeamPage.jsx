@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Handle, Position } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -131,6 +131,13 @@ function ApplicatieflowBannerNode({ data }) {
   )
 }
 
+// Lichte tekstlabel, gebruikt als kolomkop binnen een Applicatieflow-lane
+// (7x herhaald per lane) — bewust geen volwaardige StageNode-box, anders
+// wordt elke lane met meerdere applicaties al snel te hoog.
+function SmallLabelNode({ data }) {
+  return <div className="w-40 truncate px-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">{data.text}</div>
+}
+
 function AnnotationNode({ data }) {
   const shapeClass =
     data.shape === 'circle' ? 'rounded-full' : data.shape === 'diamond' ? 'rounded-md rotate-45' : 'rounded-md'
@@ -188,6 +195,7 @@ const nodeTypes = {
   capacityBadge: CapacityBadgeNode,
   dependencyMarker: DependencyMarkerNode,
   applicatieflowBanner: ApplicatieflowBannerNode,
+  smallLabel: SmallLabelNode,
 }
 
 function computeWorkflowLayout(
@@ -204,6 +212,7 @@ function computeWorkflowLayout(
   applications,
   splitApplicaties,
   t,
+  language,
   onOpenApplicatieflow,
 ) {
   const nodes = []
@@ -310,26 +319,46 @@ function computeWorkflowLayout(
   })
 
   // --- Applicatieflow-lane(s) boven de stage-rij ---
-  // Ontwikkelflow heeft vaste kolommen (WORKFLOW_STAGES); Applicatieflow niet
-  // — dus in plaats van kolommen krijgt elke lane een brede, klikbare
-  // 'banner' (zelfde breedte als de stage-rij), met de bijbehorende
-  // dependency-markers er los onder gewrapt. In samengevoegde modus is dat
-  // één lane; met splitApplicaties aan krijgt elke applicatie een eigen lane,
-  // plus een aparte lane voor nog niet gelabelde dependencies.
+  // Applicatieflow en workflowstap horen bij elkaar: elke lane krijgt daarom
+  // zijn eigen mini-versie van dezelfde 7 WORKFLOW_STAGES-kolommen als de
+  // Ontwikkelflow-rij hieronder (zelfde x-posities, dus verticaal precies
+  // uitgelijnd), gevuld met de dependencies die in die stap vallen. Deps
+  // zonder (optionele) workflowstap krijgen een aparte 'Geen workflowstap'-
+  // strook onderaan de lane. In samengevoegde modus is dat één lane voor alle
+  // Applicatieflow-dependencies; met splitApplicaties aan krijgt elke
+  // applicatie zijn eigen lane, plus een lane voor nog niet gelabelde deps.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
   const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
   const MARKER_W = 170
   const MARKERS_PER_ROW = Math.max(1, Math.floor(BANNER_WIDTH / MARKER_W))
   const BANNER_TITLE_H = 44
+  const STAGE_LABEL_H = 18
   const MARKER_ROW_H = 40
   const LANE_GAP = 22
 
-  function laneHeight(count) {
-    return BANNER_TITLE_H + Math.max(1, Math.ceil(count / MARKERS_PER_ROW)) * MARKER_ROW_H
+  function groupApplicatieflowDeps(deps) {
+    const byStage = {}
+    const noStage = []
+    deps.forEach((dep) => {
+      const stage = WORKFLOW_STAP_TO_STAGE[dep.workflowStap]
+      if (!stage) {
+        noStage.push(dep)
+        return
+      }
+      if (!byStage[stage]) byStage[stage] = []
+      byStage[stage].push(dep)
+    })
+    const maxStageStack = Math.max(0, ...WORKFLOW_STAGES.map((s) => byStage[s]?.length ?? 0))
+    const stageRowsHeight = BANNER_TITLE_H + STAGE_LABEL_H + maxStageStack * MARKER_ROW_H
+    const noStageRows = noStage.length > 0 ? Math.max(1, Math.ceil(noStage.length / MARKERS_PER_ROW)) : 0
+    const extraHeight = noStage.length > 0 ? 8 + STAGE_LABEL_H + noStageRows * MARKER_ROW_H : 0
+    return { byStage, noStage, stageRowsHeight, height: stageRowsHeight + extraHeight }
   }
 
   function pushApplicatieflowLane(id, label, deps, y) {
     const bid = `appbanner:${id}`
+    const { byStage, noStage, stageRowsHeight } = groupApplicatieflowDeps(deps)
+
     nodes.push({
       id: bid,
       type: 'applicatieflowBanner',
@@ -337,22 +366,62 @@ function computeWorkflowLayout(
       data: { width: BANNER_WIDTH, label, count: deps.length, emptyLabel: t('teampage.applicatieflowBannerEmpty'), onClick: onOpenApplicatieflow },
       draggable: true,
     })
-    deps.forEach((dep, di) => {
-      const row = Math.floor(di / MARKERS_PER_ROW)
-      const col = di % MARKERS_PER_ROW
-      const mid = `${bid}:dep:${dep.id}`
+
+    WORKFLOW_STAGES.forEach((stage, i) => {
+      const labelId = `${bid}:stagelabel:${stage}`
       nodes.push({
-        id: mid,
-        type: 'dependencyMarker',
-        position: withSavedPosition(mid, { x: STAGE_START_X + col * MARKER_W, y: y + BANNER_TITLE_H + row * MARKER_ROW_H }),
-        data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
-        draggable: true,
+        id: labelId,
+        type: 'smallLabel',
+        position: withSavedPosition(labelId, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H }),
+        data: { text: translateWorkflowStage(stage, language) },
+        draggable: false,
       })
-      edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+      const stageDeps = byStage[stage] ?? []
+      stageDeps.forEach((dep, di) => {
+        const mid = `${bid}:dep:${dep.id}`
+        nodes.push({
+          id: mid,
+          type: 'dependencyMarker',
+          position: withSavedPosition(mid, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H + STAGE_LABEL_H + di * MARKER_ROW_H }),
+          data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
+          draggable: true,
+        })
+        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+      })
     })
+
+    if (noStage.length > 0) {
+      const labelId = `${bid}:nostage-label`
+      nodes.push({
+        id: labelId,
+        type: 'smallLabel',
+        position: withSavedPosition(labelId, { x: STAGE_START_X, y: y + stageRowsHeight + 8 }),
+        data: { text: t('teampage.geenWorkflowstap') },
+        draggable: false,
+      })
+      noStage.forEach((dep, di) => {
+        const row = Math.floor(di / MARKERS_PER_ROW)
+        const col = di % MARKERS_PER_ROW
+        const mid = `${bid}:dep:${dep.id}`
+        nodes.push({
+          id: mid,
+          type: 'dependencyMarker',
+          position: withSavedPosition(mid, { x: STAGE_START_X + col * MARKER_W, y: y + stageRowsHeight + 8 + STAGE_LABEL_H + row * MARKER_ROW_H }),
+          data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
+          draggable: true,
+        })
+        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#e2e8f0', strokeWidth: 1, strokeDasharray: '2 2' } })
+      })
+    }
   }
 
   let applicatieflowTop = STAGE_Y - LANE_GAP
+  function placeApplicatieflowLane(id, label, deps) {
+    applicatieflowTop -= groupApplicatieflowDeps(deps).height
+    pushApplicatieflowLane(id, label, deps, applicatieflowTop)
+    applicatieflowTop -= LANE_GAP
+  }
+
   if (splitApplicaties && applications.length > 0) {
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
     // Applicatie-lanen dichtst bij de stage-rij (eerste applicatie het
@@ -360,19 +429,11 @@ function computeWorkflowLayout(
     for (let i = applications.length - 1; i >= 0; i -= 1) {
       const app = applications[i]
       const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
-      applicatieflowTop -= laneHeight(appDeps.length)
-      pushApplicatieflowLane(app.id, app.naam || '—', appDeps, applicatieflowTop)
-      applicatieflowTop -= LANE_GAP
+      placeApplicatieflowLane(app.id, app.naam || '—', appDeps)
     }
-    if (unlabeled.length > 0) {
-      applicatieflowTop -= laneHeight(unlabeled.length)
-      pushApplicatieflowLane('unlabeled', t('teampage.appLabelNone'), unlabeled, applicatieflowTop)
-      applicatieflowTop -= LANE_GAP
-    }
+    if (unlabeled.length > 0) placeApplicatieflowLane('unlabeled', t('teampage.appLabelNone'), unlabeled)
   } else {
-    applicatieflowTop -= laneHeight(applicatieflowDeps.length)
-    pushApplicatieflowLane('all', t('teampage.flowtypeApplicatieflow'), applicatieflowDeps, applicatieflowTop)
-    applicatieflowTop -= LANE_GAP
+    placeApplicatieflowLane('all', t('teampage.flowtypeApplicatieflow'), applicatieflowDeps)
   }
 
   const lastStage = WORKFLOW_STAGES[WORKFLOW_STAGES.length - 1]
@@ -457,97 +518,105 @@ function IoListEditor({ title, items, onAdd, onUpdate, onRemove, showLink, showB
         </button>
       </div>
       {items.length === 0 && <p className="text-xs text-slate-400">{t('teampage.ioEmpty')}</p>}
-      <div className="space-y-2.5">
+      <ul className="space-y-2">
         {items.map((item) => (
-          <div key={item.id} className="rounded-md border border-slate-200 p-2.5">
-            <div className="flex items-start gap-2">
+          <li key={item.id} className="rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
+            <div className="flex items-center gap-2">
               <input
                 value={item.label}
                 onChange={(e) => onUpdate(item.id, { label: e.target.value })}
                 placeholder={t('teampage.ioLabelPlaceholder')}
-                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => onRemove(item.id)}
-                className="shrink-0 rounded-md border border-[#9a3b2e]/30 px-2 py-1.5 text-xs text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
+                aria-label={t('teampage.remove')}
+                title={t('teampage.remove')}
+                className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
               >
-                {t('teampage.remove')}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                  <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                </svg>
               </button>
             </div>
-            {showBron && (
-              <div className="mt-2 flex items-center gap-1.5">
-                <span className="shrink-0 text-[11px] text-slate-400">{t('teampage.ioBronLabel')}</span>
-                <select
-                  value={item.bron_type ?? ''}
-                  onChange={(e) => onUpdate(item.id, { bron_type: e.target.value })}
-                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                >
-                  <option value="">{t('teampage.ioBronNone')}</option>
-                  {BRON_TYPES.map((bron) => (
-                    <option key={bron} value={bron}>
-                      {translateBronType(bron, language)}
-                    </option>
-                  ))}
-                </select>
-                {item.bron_type && (
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(item.bron_type) }} />
+            {(showBron || showLink || applications.length > 0) && (
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-200/80 pt-2">
+                {showBron && (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    {t('teampage.ioBronLabel')}
+                    <select
+                      value={item.bron_type ?? ''}
+                      onChange={(e) => onUpdate(item.id, { bron_type: e.target.value })}
+                      className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                    >
+                      <option value="">{t('teampage.ioBronNone')}</option>
+                      {BRON_TYPES.map((bron) => (
+                        <option key={bron} value={bron}>
+                          {translateBronType(bron, language)}
+                        </option>
+                      ))}
+                    </select>
+                    {item.bron_type && (
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(item.bron_type) }} />
+                    )}
+                  </label>
+                )}
+                {showLink && (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    {t('teampage.ioLinkLabel')}
+                    <select
+                      value={item.linkedTeam ?? ''}
+                      onChange={(e) => onUpdate(item.id, { linkedTeam: e.target.value, linkedOutputId: '' })}
+                      className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                    >
+                      <option value="">{t('teampage.ioLinkNone')}</option>
+                      {teams
+                        .filter((tm) => tm.id !== currentTeamId)
+                        .map((tm) => (
+                          <option key={tm.id} value={tm.id}>
+                            {tm.naam}
+                          </option>
+                        ))}
+                    </select>
+                    {item.linkedTeam && (
+                      <select
+                        value={item.linkedOutputId ?? ''}
+                        onChange={(e) => onUpdate(item.id, { linkedOutputId: e.target.value })}
+                        className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                      >
+                        <option value="">{t('teampage.ioLinkItemPlaceholder')}</option>
+                        {(teamWorkflows[item.linkedTeam]?.outputs ?? []).map((out) => (
+                          <option key={out.id} value={out.id}>
+                            {out.label || '—'}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </label>
+                )}
+                {applications.length > 0 && (
+                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
+                    {t('teampage.ioApplicatieLabel')}
+                    <select
+                      value={item.applicatieId ?? ''}
+                      onChange={(e) => onUpdate(item.id, { applicatieId: e.target.value })}
+                      className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                    >
+                      <option value="">{t('teampage.ioApplicatieNone')}</option>
+                      {applications.map((app) => (
+                        <option key={app.id} value={app.id}>
+                          {app.naam || '—'}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 )}
               </div>
             )}
-            {showLink && (
-              <div className="mt-2 flex items-center gap-1.5">
-                <span className="shrink-0 text-[11px] text-slate-400">{t('teampage.ioLinkLabel')}</span>
-                <select
-                  value={item.linkedTeam ?? ''}
-                  onChange={(e) => onUpdate(item.id, { linkedTeam: e.target.value, linkedOutputId: '' })}
-                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                >
-                  <option value="">{t('teampage.ioLinkNone')}</option>
-                  {teams
-                    .filter((tm) => tm.id !== currentTeamId)
-                    .map((tm) => (
-                      <option key={tm.id} value={tm.id}>
-                        {tm.naam}
-                      </option>
-                    ))}
-                </select>
-                {item.linkedTeam && (
-                  <select
-                    value={item.linkedOutputId ?? ''}
-                    onChange={(e) => onUpdate(item.id, { linkedOutputId: e.target.value })}
-                    className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                  >
-                    <option value="">{t('teampage.ioLinkItemPlaceholder')}</option>
-                    {(teamWorkflows[item.linkedTeam]?.outputs ?? []).map((out) => (
-                      <option key={out.id} value={out.id}>
-                        {out.label || '—'}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            )}
-            {applications.length > 0 && (
-              <div className="mt-2 flex items-center gap-1.5">
-                <span className="shrink-0 text-[11px] text-slate-400">{t('teampage.ioApplicatieLabel')}</span>
-                <select
-                  value={item.applicatieId ?? ''}
-                  onChange={(e) => onUpdate(item.id, { applicatieId: e.target.value })}
-                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                >
-                  <option value="">{t('teampage.ioApplicatieNone')}</option>
-                  {applications.map((app) => (
-                    <option key={app.id} value={app.id}>
-                      {app.naam || '—'}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   )
 }
@@ -581,7 +650,6 @@ export default function TeamPage({ teamId, onBack }) {
   const [addingRoleForRow, setAddingRoleForRow] = useState(null)
   const [newRoleName, setNewRoleName] = useState('')
   const [snapshotsOpen, setSnapshotsOpen] = useState(false)
-  const [activeTeamTab, setActiveTeamTab] = useState('workflow')
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
   const [splitApplicaties, setSplitApplicaties] = useState(false)
@@ -594,10 +662,6 @@ export default function TeamPage({ teamId, onBack }) {
   }, [])
 
   function startTour() {
-    // Alle stappen behalve de laatste wijzen naar elementen binnen het
-    // Workflow-tabblad — forceer dat tabblad zodat de rondleiding altijd
-    // meteen iets te tonen heeft, ongeacht waar de gebruiker 'm start.
-    setActiveTeamTab('workflow')
     setTourActive(true)
   }
 
@@ -610,9 +674,9 @@ export default function TeamPage({ teamId, onBack }) {
     { target: 'workflow-canvas', title: t('tour.step.canvas.title'), body: t('tour.step.canvas.body') },
     { target: 'toolbar', title: t('tour.step.toolbar.title'), body: t('tour.step.toolbar.body') },
     { target: 'applications', title: t('tour.step.applications.title'), body: t('tour.step.applications.body') },
+    { target: 'applicatieflow-section', title: t('tour.step.applicatieflow.title'), body: t('tour.step.applicatieflow.body') },
     { target: 'capacity', title: t('tour.step.capacity.title'), body: t('tour.step.capacity.body') },
     { target: 'dependencies', title: t('tour.step.dependencies.title'), body: t('tour.step.dependencies.body') },
-    { target: 'tab-applicatieflow', title: t('tour.step.applicatieflow.title'), body: t('tour.step.applicatieflow.body') },
     { target: 'snapshots-button', title: t('tour.step.snapshots.title'), body: t('tour.step.snapshots.body') },
   ]
 
@@ -711,7 +775,49 @@ export default function TeamPage({ teamId, onBack }) {
     )
   }
 
-  const onOpenApplicatieflow = useCallback(() => setActiveTeamTab('applicatieflow'), [])
+  // Gedeelde weergave voor een dependency-lijst gegroepeerd per workflowstap
+  // (+ 'Geen workflowstap'-restgroep) — gebruikt voor zowel de Ontwikkelflow-
+  // groep als, per applicatie, de Applicatieflow-groepen: die twee horen
+  // conceptueel bij elkaar, dus dezelfde indeling overal.
+  function StageGroupedDeps({ deps, showAppPicker }) {
+    return (
+      <>
+        {WORKFLOW_STAGES.map((stage) => {
+          const stageDeps = deps.filter((d) => WORKFLOW_STAP_TO_STAGE[d.workflowStap] === stage)
+          if (stageDeps.length === 0) return null
+          return (
+            <div key={stage} className="mb-2">
+              <div className="mb-1 text-[11px] font-medium text-slate-400">{translateWorkflowStage(stage, language)}</div>
+              <ul className="divide-y divide-slate-100">
+                {stageDeps.map((dep) => (
+                  <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
+                ))}
+              </ul>
+            </div>
+          )
+        })}
+        {(() => {
+          const noStage = deps.filter((d) => !WORKFLOW_STAP_TO_STAGE[d.workflowStap])
+          if (noStage.length === 0) return null
+          return (
+            <div className="mb-2">
+              <div className="mb-1 text-[11px] font-medium text-slate-400">{t('teampage.geenWorkflowstap')}</div>
+              <ul className="divide-y divide-slate-100">
+                {noStage.map((dep) => (
+                  <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
+                ))}
+              </ul>
+            </div>
+          )
+        })()}
+      </>
+    )
+  }
+
+  const applicatieflowSectionRef = useRef(null)
+  const onOpenApplicatieflow = useCallback(() => {
+    applicatieflowSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
 
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     workflow.inputs,
@@ -727,6 +833,7 @@ export default function TeamPage({ teamId, onBack }) {
     workflow.applications,
     splitApplicaties,
     t,
+    language,
     onOpenApplicatieflow,
   ])
 
@@ -959,25 +1066,7 @@ export default function TeamPage({ teamId, onBack }) {
         </div>
       </div>
 
-      <div className="flex gap-6 border-b border-slate-200">
-        {['workflow', 'applicatieflow'].map((tabId) => (
-          <button
-            key={tabId}
-            type="button"
-            data-tour={tabId === 'applicatieflow' ? 'tab-applicatieflow' : undefined}
-            onClick={() => setActiveTeamTab(tabId)}
-            className={`-mb-px border-b-2 px-1 py-2.5 text-sm font-medium transition-colors ${
-              activeTeamTab === tabId ? 'border-[#2a5f8a] text-[#2a5f8a]' : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            {tabId === 'workflow' ? t('teampage.tabWorkflow') : t('teampage.tabApplicatieflow')}
-          </button>
-        ))}
-      </div>
-
-      {activeTeamTab === 'applicatieflow' && <ApplicatieflowTab workflow={workflow} patch={patch} />}
-
-      {activeTeamTab === 'workflow' && (
+      {(
         <>
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
@@ -1065,21 +1154,36 @@ export default function TeamPage({ teamId, onBack }) {
             </div>
             <p className="mb-3 text-[11px] text-slate-400">{t('teampage.applicationsHint')}</p>
             {workflow.applications.length === 0 && <p className="text-xs text-slate-400">{t('teampage.applicationsEmpty')}</p>}
-            <div className="flex flex-wrap gap-2">
+            <ul className="space-y-2">
               {workflow.applications.map((app) => (
-                <div key={app.id} className="flex items-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-2 py-1">
+                <li key={app.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
                   <input
                     value={app.naam}
                     onChange={(e) => updateApplication(app.id, { naam: e.target.value })}
                     placeholder={t('teampage.applicationsPlaceholder')}
-                    className="w-40 bg-transparent text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+                    className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
                   />
-                  <button type="button" onClick={() => removeApplication(app.id)} className="shrink-0 text-xs text-[#9a3b2e] hover:underline">
-                    {t('teampage.remove')}
+                  <button
+                    type="button"
+                    onClick={() => removeApplication(app.id)}
+                    aria-label={t('teampage.remove')}
+                    title={t('teampage.remove')}
+                    className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                      <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
                   </button>
-                </div>
+                </li>
               ))}
+            </ul>
+          </div>
+
+          <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.tabApplicatieflow')}</h3>
             </div>
+            <ApplicatieflowTab workflow={workflow} patch={patch} />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -1275,20 +1379,7 @@ export default function TeamPage({ teamId, onBack }) {
                 <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t('teampage.flowtypeOntwikkelflow')} · {ontwikkelflowDeps.length}
                 </h4>
-                {WORKFLOW_STAGES.map((stage) => {
-                  const stageDeps = ontwikkelflowDeps.filter((d) => WORKFLOW_STAP_TO_STAGE[d.workflowStap] === stage)
-                  if (stageDeps.length === 0) return null
-                  return (
-                    <div key={stage} className="mb-2">
-                      <div className="mb-1 text-[11px] font-medium text-slate-400">{translateWorkflowStage(stage, language)}</div>
-                      <ul className="divide-y divide-slate-100">
-                        {stageDeps.map((dep) => (
-                          <DependencyRow key={dep.id} dep={dep} showAppPicker={false} />
-                        ))}
-                      </ul>
-                    </div>
-                  )
-                })}
+                <StageGroupedDeps deps={ontwikkelflowDeps} showAppPicker={false} />
               </div>
             )}
 
@@ -1314,13 +1405,9 @@ export default function TeamPage({ teamId, onBack }) {
                     const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
                     if (appDeps.length === 0) return null
                     return (
-                      <div key={app.id} className="mb-2">
-                        <div className="mb-1 text-[11px] font-medium text-slate-400">{app.naam || '—'}</div>
-                        <ul className="divide-y divide-slate-100">
-                          {appDeps.map((dep) => (
-                            <DependencyRow key={dep.id} dep={dep} showAppPicker />
-                          ))}
-                        </ul>
+                      <div key={app.id} className="mb-3 rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
+                        <div className="mb-1.5 text-xs font-semibold text-slate-600">{app.naam || '—'}</div>
+                        <StageGroupedDeps deps={appDeps} showAppPicker />
                       </div>
                     )
                   })}
@@ -1328,13 +1415,9 @@ export default function TeamPage({ teamId, onBack }) {
                   const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
                   if (unlabeled.length === 0) return null
                   return (
-                    <div>
-                      <div className="mb-1 text-[11px] font-medium text-slate-400">{t('teampage.appLabelNone')}</div>
-                      <ul className="divide-y divide-slate-100">
-                        {unlabeled.map((dep) => (
-                          <DependencyRow key={dep.id} dep={dep} showAppPicker />
-                        ))}
-                      </ul>
+                    <div className="mb-3 rounded-lg border border-dashed border-slate-200 p-2.5">
+                      <div className="mb-1.5 text-xs font-semibold text-slate-500">{t('teampage.appLabelNone')}</div>
+                      <StageGroupedDeps deps={unlabeled} showAppPicker />
                     </div>
                   )
                 })()}
