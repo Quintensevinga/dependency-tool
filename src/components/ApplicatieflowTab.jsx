@@ -1,126 +1,15 @@
 import { useState } from 'react'
-import { Handle, Position } from 'reactflow'
 import { useLanguage } from '../context/LanguageContext'
 import { RISICO_BIJ_UITVAL } from '../data/constants'
 import { translateRisicoBijUitval } from '../i18n/labels'
 import { generateId, emptyApplicatieflow } from '../lib/storage'
-import PannableFlowCanvas from './flow/PannableFlowCanvas'
-import { useMergedLayout } from './flow/useMergedLayout'
 
-const LEVEL_GAP_X = 220
-const LEVEL_Y = 60
-const UNCONNECTED_Y = 280
-const NODE_GAP_Y = 100
-
-// Zuivere leveling-functie: applicaties die nooit doel ("naar") zijn, zijn
-// startpunten (level 0); elke koppeling schuift het doel minstens één level
-// verder naar rechts op. Applicaties zonder enige koppeling (in of uit)
-// blijven expliciet buiten de levels — die worden apart, los getekend, nooit
-// als foutstatus.
-function computeLevels(applications, connecties) {
-  const ids = applications.map((a) => a.id)
-  const hasIncoming = new Set(connecties.map((c) => c.naar))
-  const hasAnyEdge = new Set(connecties.flatMap((c) => [c.van, c.naar]))
-  const levels = {}
-  const queue = ids.filter((id) => hasAnyEdge.has(id) && !hasIncoming.has(id)).map((id) => ({ id, level: 0 }))
-  const guard = new Set()
-
-  while (queue.length) {
-    const { id, level } = queue.shift()
-    const key = `${id}:${level}`
-    if (guard.has(key)) continue
-    guard.add(key)
-    levels[id] = Math.max(levels[id] ?? 0, level)
-    connecties.filter((c) => c.van === id).forEach((c) => queue.push({ id: c.naar, level: level + 1 }))
-  }
-
-  const connected = ids.filter((id) => id in levels)
-  const unconnected = ids.filter((id) => hasAnyEdge.has(id) && !(id in levels))
-  const standalone = ids.filter((id) => !hasAnyEdge.has(id))
-  return { levels, connected, unconnected: [...unconnected, ...standalone] }
-}
-
-function computeApplicatieflowLayout(applications, connecties, details, savedLayout) {
-  const nodes = []
-  const edges = []
-  const byId = Object.fromEntries(applications.map((a) => [a.id, a]))
-
-  function withSavedPosition(id, defaultPosition) {
-    return savedLayout?.[id] ?? defaultPosition
-  }
-
-  const { levels, connected, unconnected } = computeLevels(applications, connecties)
-
-  const byLevel = {}
-  connected.forEach((id) => {
-    const lvl = levels[id]
-    if (!byLevel[lvl]) byLevel[lvl] = []
-    byLevel[lvl].push(id)
-  })
-
-  Object.entries(byLevel).forEach(([lvl, idsInLevel]) => {
-    idsInLevel.forEach((id, i) => {
-      const nodeId = `app:${id}`
-      nodes.push({
-        id: nodeId,
-        type: 'appNode',
-        position: withSavedPosition(nodeId, { x: Number(lvl) * LEVEL_GAP_X + 40, y: LEVEL_Y + i * NODE_GAP_Y }),
-        data: { naam: byId[id]?.naam, hasDetail: !!details[id], appId: id },
-        draggable: true,
-      })
-    })
-  })
-
-  unconnected.forEach((id, i) => {
-    const nodeId = `app:${id}`
-    nodes.push({
-      id: nodeId,
-      type: 'appNode',
-      position: withSavedPosition(nodeId, { x: 40 + i * LEVEL_GAP_X, y: UNCONNECTED_Y }),
-      data: { naam: byId[id]?.naam, hasDetail: !!details[id], appId: id },
-      draggable: true,
-    })
-  })
-
-  connecties.forEach((c) => {
-    if (!byId[c.van] || !byId[c.naar]) return
-    edges.push({
-      id: `appedge:${c.id}`,
-      source: `app:${c.van}`,
-      target: `app:${c.naar}`,
-      style: { stroke: '#2a5f8a', strokeWidth: 2 },
-      animated: true,
-    })
-  })
-
-  const maxLevel = Math.max(0, ...Object.values(levels))
-  const maxRows = Math.max(1, ...Object.values(byLevel).map((l) => l.length))
-  const canvasWidth = Math.max(600, (maxLevel + 1) * LEVEL_GAP_X + 260)
-  const canvasHeight = Math.max(420, LEVEL_Y + maxRows * NODE_GAP_Y + (unconnected.length > 0 ? 160 : 60))
-
-  return { nodes, edges, canvasWidth, canvasHeight }
-}
-
-function AppNode({ data }) {
-  const { t } = useLanguage()
-  return (
-    <div className="relative w-44 rounded-xl border-2 border-[#2a5f8a] bg-white px-3 py-2.5 shadow-md">
-      <Handle type="target" position={Position.Left} style={{ opacity: 0.4 }} />
-      <div className="text-sm font-semibold text-slate-800">{data.naam || '—'}</div>
-      <button
-        type="button"
-        onClick={data.onOpenDetail}
-        className={`mt-1.5 text-[11px] font-medium ${data.hasDetail ? 'text-[#2a5f8a]' : 'text-slate-400 hover:text-[#2a5f8a]'}`}
-      >
-        {data.hasDetail ? t('appflow.detailEdit') : t('appflow.detailAdd')}
-      </button>
-      <Handle type="source" position={Position.Right} style={{ opacity: 0.4 }} />
-    </div>
-  )
-}
-
-const nodeTypes = { appNode: AppNode }
-
+// Puur de koppel-vragenlijst (welke applicatie geeft werk/data door aan
+// welke andere) + per-applicatie detail (toelichting, risico bij uitval).
+// Het eigen netwerk-canvas is bewust verwijderd: de koppelingen worden nu
+// als lijnen getekend tussen de applicatie-lanes op het hoofd-workflow-
+// canvas zodra 'Split applicaties' daar aanstaat — dat voorkomt een tweede,
+// losstaand canvas dat hetzelfde probeert te tonen.
 export default function ApplicatieflowTab({ workflow, patch }) {
   const { t, language } = useLanguage()
   const [detailAppId, setDetailAppId] = useState(null)
@@ -145,34 +34,12 @@ export default function ApplicatieflowTab({ workflow, patch }) {
     patchApplicatieflow({ details: { ...applicatieflow.details, [appId]: { ...applicatieflow.details[appId], ...fields } } })
   }
 
-  const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeApplicatieflowLayout, [
-    applications,
-    applicatieflow.connecties,
-    applicatieflow.details,
-    applicatieflow.layout,
-  ])
-
-  function handleNodesChange(changes) {
-    onNodesChange(changes)
-    const finished = changes.filter((c) => c.type === 'position' && c.position && c.dragging === false)
-    if (finished.length > 0) {
-      const nextLayout = { ...applicatieflow.layout }
-      for (const c of finished) nextLayout[c.id] = c.position
-      patchApplicatieflow({ layout: nextLayout })
-    }
-  }
-
-  const nodesWithHandlers = nodes.map((n) => ({
-    ...n,
-    data: { ...n.data, onOpenDetail: () => setDetailAppId(n.data.appId) },
-  }))
-
   const detailApp = applications.find((a) => a.id === detailAppId)
   const detailData = detailAppId ? (applicatieflow.details[detailAppId] ?? {}) : {}
 
   if (applications.length === 0) {
     return (
-      <div className="flex min-h-[280px] items-center justify-center rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-400 shadow-sm">
+      <div className="flex min-h-[120px] items-center justify-center rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-400 shadow-sm">
         {t('appflow.noApplications')}
       </div>
     )
@@ -203,24 +70,29 @@ export default function ApplicatieflowTab({ workflow, patch }) {
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-800">{t('appflow.canvasTitle')}</h3>
-          <span className="text-[11px] text-slate-400">{t('appflow.canvasHint')}</span>
-        </div>
-        <div className="relative rounded-lg border border-slate-100" style={{ height: Math.min(Math.max(canvasHeight, 460), 640) }}>
-          <PannableFlowCanvas
-            // Remount bij een wijzigend aantal koppelingen: de vragenlijst erboven
-            // verandert dan van hoogte, wat de canvas-container in dezelfde tick
-            // laat verschuiven. React Flow's fitView rekent anders nog met de
-            // oude containerpositie, waardoor nodes buiten het zichtbare (geclipte)
-            // vlak belanden — zichtbaar correct in de DOM, onzichtbaar op het scherm.
-            key={applicatieflow.connecties.length}
-            nodes={nodesWithHandlers}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={handleNodesChange}
-          />
-        </div>
+        <h3 className="mb-2 text-sm font-semibold text-slate-800">{t('appflow.detailsListTitle')}</h3>
+        <ul className="divide-y divide-slate-100">
+          {applications.map((app) => {
+            const data = applicatieflow.details[app.id] ?? {}
+            return (
+              <li key={app.id} className="flex items-center gap-2 py-1.5 text-sm">
+                <span className="min-w-0 flex-1 truncate font-medium text-slate-700">{app.naam || '—'}</span>
+                {data.risico_bij_uitval === 'ja' && (
+                  <span className="shrink-0 rounded bg-[#9a3b2e]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#9a3b2e]">
+                    {t('appflow.detailRisico')}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setDetailAppId(app.id)}
+                  className="shrink-0 text-xs font-medium text-[#2a5f8a] hover:underline"
+                >
+                  {data.toelichting || data.risico_bij_uitval ? t('appflow.detailEdit') : t('appflow.detailAdd')}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
       </div>
 
       {detailApp && (

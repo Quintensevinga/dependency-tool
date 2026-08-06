@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Handle, Position } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
-import { WORKFLOW_STAGES, BRON_TYPES, SENIORITY_LEVELS, RISICO_BIJ_UITVAL, WORKFLOW_STAP_TO_STAGE } from '../data/constants'
+import { WORKFLOW_STAGES, BRON_TYPES, SENIORITY_LEVELS, RISICO_BIJ_UITVAL, WORKFLOW_STAP_TO_STAGE, FLOWTYPE_LEVELS } from '../data/constants'
 import {
   translateWorkflowStage,
   translateCategorie,
@@ -10,6 +10,7 @@ import {
   translateBronType,
   translateSeniority,
   translateRisicoBijUitval,
+  translateFlowtype,
 } from '../i18n/labels'
 import { stageColor, bronTypeColor, ANNOTATION_PALETTE } from '../lib/workflowStyles'
 import { calculateRisk, compareRiskDesc } from '../lib/risk'
@@ -122,11 +123,15 @@ function ApplicatieflowBannerNode({ data }) {
     <button
       type="button"
       onClick={data.onClick}
-      className="flex cursor-pointer items-center justify-between rounded-xl border-2 border-dashed border-[#2a5f8a]/40 bg-[#2a5f8a]/5 px-4 py-2 text-left shadow-sm transition-colors hover:bg-[#2a5f8a]/10"
+      className="relative flex cursor-pointer items-center justify-between rounded-xl border-2 border-dashed border-[#2a5f8a]/40 bg-[#2a5f8a]/5 px-4 py-2 text-left shadow-sm transition-colors hover:bg-[#2a5f8a]/10"
       style={{ width: data.width }}
     >
+      {/* Onzichtbare handles zodat app-naar-app-koppelingen (uit de
+          Applicatieflow-vragenlijst) hier als lijn op kunnen aansluiten. */}
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
       <span className="truncate text-sm font-semibold text-[#2a5f8a]">{data.label}</span>
       <span className="shrink-0 text-xs text-slate-500">{data.count > 0 ? data.count : data.emptyLabel}</span>
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </button>
   )
 }
@@ -211,6 +216,7 @@ function computeWorkflowLayout(
   functieName,
   applications,
   splitApplicaties,
+  applicatieflowConnecties,
   t,
   language,
   onOpenApplicatieflow,
@@ -432,6 +438,23 @@ function computeWorkflowLayout(
       placeApplicatieflowLane(app.id, app.naam || '—', appDeps)
     }
     if (unlabeled.length > 0) placeApplicatieflowLane('unlabeled', t('teampage.appLabelNone'), unlabeled)
+
+    // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
+    // geeft werk/data door aan welke andere') worden hier als directe lijnen
+    // tussen de lane-banners getekend — dat verving het losse netwerk-canvas
+    // dat ApplicatieflowTab eerder zelf tekende.
+    applicatieflowConnecties.forEach((c) => {
+      const sourceId = `appbanner:${c.van}`
+      const targetId = `appbanner:${c.naar}`
+      if (!nodes.some((n) => n.id === sourceId) || !nodes.some((n) => n.id === targetId)) return
+      edges.push({
+        id: `appconn:${c.id}`,
+        source: sourceId,
+        target: targetId,
+        style: { stroke: '#2a5f8a', strokeWidth: 2 },
+        animated: true,
+      })
+    })
   } else {
     placeApplicatieflowLane('all', t('teampage.flowtypeApplicatieflow'), applicatieflowDeps)
   }
@@ -504,119 +527,454 @@ function canvasHeightFor(inputs, outputs) {
   return IO_Y_START + Math.max(inputs.length, outputs.length) * IO_Y_GAP
 }
 
-function IoListEditor({ title, items, onAdd, onUpdate, onRemove, showLink, showBron, teams, currentTeamId, teamWorkflows, teamName, applications, t, language }) {
+function emptyIoItem(kind) {
+  return kind === 'input'
+    ? { id: generateId(), label: '', flowtype: '', bron_type: '', linkedTeam: '', linkedOutputId: '', applicatieId: '' }
+    : { id: generateId(), label: '', flowtype: '', applicatieId: '' }
+}
+
+function ioItemSummary(item, kind, teams, teamWorkflows, applications, language) {
+  const parts = []
+  if (item.flowtype) parts.push(translateFlowtype(item.flowtype, language))
+  if (kind === 'input' && item.bron_type) parts.push(translateBronType(item.bron_type, language))
+  if (kind === 'input' && item.linkedTeam) {
+    const team = teams.find((tm) => tm.id === item.linkedTeam)
+    const out = (teamWorkflows[item.linkedTeam]?.outputs ?? []).find((o) => o.id === item.linkedOutputId)
+    parts.push(`${team?.naam ?? item.linkedTeam}${out ? ` → ${out.label || '—'}` : ''}`)
+  }
+  if (item.applicatieId) {
+    const app = applications.find((a) => a.id === item.applicatieId)
+    if (app) parts.push(app.naam || '—')
+  }
+  return parts.join(' · ')
+}
+
+// Klein modal-formulier voor één input-/output-item — vervangt de eerder
+// altijd-open inline velden per rij, zodat de lijst daarboven een rustig,
+// leesbaar overzicht blijft en je alleen bij bewerken de details ziet.
+function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeamId, teamWorkflows, applications, t, language }) {
+  const [draft, setDraft] = useState(() => ({ ...emptyIoItem(kind), ...item }))
+  const isEditing = Boolean(item)
+  const showBron = kind === 'input'
+  const showLink = kind === 'input'
+
+  function update(fields) {
+    setDraft((d) => ({ ...d, ...fields }))
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    onSave(draft)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900">
+            {isEditing ? t('teampage.ioEditTitle') : t('teampage.ioAddTitle')}
+          </h3>
+          <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
+          <div>
+            <input
+              autoFocus
+              value={draft.label}
+              onChange={(e) => update({ label: e.target.value })}
+              placeholder={t('teampage.ioLabelPlaceholder')}
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('form.flowtype')}</label>
+            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
+              {FLOWTYPE_LEVELS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => update({ flowtype: draft.flowtype === value ? '' : value })}
+                  aria-pressed={draft.flowtype === value}
+                  className={`rounded px-2.5 py-1 text-xs transition-colors ${
+                    draft.flowtype === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {translateFlowtype(value, language)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {showBron && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioBronLabel')}</label>
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={draft.bron_type ?? ''}
+                  onChange={(e) => update({ bron_type: e.target.value })}
+                  className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                >
+                  <option value="">{t('teampage.ioBronNone')}</option>
+                  {BRON_TYPES.map((bron) => (
+                    <option key={bron} value={bron}>
+                      {translateBronType(bron, language)}
+                    </option>
+                  ))}
+                </select>
+                {draft.bron_type && (
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(draft.bron_type) }} />
+                )}
+              </div>
+            </div>
+          )}
+
+          {showLink && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioLinkLabel')}</label>
+              <div className="flex flex-col gap-1.5">
+                <select
+                  value={draft.linkedTeam ?? ''}
+                  onChange={(e) => update({ linkedTeam: e.target.value, linkedOutputId: '' })}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                >
+                  <option value="">{t('teampage.ioLinkNone')}</option>
+                  {teams
+                    .filter((tm) => tm.id !== currentTeamId)
+                    .map((tm) => (
+                      <option key={tm.id} value={tm.id}>
+                        {tm.naam}
+                      </option>
+                    ))}
+                </select>
+                {draft.linkedTeam && (
+                  <select
+                    value={draft.linkedOutputId ?? ''}
+                    onChange={(e) => update({ linkedOutputId: e.target.value })}
+                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                  >
+                    <option value="">{t('teampage.ioLinkItemPlaceholder')}</option>
+                    {(teamWorkflows[draft.linkedTeam]?.outputs ?? []).map((out) => (
+                      <option key={out.id} value={out.id}>
+                        {out.label || '—'}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+          )}
+
+          {applications.length > 0 && (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioApplicatieLabel')}</label>
+              <select
+                value={draft.applicatieId ?? ''}
+                onChange={(e) => update({ applicatieId: e.target.value })}
+                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="">{t('teampage.ioApplicatieNone')}</option>
+                {applications.map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.naam || '—'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="rounded-md border border-[#9a3b2e]/30 px-2.5 py-1.5 text-xs font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
+              >
+                {t('teampage.remove')}
+              </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                {t('form.cancel')}
+              </button>
+              <button type="submit" className="rounded-md bg-[#2a5f8a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1f4a6c]">
+                {t('form.save')}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function IoListEditor({ title, kind, items, onAdd, onUpdate, onRemove, showLink, showBron, teams, currentTeamId, teamWorkflows, applications, t, language }) {
+  // undefined = gesloten, null = nieuw item, object = item in bewerking
+  const [modalItem, setModalItem] = useState(undefined)
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
         <button
           type="button"
-          onClick={onAdd}
+          onClick={() => setModalItem(null)}
           className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
         >
           {t('teampage.ioAdd')}
         </button>
       </div>
       {items.length === 0 && <p className="text-xs text-slate-400">{t('teampage.ioEmpty')}</p>}
-      <ul className="space-y-2">
-        {items.map((item) => (
-          <li key={item.id} className="rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
-            <div className="flex items-center gap-2">
-              <input
-                value={item.label}
-                onChange={(e) => onUpdate(item.id, { label: e.target.value })}
-                placeholder={t('teampage.ioLabelPlaceholder')}
-                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-              />
+      <ul className="divide-y divide-slate-100">
+        {items.map((item) => {
+          const summary = ioItemSummary(item, kind, teams, teamWorkflows, applications, language)
+          return (
+            <li key={item.id}>
               <button
                 type="button"
-                onClick={() => onRemove(item.id)}
-                aria-label={t('teampage.remove')}
-                title={t('teampage.remove')}
-                className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
+                onClick={() => setModalItem(item)}
+                className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                  <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                </svg>
+                <span className="min-w-0 flex-1 truncate text-slate-700">{item.label || '—'}</span>
+                {summary && <span className="max-w-[55%] shrink-0 truncate text-xs text-slate-400">{summary}</span>}
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+
+      {modalItem !== undefined && (
+        <IoItemModal
+          kind={kind}
+          item={modalItem}
+          teams={teams}
+          currentTeamId={currentTeamId}
+          teamWorkflows={teamWorkflows}
+          applications={applications}
+          t={t}
+          language={language}
+          onClose={() => setModalItem(undefined)}
+          onSave={(draft) => {
+            if (modalItem) onUpdate(draft.id, draft)
+            else onAdd(draft)
+            setModalItem(undefined)
+          }}
+          onRemove={
+            modalItem
+              ? () => {
+                  onRemove(modalItem.id)
+                  setModalItem(undefined)
+                }
+              : undefined
+          }
+        />
+      )}
+    </div>
+  )
+}
+
+function emptyCapacityRow() {
+  return { id: generateId(), functieId: '', seniority: '', risico_bij_uitval: '', risico_toelichting: '', aantal: 1, fase: '' }
+}
+
+// Klein modal-formulier voor één capaciteitsrij, inclusief de inline
+// 'nieuwe functie/rol toevoegen'-subflow die voorheen los per rij op de
+// pagina zelf stond.
+function CapacityRowModal({ row, activeFuncties, addFunctie, onSave, onRemove, onClose, t, language }) {
+  const [draft, setDraft] = useState(() => ({ ...emptyCapacityRow(), ...row }))
+  const [addingRole, setAddingRole] = useState(false)
+  const [newRoleName, setNewRoleName] = useState('')
+  const isEditing = Boolean(row)
+
+  function update(fields) {
+    setDraft((d) => ({ ...d, ...fields }))
+  }
+
+  function handleRoleChange(value) {
+    if (value === NEW_ROLE_SENTINEL) {
+      setAddingRole(true)
+      return
+    }
+    update({ functieId: value })
+  }
+
+  function confirmNewRole() {
+    const name = newRoleName.trim()
+    if (!name) return
+    const id = addFunctie(name)
+    if (id) update({ functieId: id })
+    setNewRoleName('')
+    setAddingRole(false)
+  }
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    onSave(draft)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900">
+            {isEditing ? t('teampage.capacityEditTitle') : t('teampage.capacityAddTitle')}
+          </h3>
+          <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.capacityRolPlaceholder')}</label>
+            {addingRole ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  placeholder={t('teampage.capacityRolPlaceholder')}
+                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={confirmNewRole}
+                  className="shrink-0 rounded-md bg-[#2a5f8a] px-2.5 py-1.5 text-sm text-white hover:bg-[#1f4a6c]"
+                >
+                  {t('form.categorieNewConfirm')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAddingRole(false)
+                    setNewRoleName('')
+                  }}
+                  className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+                >
+                  {t('form.cancel')}
+                </button>
+              </div>
+            ) : (
+              <select
+                value={draft.functieId ?? ''}
+                onChange={(e) => handleRoleChange(e.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="">—</option>
+                {activeFuncties.map((functie) => (
+                  <option key={functie.id} value={functie.id}>
+                    {functie.naam}
+                  </option>
+                ))}
+                <option value={NEW_ROLE_SENTINEL}>{t('teampage.capacityNewRole')}</option>
+              </select>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.capacityAantal')}</label>
+              <input
+                type="number"
+                min={0}
+                value={draft.aantal}
+                onChange={(e) => update({ aantal: Number(e.target.value) })}
+                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.capacitySeniority')}</label>
+              <select
+                value={draft.seniority ?? ''}
+                onChange={(e) => update({ seniority: e.target.value })}
+                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="">—</option>
+                {SENIORITY_LEVELS.map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {translateSeniority(lvl, language)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.capacityFase')}</label>
+            <select
+              value={draft.fase ?? ''}
+              onChange={(e) => update({ fase: e.target.value })}
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              <option value="">—</option>
+              {WORKFLOW_STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {translateWorkflowStage(stage, language)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.capacityRisicoLabel')}</label>
+            <select
+              value={draft.risico_bij_uitval ?? ''}
+              onChange={(e) => update({ risico_bij_uitval: e.target.value })}
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              <option value="">—</option>
+              {RISICO_BIJ_UITVAL.map((val) => (
+                <option key={val} value={val}>
+                  {translateRisicoBijUitval(val, language)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {draft.risico_bij_uitval === 'ja' && (
+            <div>
+              <input
+                value={draft.risico_toelichting ?? ''}
+                onChange={(e) => update({ risico_toelichting: e.target.value })}
+                placeholder={t('teampage.capacityRisicoToelichtingPlaceholder')}
+                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+              />
+            </div>
+          )}
+
+          <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
+            {isEditing ? (
+              <button
+                type="button"
+                onClick={onRemove}
+                className="rounded-md border border-[#9a3b2e]/30 px-2.5 py-1.5 text-xs font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
+              >
+                {t('teampage.remove')}
+              </button>
+            ) : (
+              <span />
+            )}
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+              >
+                {t('form.cancel')}
+              </button>
+              <button type="submit" className="rounded-md bg-[#2a5f8a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1f4a6c]">
+                {t('form.save')}
               </button>
             </div>
-            {(showBron || showLink || applications.length > 0) && (
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-200/80 pt-2">
-                {showBron && (
-                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
-                    {t('teampage.ioBronLabel')}
-                    <select
-                      value={item.bron_type ?? ''}
-                      onChange={(e) => onUpdate(item.id, { bron_type: e.target.value })}
-                      className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                    >
-                      <option value="">{t('teampage.ioBronNone')}</option>
-                      {BRON_TYPES.map((bron) => (
-                        <option key={bron} value={bron}>
-                          {translateBronType(bron, language)}
-                        </option>
-                      ))}
-                    </select>
-                    {item.bron_type && (
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(item.bron_type) }} />
-                    )}
-                  </label>
-                )}
-                {showLink && (
-                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
-                    {t('teampage.ioLinkLabel')}
-                    <select
-                      value={item.linkedTeam ?? ''}
-                      onChange={(e) => onUpdate(item.id, { linkedTeam: e.target.value, linkedOutputId: '' })}
-                      className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                    >
-                      <option value="">{t('teampage.ioLinkNone')}</option>
-                      {teams
-                        .filter((tm) => tm.id !== currentTeamId)
-                        .map((tm) => (
-                          <option key={tm.id} value={tm.id}>
-                            {tm.naam}
-                          </option>
-                        ))}
-                    </select>
-                    {item.linkedTeam && (
-                      <select
-                        value={item.linkedOutputId ?? ''}
-                        onChange={(e) => onUpdate(item.id, { linkedOutputId: e.target.value })}
-                        className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                      >
-                        <option value="">{t('teampage.ioLinkItemPlaceholder')}</option>
-                        {(teamWorkflows[item.linkedTeam]?.outputs ?? []).map((out) => (
-                          <option key={out.id} value={out.id}>
-                            {out.label || '—'}
-                          </option>
-                        ))}
-                      </select>
-                    )}
-                  </label>
-                )}
-                {applications.length > 0 && (
-                  <label className="flex items-center gap-1.5 text-xs text-slate-500">
-                    {t('teampage.ioApplicatieLabel')}
-                    <select
-                      value={item.applicatieId ?? ''}
-                      onChange={(e) => onUpdate(item.id, { applicatieId: e.target.value })}
-                      className="rounded-md border border-slate-300 bg-white px-1.5 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                    >
-                      <option value="">{t('teampage.ioApplicatieNone')}</option>
-                      {applications.map((app) => (
-                        <option key={app.id} value={app.id}>
-                          {app.naam || '—'}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                )}
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
@@ -647,8 +1005,7 @@ export default function TeamPage({ teamId, onBack }) {
   const [activeColor, setActiveColor] = useState(ANNOTATION_PALETTE[1].value)
   const [lineToolActive, setLineToolActive] = useState(false)
   const [lineStart, setLineStart] = useState(null)
-  const [addingRoleForRow, setAddingRoleForRow] = useState(null)
-  const [newRoleName, setNewRoleName] = useState('')
+  const [capacityModalRow, setCapacityModalRow] = useState(undefined)
   const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
@@ -742,33 +1099,27 @@ export default function TeamPage({ teamId, onBack }) {
           <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
         </button>
-        {showAppPicker && (
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6">
-            {workflow.applications.length === 0 ? (
-              <span className="text-[11px] text-slate-400">{t('teampage.applicationsEmpty')}</span>
-            ) : (
-              <>
-                <span className="text-[10px] text-slate-400">{t('teampage.appLabelHint')}</span>
-                {workflow.applications.map((app) => {
-                  const selected = (dep.applicatieIds ?? []).includes(app.id)
-                  return (
-                    <button
-                      key={app.id}
-                      type="button"
-                      onClick={() => toggleApplicatieId(dep, app.id)}
-                      aria-pressed={selected}
-                      className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
-                        selected
-                          ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white'
-                          : 'border-slate-300 bg-white text-slate-500 hover:border-slate-400'
-                      }`}
-                    >
-                      {app.naam || '—'}
-                    </button>
-                  )
-                })}
-              </>
-            )}
+        {showAppPicker && workflow.applications.length > 0 && (
+          <div className="mt-1 flex flex-wrap items-center gap-1 pl-5" title={t('teampage.appLabelHint')}>
+            {workflow.applications.map((app) => {
+              const selected = (dep.applicatieIds ?? []).includes(app.id)
+              return (
+                <button
+                  key={app.id}
+                  type="button"
+                  onClick={() => toggleApplicatieId(dep, app.id)}
+                  aria-pressed={selected}
+                  aria-label={`${t('teampage.appLabelHint')} ${app.naam || '—'}`}
+                  className={`rounded-full border px-1.5 py-[1px] text-[10px] font-medium transition-colors ${
+                    selected
+                      ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white'
+                      : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'
+                  }`}
+                >
+                  {app.naam || '—'}
+                </button>
+              )
+            })}
           </div>
         )}
       </li>
@@ -832,6 +1183,7 @@ export default function TeamPage({ teamId, onBack }) {
     functieName,
     workflow.applications,
     splitApplicaties,
+    workflow.applicatieflow?.connecties ?? [],
     t,
     language,
     onOpenApplicatieflow,
@@ -873,36 +1225,14 @@ export default function TeamPage({ teamId, onBack }) {
     setLineToolActive(false)
   }
 
-  function addCapacityRow() {
-    patch({
-      capacity: [
-        ...workflow.capacity,
-        { id: generateId(), functieId: '', seniority: '', risico_bij_uitval: '', risico_toelichting: '', aantal: 1, fase: '' },
-      ],
-    })
+  function addCapacityRow(row) {
+    patch({ capacity: [...workflow.capacity, row] })
   }
   function updateCapacityRow(id, fields) {
     patch({ capacity: workflow.capacity.map((c) => (c.id === id ? { ...c, ...fields } : c)) })
   }
   function removeCapacityRow(id) {
     patch({ capacity: workflow.capacity.filter((c) => c.id !== id) })
-  }
-
-  function handleRoleChange(rowId, value) {
-    if (value === NEW_ROLE_SENTINEL) {
-      setAddingRoleForRow(rowId)
-      return
-    }
-    updateCapacityRow(rowId, { functieId: value })
-  }
-
-  function confirmNewRole(rowId) {
-    const name = newRoleName.trim()
-    if (!name) return
-    const id = addFunctie(name)
-    if (id) updateCapacityRow(rowId, { functieId: id })
-    setNewRoleName('')
-    setAddingRoleForRow(null)
   }
 
   function addApplication() {
@@ -915,8 +1245,8 @@ export default function TeamPage({ teamId, onBack }) {
     patch({ applications: workflow.applications.filter((a) => a.id !== id) })
   }
 
-  function addInput() {
-    patch({ inputs: [...workflow.inputs, { id: generateId(), label: '', linkedTeam: '', linkedOutputId: '' }] })
+  function addInput(item) {
+    patch({ inputs: [...workflow.inputs, item] })
   }
   function updateInput(id, fields) {
     patch({ inputs: workflow.inputs.map((i) => (i.id === id ? { ...i, ...fields } : i)) })
@@ -925,8 +1255,8 @@ export default function TeamPage({ teamId, onBack }) {
     patch({ inputs: workflow.inputs.filter((i) => i.id !== id) })
   }
 
-  function addOutput() {
-    patch({ outputs: [...workflow.outputs, { id: generateId(), label: '' }] })
+  function addOutput(item) {
+    patch({ outputs: [...workflow.outputs, item] })
   }
   function updateOutput(id, fields) {
     patch({ outputs: workflow.outputs.map((o) => (o.id === id ? { ...o, ...fields } : o)) })
@@ -1189,6 +1519,7 @@ export default function TeamPage({ teamId, onBack }) {
           <div className="grid grid-cols-2 gap-4">
             <IoListEditor
               title={t('teampage.inputsTitle')}
+              kind="input"
               items={workflow.inputs}
               onAdd={addInput}
               onUpdate={updateInput}
@@ -1198,13 +1529,13 @@ export default function TeamPage({ teamId, onBack }) {
               teams={teams}
               currentTeamId={teamId}
               teamWorkflows={teamWorkflows}
-              teamName={teamName}
               applications={workflow.applications}
               t={t}
               language={language}
             />
             <IoListEditor
               title={t('teampage.outputsTitle')}
+              kind="output"
               items={workflow.outputs}
               onAdd={addOutput}
               onUpdate={updateOutput}
@@ -1213,9 +1544,9 @@ export default function TeamPage({ teamId, onBack }) {
               teams={teams}
               currentTeamId={teamId}
               teamWorkflows={teamWorkflows}
-              teamName={teamName}
               applications={workflow.applications}
               t={t}
+              language={language}
             />
           </div>
 
@@ -1224,128 +1555,64 @@ export default function TeamPage({ teamId, onBack }) {
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.capacityTitle')}</h3>
               <button
                 type="button"
-                onClick={addCapacityRow}
+                onClick={() => setCapacityModalRow(null)}
                 className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
               >
                 {t('teampage.capacityAdd')}
               </button>
             </div>
             {workflow.capacity.length === 0 && <p className="text-xs text-slate-400">{t('teampage.capacityEmpty')}</p>}
-            <div className="space-y-2.5">
-              {workflow.capacity.map((row) => (
-                <div key={row.id} className="rounded-md border border-slate-200 p-2.5">
-                  <div className="flex items-center gap-2">
-                    {addingRoleForRow === row.id ? (
-                      <div className="flex flex-1 items-center gap-1.5">
-                        <input
-                          autoFocus
-                          value={newRoleName}
-                          onChange={(e) => setNewRoleName(e.target.value)}
-                          placeholder={t('teampage.capacityRolPlaceholder')}
-                          className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => confirmNewRole(row.id)}
-                          className="shrink-0 rounded-md bg-[#2a5f8a] px-2.5 py-1.5 text-sm text-white hover:bg-[#1f4a6c]"
-                        >
-                          {t('form.categorieNewConfirm')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setAddingRoleForRow(null)
-                            setNewRoleName('')
-                          }}
-                          className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-                        >
-                          {t('form.cancel')}
-                        </button>
-                      </div>
-                    ) : (
-                      <select
-                        value={row.functieId ?? ''}
-                        onChange={(e) => handleRoleChange(row.id, e.target.value)}
-                        className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
-                      >
-                        <option value="">—</option>
-                        {activeFuncties.map((functie) => (
-                          <option key={functie.id} value={functie.id}>
-                            {functie.naam}
-                          </option>
-                        ))}
-                        <option value={NEW_ROLE_SENTINEL}>{t('teampage.capacityNewRole')}</option>
-                      </select>
-                    )}
-                    <input
-                      type="number"
-                      min={0}
-                      value={row.aantal}
-                      onChange={(e) => updateCapacityRow(row.id, { aantal: Number(e.target.value) })}
-                      title={t('teampage.capacityAantal')}
-                      className="w-16 shrink-0 rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
-                    />
+            <ul className="divide-y divide-slate-100">
+              {workflow.capacity.map((row) => {
+                const summary = [
+                  row.seniority && translateSeniority(row.seniority, language),
+                  row.fase && translateWorkflowStage(row.fase, language),
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+                return (
+                  <li key={row.id}>
                     <button
                       type="button"
-                      onClick={() => removeCapacityRow(row.id)}
-                      className="shrink-0 rounded-md border border-[#9a3b2e]/30 px-2 py-1.5 text-xs text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
+                      onClick={() => setCapacityModalRow(row)}
+                      className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
                     >
-                      {t('teampage.remove')}
+                      {row.risico_bij_uitval === 'ja' && (
+                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('teampage.capacityRisicoLabel')} />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-slate-700">{functieName(row.functieId) || '—'}</span>
+                      {summary && <span className="shrink-0 text-xs text-slate-400">{summary}</span>}
+                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{row.aantal}</span>
                     </button>
-                  </div>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <select
-                      value={row.seniority ?? ''}
-                      onChange={(e) => updateCapacityRow(row.id, { seniority: e.target.value })}
-                      title={t('teampage.capacitySeniority')}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                    >
-                      <option value="">{t('teampage.capacitySeniority')}</option>
-                      {SENIORITY_LEVELS.map((lvl) => (
-                        <option key={lvl} value={lvl}>
-                          {translateSeniority(lvl, language)}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      value={row.fase}
-                      onChange={(e) => updateCapacityRow(row.id, { fase: e.target.value })}
-                      title={t('teampage.capacityFase')}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                    >
-                      <option value="">{t('teampage.capacityFase')}</option>
-                      {WORKFLOW_STAGES.map((stage) => (
-                        <option key={stage} value={stage}>
-                          {translateWorkflowStage(stage, language)}
-                        </option>
-                      ))}
-                    </select>
-                    <span className="text-[11px] text-slate-400">{t('teampage.capacityRisicoLabel')}</span>
-                    <select
-                      value={row.risico_bij_uitval ?? ''}
-                      onChange={(e) => updateCapacityRow(row.id, { risico_bij_uitval: e.target.value })}
-                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                    >
-                      <option value="">—</option>
-                      {RISICO_BIJ_UITVAL.map((val) => (
-                        <option key={val} value={val}>
-                          {translateRisicoBijUitval(val, language)}
-                        </option>
-                      ))}
-                    </select>
-                    {row.risico_bij_uitval === 'ja' && (
-                      <input
-                        value={row.risico_toelichting ?? ''}
-                        onChange={(e) => updateCapacityRow(row.id, { risico_toelichting: e.target.value })}
-                        placeholder={t('teampage.capacityRisicoToelichtingPlaceholder')}
-                        className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                      />
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+                  </li>
+                )
+              })}
+            </ul>
           </div>
+
+          {capacityModalRow !== undefined && (
+            <CapacityRowModal
+              row={capacityModalRow}
+              activeFuncties={activeFuncties}
+              addFunctie={addFunctie}
+              t={t}
+              language={language}
+              onClose={() => setCapacityModalRow(undefined)}
+              onSave={(draft) => {
+                if (capacityModalRow) updateCapacityRow(draft.id, draft)
+                else addCapacityRow(draft)
+                setCapacityModalRow(undefined)
+              }}
+              onRemove={
+                capacityModalRow
+                  ? () => {
+                      removeCapacityRow(capacityModalRow.id)
+                      setCapacityModalRow(undefined)
+                    }
+                  : undefined
+              }
+            />
+          )}
 
           <div data-tour="dependencies" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
@@ -1379,7 +1646,7 @@ export default function TeamPage({ teamId, onBack }) {
                 <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t('teampage.flowtypeOntwikkelflow')} · {ontwikkelflowDeps.length}
                 </h4>
-                <StageGroupedDeps deps={ontwikkelflowDeps} showAppPicker={false} />
+                <StageGroupedDeps deps={ontwikkelflowDeps} showAppPicker />
               </div>
             )}
 
