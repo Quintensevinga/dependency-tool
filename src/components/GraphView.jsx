@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import ReactFlow, { Background, Controls, Handle, Position } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useAppContext } from '../context/AppContext'
@@ -186,7 +186,7 @@ function computeLayout(visibleTeams, visibleDependencies) {
   return { nodes: nodeList, edges: edgeList, categoriesPresent, graphHeight }
 }
 
-export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
+export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight, onClearHighlight, onDrillToRelatie }) {
   const { teams, dependencies, functies } = useAppContext()
   const { t, language } = useLanguage()
   const [listPanel, setListPanel] = useState(null)
@@ -212,6 +212,10 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
   // Kolom-hover in Heatmap-modus: presentatie-only, dimt/markeert cellen
   // buiten/binnen de gehoverde kolom.
   const [hoverHeatmapCol, setHoverHeatmapCol] = useState(null)
+  // Doorklik-highlight vanuit een Heatmap-cel: een gepind team+categorie-paar
+  // op de Relatiekaart, blijft actief tot de gebruiker 'm zelf wist (i.t.t.
+  // hoverNodeId hierboven, dat alleen tijdens hover geldt).
+  const [pinnedPair, setPinnedPair] = useState(null)
 
   const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
 
@@ -247,9 +251,32 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
   // Cluster/Heatmap zodat alle drie modi exact dezelfde data tonen.
   const groups = useMemo(() => groupByTeamCategory(visibleDependencies), [visibleDependencies])
 
+  // Zet een inkomende highlight-prop (vanuit een Heatmap-celklik, via
+  // App.jsx) om in een gepind team+categorie-paar en opent meteen het
+  // detailpaneel voor die combinatie — enkel bij een echte wijziging van de
+  // prop, niet bij elke herberekening van groups/teams.
+  useEffect(() => {
+    if (!highlight) {
+      setPinnedPair(null)
+      return
+    }
+    setPinnedPair({ teamId: highlight.teamId, categorie: highlight.categorie })
+    const team = teams.find((tm) => tm.id === highlight.teamId)
+    if (team) {
+      const deps = groups.get(`${highlight.teamId}::${highlight.categorie}`) ?? []
+      openCellListPanel(team.naam, highlight.categorie, deps)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [highlight])
+
   // Highlight-status toepassen op de weergegeven (niet de bewaarde) nodes/edges,
   // zodat het klikken op de legenda geen posities beïnvloedt.
   const displayNodes = useMemo(() => {
+    if (pinnedPair) {
+      const teamNodeId = `team:${pinnedPair.teamId}`
+      const catNodeId = `cat:${pinnedPair.categorie}`
+      return nodes.map((n) => ({ ...n, data: { ...n.data, dimmed: n.id !== teamNodeId && n.id !== catNodeId } }))
+    }
     if (highlightedCategory) {
       return nodes.map((n) => {
         if (n.type === 'category') {
@@ -269,9 +296,17 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
       })
     }
     return nodes
-  }, [nodes, highlightedCategory, hoverNodeId])
+  }, [nodes, highlightedCategory, hoverNodeId, pinnedPair])
 
   const displayEdges = useMemo(() => {
+    if (pinnedPair) {
+      const teamNodeId = `team:${pinnedPair.teamId}`
+      const catNodeId = `cat:${pinnedPair.categorie}`
+      return edges.map((e) => {
+        const match = e.source === teamNodeId && e.target === catNodeId
+        return { ...e, style: { ...e.style, opacity: match ? 1 : 0.08 }, zIndex: match ? 10 : 0 }
+      })
+    }
     if (highlightedCategory) {
       return edges.map((e) => {
         const match = e.data.categorie === highlightedCategory
@@ -285,7 +320,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
       })
     }
     return edges
-  }, [edges, highlightedCategory, hoverNodeId])
+  }, [edges, highlightedCategory, hoverNodeId, pinnedPair])
 
   function toggleTeam(teamId) {
     setDeselectedTeamIds((prev) => {
@@ -321,6 +356,11 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
 
   function toggleHighlight(categorie) {
     setHighlightedCategory((prev) => (prev === categorie ? null : categorie))
+  }
+
+  function clearPinnedPair() {
+    setPinnedPair(null)
+    onClearHighlight?.()
   }
 
   function renderHoverContent() {
@@ -425,7 +465,22 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
   return (
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1">
-        <div className="mb-3 flex items-center justify-end">
+        <div className="mb-3 flex items-center justify-between gap-3">
+          {pinnedPair && viewMode === 'bipartite' ? (
+            <button
+              type="button"
+              onClick={clearPinnedPair}
+              className="flex items-center gap-1.5 rounded-full border border-[#2a5f8a]/30 bg-[#2a5f8a]/10 px-3 py-1 text-xs font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/15"
+            >
+              {t('graph.highlightActive', {
+                team: teams.find((tm) => tm.id === pinnedPair.teamId)?.naam ?? pinnedPair.teamId,
+                categorie: translateCategorie(pinnedPair.categorie, language),
+              })}
+              <span aria-hidden="true">✕</span>
+            </button>
+          ) : (
+            <span />
+          )}
           <ScopeToggle scope={scope} onChange={setScope} />
         </div>
 
@@ -549,7 +604,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
                           <button
                             key={`${team.id}-${cat}`}
                             type="button"
-                            onClick={() => openCellListPanel(team.naam, cat, deps)}
+                            onClick={() => (onDrillToRelatie ? onDrillToRelatie(team, cat) : openCellListPanel(team.naam, cat, deps))}
                             onMouseEnter={() => setHoverHeatmapCol(cat)}
                             onMouseLeave={() => setHoverHeatmapCol(null)}
                             title={`${team.naam} · ${translateCategorie(cat, language)} · ${translateRiskLevel(risk.level, language)}`}

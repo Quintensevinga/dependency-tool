@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 
 const TAB_IDS = ['matrix', 'graph', 'chain']
 const TAB_LABEL_KEYS = { matrix: 'tab.matrix', graph: 'tab.graph', chain: 'tab.chain' }
-const GRAPH_MODES = ['bipartite', 'heatmap']
+const GRAPH_MODES = ['heatmap', 'bipartite']
 
 function MatrixIcon() {
   return (

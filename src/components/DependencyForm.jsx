@@ -7,6 +7,7 @@ import {
   WORKFLOW_STAP_LEVELS,
   EFFECT_OP_FLOW_LEVELS,
   OPLOSSINGSNIVEAU_LEVELS,
+  FLOWTYPE_LEVELS,
 } from '../data/constants'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -24,6 +25,7 @@ import {
 
 const EMPTY_FORM = {
   scope: 'intern',
+  flowtype: '',
   categorie: '',
   titel: '',
   toelichting: '',
@@ -79,6 +81,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
       ...prefill,
       ...initialData,
       eigenaarFunctieIds: Array.isArray(initialData?.eigenaarFunctieIds) ? [...initialData.eigenaarFunctieIds] : [],
+      flowtype: initialData?.flowtype ?? prefill?.flowtype ?? '',
       workflowStap: initialData?.workflowStap ?? '',
       effectOpFlow: initialData?.effectOpFlow ?? '',
       oplossingsniveau: initialData?.oplossingsniveau ?? '',
@@ -101,7 +104,7 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
 
   useModalA11y({ open: true, onClose: handleClose, containerRef: dialogRef })
 
-  const requiredFields = ['categorie', 'titel', 'impact', 'frequentie', 'status']
+  const requiredFields = ['flowtype', 'categorie', 'titel', 'impact', 'frequentie', 'status']
   const errors = {}
   for (const field of requiredFields) {
     if (!form[field]?.trim?.()) errors[field] = t('form.required')
@@ -109,6 +112,9 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
   if (form.eigenaarFunctieIds.length === 0) errors.eigenaarFunctieIds = t('form.required')
   if (form.scope === 'extern' && !form.geraakte_team_extern?.trim()) {
     errors.geraakte_team_extern = t('form.required')
+  }
+  if (form.flowtype === 'ontwikkelflow' && !form.workflowStap?.trim()) {
+    errors.workflowStap = t('form.required')
   }
 
   function markTouched(field) {
@@ -119,6 +125,9 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
     setForm((f) => {
       if (field === 'scope') {
         return { ...f, scope: value, categorie: '' }
+      }
+      if (field === 'flowtype' && value === 'applicatieflow') {
+        return { ...f, flowtype: value, workflowStap: '' }
       }
       return { ...f, [field]: value }
     })
@@ -136,10 +145,11 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
 
   function handleSubmit(e) {
     e.preventDefault()
-    setTouched(Object.fromEntries([...requiredFields, 'eigenaarFunctieIds'].map((f) => [f, true])))
+    setTouched(Object.fromEntries([...requiredFields, 'eigenaarFunctieIds', 'workflowStap'].map((f) => [f, true])))
     if (Object.keys(errors).length > 0) return
     const payload = { ...form, teamId }
     if (form.scope === 'intern') delete payload.geraakte_team_extern
+    if (form.flowtype === 'applicatieflow') payload.workflowStap = ''
     onSave(payload)
   }
 
@@ -197,6 +207,28 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <Label required>{t('form.flowtype')}</Label>
+            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
+              {FLOWTYPE_LEVELS.map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => update('flowtype', value)}
+                  onBlur={() => markTouched('flowtype')}
+                  aria-pressed={form.flowtype === value}
+                  className={`rounded px-3 py-1 transition-colors ${
+                    form.flowtype === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {value === 'ontwikkelflow' ? t('form.flowtypeOntwikkelflow') : t('form.flowtypeApplicatieflow')}
+                </button>
+              ))}
+            </div>
+            <p className="mt-1 text-xs text-slate-400">{t('form.flowtypeHelper')}</p>
+            {touched.flowtype && <FieldError id="err-flowtype" message={errors.flowtype} />}
           </div>
 
           <div>
@@ -364,16 +396,34 @@ export default function DependencyForm({ teamId, teamName, initialData, prefill,
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <div>
-              <Label htmlFor="dep-workflowstap">{t('form.workflowStap')}</Label>
-              <select id="dep-workflowstap" value={form.workflowStap} onChange={(e) => update('workflowStap', e.target.value)} className={inputClass}>
-                <option value="">—</option>
-                {WORKFLOW_STAP_LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {translateWorkflowStap(lvl, language)}
-                  </option>
-                ))}
-              </select>
-              <p className="mt-1 text-xs text-slate-400">{t('form.workflowStapHelper')}</p>
+              <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
+                {t('form.workflowStap')}
+              </Label>
+              {form.flowtype === 'applicatieflow' ? (
+                <p className="mt-1 text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
+              ) : (
+                <>
+                  <select
+                    id="dep-workflowstap"
+                    value={form.workflowStap}
+                    onChange={(e) => update('workflowStap', e.target.value)}
+                    onBlur={() => markTouched('workflowStap')}
+                    aria-describedby={touched.workflowStap && errors.workflowStap ? 'err-workflowstap' : undefined}
+                    className={inputClass}
+                  >
+                    <option value="">—</option>
+                    {WORKFLOW_STAP_LEVELS.map((lvl) => (
+                      <option key={lvl} value={lvl}>
+                        {translateWorkflowStap(lvl, language)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {form.flowtype === 'ontwikkelflow' ? t('form.workflowStapRequiredHelper') : t('form.workflowStapHelper')}
+                  </p>
+                  {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
+                </>
+              )}
             </div>
             <div>
               <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>

@@ -17,9 +17,26 @@ function AppContent() {
   const { currentTeamId, setCurrentTeamId, teamName, addDependency, updateDependency, deleteDependency } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('graph')
-  // Weergavemodus van Netwerkweergave (bipartite/cluster/heatmap) leeft hier
-  // i.p.v. lokaal in GraphView, zodat de Sidebar 'm ook kan tonen/wijzigen.
-  const [graphViewMode, setGraphViewMode] = useState('bipartite')
+  // Weergavemodus van Netwerkweergave (Heatmap/Relatiekaart) leeft hier i.p.v.
+  // lokaal in GraphView, zodat de Sidebar 'm ook kan tonen/wijzigen. Heatmap
+  // is het startpunt (overzicht eerst); Relatiekaart is de verdiepende
+  // doorklik-view, al blijft hij ook los kiesbaar via de sidebar-subtab.
+  const [graphViewMode, setGraphViewMode] = useState('heatmap')
+  // Doorklikstatus vanuit een Heatmap-cel: pint een team+categorie-paar op de
+  // Relatiekaart totdat de gebruiker 'm zelf wist (niet enkel hover-gedreven).
+  const [graphHighlight, setGraphHighlight] = useState(null)
+
+  function handleDrillToRelatie(team, categorie) {
+    setGraphViewMode('bipartite')
+    setGraphHighlight({ teamId: team.id, categorie })
+  }
+
+  // Handmatig van weergavemodus wisselen (sidebar-subtab) wist een eventuele
+  // doorklik-highlight — die hoort alleen bij de Heatmap-cel die 'm zette.
+  function handleGraphViewModeChange(mode) {
+    setGraphViewMode(mode)
+    setGraphHighlight(null)
+  }
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [teamPageTeamId, setTeamPageTeamId] = useState(null)
   const [selectedDependency, setSelectedDependency] = useState(null)
@@ -79,7 +96,7 @@ function AppContent() {
         onNavigateToTeam={handleNavigateToTeam}
         activeTeamId={teamPageTeamId}
         graphViewMode={graphViewMode}
-        onGraphViewModeChange={setGraphViewMode}
+        onGraphViewModeChange={handleGraphViewModeChange}
         collapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
       />
@@ -107,7 +124,14 @@ function AppContent() {
             <div ref={viewRef} className="bg-[#f3f6f9]">
               {activeTab === 'matrix' && <MatrixView onSelect={setSelectedDependency} />}
               {activeTab === 'graph' && (
-                <GraphView onSelect={setSelectedDependency} onQuickCreate={handleQuickCreate} viewMode={graphViewMode} />
+                <GraphView
+                  onSelect={setSelectedDependency}
+                  onQuickCreate={handleQuickCreate}
+                  viewMode={graphViewMode}
+                  highlight={graphHighlight}
+                  onClearHighlight={() => setGraphHighlight(null)}
+                  onDrillToRelatie={handleDrillToRelatie}
+                />
               )}
               {activeTab === 'chain' && <ChainOverview />}
             </div>

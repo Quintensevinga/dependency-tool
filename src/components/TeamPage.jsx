@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Handle, Position } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
-import { WORKFLOW_STAGES, BRON_TYPES, SENIORITY_LEVELS, RISICO_BIJ_UITVAL } from '../data/constants'
+import { WORKFLOW_STAGES, BRON_TYPES, SENIORITY_LEVELS, RISICO_BIJ_UITVAL, WORKFLOW_STAP_TO_STAGE } from '../data/constants'
 import {
   translateWorkflowStage,
   translateCategorie,
@@ -197,9 +197,11 @@ function computeWorkflowLayout(
   }
   const depsByStage = {}
   for (const dep of teamDependencies) {
-    if (!dep.workflow_fase) continue
-    if (!depsByStage[dep.workflow_fase]) depsByStage[dep.workflow_fase] = []
-    depsByStage[dep.workflow_fase].push(dep)
+    if (dep.flowtype !== 'ontwikkelflow') continue
+    const stage = WORKFLOW_STAP_TO_STAGE[dep.workflowStap]
+    if (!stage) continue
+    if (!depsByStage[stage]) depsByStage[stage] = []
+    depsByStage[stage].push(dep)
   }
   const maxStackPerStage = Math.max(
     0,
@@ -471,6 +473,7 @@ export default function TeamPage({ teamId, onBack }) {
   const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [activeTeamTab, setActiveTeamTab] = useState('workflow')
   const [tourActive, setTourActive] = useState(false)
+  const [appFilterQuery, setAppFilterQuery] = useState('')
 
   useEffect(() => {
     if (!localStorage.getItem(TOUR_SEEN_KEY)) {
@@ -536,6 +539,66 @@ export default function TeamPage({ teamId, onBack }) {
     () => dependencies.filter((d) => d.teamId === teamId).sort(compareRiskDesc),
     [dependencies, teamId],
   )
+
+  // Drieledige splitsing per de Ontwikkelflow/Applicatieflow-scheiding:
+  // legacy-data zonder flowtype blijft expliciet zichtbaar i.p.v. geraden.
+  const legacyFlowDeps = useMemo(() => teamDependencies.filter((d) => !d.flowtype), [teamDependencies])
+  const ontwikkelflowDeps = useMemo(() => teamDependencies.filter((d) => d.flowtype === 'ontwikkelflow'), [teamDependencies])
+  const applicatieflowDeps = useMemo(() => teamDependencies.filter((d) => d.flowtype === 'applicatieflow'), [teamDependencies])
+
+  function toggleApplicatieId(dep, appId) {
+    const current = Array.isArray(dep.applicatieIds) ? dep.applicatieIds : []
+    const next = current.includes(appId) ? current.filter((id) => id !== appId) : [...current, appId]
+    updateDependency(dep.id, { applicatieIds: next })
+  }
+
+  function DependencyRow({ dep, showAppPicker }) {
+    const risk = calculateRisk(dep)
+    const style = riskStyle(risk.level)
+    return (
+      <li className="py-2">
+        <button
+          type="button"
+          onClick={() => setSelectedDependency(dep)}
+          className="flex w-full items-center gap-2 text-left text-sm hover:bg-slate-50"
+        >
+          <CategoryIcon categorie={dep.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+          <span className="flex-1 truncate text-slate-700">{dep.titel}</span>
+          <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
+          <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
+        </button>
+        {showAppPicker && (
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5 pl-6">
+            {workflow.applications.length === 0 ? (
+              <span className="text-[11px] text-slate-400">{t('teampage.applicationsEmpty')}</span>
+            ) : (
+              <>
+                <span className="text-[10px] text-slate-400">{t('teampage.appLabelHint')}</span>
+                {workflow.applications.map((app) => {
+                  const selected = (dep.applicatieIds ?? []).includes(app.id)
+                  return (
+                    <button
+                      key={app.id}
+                      type="button"
+                      onClick={() => toggleApplicatieId(dep, app.id)}
+                      aria-pressed={selected}
+                      className={`rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                        selected
+                          ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white'
+                          : 'border-slate-300 bg-white text-slate-500 hover:border-slate-400'
+                      }`}
+                    >
+                      {app.naam || '—'}
+                    </button>
+                  )
+                })}
+              </>
+            )}
+          </div>
+        )}
+      </li>
+    )
+  }
 
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     workflow.inputs,
@@ -1063,28 +1126,88 @@ export default function TeamPage({ teamId, onBack }) {
               </button>
             </div>
             {teamDependencies.length === 0 && <p className="text-xs text-slate-400">{t('teampage.dependenciesEmpty')}</p>}
-            <ul className="divide-y divide-slate-100">
-              {teamDependencies.map((dep) => {
-                const risk = calculateRisk(dep)
-                const style = riskStyle(risk.level)
-                return (
-                  <li key={dep.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDependency(dep)}
-                      className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
-                    >
-                      <CategoryIcon categorie={dep.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-                      <span className="flex-1 truncate text-slate-700">{dep.titel}</span>
-                      <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
-                      <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>
-                        {translateRiskLevel(risk.level, language)}
-                      </span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+
+            {legacyFlowDeps.length > 0 && (
+              <div className="mb-4">
+                <h4 className="text-xs font-semibold uppercase tracking-wide text-[#9a3b2e]">
+                  {t('teampage.flowtypeUndetermined')} · {legacyFlowDeps.length}
+                </h4>
+                <p className="mb-1.5 mt-0.5 text-[11px] text-slate-400">{t('teampage.flowtypeUndeterminedHint')}</p>
+                <ul className="divide-y divide-slate-100">
+                  {legacyFlowDeps.map((dep) => (
+                    <DependencyRow key={dep.id} dep={dep} showAppPicker={false} />
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {ontwikkelflowDeps.length > 0 && (
+              <div className="mb-4">
+                <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {t('teampage.flowtypeOntwikkelflow')} · {ontwikkelflowDeps.length}
+                </h4>
+                {WORKFLOW_STAGES.map((stage) => {
+                  const stageDeps = ontwikkelflowDeps.filter((d) => WORKFLOW_STAP_TO_STAGE[d.workflowStap] === stage)
+                  if (stageDeps.length === 0) return null
+                  return (
+                    <div key={stage} className="mb-2">
+                      <div className="mb-1 text-[11px] font-medium text-slate-400">{translateWorkflowStage(stage, language)}</div>
+                      <ul className="divide-y divide-slate-100">
+                        {stageDeps.map((dep) => (
+                          <DependencyRow key={dep.id} dep={dep} showAppPicker={false} />
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {applicatieflowDeps.length > 0 && (
+              <div>
+                <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {t('teampage.flowtypeApplicatieflow')} · {applicatieflowDeps.length}
+                </h4>
+                {workflow.applications.length > 3 && (
+                  <input
+                    value={appFilterQuery}
+                    onChange={(e) => setAppFilterQuery(e.target.value)}
+                    placeholder={t('teampage.appFilterPlaceholder')}
+                    className="mb-2 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                  />
+                )}
+                {workflow.applications
+                  .filter((app) => !appFilterQuery.trim() || (app.naam || '').toLowerCase().includes(appFilterQuery.trim().toLowerCase()))
+                  .map((app) => {
+                    const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
+                    if (appDeps.length === 0) return null
+                    return (
+                      <div key={app.id} className="mb-2">
+                        <div className="mb-1 text-[11px] font-medium text-slate-400">{app.naam || '—'}</div>
+                        <ul className="divide-y divide-slate-100">
+                          {appDeps.map((dep) => (
+                            <DependencyRow key={dep.id} dep={dep} showAppPicker />
+                          ))}
+                        </ul>
+                      </div>
+                    )
+                  })}
+                {(() => {
+                  const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
+                  if (unlabeled.length === 0) return null
+                  return (
+                    <div>
+                      <div className="mb-1 text-[11px] font-medium text-slate-400">{t('teampage.appLabelNone')}</div>
+                      <ul className="divide-y divide-slate-100">
+                        {unlabeled.map((dep) => (
+                          <DependencyRow key={dep.id} dep={dep} showAppPicker />
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })()}
+              </div>
+            )}
           </div>
         </>
       )}

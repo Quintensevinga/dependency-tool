@@ -3,7 +3,7 @@ import { DEFAULT_FUNCTIES } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
 const STORAGE_KEY = 'dependency-insight:v1'
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export const MAX_SNAPSHOTS_PER_TEAM = 10
 
@@ -122,6 +122,12 @@ function migrateDependency(raw, teamsState) {
     effectOpFlow: raw.effectOpFlow ?? null,
     oplossingsniveau: raw.oplossingsniveau ?? null,
     actieAfspraak: typeof raw.actieAfspraak === 'string' ? raw.actieAfspraak : '',
+    // Bestaande data met een workflowstap wordt aangenomen Ontwikkelflow te
+    // zijn; zonder workflowstap blijft flowtype expliciet onbepaald (null) —
+    // nooit stilzwijgend als Applicatieflow geraden, dat toont de UI als
+    // "Flowtype nog te bepalen" totdat de gebruiker het bewerkt.
+    flowtype: raw.flowtype ?? (raw.workflowStap ? 'ontwikkelflow' : null),
+    applicatieIds: Array.isArray(raw.applicatieIds) ? raw.applicatieIds : [],
   }
 }
 

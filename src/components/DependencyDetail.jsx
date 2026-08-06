@@ -14,6 +14,7 @@ import {
   translateWorkflowStap,
   translateEffectOpFlow,
   translateOplossingsniveau,
+  translateFlowtype,
   getCategoryDescription,
 } from '../i18n/labels'
 import { CategoryIcon } from '../data/categoryIcons'
@@ -30,7 +31,7 @@ function Field({ label, value }) {
 
 export default function DependencyDetail({ dependency, onClose, onEdit, onDelete }) {
   const { t, language } = useLanguage()
-  const { teamName, functieNames } = useAppContext()
+  const { teamName, functieNames, teamWorkflows } = useAppContext()
   const panelRef = useRef(null)
   useModalA11y({ open: Boolean(dependency), onClose, containerRef: panelRef })
 
@@ -40,6 +41,11 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
   const riskLevel = translateRiskLevel(risk.level, language)
   const eigenaar = functieNames(dependency.eigenaarFunctieIds)
   const showLegacyRol = eigenaar === '' && dependency.rol_betrokkene
+  const teamApplications = teamWorkflows[dependency.teamId]?.applications ?? []
+  const labeledApplicaties = (dependency.applicatieIds ?? [])
+    .map((id) => teamApplications.find((app) => app.id === id)?.naam)
+    .filter(Boolean)
+    .join(', ')
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-slate-900/30" onClick={onClose}>
@@ -82,6 +88,20 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
           </div>
 
           <div className="flex flex-wrap gap-1.5">
+            {dependency.flowtype ? (
+              <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                {t('detail.flowtype')}: {translateFlowtype(dependency.flowtype, language)}
+              </span>
+            ) : (
+              <span className="rounded bg-[#9a3b2e]/10 px-2 py-1 text-xs font-medium text-[#9a3b2e]">
+                {t('teampage.flowtypeUndetermined')}
+              </span>
+            )}
+            {dependency.flowtype === 'applicatieflow' && (
+              <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
+                {t('detail.applicaties')}: {labeledApplicaties || t('teampage.appLabelNone')}
+              </span>
+            )}
             {dependency.workflowStap && (
               <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
                 {t('detail.workflowStap')}: {translateWorkflowStap(dependency.workflowStap, language)}

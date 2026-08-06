@@ -68,6 +68,27 @@ export const EFFECT_OP_FLOW_LEVELS = [
 
 export const OPLOSSINGSNIVEAU_LEVELS = ['team', 'samenwerking', 'opschaling', 'monitoren']
 
+// --- Flowtype: scheidt "hoort bij het ontwikkelproces" van "gaat over een
+// applicatie" — bepaalt of workflowstap verplicht is en of de dependency op
+// het workflow-canvas dan wel bij een applicatie op de teampagina verschijnt.
+export const FLOWTYPE_LEVELS = ['ontwikkelflow', 'applicatieflow']
+
+// Vaste mapping van de (fijnmaziger) per-dependency workflowstap naar de
+// (grovere) teamcanvas-stages, zodat een Ontwikkelflow-dependency op de
+// juiste kolom van het workflow-canvas verschijnt. 'hardening' heeft bewust
+// geen bronwaarde: dat is een canvas-only fase (capaciteit), geen moment
+// waarop een dependency zelf wordt vastgelegd.
+export const WORKFLOW_STAP_TO_STAGE = {
+  idee_input: 'analyse_refinement',
+  refinement: 'analyse_refinement',
+  ready: 'ontwikkeling_configuratie',
+  build: 'ontwikkeling_configuratie',
+  test: 'testen',
+  acceptatie: 'acceptatie',
+  release: 'release_overdracht',
+  beheer: 'beheer_nazorg',
+}
+
 // --- Teamworkflow-bord (teampagina, ketenoverzicht) ---
 // Vaste, globale werkstappen-reeks (niet per team aanpasbaar in v1).
 

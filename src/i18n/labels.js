@@ -143,6 +143,11 @@ export const SCOPE_LABELS = {
   extern: { nl: 'ketenniveau', en: 'chain level' },
 }
 
+export const FLOWTYPE_LABELS = {
+  ontwikkelflow: { nl: 'Ontwikkelflow', en: 'Development flow' },
+  applicatieflow: { nl: 'Applicatieflow', en: 'Application flow' },
+}
+
 export const WORKFLOW_STAP_LABELS = {
   idee_input: { nl: 'Idee / input', en: 'Idea / input' },
   refinement: { nl: 'Refinement', en: 'Refinement' },
@@ -213,6 +218,7 @@ export const translateFrequentie = (key, lang) => lookup(FREQUENTIE_LABELS, key,
 export const translateStatus = (key, lang) => lookup(STATUS_LABELS, key, lang)
 export const translateRiskLevel = (key, lang) => lookup(RISK_LEVEL_LABELS, key, lang)
 export const translateScope = (key, lang) => lookup(SCOPE_LABELS, key, lang)
+export const translateFlowtype = (key, lang) => (key ? lookup(FLOWTYPE_LABELS, key, lang) : '')
 export const translateWorkflowStap = (key, lang) => (key ? lookup(WORKFLOW_STAP_LABELS, key, lang) : '')
 export const translateEffectOpFlow = (key, lang) => (key ? lookup(EFFECT_OP_FLOW_LABELS, key, lang) : '')
 export const translateOplossingsniveau = (key, lang) => (key ? lookup(OPLOSSINGSNIVEAU_LABELS, key, lang) : '')
