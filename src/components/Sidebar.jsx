@@ -5,9 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 
 const TAB_IDS = ['matrix', 'graph', 'chain']
 const TAB_LABEL_KEYS = { matrix: 'tab.matrix', graph: 'tab.graph', chain: 'tab.chain' }
-// Experiment: Netwerkweergave-submodi ook als knoppen in de sidebar, i.p.v.
-// (of naast) de segmented control boven het canvas — puur om te vergelijken.
-const GRAPH_MODES = ['bipartite', 'cluster', 'heatmap']
+const GRAPH_MODES = ['bipartite', 'heatmap']
 
 function MatrixIcon() {
   return (
@@ -96,19 +94,27 @@ function ChevronIcon({ open }) {
   )
 }
 
-function RailButton({ active, title, onClick, children, label }) {
+function RailButton({ active, title, onClick, children, label, collapsed }) {
   return (
     <button
       type="button"
       onClick={onClick}
       title={title}
-      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${
-        active ? 'bg-[#2a5f8a] text-white' : 'text-slate-300 hover:bg-white/8 hover:text-white'
-      }`}
+      className={`flex items-center gap-3 rounded-lg py-2.5 text-left text-sm font-medium transition-colors ${
+        collapsed ? 'w-10 justify-center px-0' : 'w-full px-3'
+      } ${active ? 'bg-[#2a5f8a] text-white' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">{children}</span>
-      <span className="truncate">{label}</span>
+      {!collapsed && <span className="truncate">{label}</span>}
     </button>
+  )
+}
+
+function CollapseIcon({ collapsed }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className={collapsed ? 'rotate-180' : ''}>
+      <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   )
 }
 
@@ -241,15 +247,30 @@ export default function Sidebar({
   activeTeamId,
   graphViewMode,
   onGraphViewModeChange,
+  collapsed,
+  onToggleCollapsed,
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { t } = useLanguage()
 
   return (
     <nav
-      className="fixed bottom-0 left-0 top-[57px] z-30 hidden w-56 flex-col gap-1 overflow-y-auto bg-[#16324a] px-2.5 py-3 md:flex"
+      className={`fixed bottom-0 left-0 top-[57px] z-30 hidden flex-col gap-1 overflow-y-auto bg-[#16324a] py-3 transition-[width] md:flex ${
+        collapsed ? 'w-14 items-center px-2' : 'w-56 px-2.5'
+      }`}
       aria-label={t('nav.views')}
     >
+      <button
+        type="button"
+        onClick={onToggleCollapsed}
+        title={collapsed ? t('nav.expand') : t('nav.collapse')}
+        className={`mb-1 flex h-8 items-center rounded-lg text-slate-400 transition-colors hover:bg-white/8 hover:text-white ${
+          collapsed ? 'w-10 justify-center' : 'w-full justify-end px-2'
+        }`}
+      >
+        <CollapseIcon collapsed={collapsed} />
+      </button>
+
       {TAB_IDS.map((id) => {
         const Icon = TAB_ICONS[id]
         return (
@@ -259,10 +280,11 @@ export default function Sidebar({
               title={t(TAB_LABEL_KEYS[id])}
               label={t(TAB_LABEL_KEYS[id])}
               onClick={() => onTabChange(id)}
+              collapsed={collapsed}
             >
               <Icon />
             </RailButton>
-            {id === 'graph' && activeTab === 'graph' && (
+            {!collapsed && id === 'graph' && activeTab === 'graph' && (
               <div className="ml-8 mt-0.5 flex flex-col gap-0.5 border-l border-white/10 pl-2.5">
                 {GRAPH_MODES.map((mode) => (
                   <button
@@ -283,12 +305,17 @@ export default function Sidebar({
         )
       })}
 
-      <div className="my-1 h-px bg-white/10" />
+      <div className={`my-1 h-px bg-white/10 ${collapsed ? 'w-8' : ''}`} />
 
-      <TeamsSection activeTeamId={activeTeamId} onNavigateToTeam={onNavigateToTeam} />
+      {!collapsed && <TeamsSection activeTeamId={activeTeamId} onNavigateToTeam={onNavigateToTeam} />}
 
       <div className="relative mt-auto">
-        <RailButton title={t('header.settings')} label={t('header.settings')} onClick={() => setSettingsOpen((v) => !v)}>
+        <RailButton
+          title={t('header.settings')}
+          label={t('header.settings')}
+          onClick={() => setSettingsOpen((v) => !v)}
+          collapsed={collapsed}
+        >
           <SettingsIcon />
         </RailButton>
         {settingsOpen && (
@@ -298,7 +325,7 @@ export default function Sidebar({
           // nav's eigen breedte uitsteekt werd anders behandeld als scrollbare
           // inhoud van nav zelf, waardoor nav automatisch wegscrolde zodra het
           // paneel focus kreeg en het paneel grotendeels onzichtbaar werd.
-          <div className="fixed bottom-3 left-[232px] z-50">
+          <div className={collapsed ? 'fixed bottom-3 left-[68px] z-50' : 'fixed bottom-3 left-[232px] z-50'}>
             <SettingsPanel onClose={() => setSettingsOpen(false)} onExportPng={onExportPng} />
           </div>
         )}

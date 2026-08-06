@@ -18,6 +18,14 @@ function ChevronIcon({ open }) {
   )
 }
 
+function PanelToggleIcon({ direction }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className={direction === 'left' ? 'rotate-180' : ''}>
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function AllNoneFooter({ onSelectAll, onSelectNone, t }) {
   if (!onSelectAll && !onSelectNone) return null
   return (
@@ -97,9 +105,44 @@ export default function TeamFilterPanel({
   eigenaarFunctie,
 }) {
   const { t, language } = useLanguage()
+  const [collapsed, setCollapsed] = useState(false)
+
+  const anyNarrowed =
+    (selected.length > 0 && selected.length < teams.length) ||
+    (riskLevels.length > 0 && riskLevels.length < RISK_LEVELS.length) ||
+    [workflowStap, effectOpFlow, oplossingsniveau, eigenaarFunctie].some(
+      (group) => group && group.selected.length > 0 && group.selected.length < group.options.length,
+    )
+
+  if (collapsed) {
+    return (
+      <button
+        type="button"
+        onClick={() => setCollapsed(false)}
+        title={t('filter.expand')}
+        className="flex h-fit shrink-0 flex-col items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-2 py-3.5 text-slate-500 shadow-sm hover:bg-slate-50"
+      >
+        <PanelToggleIcon direction="left" />
+        <span className="[writing-mode:vertical-rl] text-xs font-semibold uppercase tracking-wide text-slate-500">
+          {t('filter.title')}
+        </span>
+        {anyNarrowed && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2a5f8a]" title={t('filter.active')} />}
+      </button>
+    )
+  }
 
   return (
     <div className="w-56 shrink-0 space-y-4">
+      <button
+        type="button"
+        onClick={() => setCollapsed(true)}
+        title={t('filter.collapse')}
+        className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-500 shadow-sm hover:bg-slate-50"
+      >
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('filter.title')}</span>
+        <PanelToggleIcon direction="right" />
+      </button>
+
       <CheckboxGroup
         title={t('filter.teams')}
         options={teams}

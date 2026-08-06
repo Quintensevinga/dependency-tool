@@ -20,6 +20,7 @@ function AppContent() {
   // Weergavemodus van Netwerkweergave (bipartite/cluster/heatmap) leeft hier
   // i.p.v. lokaal in GraphView, zodat de Sidebar 'm ook kan tonen/wijzigen.
   const [graphViewMode, setGraphViewMode] = useState('bipartite')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [teamPageTeamId, setTeamPageTeamId] = useState(null)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
@@ -79,6 +80,8 @@ function AppContent() {
         activeTeamId={teamPageTeamId}
         graphViewMode={graphViewMode}
         onGraphViewModeChange={setGraphViewMode}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
       />
 
       {/* Topbar en sidebar staan vast (position:fixed); alleen <main> scrolt,
@@ -88,7 +91,7 @@ function AppContent() {
           (netwerk/keten/teampagina) mogen de volledige beschikbare breedte
           benutten — daar was juist de klacht dat ze te smal/gecentreerd stonden. */}
       <main
-        className={`mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] md:pl-60 ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
+        className={`mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${sidebarCollapsed ? 'md:pl-16' : 'md:pl-60'} ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
       >
         {teamPageTeamId ? (
           <TeamPage key={teamPageTeamId} teamId={teamPageTeamId} onBack={() => setTeamPageTeamId(null)} />

@@ -481,44 +481,6 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode }) {
           </ReactFlow>
           )}
 
-          {viewMode === 'cluster' && (
-            <div className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
-              {categoriesPresent.length === 0 && (
-                <div className="col-span-full flex h-full items-center justify-center text-sm text-slate-400">{t('graph.noDeps')}</div>
-              )}
-              {categoriesPresent.map((categorie) => {
-                const catTeams = visibleTeams
-                  .map((team) => ({ team, deps: groups.get(`${team.id}::${categorie}`) ?? [] }))
-                  .filter(({ deps }) => deps.length > 0)
-                const catRisk = highestRisk(catTeams.flatMap(({ deps }) => deps))
-                const catStyle = riskStyle(catRisk.level)
-                return (
-                  <div key={categorie} className="rounded-xl border-2 bg-white p-3.5 shadow-sm" style={{ borderColor: catStyle.hex }}>
-                    <div className="mb-2.5 flex items-center gap-1.5">
-                      <CategoryIcon categorie={categorie} className="h-4 w-4 shrink-0 text-slate-500" />
-                      <span className="text-sm font-medium text-slate-800">{translateCategorie(categorie, language)}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {catTeams.map(({ team, deps }) => {
-                        const style = riskStyle(highestRisk(deps).level)
-                        return (
-                          <button
-                            key={team.id}
-                            type="button"
-                            onClick={() => openCellListPanel(team.naam, categorie, deps)}
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-opacity hover:opacity-80 ${style.badge}`}
-                          >
-                            {team.naam} · {deps.length}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
           {viewMode === 'heatmap' && (
             <div className="flex h-full flex-col">
               <div className="min-h-0 flex-1 overflow-auto p-4">
