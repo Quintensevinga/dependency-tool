@@ -469,14 +469,17 @@ function computeWorkflowLayout(
 
   if (splitApplicaties && applications.length > 0) {
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
-    // Applicatie-lanen dichtst bij de stage-rij (eerste applicatie het
-    // dichtst), de 'nog niet gelabeld'-lane bovenaan zodat die opvalt.
+    // Niet-gelabelde Applicatieflow-deps horen niet bij een specifieke
+    // applicatie, dus geen aparte 'niet gelabeld'-bucket ertussenin: ze
+    // vormen de algemene Applicatieflow-basislaag (zelfde naam/stijl als de
+    // samengevoegde weergave), direct tegen de stage-rij aan. De per-
+    // applicatie lanen stapelen daar bovenop (eerste applicatie het dichtst).
+    if (unlabeled.length > 0) placeApplicatieflowLane('unlabeled', t('teampage.flowtypeApplicatieflow'), unlabeled)
     for (let i = applications.length - 1; i >= 0; i -= 1) {
       const app = applications[i]
       const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
       placeApplicatieflowLane(app.id, app.naam || '—', appDeps)
     }
-    if (unlabeled.length > 0) placeApplicatieflowLane('unlabeled', t('teampage.appLabelNone'), unlabeled)
 
     // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
     // geeft werk/data door aan welke andere') worden hier als directe lijnen
