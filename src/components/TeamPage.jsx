@@ -378,7 +378,10 @@ function computeWorkflowLayout(
       byStage[stage].push(dep)
     })
     const maxStageStack = Math.max(0, ...WORKFLOW_STAGES.map((s) => byStage[s]?.length ?? 0))
-    const stageRowsHeight = BANNER_TITLE_H + STAGE_LABEL_H + maxStageStack * MARKER_ROW_H
+    // Geen kolomkoppen (stage-namen) meer per lane — die staan één keer
+    // gedeeld boven de hele stapel (zie appflow-header hieronder), anders
+    // dupliceren ze zich per applicatie zodra Split applicaties aanstaat.
+    const stageRowsHeight = BANNER_TITLE_H + maxStageStack * MARKER_ROW_H
     const noStageRows = noStage.length > 0 ? Math.max(1, Math.ceil(noStage.length / MARKERS_PER_ROW)) : 0
     const extraHeight = noStage.length > 0 ? 8 + STAGE_LABEL_H + noStageRows * MARKER_ROW_H : 0
     return { byStage, noStage, stageRowsHeight, height: stageRowsHeight + extraHeight }
@@ -412,21 +415,13 @@ function computeWorkflowLayout(
     })
 
     WORKFLOW_STAGES.forEach((stage, i) => {
-      const labelId = `${bid}:stagelabel:${stage}`
-      nodes.push({
-        id: labelId,
-        type: 'smallLabel',
-        position: withSavedPosition(labelId, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H }),
-        data: { text: translateWorkflowStage(stage, language), color: stageColor(stage) },
-        draggable: false,
-      })
       const stageDeps = byStage[stage] ?? []
       stageDeps.forEach((dep, di) => {
         const mid = `${bid}:dep:${dep.id}`
         nodes.push({
           id: mid,
           type: 'dependencyMarker',
-          position: withSavedPosition(mid, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H + STAGE_LABEL_H + di * MARKER_ROW_H }),
+          position: withSavedPosition(mid, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H + di * MARKER_ROW_H }),
           data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
           draggable: true,
         })
@@ -459,11 +454,17 @@ function computeWorkflowLayout(
     }
   }
 
-  let applicatieflowTop = STAGE_Y - LANE_GAP
+  // LANE_STACK_GAP houdt rekening met de padding van elke lane's achtergrond-
+  // kader (LANE_PAD_TOP/BOTTOM), anders overlappen de kaders van opeenvolgende
+  // lanes elkaar net iets.
+  const LANE_STACK_GAP = LANE_GAP + LANE_PAD_TOP + LANE_PAD_BOTTOM
+  let applicatieflowTop = STAGE_Y - LANE_GAP - LANE_PAD_BOTTOM
+  let topLaneY = null
   function placeApplicatieflowLane(id, label, deps) {
     applicatieflowTop -= groupApplicatieflowDeps(deps).height
     pushApplicatieflowLane(id, label, deps, applicatieflowTop)
-    applicatieflowTop -= LANE_GAP
+    topLaneY = applicatieflowTop
+    applicatieflowTop -= LANE_STACK_GAP
   }
 
   if (splitApplicaties && applications.length > 0) {
@@ -495,6 +496,23 @@ function computeWorkflowLayout(
     })
   } else {
     placeApplicatieflowLane('all', t('teampage.flowtypeApplicatieflow'), applicatieflowDeps)
+  }
+
+  // Eén gedeelde kolomkoppen-rij boven de hele lane-stapel (i.p.v. per lane
+  // herhaald) — de kolommen liggen toch al op dezelfde x-positie als de
+  // Ontwikkelflow-stage-rij eronder, dus één set namen is genoeg.
+  if (topLaneY !== null) {
+    const headerY = topLaneY - LANE_PAD_TOP - STAGE_LABEL_H - 6
+    WORKFLOW_STAGES.forEach((stage, i) => {
+      const labelId = `appflow-header:${stage}`
+      nodes.push({
+        id: labelId,
+        type: 'smallLabel',
+        position: withSavedPosition(labelId, { x: STAGE_START_X + i * STAGE_GAP, y: headerY }),
+        data: { text: translateWorkflowStage(stage, language), color: stageColor(stage) },
+        draggable: false,
+      })
+    })
   }
 
   const lastStage = WORKFLOW_STAGES[WORKFLOW_STAGES.length - 1]
@@ -1189,10 +1207,8 @@ export default function TeamPage({ teamId, onBack }) {
   const ontwikkelflowDeps = useMemo(() => teamDependencies.filter((d) => d.flowtype === 'ontwikkelflow'), [teamDependencies])
   const applicatieflowDeps = useMemo(() => teamDependencies.filter((d) => d.flowtype === 'applicatieflow'), [teamDependencies])
 
-  function toggleApplicatieId(dep, appId) {
-    const current = Array.isArray(dep.applicatieIds) ? dep.applicatieIds : []
-    const next = current.includes(appId) ? current.filter((id) => id !== appId) : [...current, appId]
-    updateDependency(dep.id, { applicatieIds: next })
+  function setApplicatieId(dep, appId) {
+    updateDependency(dep.id, { applicatieIds: appId ? [appId] : [] })
   }
 
   function DependencyRow({ dep, showAppPicker }) {
@@ -1211,26 +1227,22 @@ export default function TeamPage({ teamId, onBack }) {
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
         </button>
         {showAppPicker && workflow.applications.length > 0 && (
-          <div className="mt-1 flex flex-wrap items-center gap-1 pl-5" title={t('teampage.appLabelHint')}>
-            {workflow.applications.map((app) => {
-              const selected = (dep.applicatieIds ?? []).includes(app.id)
-              return (
-                <button
-                  key={app.id}
-                  type="button"
-                  onClick={() => toggleApplicatieId(dep, app.id)}
-                  aria-pressed={selected}
-                  aria-label={`${t('teampage.appLabelHint')} ${app.naam || '—'}`}
-                  className={`rounded-full border px-1.5 py-[1px] text-[10px] font-medium transition-colors ${
-                    selected
-                      ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white'
-                      : 'border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:text-slate-600'
-                  }`}
-                >
+          <div className="mt-1 pl-5">
+            <select
+              value={(dep.applicatieIds ?? [])[0] ?? ''}
+              onChange={(e) => setApplicatieId(dep, e.target.value)}
+              title={t('teampage.appLabelHint')}
+              className={`rounded border-none bg-transparent py-0 pl-0 pr-4 text-[11px] focus:outline-none focus:ring-1 focus:ring-[#2a5f8a] ${
+                (dep.applicatieIds ?? []).length > 0 ? 'font-medium text-[#2a5f8a]' : 'text-slate-400'
+              }`}
+            >
+              <option value="">{t('teampage.appLabelNone')}</option>
+              {workflow.applications.map((app) => (
+                <option key={app.id} value={app.id}>
                   {app.naam || '—'}
-                </button>
-              )
-            })}
+                </option>
+              ))}
+            </select>
           </div>
         )}
       </li>
