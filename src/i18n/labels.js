@@ -145,7 +145,7 @@ export const SCOPE_LABELS = {
 
 export const FLOWTYPE_LABELS = {
   ontwikkelflow: { nl: 'Ontwikkelflow', en: 'Development flow' },
-  applicatieflow: { nl: 'Applicatieflow', en: 'Application flow' },
+  applicatieflow: { nl: 'Run flow', en: 'Run flow' },
 }
 
 export const WORKFLOW_STAP_LABELS = {

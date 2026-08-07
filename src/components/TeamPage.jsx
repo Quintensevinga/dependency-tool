@@ -11,6 +11,7 @@ import {
   translateSeniority,
   translateRisicoBijUitval,
   translateFlowtype,
+  translateStatus,
 } from '../i18n/labels'
 import { stageColor, bronTypeColor, ANNOTATION_PALETTE } from '../lib/workflowStyles'
 import { calculateRisk, compareRiskDesc } from '../lib/risk'
@@ -120,19 +121,41 @@ function DependencyMarkerNode({ data }) {
 // Applicatieflow-tabblad.
 function ApplicatieflowBannerNode({ data }) {
   return (
-    <button
-      type="button"
-      onClick={data.onClick}
-      className="relative flex cursor-pointer items-center justify-between rounded-lg border-2 border-[#2a5f8a]/50 bg-[#2a5f8a]/10 px-4 py-2 text-left shadow-sm transition-colors hover:bg-[#2a5f8a]/[0.16]"
+    <div
+      className="relative flex items-center gap-1.5 rounded-lg border-2 border-[#2a5f8a]/50 bg-[#2a5f8a]/10 px-2 py-2 shadow-sm"
       style={{ width: data.width }}
     >
       {/* Onzichtbare handles zodat app-naar-app-koppelingen (uit de
           Applicatieflow-vragenlijst) hier als lijn op kunnen aansluiten. */}
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
-      <span className="truncate text-sm font-semibold text-[#2a5f8a]">{data.label}</span>
-      <span className="shrink-0 text-xs text-[#2a5f8a]/70">{data.count > 0 ? data.count : data.emptyLabel}</span>
+      {data.onToggleCollapse && (
+        <button
+          type="button"
+          onClick={data.onToggleCollapse}
+          title={data.toggleLabel}
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#2a5f8a] hover:bg-[#2a5f8a]/15"
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            className={`transition-transform ${data.collapsed ? '-rotate-90' : ''}`}
+          >
+            <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={data.onClick}
+        className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 pr-1.5 text-left"
+      >
+        <span className="truncate text-sm font-semibold text-[#2a5f8a]">{data.label}</span>
+        <span className="shrink-0 text-xs text-[#2a5f8a]/70">{data.count > 0 ? data.count : data.emptyLabel}</span>
+      </button>
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
-    </button>
+    </div>
   )
 }
 
@@ -243,6 +266,9 @@ function computeWorkflowLayout(
   t,
   language,
   onOpenApplicatieflow,
+  laneFilterQuery,
+  collapsedLaneIds,
+  onToggleLaneCollapse,
 ) {
   const nodes = []
   const edges = []
@@ -391,16 +417,17 @@ function computeWorkflowLayout(
   const LANE_PAD_TOP = 10
   const LANE_PAD_BOTTOM = 14
 
-  function pushApplicatieflowLane(id, label, deps, y) {
+  function pushApplicatieflowLane(id, label, deps, y, collapsed) {
     const bid = `appbanner:${id}`
     const { byStage, noStage, stageRowsHeight, height } = groupApplicatieflowDeps(deps)
+    const effectiveHeight = collapsed ? BANNER_TITLE_H : height
 
     const bgId = `${bid}:bg`
     nodes.push({
       id: bgId,
       type: 'laneGroup',
       position: { x: STAGE_START_X - LANE_PAD_X, y: y - LANE_PAD_TOP },
-      data: { width: BANNER_WIDTH + LANE_PAD_X * 2, height: height + LANE_PAD_TOP + LANE_PAD_BOTTOM },
+      data: { width: BANNER_WIDTH + LANE_PAD_X * 2, height: effectiveHeight + LANE_PAD_TOP + LANE_PAD_BOTTOM },
       draggable: false,
       selectable: false,
       zIndex: -1,
@@ -410,9 +437,20 @@ function computeWorkflowLayout(
       id: bid,
       type: 'applicatieflowBanner',
       position: withSavedPosition(bid, { x: STAGE_START_X, y }),
-      data: { width: BANNER_WIDTH, label, count: deps.length, emptyLabel: t('teampage.applicatieflowBannerEmpty'), onClick: onOpenApplicatieflow },
+      data: {
+        width: BANNER_WIDTH,
+        label,
+        count: deps.length,
+        emptyLabel: t('teampage.applicatieflowBannerEmpty'),
+        onClick: onOpenApplicatieflow,
+        collapsed,
+        onToggleCollapse: onToggleLaneCollapse ? () => onToggleLaneCollapse(id) : undefined,
+        toggleLabel: collapsed ? t('teampage.laneExpand') : t('teampage.laneCollapse'),
+      },
       draggable: true,
     })
+
+    if (collapsed) return
 
     WORKFLOW_STAGES.forEach((stage, i) => {
       const stageDeps = byStage[stage] ?? []
@@ -461,22 +499,27 @@ function computeWorkflowLayout(
   let applicatieflowTop = STAGE_Y - LANE_GAP - LANE_PAD_BOTTOM
   let topLaneY = null
   function placeApplicatieflowLane(id, label, deps) {
-    applicatieflowTop -= groupApplicatieflowDeps(deps).height
-    pushApplicatieflowLane(id, label, deps, applicatieflowTop)
+    const collapsed = collapsedLaneIds?.has(id) ?? false
+    const height = collapsed ? BANNER_TITLE_H : groupApplicatieflowDeps(deps).height
+    applicatieflowTop -= height
+    pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed)
     topLaneY = applicatieflowTop
     applicatieflowTop -= LANE_STACK_GAP
   }
 
   if (splitApplicaties && applications.length > 0) {
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
+    const query = (laneFilterQuery ?? '').trim().toLowerCase()
+    const visibleApplications = query ? applications.filter((app) => (app.naam || '').toLowerCase().includes(query)) : applications
     // Niet-gelabelde Applicatieflow-deps horen niet bij een specifieke
     // applicatie, dus geen aparte 'niet gelabeld'-bucket ertussenin: ze
     // vormen de algemene Applicatieflow-basislaag (zelfde naam/stijl als de
     // samengevoegde weergave), direct tegen de stage-rij aan. De per-
     // applicatie lanen stapelen daar bovenop (eerste applicatie het dichtst).
+    // Blijft altijd zichtbaar, ook als er op applicatienaam gefilterd wordt.
     if (unlabeled.length > 0) placeApplicatieflowLane('unlabeled', t('teampage.flowtypeApplicatieflow'), unlabeled)
-    for (let i = applications.length - 1; i >= 0; i -= 1) {
-      const app = applications[i]
+    for (let i = visibleApplications.length - 1; i >= 0; i -= 1) {
+      const app = visibleApplications[i]
       const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
       placeApplicatieflowLane(app.id, app.naam || '—', appDeps)
     }
@@ -1142,6 +1185,19 @@ export default function TeamPage({ teamId, onBack }) {
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
   const [splitApplicaties, setSplitApplicaties] = useState(false)
+  // Welke Run flow-lanes op het canvas zijn ingeklapt — puur presentatie,
+  // niet bewaard, zodat teams met veel applicaties de stapel compact kunnen
+  // houden zonder een onleesbare muur aan lanes.
+  const [collapsedLaneIds, setCollapsedLaneIds] = useState(() => new Set())
+
+  const toggleLaneCollapsed = useCallback((id) => {
+    setCollapsedLaneIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     if (!localStorage.getItem(TOUR_SEEN_KEY)) {
@@ -1229,6 +1285,13 @@ export default function TeamPage({ teamId, onBack }) {
           <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
         </button>
+        {(dep.status || dep.actieAfspraak) && (
+          <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-[11px] text-slate-400">
+            {dep.status && <span className="shrink-0">{translateStatus(dep.status, language)}</span>}
+            {dep.status && dep.actieAfspraak && <span aria-hidden="true">·</span>}
+            {dep.actieAfspraak && <span className="truncate">{dep.actieAfspraak}</span>}
+          </div>
+        )}
         {showAppPicker && workflow.applications.length > 0 && (
           <div className="mt-1 pl-5">
             <select
@@ -1313,6 +1376,9 @@ export default function TeamPage({ teamId, onBack }) {
     t,
     language,
     onOpenApplicatieflow,
+    appFilterQuery,
+    collapsedLaneIds,
+    toggleLaneCollapsed,
   ])
 
   function handleNodesChange(changes) {
@@ -1579,16 +1645,40 @@ export default function TeamPage({ teamId, onBack }) {
               <span className="ml-1 text-[11px] text-slate-400">{t('teampage.toolbarColorLabel')}</span>
               <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
               {lineToolActive && <span className="text-[11px] font-medium text-[#2a5f8a]">{t('teampage.toolbarLineActive')}</span>}
-              <button
-                type="button"
-                onClick={() => setSplitApplicaties((v) => !v)}
-                aria-pressed={splitApplicaties}
-                className={`ml-auto rounded-md border px-2.5 py-1 text-xs font-medium ${
-                  splitApplicaties ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                }`}
+              {splitApplicaties && workflow.applications.length > 4 && (
+                <input
+                  value={appFilterQuery}
+                  onChange={(e) => setAppFilterQuery(e.target.value)}
+                  placeholder={t('teampage.appFilterPlaceholder')}
+                  className="ml-auto w-40 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                />
+              )}
+              <div
+                className={`inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs ${splitApplicaties && workflow.applications.length > 4 ? '' : 'ml-auto'}`}
+                role="group"
+                aria-label={t('teampage.viewModeLabel')}
               >
-                {splitApplicaties ? t('teampage.splitApplicatiesOff') : t('teampage.splitApplicaties')}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setSplitApplicaties(false)}
+                  aria-pressed={!splitApplicaties}
+                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                    !splitApplicaties ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('teampage.viewMerged')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSplitApplicaties(true)}
+                  aria-pressed={splitApplicaties}
+                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
+                    splitApplicaties ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t('teampage.splitApplicaties')}
+                </button>
+              </div>
             </div>
 
             <div data-tour="workflow-canvas" className="relative rounded-lg border border-slate-100" style={{ height: Math.min(Math.max(canvasHeight, 460), 640) }}>
