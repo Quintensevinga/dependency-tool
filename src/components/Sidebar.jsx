@@ -286,10 +286,11 @@ export default function Sidebar({
         type="button"
         onClick={onToggleCollapsed}
         title={collapsed ? t('nav.expand') : t('nav.collapse')}
-        className={`mb-1 flex h-8 items-center rounded-lg text-slate-400 transition-colors hover:bg-white/8 hover:text-white ${
-          collapsed ? 'w-10 justify-center' : 'w-full justify-end px-2'
+        className={`mb-1 flex h-8 items-center rounded-lg border border-white/10 bg-white/5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white ${
+          collapsed ? 'w-10 justify-center' : 'w-full justify-between px-2.5'
         }`}
       >
+        {!collapsed && <span className="text-xs font-medium">{t('nav.collapse')}</span>}
         <CollapseIcon collapsed={collapsed} />
       </button>
 

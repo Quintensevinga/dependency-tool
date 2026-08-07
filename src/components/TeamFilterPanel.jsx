@@ -120,12 +120,10 @@ export default function TeamFilterPanel({
         type="button"
         onClick={() => setCollapsed(false)}
         title={t('filter.expand')}
-        className="flex h-fit shrink-0 flex-col items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-2 py-3.5 text-slate-500 shadow-sm hover:bg-slate-50"
+        className="flex h-fit shrink-0 flex-col items-center gap-2.5 rounded-xl border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-2 py-3.5 text-[#2a5f8a] shadow-sm hover:bg-[#2a5f8a]/10"
       >
         <PanelToggleIcon direction="left" />
-        <span className="[writing-mode:vertical-rl] text-xs font-semibold uppercase tracking-wide text-slate-500">
-          {t('filter.title')}
-        </span>
+        <span className="[writing-mode:vertical-rl] text-xs font-semibold uppercase tracking-wide">{t('filter.title')}</span>
         {anyNarrowed && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2a5f8a]" title={t('filter.active')} />}
       </button>
     )
@@ -133,13 +131,17 @@ export default function TeamFilterPanel({
 
   return (
     <div className="w-56 shrink-0 space-y-4">
+      {/* Paneelbrede in/uitklap-knop: bewust met accentkleur i.p.v. het
+          neutrale wit/grijs van de individuele filtergroepen hieronder, zodat
+          'm niet aanziet voor zomaar nog een groep — dit klapt het hele
+          paneel in tot een smalle balk. */}
       <button
         type="button"
         onClick={() => setCollapsed(true)}
         title={t('filter.collapse')}
-        className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-500 shadow-sm hover:bg-slate-50"
+        className="flex w-full items-center justify-between rounded-xl border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-3 py-2 text-[#2a5f8a] shadow-sm hover:bg-[#2a5f8a]/10"
       >
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-400">{t('filter.title')}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide">{t('filter.title')}</span>
         <PanelToggleIcon direction="right" />
       </button>
 
