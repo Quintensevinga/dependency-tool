@@ -809,9 +809,14 @@ function computeWorkflowLayout(
   // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
   const ZONE_X = STAGE_START_X - LANE_PAD_X
   const ZONE_WIDTH = BANNER_WIDTH + LANE_PAD_X * 2
-  const ZONE_PAD = 30
-  const devZoneTop = STAGE_Y - ZONE_PAD
-  const devZoneBottom = STAGE_Y + 80 + maxStackPerStage * 38 + ZONE_PAD
+  // Losse boven-/onderpadding: bovenaan moet er ruimte zijn voor het
+  // label-pilletje ('RUN FLOW'/'ONTWIKKELFLOW', ~52-55px hoog inclusief zijn
+  // eigen top-offset) zodat de eerste lane/stage-rij er niet overheen valt;
+  // onderaan is dat niet nodig, dus die padding mag kleiner blijven.
+  const ZONE_TOP_PAD = 58
+  const ZONE_BOTTOM_PAD = 30
+  const devZoneTop = STAGE_Y - ZONE_TOP_PAD
+  const devZoneBottom = STAGE_Y + 80 + maxStackPerStage * 38 + ZONE_BOTTOM_PAD
   // SEAM_H is geen lege kloof maar de hoogte van een overgangsvlak (zie
   // 'zone:seam' hieronder) dat de blauwe Run flow-tint geleidelijk laat
   // overlopen in de witte Ontwikkelflow-zone, zodat het één doorlopend
@@ -819,7 +824,7 @@ function computeWorkflowLayout(
   const SEAM_H = 16
   const runflowZoneBottom = devZoneTop - SEAM_H
   const runflowZoneTop =
-    topLaneY !== null ? topLaneY - LANE_PAD_TOP - ZONE_PAD : runflowZoneBottom - 140
+    topLaneY !== null ? topLaneY - LANE_PAD_TOP - ZONE_TOP_PAD : runflowZoneBottom - 140
 
   nodes.push({
     id: 'zone:runflow',
