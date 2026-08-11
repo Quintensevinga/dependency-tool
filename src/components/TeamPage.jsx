@@ -29,7 +29,7 @@ import FloatingTooltip from './FloatingTooltip'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
 
-const STAGE_GAP = 190
+const STAGE_GAP = 220
 const STAGE_START_X = 260
 const STAGE_Y = 260
 const IO_Y_START = 40
@@ -137,11 +137,16 @@ function DependencyMarkerNode({ data }) {
 // analoog aan de stage-rij voor Ontwikkelflow, maar zonder vaste kolommen
 // omdat Applicatieflow geen workflowstap kent. Klikbaar: springt naar het
 // Applicatieflow-tabblad.
+// 'app' (blauw, #2a5f8a) voor echte applicatie-lanes/-kaarten, 'teambreed'
+// (groen, #5c8a72) voor de niet-gelabelde basislaag — zodat Teambreed
+// meteen herkenbaar als eigen, normale categorie oogt i.p.v. een applicatie-
+// kloon.
 function ApplicatieflowBannerNode({ data }) {
+  const accentColor = data.accent === 'teambreed' ? '#5c8a72' : '#2a5f8a'
   return (
     <div
-      className="relative flex items-center gap-1.5 rounded-lg border border-[#2a5f8a]/35 bg-white px-2 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_3px_10px_rgba(15,23,42,0.1)]"
-      style={{ width: data.width, borderLeftWidth: 3, borderLeftColor: '#2a5f8a' }}
+      className="relative flex items-center gap-1.5 rounded-lg border bg-white px-2 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_3px_10px_rgba(15,23,42,0.1)]"
+      style={{ width: data.width, borderColor: `${accentColor}59`, borderLeftWidth: 3, borderLeftColor: accentColor }}
     >
       {/* Onzichtbare handles zodat app-naar-app-koppelingen (uit de
           Applicatieflow-vragenlijst) hier als lijn op kunnen aansluiten. */}
@@ -151,7 +156,8 @@ function ApplicatieflowBannerNode({ data }) {
           type="button"
           onClick={data.onToggleCollapse}
           title={data.toggleLabel}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-[#2a5f8a] hover:bg-[#2a5f8a]/15"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-black/5"
+          style={{ color: accentColor }}
         >
           <svg
             width="12"
@@ -169,8 +175,12 @@ function ApplicatieflowBannerNode({ data }) {
         onClick={data.onClick}
         className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 pr-1.5 text-left"
       >
-        <span className="truncate text-sm font-semibold text-[#2a5f8a]">{data.label}</span>
-        <span className="shrink-0 text-xs text-[#2a5f8a]/70">{data.count > 0 ? data.count : data.emptyLabel}</span>
+        <span className="truncate text-sm font-semibold" style={{ color: accentColor }}>
+          {data.label}
+        </span>
+        <span className="shrink-0 text-xs" style={{ color: `${accentColor}b3` }}>
+          {data.count > 0 ? data.count : data.emptyLabel}
+        </span>
       </button>
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
@@ -183,26 +193,17 @@ function ApplicatieflowBannerNode({ data }) {
 // laagste zIndex) zodat het canvas pannen/klikken op de echte nodes eronder
 // niet in de weg zit.
 function LaneGroupNode({ data }) {
+  const accentColor = data.accent === 'teambreed' ? '#5c8a72' : '#2a5f8a'
   return (
     <div
-      className="pointer-events-none rounded-xl border border-[#2a5f8a]/18 bg-white/60 shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
-      style={{ width: data.width, height: data.height }}
+      className="pointer-events-none rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
+      style={{
+        width: data.width,
+        height: data.height,
+        border: `1px solid ${accentColor}2e`,
+        background: data.accent === 'teambreed' ? `${accentColor}0a` : 'rgba(255,255,255,0.6)',
+      }}
     />
-  )
-}
-
-// Kolomkop binnen een Applicatieflow-lane (7x herhaald per lane), gestyled
-// als mini-variant van StageNode (zelfde kleurstrip per stage) zodat de
-// kolommen visueel bij de stage-rij eronder passen i.p.v. losse tekst.
-function SmallLabelNode({ data }) {
-  return (
-    <div
-      className="relative w-44 truncate rounded-md border bg-white px-2 py-1.5 text-center shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
-      style={{ borderColor: data.color ? `${data.color}55` : '#e6eaef' }}
-    >
-      {data.color && <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-md" style={{ backgroundColor: data.color }} />}
-      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{data.text}</span>
-    </div>
   )
 }
 
@@ -308,7 +309,6 @@ const nodeTypes = {
   capacityBadge: CapacityBadgeNode,
   dependencyMarker: DependencyMarkerNode,
   applicatieflowBanner: ApplicatieflowBannerNode,
-  smallLabel: SmallLabelNode,
   laneGroup: LaneGroupNode,
   flowZone: FlowZoneNode,
   externalTeam: ExternalTeamNode,
@@ -441,44 +441,29 @@ function computeWorkflowLayout(
     })
   })
 
-  // --- Applicatieflow-lane(s) boven de stage-rij ---
-  // Applicatieflow en workflowstap horen bij elkaar: elke lane krijgt daarom
-  // zijn eigen mini-versie van dezelfde 7 WORKFLOW_STAGES-kolommen als de
-  // Ontwikkelflow-rij hieronder (zelfde x-posities, dus verticaal precies
-  // uitgelijnd), gevuld met de dependencies die in die stap vallen. Deps
-  // zonder (optionele) workflowstap krijgen een aparte 'Geen workflowstap'-
-  // strook onderaan de lane. In samengevoegde modus is dat één lane voor alle
-  // Applicatieflow-dependencies; met splitApplicaties aan krijgt elke
-  // applicatie zijn eigen lane, plus een lane voor nog niet gelabelde deps.
+  // --- Run flow-lane(s) boven de stage-rij ---
+  // Run flow-dependencies horen bij hún applicatie, niet bij een
+  // workflowstap — ze staan dus NIET meer op de Ontwikkelflow-kolommen
+  // uitgelijnd (dat maakte een lane een tweede, gedupliceerde kolomrij).
+  // Een lane is nu een compacte, vaste-hoogte rij: appnaam/banner links,
+  // de bijbehorende dependency-chips stromen daar in één simpele rij naast
+  // (wrap naar een volgende rij pas als een lane echt veel items heeft). In
+  // samengevoegde modus geldt hetzelfde idee maar dan horizontaal: een rij
+  // applicatiekaarten met hun eigen deps pal eronder gegroepeerd.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
   const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
-  const MARKER_W = 188
-  const MARKERS_PER_ROW = Math.max(1, Math.floor(BANNER_WIDTH / MARKER_W))
-  const BANNER_TITLE_H = 44
-  const STAGE_LABEL_H = 18
-  const MARKER_ROW_H = 40
+  const LANE_BANNER_W = 210
+  const LANE_ITEM_W = 195
+  const LANE_CONTENT_GAP = 18
+  const LANE_ROW_H = 52
   const LANE_GAP = 22
 
   function groupApplicatieflowDeps(deps) {
-    const byStage = {}
-    const noStage = []
-    deps.forEach((dep) => {
-      const stage = WORKFLOW_STAP_TO_STAGE[dep.workflowStap]
-      if (!stage) {
-        noStage.push(dep)
-        return
-      }
-      if (!byStage[stage]) byStage[stage] = []
-      byStage[stage].push(dep)
-    })
-    const maxStageStack = Math.max(0, ...WORKFLOW_STAGES.map((s) => byStage[s]?.length ?? 0))
-    // Geen kolomkoppen (stage-namen) meer per lane — die staan één keer
-    // gedeeld boven de hele stapel (zie appflow-header hieronder), anders
-    // dupliceren ze zich per applicatie zodra Split applicaties aanstaat.
-    const stageRowsHeight = BANNER_TITLE_H + maxStageStack * MARKER_ROW_H
-    const noStageRows = noStage.length > 0 ? Math.max(1, Math.ceil(noStage.length / MARKERS_PER_ROW)) : 0
-    const extraHeight = noStage.length > 0 ? 8 + STAGE_LABEL_H + noStageRows * MARKER_ROW_H : 0
-    return { byStage, noStage, stageRowsHeight, height: stageRowsHeight + extraHeight }
+    const contentWidth = Math.max(LANE_ITEM_W, BANNER_WIDTH - LANE_BANNER_W - LANE_CONTENT_GAP)
+    const perRow = Math.max(1, Math.floor(contentWidth / LANE_ITEM_W))
+    const rows = deps.length > 0 ? Math.ceil(deps.length / perRow) : 1
+    const height = Math.max(LANE_ROW_H, rows * LANE_ROW_H)
+    return { perRow, height }
   }
 
   const LANE_PAD_X = 14
@@ -487,15 +472,20 @@ function computeWorkflowLayout(
 
   function pushApplicatieflowLane(id, label, deps, y, collapsed) {
     const bid = `appbanner:${id}`
-    const { byStage, noStage, stageRowsHeight, height } = groupApplicatieflowDeps(deps)
-    const effectiveHeight = collapsed ? BANNER_TITLE_H : height
+    const { perRow, height } = groupApplicatieflowDeps(deps)
+    const effectiveHeight = collapsed ? LANE_ROW_H : height
+    const isTeambreed = id === 'unlabeled'
 
     const bgId = `${bid}:bg`
     nodes.push({
       id: bgId,
       type: 'laneGroup',
       position: { x: STAGE_START_X - LANE_PAD_X, y: y - LANE_PAD_TOP },
-      data: { width: BANNER_WIDTH + LANE_PAD_X * 2, height: effectiveHeight + LANE_PAD_TOP + LANE_PAD_BOTTOM },
+      data: {
+        width: BANNER_WIDTH + LANE_PAD_X * 2,
+        height: effectiveHeight + LANE_PAD_TOP + LANE_PAD_BOTTOM,
+        accent: isTeambreed ? 'teambreed' : 'app',
+      },
       draggable: false,
       selectable: false,
       zIndex: -1,
@@ -506,15 +496,15 @@ function computeWorkflowLayout(
       type: 'applicatieflowBanner',
       position: withSavedPosition(bid, { x: STAGE_START_X, y }),
       data: {
-        width: BANNER_WIDTH,
+        width: LANE_BANNER_W,
         label,
         count: deps.length,
         emptyLabel: t('teampage.applicatieflowBannerEmpty'),
+        accent: isTeambreed ? 'teambreed' : 'app',
         // Een echte applicatie-lane opent de detailmodal van die applicatie;
-        // de 'Teambreed'/samengevoegde lane heeft geen specifieke applicatie
-        // om te tonen en springt daarom naar de Applicaties-sectie.
-        onClick:
-          id !== 'all' && id !== 'unlabeled' && onOpenAppDetail ? () => onOpenAppDetail(id) : onOpenApplicatieflow,
+        // de 'Teambreed'-lane heeft geen specifieke applicatie om te tonen
+        // en springt daarom naar de Applicaties-sectie.
+        onClick: !isTeambreed && onOpenAppDetail ? () => onOpenAppDetail(id) : onOpenApplicatieflow,
         collapsed,
         onToggleCollapse: onToggleLaneCollapse ? () => onToggleLaneCollapse(id) : undefined,
         toggleLabel: collapsed ? t('teampage.laneExpand') : t('teampage.laneCollapse'),
@@ -524,48 +514,24 @@ function computeWorkflowLayout(
 
     if (collapsed) return
 
-    WORKFLOW_STAGES.forEach((stage, i) => {
-      const stageDeps = byStage[stage] ?? []
-      stageDeps.forEach((dep, di) => {
-        const mid = `${bid}:dep:${dep.id}`
-        depNodeIdByDepId.set(dep.id, mid)
-        const risk = calculateRisk(dep)
-        nodes.push({
-          id: mid,
-          type: 'dependencyMarker',
-          position: withSavedPosition(mid, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H + di * MARKER_ROW_H }),
-          data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
-          draggable: true,
-        })
-        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
-      })
-    })
-
-    if (noStage.length > 0) {
-      const labelId = `${bid}:nostage-label`
+    deps.forEach((dep, i) => {
+      const row = Math.floor(i / perRow)
+      const col = i % perRow
+      const mid = `${bid}:dep:${dep.id}`
+      depNodeIdByDepId.set(dep.id, mid)
+      const risk = calculateRisk(dep)
       nodes.push({
-        id: labelId,
-        type: 'smallLabel',
-        position: withSavedPosition(labelId, { x: STAGE_START_X, y: y + stageRowsHeight + 8 }),
-        data: { text: t('teampage.geenWorkflowstap') },
-        draggable: false,
+        id: mid,
+        type: 'dependencyMarker',
+        position: withSavedPosition(mid, {
+          x: STAGE_START_X + LANE_BANNER_W + LANE_CONTENT_GAP + col * LANE_ITEM_W,
+          y: y + row * LANE_ROW_H,
+        }),
+        data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
+        draggable: true,
       })
-      noStage.forEach((dep, di) => {
-        const row = Math.floor(di / MARKERS_PER_ROW)
-        const col = di % MARKERS_PER_ROW
-        const mid = `${bid}:dep:${dep.id}`
-        depNodeIdByDepId.set(dep.id, mid)
-        const risk = calculateRisk(dep)
-        nodes.push({
-          id: mid,
-          type: 'dependencyMarker',
-          position: withSavedPosition(mid, { x: STAGE_START_X + col * MARKER_W, y: y + stageRowsHeight + 8 + STAGE_LABEL_H + row * MARKER_ROW_H }),
-          data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
-          draggable: true,
-        })
-        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#e2e8f0', strokeWidth: 1, strokeDasharray: '2 2' } })
-      })
-    }
+      edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+    })
   }
 
   // LANE_STACK_GAP houdt rekening met de padding van elke lane's achtergrond-
@@ -574,13 +540,13 @@ function computeWorkflowLayout(
   const LANE_STACK_GAP = LANE_GAP + LANE_PAD_TOP + LANE_PAD_BOTTOM
   let applicatieflowTop = STAGE_Y - LANE_GAP - LANE_PAD_BOTTOM
   let topLaneY = null
-  // Id van de eerst geplaatste (dus dichtst-bij-de-stage-rij) lane — het
-  // natuurlijke aanknopingspunt voor Run flow-IO, analoog aan hoe
+  // Id van de eerst geplaatste (dus dichtst-bij-de-stage-rij) lane/appkaart —
+  // het natuurlijke aanknopingspunt voor Run flow-IO, analoog aan hoe
   // Ontwikkelflow-IO aan de eerste/laatste workflowstap hangt.
   let baseLaneId = null
   function placeApplicatieflowLane(id, label, deps) {
     const collapsed = collapsedLaneIds?.has(id) ?? false
-    const height = collapsed ? BANNER_TITLE_H : groupApplicatieflowDeps(deps).height
+    const height = collapsed ? LANE_ROW_H : groupApplicatieflowDeps(deps).height
     applicatieflowTop -= height
     pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed)
     if (baseLaneId === null) baseLaneId = `appbanner:${id}`
@@ -588,16 +554,81 @@ function computeWorkflowLayout(
     applicatieflowTop -= LANE_STACK_GAP
   }
 
+  // Samengevoegde modus: applicaties als horizontale rij compacte kaarten,
+  // met hún gelabelde Run flow-deps pal eronder in een eigen kolom — nooit
+  // een generiek rooster dat apps door elkaar mengt. Elke app-kolom groeit
+  // gewoon verder naar beneden als er meer deps zijn (geen harde cap, geen
+  // horizontale wrap nodig zolang apps hun eigen x-kolom houden).
+  const APP_CARD_W = LANE_BANNER_W
+  const APP_CARD_H = 44
+  const APP_COL_GAP = 230
+  const APP_ROW_GAP = 14
+  const APP_DEP_ROW_H = 50
+
+  function groupDepsByApp(deps) {
+    const depsByApp = {}
+    deps.forEach((dep) => {
+      ;(dep.applicatieIds ?? []).forEach((appId) => {
+        if (!depsByApp[appId]) depsByApp[appId] = []
+        depsByApp[appId].push(dep)
+      })
+    })
+    return depsByApp
+  }
+
+  function computeAppClusterHeight(apps, deps) {
+    const depsByApp = groupDepsByApp(deps)
+    const maxRows = Math.max(1, ...apps.map((app) => depsByApp[app.id]?.length ?? 0))
+    return APP_CARD_H + APP_ROW_GAP + maxRows * APP_DEP_ROW_H
+  }
+
+  function pushRunflowAppCluster(apps, deps, topY) {
+    const depsByApp = groupDepsByApp(deps)
+
+    apps.forEach((app, i) => {
+      const appX = STAGE_START_X + i * APP_COL_GAP
+      const bid = `appbanner:${app.id}`
+      const appDeps = depsByApp[app.id] ?? []
+      nodes.push({
+        id: bid,
+        type: 'applicatieflowBanner',
+        position: withSavedPosition(bid, { x: appX, y: topY }),
+        data: {
+          width: APP_CARD_W,
+          label: app.naam || '—',
+          count: appDeps.length,
+          emptyLabel: t('teampage.applicatieflowBannerEmpty'),
+          accent: 'app',
+          onClick: onOpenAppDetail ? () => onOpenAppDetail(app.id) : onOpenApplicatieflow,
+        },
+        draggable: true,
+      })
+      if (baseLaneId === null) baseLaneId = bid
+
+      appDeps.forEach((dep, di) => {
+        const mid = `${bid}:dep:${dep.id}`
+        depNodeIdByDepId.set(dep.id, mid)
+        const risk = calculateRisk(dep)
+        nodes.push({
+          id: mid,
+          type: 'dependencyMarker',
+          position: withSavedPosition(mid, { x: appX, y: topY + APP_CARD_H + APP_ROW_GAP + di * APP_DEP_ROW_H }),
+          data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
+          draggable: true,
+        })
+        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+      })
+    })
+  }
+
   if (splitApplicaties && applications.length > 0) {
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
     const query = (laneFilterQuery ?? '').trim().toLowerCase()
     const visibleApplications = query ? applications.filter((app) => (app.naam || '').toLowerCase().includes(query)) : applications
-    // Niet-gelabelde Applicatieflow-deps horen niet bij een specifieke
-    // applicatie, dus geen aparte 'niet gelabeld'-bucket ertussenin: ze
-    // vormen de algemene Applicatieflow-basislaag (zelfde naam/stijl als de
-    // samengevoegde weergave), direct tegen de stage-rij aan. De per-
-    // applicatie lanen stapelen daar bovenop (eerste applicatie het dichtst).
-    // Blijft altijd zichtbaar, ook als er op applicatienaam gefilterd wordt.
+    // Niet-gelabelde Run flow-deps horen niet bij een specifieke applicatie:
+    // ze vormen de Teambreed-basislaag, direct tegen de stage-rij aan. De
+    // per-applicatie lanen stapelen daar bovenop (eerste applicatie het
+    // dichtst). Blijft altijd zichtbaar, ook als er op naam gefilterd wordt.
     if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled)
     for (let i = visibleApplications.length - 1; i >= 0; i -= 1) {
       const app = visibleApplications[i]
@@ -622,24 +653,15 @@ function computeWorkflowLayout(
       })
     })
   } else {
-    placeApplicatieflowLane('all', t('teampage.flowtypeApplicatieflow'), applicatieflowDeps)
-  }
-
-  // Eén gedeelde kolomkoppen-rij boven de hele lane-stapel (i.p.v. per lane
-  // herhaald) — de kolommen liggen toch al op dezelfde x-positie als de
-  // Ontwikkelflow-stage-rij eronder, dus één set namen is genoeg.
-  if (topLaneY !== null) {
-    const headerY = topLaneY - LANE_PAD_TOP - STAGE_LABEL_H - 6
-    WORKFLOW_STAGES.forEach((stage, i) => {
-      const labelId = `appflow-header:${stage}`
-      nodes.push({
-        id: labelId,
-        type: 'smallLabel',
-        position: withSavedPosition(labelId, { x: STAGE_START_X + i * STAGE_GAP, y: headerY }),
-        data: { text: translateWorkflowStage(stage, language), color: stageColor(stage) },
-        draggable: false,
-      })
-    })
+    const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
+    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled)
+    if (applications.length > 0) {
+      const clusterHeight = computeAppClusterHeight(applications, applicatieflowDeps)
+      applicatieflowTop -= clusterHeight
+      pushRunflowAppCluster(applications, applicatieflowDeps, applicatieflowTop)
+      topLaneY = applicatieflowTop
+      applicatieflowTop -= LANE_STACK_GAP
+    }
   }
 
   const lastStage = WORKFLOW_STAGES[WORKFLOW_STAGES.length - 1]
@@ -657,7 +679,7 @@ function computeWorkflowLayout(
   const SEAM_GAP = 10
   const runflowZoneBottom = devZoneTop - SEAM_GAP
   const runflowZoneTop =
-    topLaneY !== null ? topLaneY - LANE_PAD_TOP - STAGE_LABEL_H - 6 - ZONE_PAD : runflowZoneBottom - 140
+    topLaneY !== null ? topLaneY - LANE_PAD_TOP - ZONE_PAD : runflowZoneBottom - 140
 
   nodes.push({
     id: 'zone:runflow',
@@ -2098,7 +2120,7 @@ export default function TeamPage({ teamId, onBack }) {
                         {t('teampage.legendOutput')}
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#2a5f8a]/50 bg-[#2a5f8a]/10" />
+                        <span className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#5c8a72]/50 bg-[#5c8a72]/10" />
                         {t('teampage.legendTeambreed')}
                       </div>
                       <div className="flex items-center gap-2">
