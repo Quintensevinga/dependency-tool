@@ -34,3 +34,50 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Teamcanvas: reskin ReactFlow's default controls/minimap chrome so they
+   read as part of the app instead of the library default look. Scoped to
+   .teamcanvas-flow so other ReactFlow canvases (Relatiekaart, Ketenoverzicht)
+   are unaffected. */
+.teamcanvas-flow.react-flow {
+  background: transparent;
+}
+.teamcanvas-flow .react-flow__controls {
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+.teamcanvas-flow .react-flow__controls-button {
+  background: #ffffff;
+  border: none;
+  border-bottom: 1px solid #eef1f5;
+  width: 26px;
+  height: 26px;
+  color: #475569;
+  transition: background-color 0.12s, color 0.12s;
+}
+.teamcanvas-flow .react-flow__controls-button:hover {
+  background: #f3f8fc;
+  color: #2a5f8a;
+}
+.teamcanvas-flow .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+.teamcanvas-flow .react-flow__controls-button svg {
+  fill: currentColor;
+}
+.teamcanvas-flow .react-flow__minimap {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  bottom: 14px;
+  right: 14px;
+}
+.teamcanvas-flow .react-flow__edge-path {
+  transition: stroke-opacity 0.15s;
+}
+.teamcanvas-flow .react-flow__node {
+  transition: transform 0.05s;
+}

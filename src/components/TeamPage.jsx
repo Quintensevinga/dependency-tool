@@ -61,33 +61,40 @@ function ColorSwatchRow({ value, onChange }) {
 function StageNode({ data }) {
   const { language } = useLanguage()
   return (
-    <div className="relative w-40 rounded-xl border-2 bg-white px-3 py-2.5 shadow-md" style={{ borderColor: data.color }}>
-      <Handle type="target" position={Position.Left} style={{ opacity: 0.4 }} />
-      <div className="mb-1 h-1.5 -mt-2.5 -mx-3 rounded-t-lg" style={{ backgroundColor: data.color }} />
-      <div className="text-xs font-semibold text-slate-800">{translateWorkflowStage(data.stage, language)}</div>
-      <Handle type="source" position={Position.Right} style={{ opacity: 0.4 }} />
+    <div
+      className="relative w-40 overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.07)]"
+    >
+      <Handle type="target" position={Position.Left} style={{ opacity: 0.35 }} />
+      <div className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: data.color }} />
+      <div className="text-xs font-semibold tracking-tight text-slate-800">{translateWorkflowStage(data.stage, language)}</div>
+      <Handle type="source" position={Position.Right} style={{ opacity: 0.35 }} />
     </div>
   )
 }
 
 function IoNode({ data }) {
+  const isInput = data.kind === 'input'
   return (
     <div
-      className="relative w-44 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 shadow-sm"
-      style={data.bronColor ? { borderLeftColor: data.bronColor, borderLeftWidth: 4 } : undefined}
+      className="relative w-44 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
+      style={data.bronColor ? { borderLeftColor: data.bronColor, borderLeftWidth: 3 } : undefined}
     >
-      <Handle type="target" position={Position.Left} style={{ opacity: 0.4 }} />
+      <Handle type="target" position={Position.Left} style={{ opacity: 0.35 }} />
       <div className="flex items-center justify-between gap-1">
-        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-          {data.kind === 'input' ? '→ in' : 'out →'}
+        <span
+          className={`inline-flex items-center gap-0.5 rounded px-1.5 py-[1px] text-[9px] font-bold uppercase tracking-wide ${
+            isInput ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'bg-[#5c8a72]/10 text-[#4a7360]'
+          }`}
+        >
+          {isInput ? '→ in' : 'uit →'}
         </span>
         {data.externalTeam && (
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" title={`↔ ${data.externalTeam}`} />
         )}
       </div>
-      <div className="text-xs font-medium text-slate-700">{data.label || '—'}</div>
+      <div className="mt-1 truncate text-xs font-medium text-slate-700">{data.label || '—'}</div>
       {data.linkLabel && <div className="mt-0.5 truncate text-[10px] text-slate-400">{data.linkLabel}</div>}
-      <Handle type="source" position={Position.Right} style={{ opacity: 0.4 }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 0.35 }} />
     </div>
   )
 }
@@ -95,7 +102,7 @@ function IoNode({ data }) {
 function CapacityBadgeNode({ data }) {
   const { language } = useLanguage()
   return (
-    <div className="relative flex w-40 items-center gap-1.5 rounded-full border border-slate-300 bg-white px-2.5 py-1 shadow-sm">
+    <div className="relative flex w-40 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
       <Handle type="target" position={Position.Top} style={{ opacity: 0.3 }} />
       {data.risico && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={data.risicoToelichting} />}
       <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{data.functieNaam || '—'}</span>
@@ -111,15 +118,16 @@ function DependencyMarkerNode({ data }) {
   const extTeam = data.dependency.geraakte_team_extern
   return (
     <div
-      className="relative flex w-40 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-opacity"
-      style={{ borderColor: style.hex, backgroundColor: `${style.hex}14`, opacity: data.dimmed ? 0.25 : 1 }}
+      className="relative flex w-40 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 pl-2.5 pr-2 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_3px_8px_rgba(15,23,42,0.1)]"
+      style={{ borderLeftWidth: 3, borderLeftColor: style.hex, opacity: data.dimmed ? 0.25 : 1 }}
     >
-      <Handle type="target" position={Position.Top} style={{ opacity: 0.3 }} />
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${style.dot}`} />
+      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
       <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{data.titel}</span>
       {extTeam && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" title={`↔ ${extTeam}`} />}
-      <span className="shrink-0 text-[10px] text-slate-400">{translateRiskLevel(data.risk.level, language)}</span>
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0.3 }} />
+      <span className={`shrink-0 rounded px-1.5 py-[1px] text-[9px] font-semibold ${style.badge}`}>
+        {translateRiskLevel(data.risk.level, language)}
+      </span>
+      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </div>
   )
 }
@@ -132,8 +140,8 @@ function DependencyMarkerNode({ data }) {
 function ApplicatieflowBannerNode({ data }) {
   return (
     <div
-      className="relative flex items-center gap-1.5 rounded-lg border-2 border-[#2a5f8a]/50 bg-[#2a5f8a]/10 px-2 py-2 shadow-sm"
-      style={{ width: data.width }}
+      className="relative flex items-center gap-1.5 rounded-lg border border-[#2a5f8a]/35 bg-white px-2 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_3px_10px_rgba(15,23,42,0.1)]"
+      style={{ width: data.width, borderLeftWidth: 3, borderLeftColor: '#2a5f8a' }}
     >
       {/* Onzichtbare handles zodat app-naar-app-koppelingen (uit de
           Applicatieflow-vragenlijst) hier als lijn op kunnen aansluiten. */}
@@ -177,7 +185,7 @@ function ApplicatieflowBannerNode({ data }) {
 function LaneGroupNode({ data }) {
   return (
     <div
-      className="pointer-events-none rounded-2xl border border-[#2a5f8a]/25 bg-[#2a5f8a]/[0.04]"
+      className="pointer-events-none rounded-xl border border-[#2a5f8a]/18 bg-white/60 shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
       style={{ width: data.width, height: data.height }}
     />
   )
@@ -189,10 +197,10 @@ function LaneGroupNode({ data }) {
 function SmallLabelNode({ data }) {
   return (
     <div
-      className="relative w-40 truncate rounded-md border bg-white/90 px-2 py-1 text-center"
-      style={{ borderColor: data.color ? `${data.color}66` : '#e2e8f0' }}
+      className="relative w-40 truncate rounded-md border bg-white px-2 py-1 text-center shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+      style={{ borderColor: data.color ? `${data.color}55` : '#e6eaef' }}
     >
-      {data.color && <div className="absolute inset-x-0 top-0 h-1 rounded-t-md" style={{ backgroundColor: data.color }} />}
+      {data.color && <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-md" style={{ backgroundColor: data.color }} />}
       <span className="text-[10px] font-medium uppercase tracking-wide text-slate-500">{data.text}</span>
     </div>
   )
@@ -206,12 +214,20 @@ function FlowZoneNode({ data }) {
   return (
     <div
       className="pointer-events-none relative"
-      style={{ width: data.width, height: data.height, background: data.background, border: data.border, borderRadius: data.radius }}
+      style={{
+        width: data.width,
+        height: data.height,
+        background: data.background,
+        border: data.border,
+        borderRadius: data.radius,
+        boxShadow: data.shadow,
+      }}
     >
       <span
-        className="absolute left-4 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
-        style={{ background: data.labelBg, color: data.labelColor, border: data.labelBorder }}
+        className="absolute left-5 top-3.5 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider"
+        style={{ background: data.labelBg, color: data.labelColor, border: data.labelBorder, boxShadow: data.labelShadow }}
       >
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: data.labelDotColor }} />
         {data.label}
       </span>
     </div>
@@ -275,10 +291,10 @@ function AnnotationNode({ data }) {
 function ExternalTeamNode({ data }) {
   return (
     <div
-      className="relative flex w-40 items-center gap-1.5 rounded-full border-2 bg-white px-3 py-1.5 shadow-sm"
-      style={{ borderColor: '#5c6b8a55' }}
+      className="relative flex w-40 items-center gap-1.5 rounded-full border bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
+      style={{ borderColor: '#5c6b8a40' }}
     >
-      <Handle type="source" position={Position.Right} style={{ opacity: 0.3 }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 0.25 }} />
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" />
       <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[#3f4a63]">{data.naam}</span>
     </div>
@@ -650,13 +666,16 @@ function computeWorkflowLayout(
     data: {
       width: ZONE_WIDTH,
       height: runflowZoneBottom - runflowZoneTop,
-      background: 'linear-gradient(180deg, #eef5fa 0%, #e9f1f7 100%)',
-      border: '1px solid #2a5f8a22',
-      radius: '20px 20px 0 0',
+      background: 'linear-gradient(180deg, #eef6fb 0%, #e6f0f7 60%, #e1ecf4 100%)',
+      border: '1px solid #2a5f8a26',
+      radius: '22px 22px 0 0',
+      shadow: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px rgba(15,23,42,0.03)',
       label: t('teampage.zoneRunflow'),
       labelBg: '#2a5f8a',
       labelColor: '#fff',
       labelBorder: 'none',
+      labelDotColor: '#bcd6ea',
+      labelShadow: '0 2px 6px rgba(42,95,138,0.35)',
     },
     draggable: false,
     selectable: false,
@@ -669,13 +688,16 @@ function computeWorkflowLayout(
     data: {
       width: ZONE_WIDTH,
       height: devZoneBottom - devZoneTop,
-      background: '#ffffff',
-      border: '1px solid #e2e8f0',
-      radius: '0 0 18px 18px',
+      background: '#fdfdfe',
+      border: '1px solid #e6eaef',
+      radius: '0 0 20px 20px',
+      shadow: '0 1px 2px rgba(15,23,42,0.03)',
       label: t('teampage.zoneOntwikkelflow'),
-      labelBg: '#eef1f5',
+      labelBg: '#f4f6f8',
       labelColor: '#475569',
-      labelBorder: '1px solid #e2e8f0',
+      labelBorder: '1px solid #e6eaef',
+      labelDotColor: '#94a3b8',
+      labelShadow: 'none',
     },
     draggable: false,
     selectable: false,
@@ -1898,150 +1920,157 @@ export default function TeamPage({ teamId, onBack }) {
               <span className="text-[11px] text-slate-400">{t('teampage.workflowHint')}</span>
             </div>
 
-            <div data-tour="toolbar" className="mb-2 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-2.5">
-              <button
-                type="button"
-                onClick={() => addAnnotation('note')}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                {t('teampage.toolbarNote')}
-              </button>
-              <button
-                type="button"
-                onClick={() => addAnnotation('shape', { shape: 'rect' })}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                {t('teampage.toolbarRect')}
-              </button>
-              <button
-                type="button"
-                onClick={() => addAnnotation('shape', { shape: 'circle' })}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                {t('teampage.toolbarCircle')}
-              </button>
-              <button
-                type="button"
-                onClick={() => addAnnotation('shape', { shape: 'diamond' })}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                {t('teampage.toolbarDiamond')}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setLineToolActive((v) => !v)
-                  setLineStart(null)
-                }}
-                className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
-                  lineToolActive ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {t('teampage.toolbarLine')}
-              </button>
-              <span className="ml-1 text-[11px] text-slate-400">{t('teampage.toolbarColorLabel')}</span>
-              <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
-              {lineToolActive && <span className="text-[11px] font-medium text-[#2a5f8a]">{t('teampage.toolbarLineActive')}</span>}
-              {splitApplicaties && workflow.applications.length > 4 && (
-                <input
-                  value={appFilterQuery}
-                  onChange={(e) => setAppFilterQuery(e.target.value)}
-                  placeholder={t('teampage.appFilterPlaceholder')}
-                  className="ml-auto w-40 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                />
-              )}
-              <div
-                className={`inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs ${splitApplicaties && workflow.applications.length > 4 ? '' : 'ml-auto'}`}
-                role="group"
-                aria-label={t('teampage.viewModeLabel')}
-              >
+            <div data-tour="toolbar" className="mb-2.5 flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-0.5">
                 <button
                   type="button"
-                  onClick={() => setSplitApplicaties(false)}
-                  aria-pressed={!splitApplicaties}
-                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
-                    !splitApplicaties ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
-                  }`}
+                  onClick={() => addAnnotation('note')}
+                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 >
-                  {t('teampage.viewMerged')}
+                  {t('teampage.toolbarNote')}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSplitApplicaties(true)}
-                  aria-pressed={splitApplicaties}
-                  className={`rounded px-2.5 py-1 font-medium transition-colors ${
-                    splitApplicaties ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                  onClick={() => addAnnotation('shape', { shape: 'rect' })}
+                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  {t('teampage.toolbarRect')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addAnnotation('shape', { shape: 'circle' })}
+                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  {t('teampage.toolbarCircle')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addAnnotation('shape', { shape: 'diamond' })}
+                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  {t('teampage.toolbarDiamond')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLineToolActive((v) => !v)
+                    setLineStart(null)
+                  }}
+                  className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
+                    lineToolActive ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                   }`}
                 >
-                  {t('teampage.splitApplicaties')}
+                  {t('teampage.toolbarLine')}
                 </button>
+                <div className="mx-1">
+                  <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
+                </div>
+                {lineToolActive && <span className="text-[11px] font-medium text-[#2a5f8a]">{t('teampage.toolbarLineActive')}</span>}
               </div>
 
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setViewFiltersOpen((v) => !v)}
-                  aria-expanded={viewFiltersOpen}
-                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
-                    viewFiltersOpen ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {t('teampage.viewFiltersButton')} ▾
-                </button>
-                {viewFiltersOpen && (
-                  <div className="absolute right-0 top-8 z-20 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
-                    {[
-                      { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
-                      { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
-                      { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
-                      { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
-                    ].map((f) => (
-                      <button
-                        key={f.key}
-                        type="button"
-                        onClick={() => f.onChange((v) => !v)}
-                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-                      >
-                        <span
-                          className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                            f.value ? 'border-[#2a5f8a] bg-[#2a5f8a]' : 'border-slate-300 bg-white'
-                          }`}
-                        >
-                          {f.value && (
-                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
-                              <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                            </svg>
-                          )}
-                        </span>
-                        {f.label}
-                      </button>
-                    ))}
-                  </div>
+              <div className="ml-auto flex items-center gap-2">
+                {splitApplicaties && workflow.applications.length > 4 && (
+                  <input
+                    value={appFilterQuery}
+                    onChange={(e) => setAppFilterQuery(e.target.value)}
+                    placeholder={t('teampage.appFilterPlaceholder')}
+                    className="w-40 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                  />
                 )}
-              </div>
+                <div
+                  className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs shadow-inner"
+                  role="group"
+                  aria-label={t('teampage.viewModeLabel')}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSplitApplicaties(false)}
+                    aria-pressed={!splitApplicaties}
+                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
+                      !splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {t('teampage.viewMerged')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSplitApplicaties(true)}
+                    aria-pressed={splitApplicaties}
+                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
+                      splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {t('teampage.splitApplicaties')}
+                  </button>
+                </div>
 
-              <button
-                type="button"
-                onClick={handleSmartOrder}
-                title={t('teampage.smartOrderHint')}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                {t('teampage.smartOrder')}
-              </button>
+                <div className="h-5 w-px bg-slate-200" />
 
-              <div className="relative">
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setViewFiltersOpen((v) => !v)}
+                    aria-expanded={viewFiltersOpen}
+                    className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      viewFiltersOpen ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                    }`}
+                  >
+                    {t('teampage.viewFiltersButton')} ▾
+                  </button>
+                  {viewFiltersOpen && (
+                    <div className="absolute right-0 top-9 z-20 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-lg shadow-slate-900/10">
+                      {[
+                        { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
+                        { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
+                        { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
+                        { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
+                      ].map((f) => (
+                        <button
+                          key={f.key}
+                          type="button"
+                          onClick={() => f.onChange((v) => !v)}
+                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                        >
+                          <span
+                            className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                              f.value ? 'border-[#2a5f8a] bg-[#2a5f8a]' : 'border-slate-300 bg-white'
+                            }`}
+                          >
+                            {f.value && (
+                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                                <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </span>
+                          {f.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setLegendOpen((v) => !v)}
-                  aria-expanded={legendOpen}
-                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
-                    legendOpen ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                  }`}
+                  onClick={handleSmartOrder}
+                  title={t('teampage.smartOrderHint')}
+                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 >
-                  {t('teampage.legend')}
+                  {t('teampage.smartOrder')}
                 </button>
+
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setLegendOpen((v) => !v)}
+                    aria-expanded={legendOpen}
+                    className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      legendOpen ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                    }`}
+                  >
+                    {t('teampage.legend')}
+                  </button>
                 {legendOpen && (
-                  <div className="absolute right-0 top-8 z-20 w-56 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                  <div className="absolute right-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10">
                     <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendRiskTitle')}</div>
                     <div className="mb-3 space-y-1">
                       {['Kritiek', 'Hoog', 'Gemiddeld', 'Laag'].map((level) => (
@@ -2077,10 +2106,16 @@ export default function TeamPage({ teamId, onBack }) {
                   </div>
                 )}
               </div>
+              </div>
             </div>
 
-            <div data-tour="workflow-canvas" className="relative rounded-lg border border-slate-100" style={{ height: Math.min(Math.max(canvasHeight, 460), 640) }}>
+            <div
+              data-tour="workflow-canvas"
+              className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
+              style={{ height: Math.min(Math.max(canvasHeight, 520), 760) }}
+            >
               <PannableFlowCanvas
+                className="teamcanvas-flow"
                 nodes={nodes}
                 edges={edges}
                 nodeTypes={nodeTypes}
@@ -2092,6 +2127,10 @@ export default function TeamPage({ teamId, onBack }) {
                 }}
                 onNodeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
                 onNodeMouseLeave={() => setCanvasHover(null)}
+                fitViewOptions={{ padding: 0.12, minZoom: 0.45 }}
+                minZoom={0.3}
+                maxZoom={1.5}
+                backgroundColor="#e6ebf1"
                 showMinimap
               />
               {canvasHover && (

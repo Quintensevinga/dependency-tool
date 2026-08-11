@@ -23,9 +23,14 @@ export default function PannableFlowCanvas({
   onEdgeMouseLeave,
   backgroundColor = '#e2e8f0',
   showMinimap = false,
+  className,
+  fitViewOptions = { padding: 0.2 },
+  minZoom = 0.2,
+  maxZoom = 2,
 }) {
   return (
     <ReactFlow
+      className={className}
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
@@ -41,9 +46,14 @@ export default function PannableFlowCanvas({
       onEdgeMouseMove={onEdgeMouseMove}
       onEdgeMouseLeave={onEdgeMouseLeave}
       fitView
-      fitViewOptions={{ padding: 0.2 }}
-      minZoom={0.2}
-      maxZoom={2}
+      fitViewOptions={fitViewOptions}
+      // Herhaal de fit na de eerste render: op het allereerste frame heeft
+      // ReactFlow de node-afmetingen soms nog niet volledig gemeten,
+      // waardoor de eenmalige `fitView`-prop breder canvasinhoud (bv. de
+      // Teamcanvas met meerdere lanes) net buiten beeld kan laten vallen.
+      onInit={(instance) => window.requestAnimationFrame(() => instance.fitView(fitViewOptions))}
+      minZoom={minZoom}
+      maxZoom={maxZoom}
       proOptions={{ hideAttribution: true }}
       nodesConnectable
       nodesDraggable
@@ -52,15 +62,16 @@ export default function PannableFlowCanvas({
       zoomOnScroll
       zoomOnPinch
     >
-      <Background color={backgroundColor} gap={24} />
+      <Background color={backgroundColor} gap={22} />
       <Controls showInteractive={false} />
       {showMinimap && (
         <MiniMap
           pannable
           zoomable
-          nodeColor="#2a5f8a33"
-          maskColor="rgba(226,232,240,0.6)"
-          style={{ border: '1px solid #e2e8f0', borderRadius: 10 }}
+          nodeColor="#2a5f8a26"
+          nodeStrokeColor="#2a5f8a55"
+          nodeStrokeWidth={2}
+          maskColor="rgba(243,246,249,0.75)"
         />
       )}
     </ReactFlow>
