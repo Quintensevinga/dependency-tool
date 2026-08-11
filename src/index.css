@@ -40,7 +40,7 @@ html, body {
    .teamcanvas-flow so other ReactFlow canvases (Relatiekaart, Ketenoverzicht)
    are unaffected. */
 .teamcanvas-flow.react-flow {
-  background: transparent;
+  background: #e8edf2;
 }
 .teamcanvas-flow .react-flow__controls {
   box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
@@ -68,12 +68,14 @@ html, body {
   fill: currentColor;
 }
 .teamcanvas-flow .react-flow__minimap {
+  width: 168px;
+  height: 104px;
   border-radius: 10px;
   border: 1px solid #e2e8f0;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
-  background: #ffffff;
-  bottom: 14px;
-  right: 14px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  bottom: 16px;
+  right: 16px;
 }
 .teamcanvas-flow .react-flow__edge-path {
   transition: stroke-opacity 0.15s;

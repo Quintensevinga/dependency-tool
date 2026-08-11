@@ -62,11 +62,11 @@ function StageNode({ data }) {
   const { language } = useLanguage()
   return (
     <div
-      className="relative w-40 overflow-hidden rounded-xl border border-slate-200/90 bg-white px-3.5 py-3 shadow-[0_1px_3px_rgba(15,23,42,0.07)]"
+      className="relative w-44 overflow-hidden rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.07)]"
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0.35 }} />
-      <div className="absolute inset-x-0 top-0 h-[3px]" style={{ backgroundColor: data.color }} />
-      <div className="text-xs font-semibold tracking-tight text-slate-800">{translateWorkflowStage(data.stage, language)}</div>
+      <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: data.color }} />
+      <div className="text-sm font-semibold tracking-tight text-slate-800">{translateWorkflowStage(data.stage, language)}</div>
       <Handle type="source" position={Position.Right} style={{ opacity: 0.35 }} />
     </div>
   )
@@ -102,10 +102,10 @@ function IoNode({ data }) {
 function CapacityBadgeNode({ data }) {
   const { language } = useLanguage()
   return (
-    <div className="relative flex w-40 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+    <div className="relative flex w-44 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
       <Handle type="target" position={Position.Top} style={{ opacity: 0.3 }} />
       {data.risico && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={data.risicoToelichting} />}
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{data.functieNaam || '—'}</span>
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{data.functieNaam || '—'}</span>
       <span className="shrink-0 text-[10px] text-slate-400">{translateSeniority(data.seniority, language)}</span>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0.3 }} />
     </div>
@@ -118,13 +118,13 @@ function DependencyMarkerNode({ data }) {
   const extTeam = data.dependency.geraakte_team_extern
   return (
     <div
-      className="relative flex w-40 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 pl-2.5 pr-2 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_3px_8px_rgba(15,23,42,0.1)]"
+      className="relative flex w-44 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_3px_8px_rgba(15,23,42,0.1)]"
       style={{ borderLeftWidth: 3, borderLeftColor: style.hex, opacity: data.dimmed ? 0.25 : 1 }}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{data.titel}</span>
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{data.titel}</span>
       {extTeam && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" title={`↔ ${extTeam}`} />}
-      <span className={`shrink-0 rounded px-1.5 py-[1px] text-[9px] font-semibold ${style.badge}`}>
+      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.badge}`}>
         {translateRiskLevel(data.risk.level, language)}
       </span>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
@@ -197,7 +197,7 @@ function LaneGroupNode({ data }) {
 function SmallLabelNode({ data }) {
   return (
     <div
-      className="relative w-40 truncate rounded-md border bg-white px-2 py-1 text-center shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
+      className="relative w-44 truncate rounded-md border bg-white px-2 py-1.5 text-center shadow-[0_1px_2px_rgba(15,23,42,0.04)]"
       style={{ borderColor: data.color ? `${data.color}55` : '#e6eaef' }}
     >
       {data.color && <div className="absolute inset-x-0 top-0 h-[3px] rounded-t-md" style={{ backgroundColor: data.color }} />}
@@ -452,7 +452,7 @@ function computeWorkflowLayout(
   // applicatie zijn eigen lane, plus een lane voor nog niet gelabelde deps.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
   const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
-  const MARKER_W = 170
+  const MARKER_W = 188
   const MARKERS_PER_ROW = Math.max(1, Math.floor(BANNER_WIDTH / MARKER_W))
   const BANNER_TITLE_H = 44
   const STAGE_LABEL_H = 18
@@ -666,7 +666,7 @@ function computeWorkflowLayout(
     data: {
       width: ZONE_WIDTH,
       height: runflowZoneBottom - runflowZoneTop,
-      background: 'linear-gradient(180deg, #eef6fb 0%, #e6f0f7 60%, #e1ecf4 100%)',
+      background: 'linear-gradient(180deg, #eef5fa 0%, #eaf1f7 100%)',
       border: '1px solid #2a5f8a26',
       radius: '22px 22px 0 0',
       shadow: 'inset 0 1px 0 rgba(255,255,255,0.7), 0 1px 2px rgba(15,23,42,0.03)',
@@ -1920,7 +1920,10 @@ export default function TeamPage({ teamId, onBack }) {
               <span className="text-[11px] text-slate-400">{t('teampage.workflowHint')}</span>
             </div>
 
-            <div data-tour="toolbar" className="mb-2.5 flex flex-wrap items-center gap-1.5 border-b border-slate-100 pb-3">
+            <div
+              data-tour="toolbar"
+              className="-mx-4 -mt-4 mb-3 flex min-h-[56px] flex-wrap items-center gap-1.5 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
+            >
               <div className="flex items-center gap-0.5">
                 <button
                   type="button"
@@ -2112,7 +2115,7 @@ export default function TeamPage({ teamId, onBack }) {
             <div
               data-tour="workflow-canvas"
               className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
-              style={{ height: Math.min(Math.max(canvasHeight, 520), 760) }}
+              style={{ height: 'clamp(640px, 78vh, 920px)' }}
             >
               <PannableFlowCanvas
                 className="teamcanvas-flow"
@@ -2130,7 +2133,7 @@ export default function TeamPage({ teamId, onBack }) {
                 fitViewOptions={{ padding: 0.12, minZoom: 0.45 }}
                 minZoom={0.3}
                 maxZoom={1.5}
-                backgroundColor="#e6ebf1"
+                backgroundColor="#d3dbe3"
                 showMinimap
               />
               {canvasHover && (

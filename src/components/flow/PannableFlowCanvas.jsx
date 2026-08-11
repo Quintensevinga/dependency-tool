@@ -62,16 +62,17 @@ export default function PannableFlowCanvas({
       zoomOnScroll
       zoomOnPinch
     >
-      <Background color={backgroundColor} gap={22} />
+      <Background color={backgroundColor} gap={24} />
       <Controls showInteractive={false} />
       {showMinimap && (
         <MiniMap
           pannable
           zoomable
-          nodeColor="#2a5f8a26"
-          nodeStrokeColor="#2a5f8a55"
+          nodeColor="#2a5f8a22"
+          nodeStrokeColor="#2a5f8a50"
           nodeStrokeWidth={2}
-          maskColor="rgba(243,246,249,0.75)"
+          nodeBorderRadius={4}
+          maskColor="rgba(42,95,138,0.06)"
         />
       )}
     </ReactFlow>
