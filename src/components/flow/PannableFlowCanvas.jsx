@@ -1,4 +1,4 @@
-import ReactFlow, { Background, Controls } from 'reactflow'
+import ReactFlow, { Background, Controls, MiniMap } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 // Gedeelde 'Miro-achtige' canvasconfiguratie (pan/zoom/knoppen) voor elk
@@ -22,6 +22,7 @@ export default function PannableFlowCanvas({
   onEdgeMouseMove,
   onEdgeMouseLeave,
   backgroundColor = '#e2e8f0',
+  showMinimap = false,
 }) {
   return (
     <ReactFlow
@@ -53,6 +54,15 @@ export default function PannableFlowCanvas({
     >
       <Background color={backgroundColor} gap={24} />
       <Controls showInteractive={false} />
+      {showMinimap && (
+        <MiniMap
+          pannable
+          zoomable
+          nodeColor="#2a5f8a33"
+          maskColor="rgba(226,232,240,0.6)"
+          style={{ border: '1px solid #e2e8f0', borderRadius: 10 }}
+        />
+      )}
     </ReactFlow>
   )
 }

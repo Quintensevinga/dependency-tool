@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { WORKFLOW_STAGES, BRON_TYPES, SENIORITY_LEVELS, RISICO_BIJ_UITVAL, WORKFLOW_STAP_TO_STAGE, FLOWTYPE_LEVELS } from '../data/constants'
 import {
   translateWorkflowStage,
+  translateWorkflowStap,
   translateCategorie,
   translateRiskLevel,
   translateBronType,
@@ -24,6 +25,7 @@ import DependencyForm from './DependencyForm'
 import DependencyDetail from './DependencyDetail'
 import ApplicatieflowTab from './ApplicatieflowTab'
 import SpotlightTour from './SpotlightTour'
+import FloatingTooltip from './FloatingTooltip'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
 
@@ -34,6 +36,7 @@ const IO_Y_START = 40
 const IO_Y_GAP = 90
 
 const NEW_ROLE_SENTINEL = '__new_role__'
+const HIGH_RISK_LEVELS = ['Hoog', 'Kritiek']
 
 function ColorSwatchRow({ value, onChange }) {
   return (
@@ -74,8 +77,13 @@ function IoNode({ data }) {
       style={data.bronColor ? { borderLeftColor: data.bronColor, borderLeftWidth: 4 } : undefined}
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0.4 }} />
-      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-        {data.kind === 'input' ? '→ in' : 'out →'}
+      <div className="flex items-center justify-between gap-1">
+        <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
+          {data.kind === 'input' ? '→ in' : 'out →'}
+        </span>
+        {data.externalTeam && (
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" title={`↔ ${data.externalTeam}`} />
+        )}
       </div>
       <div className="text-xs font-medium text-slate-700">{data.label || '—'}</div>
       {data.linkLabel && <div className="mt-0.5 truncate text-[10px] text-slate-400">{data.linkLabel}</div>}
@@ -100,14 +108,16 @@ function CapacityBadgeNode({ data }) {
 function DependencyMarkerNode({ data }) {
   const { language } = useLanguage()
   const style = riskStyle(data.risk.level)
+  const extTeam = data.dependency.geraakte_team_extern
   return (
     <div
-      className="relative flex w-40 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm"
-      style={{ borderColor: style.hex, backgroundColor: `${style.hex}14` }}
+      className="relative flex w-40 cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 shadow-sm transition-opacity"
+      style={{ borderColor: style.hex, backgroundColor: `${style.hex}14`, opacity: data.dimmed ? 0.25 : 1 }}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0.3 }} />
       <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${style.dot}`} />
       <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-slate-700">{data.titel}</span>
+      {extTeam && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" title={`↔ ${extTeam}`} />}
       <span className="shrink-0 text-[10px] text-slate-400">{translateRiskLevel(data.risk.level, language)}</span>
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0.3 }} />
     </div>
@@ -188,6 +198,26 @@ function SmallLabelNode({ data }) {
   )
 }
 
+// Omsluitende achtergrondlaag voor Run flow (boven) resp. Ontwikkelflow
+// (onder) — beide krijgen dezelfde x/breedte (zie ZONE_X/ZONE_WIDTH in
+// computeWorkflowLayout) zodat ze visueel één canvas-as delen i.p.v. los van
+// elkaar te ogen. Niet interactief, laagste zIndex van alle nodes.
+function FlowZoneNode({ data }) {
+  return (
+    <div
+      className="pointer-events-none relative"
+      style={{ width: data.width, height: data.height, background: data.background, border: data.border, borderRadius: data.radius }}
+    >
+      <span
+        className="absolute left-4 top-3 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide"
+        style={{ background: data.labelBg, color: data.labelColor, border: data.labelBorder }}
+      >
+        {data.label}
+      </span>
+    </div>
+  )
+}
+
 function AnnotationNode({ data }) {
   const shapeClass =
     data.shape === 'circle' ? 'rounded-full' : data.shape === 'diamond' ? 'rounded-md rotate-45' : 'rounded-md'
@@ -238,6 +268,23 @@ function AnnotationNode({ data }) {
   )
 }
 
+// Extern team als subtiele randcontext-node (geen prominente losse rij):
+// alleen zichtbaar via de 'Externe teams tonen'-toggle, gepositioneerd links
+// van het canvas en verbonden met stippellijnen naar elke dependency/IO-chip
+// die dat team noemt.
+function ExternalTeamNode({ data }) {
+  return (
+    <div
+      className="relative flex w-40 items-center gap-1.5 rounded-full border-2 bg-white px-3 py-1.5 shadow-sm"
+      style={{ borderColor: '#5c6b8a55' }}
+    >
+      <Handle type="source" position={Position.Right} style={{ opacity: 0.3 }} />
+      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" />
+      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[#3f4a63]">{data.naam}</span>
+    </div>
+  )
+}
+
 const nodeTypes = {
   stage: StageNode,
   ioItem: IoNode,
@@ -247,6 +294,8 @@ const nodeTypes = {
   applicatieflowBanner: ApplicatieflowBannerNode,
   smallLabel: SmallLabelNode,
   laneGroup: LaneGroupNode,
+  flowZone: FlowZoneNode,
+  externalTeam: ExternalTeamNode,
 }
 
 function computeWorkflowLayout(
@@ -269,9 +318,13 @@ function computeWorkflowLayout(
   laneFilterQuery,
   collapsedLaneIds,
   onToggleLaneCollapse,
+  viewFilters,
+  onOpenAppDetail,
 ) {
+  const { showIO = true, showTeambreed = true, riskFilterOn = false, showExternalTeams = false } = viewFilters ?? {}
   const nodes = []
   const edges = []
+  const depNodeIdByDepId = new Map()
 
   function withSavedPosition(id, defaultPosition) {
     return savedLayout?.[id] ?? defaultPosition
@@ -295,23 +348,6 @@ function computeWorkflowLayout(
     0,
     ...WORKFLOW_STAGES.map((s) => (capacityByStage[s]?.length ?? 0) + (depsByStage[s]?.length ?? 0)),
   )
-
-  inputs.forEach((item, i) => {
-    const id = `input:${item.id}`
-    nodes.push({
-      id,
-      type: 'ioItem',
-      position: withSavedPosition(id, { x: 20, y: IO_Y_START + i * IO_Y_GAP }),
-      data: { kind: 'input', label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type) },
-      draggable: true,
-    })
-    edges.push({
-      id: `input:${item.id}->stage:${WORKFLOW_STAGES[0]}`,
-      source: `input:${item.id}`,
-      target: `stage:${WORKFLOW_STAGES[0]}`,
-      style: { stroke: '#94a3b8', strokeWidth: 1.5 },
-    })
-  })
 
   WORKFLOW_STAGES.forEach((stage, i) => {
     const id = `stage:${stage}`
@@ -357,11 +393,13 @@ function computeWorkflowLayout(
     const stageDeps = depsByStage[stage] ?? []
     stageDeps.forEach((dep, di) => {
       const mid = `dependency:${dep.id}`
+      depNodeIdByDepId.set(dep.id, mid)
+      const risk = calculateRisk(dep)
       nodes.push({
         id: mid,
         type: 'dependencyMarker',
         position: withSavedPosition(mid, { x: STAGE_START_X + i * STAGE_GAP, y: STAGE_Y + 80 + (stageCapacity.length + di) * 38 }),
-        data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
+        data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
         draggable: true,
       })
       edges.push({
@@ -370,6 +408,20 @@ function computeWorkflowLayout(
         target: mid,
         style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' },
       })
+      // Ontwikkelflow-dependency mag optioneel óók een applicatielabel dragen
+      // (Run flow en Ontwikkelflow zijn geen losse werelden) — teken dan een
+      // subtiele stippellijn naar de lane-banner van die applicatie, alleen
+      // zinvol met Split applicaties aan (anders bestaat er geen aparte lane).
+      if (splitApplicaties) {
+        ;(dep.applicatieIds ?? []).forEach((appId) => {
+          edges.push({
+            id: `crossflow:${dep.id}:${appId}`,
+            source: `appbanner:${appId}`,
+            target: mid,
+            style: { stroke: '#7a5c8a', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.35 },
+          })
+        })
+      }
     })
   })
 
@@ -442,7 +494,11 @@ function computeWorkflowLayout(
         label,
         count: deps.length,
         emptyLabel: t('teampage.applicatieflowBannerEmpty'),
-        onClick: onOpenApplicatieflow,
+        // Een echte applicatie-lane opent de detailmodal van die applicatie;
+        // de 'Teambreed'/samengevoegde lane heeft geen specifieke applicatie
+        // om te tonen en springt daarom naar de Applicaties-sectie.
+        onClick:
+          id !== 'all' && id !== 'unlabeled' && onOpenAppDetail ? () => onOpenAppDetail(id) : onOpenApplicatieflow,
         collapsed,
         onToggleCollapse: onToggleLaneCollapse ? () => onToggleLaneCollapse(id) : undefined,
         toggleLabel: collapsed ? t('teampage.laneExpand') : t('teampage.laneCollapse'),
@@ -456,11 +512,13 @@ function computeWorkflowLayout(
       const stageDeps = byStage[stage] ?? []
       stageDeps.forEach((dep, di) => {
         const mid = `${bid}:dep:${dep.id}`
+        depNodeIdByDepId.set(dep.id, mid)
+        const risk = calculateRisk(dep)
         nodes.push({
           id: mid,
           type: 'dependencyMarker',
           position: withSavedPosition(mid, { x: STAGE_START_X + i * STAGE_GAP, y: y + BANNER_TITLE_H + di * MARKER_ROW_H }),
-          data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
+          data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
           draggable: true,
         })
         edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
@@ -480,11 +538,13 @@ function computeWorkflowLayout(
         const row = Math.floor(di / MARKERS_PER_ROW)
         const col = di % MARKERS_PER_ROW
         const mid = `${bid}:dep:${dep.id}`
+        depNodeIdByDepId.set(dep.id, mid)
+        const risk = calculateRisk(dep)
         nodes.push({
           id: mid,
           type: 'dependencyMarker',
           position: withSavedPosition(mid, { x: STAGE_START_X + col * MARKER_W, y: y + stageRowsHeight + 8 + STAGE_LABEL_H + row * MARKER_ROW_H }),
-          data: { titel: dep.titel, risk: calculateRisk(dep), dependency: dep },
+          data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
           draggable: true,
         })
         edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#e2e8f0', strokeWidth: 1, strokeDasharray: '2 2' } })
@@ -498,11 +558,16 @@ function computeWorkflowLayout(
   const LANE_STACK_GAP = LANE_GAP + LANE_PAD_TOP + LANE_PAD_BOTTOM
   let applicatieflowTop = STAGE_Y - LANE_GAP - LANE_PAD_BOTTOM
   let topLaneY = null
+  // Id van de eerst geplaatste (dus dichtst-bij-de-stage-rij) lane — het
+  // natuurlijke aanknopingspunt voor Run flow-IO, analoog aan hoe
+  // Ontwikkelflow-IO aan de eerste/laatste workflowstap hangt.
+  let baseLaneId = null
   function placeApplicatieflowLane(id, label, deps) {
     const collapsed = collapsedLaneIds?.has(id) ?? false
     const height = collapsed ? BANNER_TITLE_H : groupApplicatieflowDeps(deps).height
     applicatieflowTop -= height
     pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed)
+    if (baseLaneId === null) baseLaneId = `appbanner:${id}`
     topLaneY = applicatieflowTop
     applicatieflowTop -= LANE_STACK_GAP
   }
@@ -517,7 +582,7 @@ function computeWorkflowLayout(
     // samengevoegde weergave), direct tegen de stage-rij aan. De per-
     // applicatie lanen stapelen daar bovenop (eerste applicatie het dichtst).
     // Blijft altijd zichtbaar, ook als er op applicatienaam gefilterd wordt.
-    if (unlabeled.length > 0) placeApplicatieflowLane('unlabeled', t('teampage.flowtypeApplicatieflow'), unlabeled)
+    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled)
     for (let i = visibleApplications.length - 1; i >= 0; i -= 1) {
       const app = visibleApplications[i]
       const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
@@ -562,25 +627,188 @@ function computeWorkflowLayout(
   }
 
   const lastStage = WORKFLOW_STAGES[WORKFLOW_STAGES.length - 1]
-  outputs.forEach((item, i) => {
+
+  // --- Gedeelde as: Run flow (boven) en Ontwikkelflow (onder) als één
+  // canvas ---
+  // Beide lagen delen dezelfde linker-/rechtergrens (ZONE_X/ZONE_WIDTH,
+  // afgeleid van dezelfde STAGE_GAP-kolommen als de lanes/stage-rij), zodat
+  // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
+  const ZONE_X = STAGE_START_X - LANE_PAD_X
+  const ZONE_WIDTH = BANNER_WIDTH + LANE_PAD_X * 2
+  const ZONE_PAD = 30
+  const devZoneTop = STAGE_Y - ZONE_PAD
+  const devZoneBottom = STAGE_Y + 80 + maxStackPerStage * 38 + ZONE_PAD
+  const SEAM_GAP = 10
+  const runflowZoneBottom = devZoneTop - SEAM_GAP
+  const runflowZoneTop =
+    topLaneY !== null ? topLaneY - LANE_PAD_TOP - STAGE_LABEL_H - 6 - ZONE_PAD : runflowZoneBottom - 140
+
+  nodes.push({
+    id: 'zone:runflow',
+    type: 'flowZone',
+    position: { x: ZONE_X, y: runflowZoneTop },
+    data: {
+      width: ZONE_WIDTH,
+      height: runflowZoneBottom - runflowZoneTop,
+      background: 'linear-gradient(180deg, #eef5fa 0%, #e9f1f7 100%)',
+      border: '1px solid #2a5f8a22',
+      radius: '20px 20px 0 0',
+      label: t('teampage.zoneRunflow'),
+      labelBg: '#2a5f8a',
+      labelColor: '#fff',
+      labelBorder: 'none',
+    },
+    draggable: false,
+    selectable: false,
+    zIndex: -3,
+  })
+  nodes.push({
+    id: 'zone:devflow',
+    type: 'flowZone',
+    position: { x: ZONE_X, y: devZoneTop },
+    data: {
+      width: ZONE_WIDTH,
+      height: devZoneBottom - devZoneTop,
+      background: '#ffffff',
+      border: '1px solid #e2e8f0',
+      radius: '0 0 18px 18px',
+      label: t('teampage.zoneOntwikkelflow'),
+      labelBg: '#eef1f5',
+      labelColor: '#475569',
+      labelBorder: '1px solid #e2e8f0',
+    },
+    draggable: false,
+    selectable: false,
+    zIndex: -3,
+  })
+
+  // Input/output splitsen op flowcontext: items zonder flowtype of met
+  // 'applicatieflow' horen bij de Run flow-zone (huidig gedrag, dus geen
+  // breaking change voor bestaande data); items met 'ontwikkelflow' vallen
+  // nu binnen de Ontwikkelflow-zone zelf i.p.v. over de volle canvashoogte
+  // te zweven.
+  function stackCenteredInZone(items, zoneTop, zoneBottom) {
+    const totalH = Math.max(0, items.length - 1) * IO_Y_GAP
+    const startY = zoneTop + Math.max(24, (zoneBottom - zoneTop - totalH) / 2)
+    return items.map((item, i) => ({ item, y: startY + i * IO_Y_GAP }))
+  }
+
+  const effectiveInputs = showIO ? inputs : []
+  const effectiveOutputs = showIO ? outputs : []
+  const runflowInputs = effectiveInputs.filter((item) => item.flowtype !== 'ontwikkelflow')
+  const devInputs = effectiveInputs.filter((item) => item.flowtype === 'ontwikkelflow')
+  const runflowOutputs = effectiveOutputs.filter((item) => item.flowtype !== 'ontwikkelflow')
+  const devOutputs = effectiveOutputs.filter((item) => item.flowtype === 'ontwikkelflow')
+  const runflowInEdgeTarget = baseLaneId ?? `stage:${WORKFLOW_STAGES[0]}`
+  const runflowOutEdgeTarget = baseLaneId ?? `stage:${lastStage}`
+
+  stackCenteredInZone(runflowInputs, runflowZoneTop, runflowZoneBottom).forEach(({ item, y }) => {
+    const id = `input:${item.id}`
+    nodes.push({
+      id,
+      type: 'ioItem',
+      position: withSavedPosition(id, { x: ZONE_X - 210, y }),
+      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam },
+      draggable: true,
+    })
+    edges.push({
+      id: `input:${item.id}->${runflowInEdgeTarget}`,
+      source: id,
+      target: runflowInEdgeTarget,
+      style: { stroke: '#2a5f8a', strokeWidth: 1.5 },
+    })
+  })
+  stackCenteredInZone(runflowOutputs, runflowZoneTop, runflowZoneBottom).forEach(({ item, y }) => {
     const id = `output:${item.id}`
     nodes.push({
       id,
       type: 'ioItem',
-      position: withSavedPosition(id, {
-        x: STAGE_START_X + (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 220,
-        y: IO_Y_START + i * IO_Y_GAP,
-      }),
-      data: { kind: 'output', label: item.label },
+      position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
+      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam },
+      draggable: true,
+    })
+    edges.push({
+      id: `${runflowOutEdgeTarget}->output:${item.id}`,
+      source: runflowOutEdgeTarget,
+      target: id,
+      style: { stroke: '#2a5f8a', strokeWidth: 1.5 },
+    })
+  })
+  stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
+    const id = `input:${item.id}`
+    nodes.push({
+      id,
+      type: 'ioItem',
+      position: withSavedPosition(id, { x: ZONE_X - 210, y }),
+      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam },
+      draggable: true,
+    })
+    edges.push({
+      id: `input:${item.id}->stage:${WORKFLOW_STAGES[0]}`,
+      source: id,
+      target: `stage:${WORKFLOW_STAGES[0]}`,
+      style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+    })
+  })
+  stackCenteredInZone(devOutputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
+    const id = `output:${item.id}`
+    nodes.push({
+      id,
+      type: 'ioItem',
+      position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
+      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam },
       draggable: true,
     })
     edges.push({
       id: `stage:${lastStage}->output:${item.id}`,
       source: `stage:${lastStage}`,
-      target: `output:${item.id}`,
+      target: id,
       style: { stroke: '#94a3b8', strokeWidth: 1.5 },
     })
   })
+
+  // Externe teams als subtiele randcontext: alleen via de 'Externe teams
+  // tonen'-toggle, als kleine pil-nodes links van het canvas verbonden met
+  // stippellijnen naar elke dependency/IO-chip die dat team noemt. Geen
+  // aparte, altijd-zichtbare rij — de chips zelf tonen al een klein tagje
+  // (zie DependencyMarkerNode/IoNode) ongeacht deze toggle.
+  if (showExternalTeams) {
+    const externalTeamRefs = new Map()
+    function touchExtTeam(name, nodeId) {
+      if (!name) return
+      if (!externalTeamRefs.has(name)) externalTeamRefs.set(name, [])
+      externalTeamRefs.get(name).push(nodeId)
+    }
+    teamDependencies.forEach((dep) => {
+      const nodeId = depNodeIdByDepId.get(dep.id)
+      if (nodeId) touchExtTeam(dep.geraakte_team_extern, nodeId)
+    })
+    inputs.forEach((item) => touchExtTeam(item.externalTeam, `input:${item.id}`))
+    outputs.forEach((item) => touchExtTeam(item.externalTeam, `output:${item.id}`))
+
+    const posById = new Map(nodes.map((n) => [n.id, n.position]))
+    let extIndex = 0
+    for (const [name, refs] of externalTeamRefs) {
+      const extId = `externalTeam:${name}`
+      nodes.push({
+        id: extId,
+        type: 'externalTeam',
+        position: withSavedPosition(extId, { x: ZONE_X - 420, y: runflowZoneTop + extIndex * 66 }),
+        data: { naam: name },
+        draggable: true,
+      })
+      refs.forEach((refId) => {
+        if (!posById.has(refId)) return
+        edges.push({
+          id: `extconn:${name}:${refId}`,
+          source: extId,
+          target: refId,
+          style: { stroke: '#5c6b8a', strokeWidth: 1, strokeDasharray: '2 3', opacity: 0.3 },
+        })
+      })
+      extIndex += 1
+    }
+  }
 
   annotations.forEach((item, i) => {
     const id = `annotation:${item.id}`
@@ -631,8 +859,8 @@ function canvasHeightFor(inputs, outputs) {
 
 function emptyIoItem(kind) {
   return kind === 'input'
-    ? { id: generateId(), label: '', flowtype: '', bron_type: '', linkedTeam: '', linkedOutputId: '', applicatieId: '' }
-    : { id: generateId(), label: '', flowtype: '', applicatieId: '' }
+    ? { id: generateId(), label: '', flowtype: '', bron_type: '', linkedTeam: '', linkedOutputId: '', applicatieId: '', externalTeam: '' }
+    : { id: generateId(), label: '', flowtype: '', applicatieId: '', externalTeam: '' }
 }
 
 function ioItemSummary(item, kind, teams, teamWorkflows, applications, language) {
@@ -648,6 +876,7 @@ function ioItemSummary(item, kind, teams, teamWorkflows, applications, language)
     const app = applications.find((a) => a.id === item.applicatieId)
     if (app) parts.push(app.naam || '—')
   }
+  if (item.externalTeam) parts.push(`↔ ${item.externalTeam}`)
   return parts.join(' · ')
 }
 
@@ -786,6 +1015,16 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
               </select>
             </div>
           )}
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioExternalTeamLabel')}</label>
+            <input
+              value={draft.externalTeam ?? ''}
+              onChange={(e) => update({ externalTeam: e.target.value })}
+              placeholder={t('teampage.ioExternalTeamPlaceholder')}
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+            />
+          </div>
 
           <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
             {isEditing ? (
@@ -1181,6 +1420,10 @@ export default function TeamPage({ teamId, onBack }) {
   const [lineStart, setLineStart] = useState(null)
   const [capacityModalRow, setCapacityModalRow] = useState(undefined)
   const [appDetailId, setAppDetailId] = useState(null)
+  // IO-item aangeklikt op het canvas: opent dezelfde IoItemModal als de
+  // Input/Output-lijst, zonder de lijst-lokale modalItem-state aan te raken.
+  const [canvasIoTarget, setCanvasIoTarget] = useState(null)
+  const [canvasHover, setCanvasHover] = useState(null)
   const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
@@ -1189,6 +1432,13 @@ export default function TeamPage({ teamId, onBack }) {
   // niet bewaard, zodat teams met veel applicaties de stapel compact kunnen
   // houden zonder een onleesbare muur aan lanes.
   const [collapsedLaneIds, setCollapsedLaneIds] = useState(() => new Set())
+  // Weergave-filters voor het Teamcanvas: puur presentatie, niet bewaard.
+  const [showIO, setShowIO] = useState(true)
+  const [showTeambreed, setShowTeambreed] = useState(true)
+  const [riskFilterOn, setRiskFilterOn] = useState(false)
+  const [showExternalTeams, setShowExternalTeams] = useState(false)
+  const [viewFiltersOpen, setViewFiltersOpen] = useState(false)
+  const [legendOpen, setLegendOpen] = useState(false)
 
   const toggleLaneCollapsed = useCallback((id) => {
     setCollapsedLaneIds((prev) => {
@@ -1359,6 +1609,11 @@ export default function TeamPage({ teamId, onBack }) {
     applicatieflowSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
 
+  const viewFilters = useMemo(
+    () => ({ showIO, showTeambreed, riskFilterOn, showExternalTeams }),
+    [showIO, showTeambreed, riskFilterOn, showExternalTeams],
+  )
+
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     workflow.inputs,
     workflow.outputs,
@@ -1379,6 +1634,8 @@ export default function TeamPage({ teamId, onBack }) {
     appFilterQuery,
     collapsedLaneIds,
     toggleLaneCollapsed,
+    viewFilters,
+    setAppDetailId,
   ])
 
   function handleNodesChange(changes) {
@@ -1400,6 +1657,11 @@ export default function TeamPage({ teamId, onBack }) {
   function handleNodeClick(_, node) {
     if (!lineToolActive) {
       if (node.type === 'dependencyMarker') setSelectedDependency(node.data.dependency)
+      if (node.type === 'ioItem') {
+        const items = node.data.kind === 'input' ? workflow.inputs : workflow.outputs
+        const item = items.find((i) => i.id === node.data.itemId)
+        if (item) setCanvasIoTarget({ kind: node.data.kind, item })
+      }
       return
     }
     if (!lineStart) {
@@ -1415,6 +1677,34 @@ export default function TeamPage({ teamId, onBack }) {
     })
     setLineStart(null)
     setLineToolActive(false)
+  }
+
+  // Compacte hover-preview-inhoud per node-type — hergebruikt door alle
+  // canvas-elementen (applicatie-lanes, dependencies, IO, workflowstappen,
+  // externe teams) i.p.v. per type een eigen tooltip te bouwen.
+  function buildCanvasTooltipContent(node) {
+    if (node.type === 'dependencyMarker') {
+      const dep = node.data.dependency
+      const isRunflow = dep.flowtype === 'applicatieflow'
+      const flowLabel = dep.flowtype ? translateFlowtype(dep.flowtype, language) : t('teampage.flowtypeUndetermined')
+      const app = isRunflow ? workflow.applications.find((a) => (dep.applicatieIds ?? []).includes(a.id)) : null
+      const scopeLabel = isRunflow ? app?.naam ?? t('teampage.teambreed') : translateWorkflowStap(dep.workflowStap, language)
+      return { title: dep.titel, sub: [flowLabel, scopeLabel, translateRiskLevel(node.data.risk.level, language)].filter(Boolean).join(' · ') }
+    }
+    if (node.type === 'applicatieflowBanner') {
+      return { title: node.data.label, sub: `${t('teampage.zoneRunflow')} · ${node.data.count} ${t('tooltip.dependencies')}` }
+    }
+    if (node.type === 'ioItem') {
+      const parts = [node.data.kind === 'input' ? '→ IN' : 'OUT →', node.data.linkLabel, node.data.externalTeam ? `↔ ${node.data.externalTeam}` : null]
+      return { title: node.data.label || '—', sub: parts.filter(Boolean).join(' · ') }
+    }
+    if (node.type === 'stage') {
+      return { title: translateWorkflowStage(node.data.stage, language), sub: t('teampage.zoneOntwikkelflow') }
+    }
+    if (node.type === 'externalTeam') {
+      return { title: node.data.naam, sub: t('teampage.legendExternalTeam') }
+    }
+    return null
   }
 
   function addCapacityRow(row) {
@@ -1476,6 +1766,13 @@ export default function TeamPage({ teamId, onBack }) {
       deleteDependency(dep.id)
       setSelectedDependency(null)
     }
+  }
+
+  // Reset alleen de handmatig versleepte posities (niet de data zelf) zodat
+  // useMergedLayout weer de vers berekende, uitgelijnde posities gebruikt —
+  // een gebruiker-gestuurde actie, geen automatische herordening.
+  function handleSmartOrder() {
+    patch({ layout: {} })
   }
 
   function handleClearWorkflow() {
@@ -1679,6 +1976,107 @@ export default function TeamPage({ teamId, onBack }) {
                   {t('teampage.splitApplicaties')}
                 </button>
               </div>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setViewFiltersOpen((v) => !v)}
+                  aria-expanded={viewFiltersOpen}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                    viewFiltersOpen ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {t('teampage.viewFiltersButton')} ▾
+                </button>
+                {viewFiltersOpen && (
+                  <div className="absolute right-0 top-8 z-20 w-64 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+                    {[
+                      { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
+                      { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
+                      { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
+                      { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
+                    ].map((f) => (
+                      <button
+                        key={f.key}
+                        type="button"
+                        onClick={() => f.onChange((v) => !v)}
+                        className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                      >
+                        <span
+                          className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                            f.value ? 'border-[#2a5f8a] bg-[#2a5f8a]' : 'border-slate-300 bg-white'
+                          }`}
+                        >
+                          {f.value && (
+                            <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                              <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          )}
+                        </span>
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSmartOrder}
+                title={t('teampage.smartOrderHint')}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                {t('teampage.smartOrder')}
+              </button>
+
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setLegendOpen((v) => !v)}
+                  aria-expanded={legendOpen}
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${
+                    legendOpen ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {t('teampage.legend')}
+                </button>
+                {legendOpen && (
+                  <div className="absolute right-0 top-8 z-20 w-56 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
+                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendRiskTitle')}</div>
+                    <div className="mb-3 space-y-1">
+                      {['Kritiek', 'Hoog', 'Gemiddeld', 'Laag'].map((level) => (
+                        <div key={level} className="flex items-center gap-2 text-xs text-slate-600">
+                          <span className={`h-2 w-2 shrink-0 rounded-full ${riskStyle(level).dot}`} />
+                          {translateRiskLevel(level, language)}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendDisplayTitle')}</div>
+                    <div className="space-y-1.5 text-xs text-slate-600">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-0.5 w-4 shrink-0 bg-[#2a5f8a]" />
+                        {t('teampage.legendConnection')}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#2a5f8a] bg-[#eef4f9]" />
+                        {t('teampage.legendInput')}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#5c8a72] bg-[#eef6f1]" />
+                        {t('teampage.legendOutput')}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#2a5f8a]/50 bg-[#2a5f8a]/10" />
+                        {t('teampage.legendTeambreed')}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-[#5c6b8a55] bg-white" />
+                        {t('teampage.legendExternalTeam')}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div data-tour="workflow-canvas" className="relative rounded-lg border border-slate-100" style={{ height: Math.min(Math.max(canvasHeight, 460), 640) }}>
@@ -1688,7 +2086,20 @@ export default function TeamPage({ teamId, onBack }) {
                 nodeTypes={nodeTypes}
                 onNodesChange={handleNodesChange}
                 onNodeClick={handleNodeClick}
+                onNodeMouseEnter={(event, node) => {
+                  const content = buildCanvasTooltipContent(node)
+                  if (content) setCanvasHover({ x: event.clientX, y: event.clientY, ...content })
+                }}
+                onNodeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
+                onNodeMouseLeave={() => setCanvasHover(null)}
+                showMinimap
               />
+              {canvasHover && (
+                <FloatingTooltip x={canvasHover.x} y={canvasHover.y}>
+                  <div className="font-semibold text-slate-50">{canvasHover.title}</div>
+                  {canvasHover.sub && <div className="mt-0.5 text-[11px] text-slate-300">{canvasHover.sub}</div>}
+                </FloatingTooltip>
+              )}
             </div>
           </div>
 
@@ -1759,6 +2170,30 @@ export default function TeamPage({ teamId, onBack }) {
                 />
               )
             })()}
+
+          {canvasIoTarget && (
+            <IoItemModal
+              kind={canvasIoTarget.kind}
+              item={canvasIoTarget.item}
+              onSave={(draft) => {
+                if (canvasIoTarget.kind === 'input') updateInput(draft.id, draft)
+                else updateOutput(draft.id, draft)
+                setCanvasIoTarget(null)
+              }}
+              onRemove={() => {
+                if (canvasIoTarget.kind === 'input') removeInput(canvasIoTarget.item.id)
+                else removeOutput(canvasIoTarget.item.id)
+                setCanvasIoTarget(null)
+              }}
+              onClose={() => setCanvasIoTarget(null)}
+              teams={teams}
+              currentTeamId={teamId}
+              teamWorkflows={teamWorkflows}
+              applications={workflow.applications}
+              t={t}
+              language={language}
+            />
+          )}
 
           <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3">
