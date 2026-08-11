@@ -94,6 +94,10 @@ function IoNode({ data }) {
       </div>
       <div className="mt-1 truncate text-xs font-medium text-slate-700">{data.label || '—'}</div>
       {data.linkLabel && <div className="mt-0.5 truncate text-[10px] text-slate-400">{data.linkLabel}</div>}
+      {/* Compacte flowcontext direct op de kaart — hoort dit bij Run flow of
+          Ontwikkelflow, en bij een applicatie of Teambreed — i.p.v. alleen
+          via hover zichtbaar. */}
+      {data.meta && <div className="mt-0.5 truncate text-[9px] font-medium text-slate-400">{data.meta}</div>}
       <Handle type="source" position={Position.Right} style={{ opacity: 0.35 }} />
     </div>
   )
@@ -245,13 +249,17 @@ function FlowZoneNode({ data }) {
         boxShadow: data.shadow,
       }}
     >
-      <span
-        className="absolute left-5 top-3.5 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider"
-        style={{ background: data.labelBg, color: data.labelColor, border: data.labelBorder, boxShadow: data.labelShadow }}
-      >
-        <span className="h-1.5 w-1.5 rounded-full" style={{ background: data.labelDotColor }} />
-        {data.label}
-      </span>
+      {/* Zonder label (bv. de smalle 'seam'-overgangsstrook tussen Run flow
+          en Ontwikkelflow) is dit puur een decoratief vlak. */}
+      {data.label && (
+        <span
+          className="absolute left-5 top-3.5 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10.5px] font-bold uppercase tracking-wider"
+          style={{ background: data.labelBg, color: data.labelColor, border: data.labelBorder, boxShadow: data.labelShadow }}
+        >
+          <span className="h-1.5 w-1.5 rounded-full" style={{ background: data.labelDotColor }} />
+          {data.label}
+        </span>
+      )}
       {/* Korte samenvatting naast het label, bv. hoeveel applicaties er in
           deze Run flow meespelen — puur context, geen aparte structuur. */}
       {data.subtitle && (
@@ -355,6 +363,7 @@ function computeWorkflowLayout(
   functieName,
   applications,
   splitApplicaties,
+  applicatieWeergave,
   applicatieflowConnecties,
   t,
   language,
@@ -485,22 +494,59 @@ function computeWorkflowLayout(
   const LANE_CONTENT_GAP = 18
   const LANE_ROW_H = 52
   const LANE_GAP = 22
+  // Extra ademruimte tussen de laatste chip van de ene applicatie en de
+  // eerste van de volgende binnen de Applicatiegerelateerd-groep (Samen-
+  // gevoegd) — puur visuele clustering, geen aparte kaart/lane per app.
+  const LANE_CLUSTER_GAP = 16
 
-  function groupApplicatieflowDeps(deps) {
+  // Berekent voor elke dep een {row, x}-positie binnen de lane, en hoeveel
+  // breedte de volst gevulde rij daadwerkelijk gebruikt — dat laatste is de
+  // basis om de hele chip-cluster te centreren i.p.v. altijd links te
+  // plakken tegen een lane-achtergrond die (vooral in Samengevoegd) vaak
+  // breder is dan nodig (de Run flow-zone deelt haar breedte gedwongen met
+  // de 7-koloms Ontwikkelflow-rij eronder).
+  function layoutLaneItems(deps, perRow, appIdOf) {
+    const itemPos = new Map()
+    let maxRowWidth = 0
+    let row = 0
+    let col = 0
+    let x = 0
+    let prevAppId = null
+    deps.forEach((dep) => {
+      if (col >= perRow) {
+        row += 1
+        col = 0
+        x = 0
+        prevAppId = null
+      }
+      const appId = appIdOf ? appIdOf(dep) : null
+      if (appIdOf && prevAppId !== null && appId !== prevAppId) x += LANE_CLUSTER_GAP
+      itemPos.set(dep.id, { row, x })
+      x += LANE_ITEM_W
+      if (x > maxRowWidth) maxRowWidth = x
+      col += 1
+      prevAppId = appId
+    })
+    return { itemPos, maxRowWidth }
+  }
+
+  function groupApplicatieflowDeps(deps, appIdOf) {
     const contentWidth = Math.max(LANE_ITEM_W, BANNER_WIDTH - LANE_BANNER_W - LANE_CONTENT_GAP)
     const perRow = Math.max(1, Math.floor(contentWidth / LANE_ITEM_W))
     const rows = deps.length > 0 ? Math.ceil(deps.length / perRow) : 1
     const height = Math.max(LANE_ROW_H, rows * LANE_ROW_H)
-    return { perRow, height }
+    const { itemPos, maxRowWidth } = layoutLaneItems(deps, perRow, appIdOf)
+    const centerOffset = Math.max(0, (contentWidth - maxRowWidth) / 2)
+    return { perRow, height, itemPos, centerOffset }
   }
 
   const LANE_PAD_X = 14
   const LANE_PAD_TOP = 10
   const LANE_PAD_BOTTOM = 14
 
-  function pushApplicatieflowLane(id, label, deps, y, collapsed, accent, appTagFor) {
+  function pushApplicatieflowLane(id, label, deps, y, collapsed, accent, appTagFor, appIdOf) {
     const bid = `appbanner:${id}`
-    const { perRow, height } = groupApplicatieflowDeps(deps)
+    const { height, itemPos, centerOffset } = groupApplicatieflowDeps(deps, appIdOf)
     const effectiveHeight = collapsed ? LANE_ROW_H : height
 
     const bgId = `${bid}:bg`
@@ -541,9 +587,8 @@ function computeWorkflowLayout(
 
     if (collapsed) return
 
-    deps.forEach((dep, i) => {
-      const row = Math.floor(i / perRow)
-      const col = i % perRow
+    deps.forEach((dep) => {
+      const { row, x } = itemPos.get(dep.id)
       const mid = `${bid}:dep:${dep.id}`
       depNodeIdByDepId.set(dep.id, mid)
       const risk = calculateRisk(dep)
@@ -551,7 +596,7 @@ function computeWorkflowLayout(
         id: mid,
         type: 'dependencyMarker',
         position: withSavedPosition(mid, {
-          x: STAGE_START_X + LANE_BANNER_W + LANE_CONTENT_GAP + col * LANE_ITEM_W,
+          x: STAGE_START_X + LANE_BANNER_W + LANE_CONTENT_GAP + centerOffset + x,
           y: y + row * LANE_ROW_H,
         }),
         data: {
@@ -577,14 +622,18 @@ function computeWorkflowLayout(
   // het natuurlijke aanknopingspunt voor Run flow-IO, analoog aan hoe
   // Ontwikkelflow-IO aan de eerste/laatste workflowstap hangt.
   let baseLaneId = null
-  function placeApplicatieflowLane(id, label, deps, accent, appTagFor) {
+  function placeApplicatieflowLane(id, label, deps, accent, appTagFor, appIdOf) {
     const collapsed = collapsedLaneIds?.has(id) ?? false
-    const height = collapsed ? LANE_ROW_H : groupApplicatieflowDeps(deps).height
+    const height = collapsed ? LANE_ROW_H : groupApplicatieflowDeps(deps, appIdOf).height
     applicatieflowTop -= height
-    pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed, accent, appTagFor)
+    pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed, accent, appTagFor, appIdOf)
     if (baseLaneId === null) baseLaneId = `appbanner:${id}`
     topLaneY = applicatieflowTop
     applicatieflowTop -= LANE_STACK_GAP
+  }
+
+  function primaryAppId(dep) {
+    return (dep.applicatieIds ?? [])[0]
   }
 
   function appTagLabel(dep) {
@@ -593,27 +642,84 @@ function computeWorkflowLayout(
     return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`
   }
 
-  if (splitApplicaties && applications.length > 0) {
-    // Split per applicatie = applicaties zijn hier de hoofdstructuur: elke
-    // applicatie krijgt zijn eigen lane (blauw), Teambreed blijft een aparte
-    // basislaag. Geen appTag nodig op de chips — welke applicatie het is,
-    // blijkt al uit de lane zelf.
-    const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
-    const query = (laneFilterQuery ?? '').trim().toLowerCase()
-    const visibleApplications = query ? applications.filter((app) => (app.naam || '').toLowerCase().includes(query)) : applications
-    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
-    for (let i = visibleApplications.length - 1; i >= 0; i -= 1) {
-      const app = visibleApplications[i]
-      const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
-      placeApplicatieflowLane(app.id, app.naam || '—', appDeps, 'app')
-    }
+  // --- Applicatienetwerk: team-specifieke netwerkviewer (subview binnen
+  // Split per applicatie) ---
+  // Applicaties staan hier als knopen in een raster (i.p.v. gestapelde
+  // lanes), met hun dependencies los eronder en koppellijnen ertussen —
+  // visueel duidelijk iets anders dan Applicatielanes, en losstaand van de
+  // organisatiebrede Relatiekaart-pagina.
+  const NET_COL_GAP = 260
+  const NET_ROW_GAP = 40
+  const NET_APP_H = 44
+  const NET_DEP_GAP = 10
+  const NET_DEP_ROW_H = 42
 
-    // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
-    // geeft werk/data door aan welke andere') worden hier als directe lijnen
-    // tussen de lane-banners getekend — dat verving het losse netwerk-canvas
-    // dat ApplicatieflowTab eerder zelf tekende. Standaard subtiel/niet-
-    // geanimeerd; de hover-dim-laag verderop licht 'm op bij een gekoppelde app.
-    applicatieflowConnecties.forEach((c) => {
+  function groupDepsByApp(deps) {
+    const byApp = {}
+    deps.forEach((dep) => {
+      ;(dep.applicatieIds ?? []).forEach((appId) => {
+        if (!byApp[appId]) byApp[appId] = []
+        byApp[appId].push(dep)
+      })
+    })
+    return byApp
+  }
+
+  function netwerkGridStats(apps, deps) {
+    const depsByApp = groupDepsByApp(deps)
+    const cols = Math.max(1, Math.ceil(Math.sqrt(apps.length)))
+    const rows = Math.ceil(apps.length / cols)
+    const maxDeps = Math.max(1, ...apps.map((app) => depsByApp[app.id]?.length ?? 0))
+    const rowHeight = NET_APP_H + NET_DEP_GAP + maxDeps * NET_DEP_ROW_H
+    return { depsByApp, cols, rows, rowHeight, totalHeight: rows * rowHeight + Math.max(0, rows - 1) * NET_ROW_GAP }
+  }
+
+  function pushApplicatieNetwerk(apps, deps, connecties, topY) {
+    const { depsByApp, cols, rowHeight } = netwerkGridStats(apps, deps)
+
+    apps.forEach((app, i) => {
+      const col = i % cols
+      const row = Math.floor(i / cols)
+      const appX = STAGE_START_X + col * NET_COL_GAP
+      const appY = topY + row * (rowHeight + NET_ROW_GAP)
+      const bid = `appbanner:${app.id}`
+      const appDeps = depsByApp[app.id] ?? []
+      nodes.push({
+        id: bid,
+        type: 'applicatieflowBanner',
+        position: withSavedPosition(bid, { x: appX, y: appY }),
+        data: {
+          width: LANE_BANNER_W,
+          label: app.naam || '—',
+          count: appDeps.length,
+          emptyLabel: t('teampage.applicatieflowBannerEmpty'),
+          accent: 'app',
+          onClick: onOpenAppDetail ? () => onOpenAppDetail(app.id) : onOpenApplicatieflow,
+        },
+        draggable: true,
+      })
+      if (baseLaneId === null) baseLaneId = bid
+
+      appDeps.forEach((dep, di) => {
+        const mid = `${bid}:dep:${dep.id}`
+        depNodeIdByDepId.set(dep.id, mid)
+        const risk = calculateRisk(dep)
+        nodes.push({
+          id: mid,
+          type: 'dependencyMarker',
+          position: withSavedPosition(mid, { x: appX, y: appY + NET_APP_H + NET_DEP_GAP + di * NET_DEP_ROW_H }),
+          data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
+          draggable: true,
+        })
+        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+      })
+    })
+
+    // App-naar-app-koppellijnen: hier extra zinvol omdat de knopen los in de
+    // ruimte staan i.p.v. verticaal gestapeld — de hover-dim-laag verderop
+    // licht 'm automatisch op zodra een van de twee gekoppelde apps
+    // gehoverd wordt.
+    connecties.forEach((c) => {
       const sourceId = `appbanner:${c.van}`
       const targetId = `appbanner:${c.naar}`
       if (!nodes.some((n) => n.id === sourceId) || !nodes.some((n) => n.id === targetId)) return
@@ -624,6 +730,53 @@ function computeWorkflowLayout(
         style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.35 },
       })
     })
+  }
+
+  if (splitApplicaties && applications.length > 0) {
+    const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
+
+    if (applicatieWeergave === 'netwerk') {
+      // Applicatienetwerk: applicaties als raster van knopen i.p.v.
+      // gestapelde lanes — Teambreed blijft dezelfde compacte lane-stijl
+      // als in de andere twee weergaven (herkenbaar, geen nieuwe vorm).
+      if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
+      const labeledForNetwerk = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length > 0)
+      const { totalHeight } = netwerkGridStats(applications, labeledForNetwerk)
+      applicatieflowTop -= totalHeight
+      pushApplicatieNetwerk(applications, labeledForNetwerk, applicatieflowConnecties, applicatieflowTop)
+      topLaneY = applicatieflowTop
+      applicatieflowTop -= LANE_STACK_GAP
+    } else {
+      // Applicatielanes (default) = applicaties zijn hier de hoofdstructuur:
+      // elke applicatie krijgt zijn eigen lane (blauw), Teambreed blijft een
+      // aparte basislaag. Geen appTag nodig op de chips — welke applicatie
+      // het is, blijkt al uit de lane zelf.
+      const query = (laneFilterQuery ?? '').trim().toLowerCase()
+      const visibleApplications = query ? applications.filter((app) => (app.naam || '').toLowerCase().includes(query)) : applications
+      if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
+      for (let i = visibleApplications.length - 1; i >= 0; i -= 1) {
+        const app = visibleApplications[i]
+        const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
+        placeApplicatieflowLane(app.id, app.naam || '—', appDeps, 'app')
+      }
+
+      // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
+      // geeft werk/data door aan welke andere') worden hier als directe
+      // lijnen tussen de lane-banners getekend. Standaard subtiel/niet-
+      // geanimeerd; de hover-dim-laag verderop licht 'm op bij een
+      // gekoppelde app.
+      applicatieflowConnecties.forEach((c) => {
+        const sourceId = `appbanner:${c.van}`
+        const targetId = `appbanner:${c.naar}`
+        if (!nodes.some((n) => n.id === sourceId) || !nodes.some((n) => n.id === targetId)) return
+        edges.push({
+          id: `appconn:${c.id}`,
+          source: sourceId,
+          target: targetId,
+          style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.35 },
+        })
+      })
+    }
   } else {
     // Samengevoegd = totaalbeeld van het team: applicaties zijn hier bewust
     // GEEN eigen node/lane meer, alleen nog context. Twee rustige subgroepen
@@ -643,7 +796,7 @@ function computeWorkflowLayout(
     })
     if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
     if (sortedLabeled.length > 0) {
-      placeApplicatieflowLane('grouped', t('teampage.applicatiegerelateerd'), sortedLabeled, 'group', appTagLabel)
+      placeApplicatieflowLane('grouped', t('teampage.applicatiegerelateerd'), sortedLabeled, 'group', appTagLabel, primaryAppId)
     }
   }
 
@@ -659,8 +812,12 @@ function computeWorkflowLayout(
   const ZONE_PAD = 30
   const devZoneTop = STAGE_Y - ZONE_PAD
   const devZoneBottom = STAGE_Y + 80 + maxStackPerStage * 38 + ZONE_PAD
-  const SEAM_GAP = 10
-  const runflowZoneBottom = devZoneTop - SEAM_GAP
+  // SEAM_H is geen lege kloof maar de hoogte van een overgangsvlak (zie
+  // 'zone:seam' hieronder) dat de blauwe Run flow-tint geleidelijk laat
+  // overlopen in de witte Ontwikkelflow-zone, zodat het één doorlopend
+  // canvas oogt i.p.v. twee losse afgeronde blokken met een randje ertussen.
+  const SEAM_H = 16
+  const runflowZoneBottom = devZoneTop - SEAM_H
   const runflowZoneTop =
     topLaneY !== null ? topLaneY - LANE_PAD_TOP - ZONE_PAD : runflowZoneBottom - 140
 
@@ -712,12 +869,38 @@ function computeWorkflowLayout(
     selectable: false,
     zIndex: -3,
   })
+  // Naadloze overgang: vult exact de ruimte tussen de twee zones met een
+  // vloeiende kleurovergang, geen randradius/border — de twee afgeronde
+  // blokken lezen zo als één doorlopend canvas i.p.v. twee losse vlakken.
+  nodes.push({
+    id: 'zone:seam',
+    type: 'flowZone',
+    position: { x: ZONE_X, y: runflowZoneBottom },
+    data: {
+      width: ZONE_WIDTH,
+      height: SEAM_H,
+      background: 'linear-gradient(180deg, #eaf1f7 0%, #fdfdfe 100%)',
+    },
+    draggable: false,
+    selectable: false,
+    zIndex: -3,
+  })
 
   // Input/output splitsen op flowcontext: items zonder flowtype of met
   // 'applicatieflow' horen bij de Run flow-zone (huidig gedrag, dus geen
   // breaking change voor bestaande data); items met 'ontwikkelflow' vallen
   // nu binnen de Ontwikkelflow-zone zelf i.p.v. over de volle canvashoogte
   // te zweven.
+  // Compacte flowcontext direct op de IO-kaart (i.p.v. alleen bij hover):
+  // hoort dit bij Run flow of Ontwikkelflow, en bij een applicatie of
+  // Teambreed?
+  function ioMetaLabel(item) {
+    const flowLabel = item.flowtype === 'ontwikkelflow' ? t('teampage.zoneOntwikkelflow') : t('teampage.zoneRunflow')
+    const app = item.applicatieId ? applications.find((a) => a.id === item.applicatieId) : null
+    const scopeLabel = app ? app.naam || '—' : t('teampage.teambreed')
+    return `${flowLabel} · ${scopeLabel}`
+  }
+
   function stackCenteredInZone(items, zoneTop, zoneBottom) {
     const totalH = Math.max(0, items.length - 1) * IO_Y_GAP
     const startY = zoneTop + Math.max(24, (zoneBottom - zoneTop - totalH) / 2)
@@ -739,7 +922,7 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X - 210, y }),
-      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam },
+      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
       draggable: true,
     })
     edges.push({
@@ -755,7 +938,7 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
-      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam },
+      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
       draggable: true,
     })
     edges.push({
@@ -771,7 +954,7 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X - 210, y }),
-      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam },
+      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
       draggable: true,
     })
     edges.push({
@@ -787,7 +970,7 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
-      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam },
+      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
       draggable: true,
     })
     edges.push({
@@ -1459,6 +1642,11 @@ export default function TeamPage({ teamId, onBack }) {
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
   const [splitApplicaties, setSplitApplicaties] = useState(false)
+  // Subview binnen Split per applicatie: 'lanes' (default, scanbare
+  // detaillijst per app) of 'netwerk' (team-specifieke netwerkviewer met
+  // apps als knopen + koppellijnen — niet te verwarren met de organisatie-
+  // brede Relatiekaart-pagina). Alleen relevant met splitApplicaties aan.
+  const [applicatieWeergave, setApplicatieWeergave] = useState('lanes')
   // Welke Run flow-lanes op het canvas zijn ingeklapt — puur presentatie,
   // niet bewaard, zodat teams met veel applicaties de stapel compact kunnen
   // houden zonder een onleesbare muur aan lanes.
@@ -1658,6 +1846,7 @@ export default function TeamPage({ teamId, onBack }) {
     functieName,
     workflow.applications,
     splitApplicaties,
+    applicatieWeergave,
     workflow.applicatieflow?.connecties ?? [],
     t,
     language,
@@ -2033,6 +2222,39 @@ export default function TeamPage({ teamId, onBack }) {
                     {t('teampage.splitApplicaties')}
                   </button>
                 </div>
+
+                {/* Subview binnen Split: Applicatielanes (default, scanbaar
+                    per app) of Applicatienetwerk (team-specifieke netwerk-
+                    viewer) — bewust niet 'Relatiekaart' genoemd, dat is de
+                    organisatiebrede pagina. */}
+                {splitApplicaties && (
+                  <div
+                    className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-[11px] shadow-inner"
+                    role="group"
+                    aria-label={t('teampage.applicatieWeergaveLabel')}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setApplicatieWeergave('lanes')}
+                      aria-pressed={applicatieWeergave === 'lanes'}
+                      className={`rounded-md px-2 py-1 font-medium transition-colors ${
+                        applicatieWeergave === 'lanes' ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {t('teampage.applicatielanes')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setApplicatieWeergave('netwerk')}
+                      aria-pressed={applicatieWeergave === 'netwerk'}
+                      className={`rounded-md px-2 py-1 font-medium transition-colors ${
+                        applicatieWeergave === 'netwerk' ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                    >
+                      {t('teampage.applicatienetwerk')}
+                    </button>
+                  </div>
+                )}
 
                 <div className="h-5 w-px bg-slate-200" />
 
