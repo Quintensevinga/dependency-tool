@@ -118,15 +118,26 @@ function DependencyMarkerNode({ data }) {
   const extTeam = data.dependency.geraakte_team_extern
   return (
     <div
-      className="relative flex w-44 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_3px_8px_rgba(15,23,42,0.1)]"
+      className="relative flex w-44 cursor-pointer flex-col gap-0.5 rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-2.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:-translate-y-px hover:border-slate-300 hover:shadow-[0_3px_8px_rgba(15,23,42,0.1)]"
       style={{ borderLeftWidth: 3, borderLeftColor: style.hex, opacity: data.dimmed ? 0.25 : 1 }}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{data.titel}</span>
-      {extTeam && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" title={`↔ ${extTeam}`} />}
-      <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.badge}`}>
-        {translateRiskLevel(data.risk.level, language)}
-      </span>
+      <div className="flex items-center gap-1.5">
+        <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{data.titel}</span>
+        {extTeam && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#5c6b8a]" title={`↔ ${extTeam}`} />}
+        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${style.badge}`}>
+          {translateRiskLevel(data.risk.level, language)}
+        </span>
+      </div>
+      {/* Applicatienaam-tagje: alleen gevuld in Samengevoegd's
+          'Applicatiegerelateerd'-groep, waar chips niet meer in een eigen
+          applicatie-lane staan — dit is dan de enige context die nog zegt
+          welke applicatie(s) het raakt. */}
+      {data.appTag && (
+        <span className="w-fit rounded px-1.5 py-[1px] text-[9px] font-medium text-[#475569]" style={{ backgroundColor: '#64748b1a' }}>
+          {data.appTag}
+        </span>
+      )}
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </div>
   )
@@ -141,8 +152,18 @@ function DependencyMarkerNode({ data }) {
 // (groen, #5c8a72) voor de niet-gelabelde basislaag — zodat Teambreed
 // meteen herkenbaar als eigen, normale categorie oogt i.p.v. een applicatie-
 // kloon.
+// 'app' (blauw) = één specifieke applicatie, 'teambreed' (groen) = de niet-
+// gelabelde basislaag, 'group' (neutraal slate) = de verzamel-groep
+// 'Applicatiegerelateerd' in Samengevoegd — bewust geen appkleur, want dit
+// is geen applicatie maar een categorie van meerdere applicaties samen.
+function laneAccentColor(accent) {
+  if (accent === 'teambreed') return '#5c8a72'
+  if (accent === 'group') return '#64748b'
+  return '#2a5f8a'
+}
+
 function ApplicatieflowBannerNode({ data }) {
-  const accentColor = data.accent === 'teambreed' ? '#5c8a72' : '#2a5f8a'
+  const accentColor = laneAccentColor(data.accent)
   return (
     <div
       className="relative flex items-center gap-1.5 rounded-lg border bg-white px-2 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_3px_10px_rgba(15,23,42,0.1)]"
@@ -193,7 +214,7 @@ function ApplicatieflowBannerNode({ data }) {
 // laagste zIndex) zodat het canvas pannen/klikken op de echte nodes eronder
 // niet in de weg zit.
 function LaneGroupNode({ data }) {
-  const accentColor = data.accent === 'teambreed' ? '#5c8a72' : '#2a5f8a'
+  const accentColor = laneAccentColor(data.accent)
   return (
     <div
       className="pointer-events-none rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
@@ -201,7 +222,7 @@ function LaneGroupNode({ data }) {
         width: data.width,
         height: data.height,
         border: `1px solid ${accentColor}2e`,
-        background: data.accent === 'teambreed' ? `${accentColor}0a` : 'rgba(255,255,255,0.6)',
+        background: data.accent === 'app' ? 'rgba(255,255,255,0.6)' : `${accentColor}0a`,
       }}
     />
   )
@@ -231,6 +252,13 @@ function FlowZoneNode({ data }) {
         <span className="h-1.5 w-1.5 rounded-full" style={{ background: data.labelDotColor }} />
         {data.label}
       </span>
+      {/* Korte samenvatting naast het label, bv. hoeveel applicaties er in
+          deze Run flow meespelen — puur context, geen aparte structuur. */}
+      {data.subtitle && (
+        <span className="absolute left-5 top-9 text-[11px] font-medium" style={{ color: data.labelColor === '#fff' ? '#5479a3' : '#94a3b8' }}>
+          {data.subtitle}
+        </span>
+      )}
     </div>
   )
 }
@@ -470,11 +498,10 @@ function computeWorkflowLayout(
   const LANE_PAD_TOP = 10
   const LANE_PAD_BOTTOM = 14
 
-  function pushApplicatieflowLane(id, label, deps, y, collapsed) {
+  function pushApplicatieflowLane(id, label, deps, y, collapsed, accent, appTagFor) {
     const bid = `appbanner:${id}`
     const { perRow, height } = groupApplicatieflowDeps(deps)
     const effectiveHeight = collapsed ? LANE_ROW_H : height
-    const isTeambreed = id === 'unlabeled'
 
     const bgId = `${bid}:bg`
     nodes.push({
@@ -484,7 +511,7 @@ function computeWorkflowLayout(
       data: {
         width: BANNER_WIDTH + LANE_PAD_X * 2,
         height: effectiveHeight + LANE_PAD_TOP + LANE_PAD_BOTTOM,
-        accent: isTeambreed ? 'teambreed' : 'app',
+        accent,
       },
       draggable: false,
       selectable: false,
@@ -500,11 +527,11 @@ function computeWorkflowLayout(
         label,
         count: deps.length,
         emptyLabel: t('teampage.applicatieflowBannerEmpty'),
-        accent: isTeambreed ? 'teambreed' : 'app',
+        accent,
         // Een echte applicatie-lane opent de detailmodal van die applicatie;
-        // de 'Teambreed'-lane heeft geen specifieke applicatie om te tonen
-        // en springt daarom naar de Applicaties-sectie.
-        onClick: !isTeambreed && onOpenAppDetail ? () => onOpenAppDetail(id) : onOpenApplicatieflow,
+        // Teambreed/Applicatiegerelateerd hebben geen specifieke applicatie
+        // om te tonen en springen daarom naar de Applicaties-sectie.
+        onClick: accent === 'app' && onOpenAppDetail ? () => onOpenAppDetail(id) : onOpenApplicatieflow,
         collapsed,
         onToggleCollapse: onToggleLaneCollapse ? () => onToggleLaneCollapse(id) : undefined,
         toggleLabel: collapsed ? t('teampage.laneExpand') : t('teampage.laneCollapse'),
@@ -527,7 +554,13 @@ function computeWorkflowLayout(
           x: STAGE_START_X + LANE_BANNER_W + LANE_CONTENT_GAP + col * LANE_ITEM_W,
           y: y + row * LANE_ROW_H,
         }),
-        data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
+        data: {
+          titel: dep.titel,
+          risk,
+          dependency: dep,
+          dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level),
+          appTag: appTagFor ? appTagFor(dep) : undefined,
+        },
         draggable: true,
       })
       edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
@@ -540,106 +573,46 @@ function computeWorkflowLayout(
   const LANE_STACK_GAP = LANE_GAP + LANE_PAD_TOP + LANE_PAD_BOTTOM
   let applicatieflowTop = STAGE_Y - LANE_GAP - LANE_PAD_BOTTOM
   let topLaneY = null
-  // Id van de eerst geplaatste (dus dichtst-bij-de-stage-rij) lane/appkaart —
+  // Id van de eerst geplaatste (dus dichtst-bij-de-stage-rij) lane/groep —
   // het natuurlijke aanknopingspunt voor Run flow-IO, analoog aan hoe
   // Ontwikkelflow-IO aan de eerste/laatste workflowstap hangt.
   let baseLaneId = null
-  function placeApplicatieflowLane(id, label, deps) {
+  function placeApplicatieflowLane(id, label, deps, accent, appTagFor) {
     const collapsed = collapsedLaneIds?.has(id) ?? false
     const height = collapsed ? LANE_ROW_H : groupApplicatieflowDeps(deps).height
     applicatieflowTop -= height
-    pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed)
+    pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed, accent, appTagFor)
     if (baseLaneId === null) baseLaneId = `appbanner:${id}`
     topLaneY = applicatieflowTop
     applicatieflowTop -= LANE_STACK_GAP
   }
 
-  // Samengevoegde modus: applicaties als horizontale rij compacte kaarten,
-  // met hún gelabelde Run flow-deps pal eronder in een eigen kolom — nooit
-  // een generiek rooster dat apps door elkaar mengt. Elke app-kolom groeit
-  // gewoon verder naar beneden als er meer deps zijn (geen harde cap, geen
-  // horizontale wrap nodig zolang apps hun eigen x-kolom houden).
-  const APP_CARD_W = LANE_BANNER_W
-  const APP_CARD_H = 44
-  const APP_COL_GAP = 230
-  const APP_ROW_GAP = 14
-  const APP_DEP_ROW_H = 50
-
-  function groupDepsByApp(deps) {
-    const depsByApp = {}
-    deps.forEach((dep) => {
-      ;(dep.applicatieIds ?? []).forEach((appId) => {
-        if (!depsByApp[appId]) depsByApp[appId] = []
-        depsByApp[appId].push(dep)
-      })
-    })
-    return depsByApp
-  }
-
-  function computeAppClusterHeight(apps, deps) {
-    const depsByApp = groupDepsByApp(deps)
-    const maxRows = Math.max(1, ...apps.map((app) => depsByApp[app.id]?.length ?? 0))
-    return APP_CARD_H + APP_ROW_GAP + maxRows * APP_DEP_ROW_H
-  }
-
-  function pushRunflowAppCluster(apps, deps, topY) {
-    const depsByApp = groupDepsByApp(deps)
-
-    apps.forEach((app, i) => {
-      const appX = STAGE_START_X + i * APP_COL_GAP
-      const bid = `appbanner:${app.id}`
-      const appDeps = depsByApp[app.id] ?? []
-      nodes.push({
-        id: bid,
-        type: 'applicatieflowBanner',
-        position: withSavedPosition(bid, { x: appX, y: topY }),
-        data: {
-          width: APP_CARD_W,
-          label: app.naam || '—',
-          count: appDeps.length,
-          emptyLabel: t('teampage.applicatieflowBannerEmpty'),
-          accent: 'app',
-          onClick: onOpenAppDetail ? () => onOpenAppDetail(app.id) : onOpenApplicatieflow,
-        },
-        draggable: true,
-      })
-      if (baseLaneId === null) baseLaneId = bid
-
-      appDeps.forEach((dep, di) => {
-        const mid = `${bid}:dep:${dep.id}`
-        depNodeIdByDepId.set(dep.id, mid)
-        const risk = calculateRisk(dep)
-        nodes.push({
-          id: mid,
-          type: 'dependencyMarker',
-          position: withSavedPosition(mid, { x: appX, y: topY + APP_CARD_H + APP_ROW_GAP + di * APP_DEP_ROW_H }),
-          data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
-          draggable: true,
-        })
-        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
-      })
-    })
+  function appTagLabel(dep) {
+    const names = (dep.applicatieIds ?? []).map((id) => applications.find((a) => a.id === id)?.naam).filter(Boolean)
+    if (names.length === 0) return undefined
+    return names.length === 1 ? names[0] : `${names[0]} +${names.length - 1}`
   }
 
   if (splitApplicaties && applications.length > 0) {
+    // Split per applicatie = applicaties zijn hier de hoofdstructuur: elke
+    // applicatie krijgt zijn eigen lane (blauw), Teambreed blijft een aparte
+    // basislaag. Geen appTag nodig op de chips — welke applicatie het is,
+    // blijkt al uit de lane zelf.
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
     const query = (laneFilterQuery ?? '').trim().toLowerCase()
     const visibleApplications = query ? applications.filter((app) => (app.naam || '').toLowerCase().includes(query)) : applications
-    // Niet-gelabelde Run flow-deps horen niet bij een specifieke applicatie:
-    // ze vormen de Teambreed-basislaag, direct tegen de stage-rij aan. De
-    // per-applicatie lanen stapelen daar bovenop (eerste applicatie het
-    // dichtst). Blijft altijd zichtbaar, ook als er op naam gefilterd wordt.
-    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled)
+    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
     for (let i = visibleApplications.length - 1; i >= 0; i -= 1) {
       const app = visibleApplications[i]
       const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
-      placeApplicatieflowLane(app.id, app.naam || '—', appDeps)
+      placeApplicatieflowLane(app.id, app.naam || '—', appDeps, 'app')
     }
 
     // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
     // geeft werk/data door aan welke andere') worden hier als directe lijnen
     // tussen de lane-banners getekend — dat verving het losse netwerk-canvas
-    // dat ApplicatieflowTab eerder zelf tekende.
+    // dat ApplicatieflowTab eerder zelf tekende. Standaard subtiel/niet-
+    // geanimeerd; de hover-dim-laag verderop licht 'm op bij een gekoppelde app.
     applicatieflowConnecties.forEach((c) => {
       const sourceId = `appbanner:${c.van}`
       const targetId = `appbanner:${c.naar}`
@@ -648,19 +621,29 @@ function computeWorkflowLayout(
         id: `appconn:${c.id}`,
         source: sourceId,
         target: targetId,
-        style: { stroke: '#2a5f8a', strokeWidth: 2 },
-        animated: true,
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.35 },
       })
     })
   } else {
+    // Samengevoegd = totaalbeeld van het team: applicaties zijn hier bewust
+    // GEEN eigen node/lane meer, alleen nog context. Twee rustige subgroepen
+    // binnen de Run flow-zone: Teambreed (niet-gelabeld, groen) en
+    // Applicatiegerelateerd (gelabeld, neutraal) — in die laatste staan alle
+    // gelabelde deps door elkaar in één wrap-rooster, elk met een klein
+    // applicatienaam-tagje. Licht gesorteerd op eerste applicatielabel zodat
+    // deps van dezelfde app in de praktijk vaak naast elkaar vallen, zonder
+    // een harde scheiding/eigen lane per app te forceren.
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
-    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled)
-    if (applications.length > 0) {
-      const clusterHeight = computeAppClusterHeight(applications, applicatieflowDeps)
-      applicatieflowTop -= clusterHeight
-      pushRunflowAppCluster(applications, applicatieflowDeps, applicatieflowTop)
-      topLaneY = applicatieflowTop
-      applicatieflowTop -= LANE_STACK_GAP
+    const labeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length > 0)
+    const appIndexOf = new Map(applications.map((a, i) => [a.id, i]))
+    const sortedLabeled = [...labeled].sort((a, b) => {
+      const aIdx = Math.min(...(a.applicatieIds ?? []).map((id) => appIndexOf.get(id) ?? 999), 999)
+      const bIdx = Math.min(...(b.applicatieIds ?? []).map((id) => appIndexOf.get(id) ?? 999), 999)
+      return aIdx - bIdx
+    })
+    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
+    if (sortedLabeled.length > 0) {
+      placeApplicatieflowLane('grouped', t('teampage.applicatiegerelateerd'), sortedLabeled, 'group', appTagLabel)
     }
   }
 
@@ -698,6 +681,10 @@ function computeWorkflowLayout(
       labelBorder: 'none',
       labelDotColor: '#bcd6ea',
       labelShadow: '0 2px 6px rgba(42,95,138,0.35)',
+      // Applicaties zijn in Samengevoegd geen eigen node meer — dit
+      // tekstregeltje geeft nog wel aan hoeveel er meespelen, puur als
+      // context bij de zone zelf.
+      subtitle: !splitApplicaties && applications.length > 0 ? t('teampage.zoneRunflowAppsSubtitle', { count: applications.length }) : undefined,
     },
     draggable: false,
     selectable: false,
@@ -1682,6 +1669,24 @@ export default function TeamPage({ teamId, onBack }) {
     setAppDetailId,
   ])
 
+  // Lijnen worden pas duidelijk als niet-gerelateerde relaties wegvallen
+  // zodra je iets aanwijst — zelfde hover-dim-patroon als GraphView.jsx
+  // (hoverNodeId + een lichte stijl-laag over de edges, los van de layout-
+  // berekening zelf zodat hoveren geen herberekening van nodes triggert).
+  const [hoverNodeId, setHoverNodeId] = useState(null)
+  const displayEdges = useMemo(() => {
+    if (!hoverNodeId) return edges
+    return edges.map((edge) => {
+      const related = edge.source === hoverNodeId || edge.target === hoverNodeId
+      const isAppConn = edge.id.startsWith('appconn:')
+      return {
+        ...edge,
+        animated: isAppConn ? related : edge.animated,
+        style: { ...edge.style, opacity: related ? 1 : (edge.style?.opacity ?? 1) * 0.15 },
+      }
+    })
+  }, [edges, hoverNodeId])
+
   function handleNodesChange(changes) {
     onNodesChange(changes)
     const finished = changes.filter((c) => c.type === 'position' && c.position && c.dragging === false)
@@ -2142,16 +2147,20 @@ export default function TeamPage({ teamId, onBack }) {
               <PannableFlowCanvas
                 className="teamcanvas-flow"
                 nodes={nodes}
-                edges={edges}
+                edges={displayEdges}
                 nodeTypes={nodeTypes}
                 onNodesChange={handleNodesChange}
                 onNodeClick={handleNodeClick}
                 onNodeMouseEnter={(event, node) => {
+                  setHoverNodeId(node.id)
                   const content = buildCanvasTooltipContent(node)
                   if (content) setCanvasHover({ x: event.clientX, y: event.clientY, ...content })
                 }}
                 onNodeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
-                onNodeMouseLeave={() => setCanvasHover(null)}
+                onNodeMouseLeave={() => {
+                  setHoverNodeId(null)
+                  setCanvasHover(null)
+                }}
                 fitViewOptions={{ padding: 0.12, minZoom: 0.45 }}
                 minZoom={0.3}
                 maxZoom={1.5}
