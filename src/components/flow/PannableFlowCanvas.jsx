@@ -21,6 +21,7 @@ export default function PannableFlowCanvas({
   onEdgeMouseEnter,
   onEdgeMouseMove,
   onEdgeMouseLeave,
+  onPaneClick,
   backgroundColor = '#e2e8f0',
   showMinimap = false,
   className,
@@ -45,6 +46,7 @@ export default function PannableFlowCanvas({
       onEdgeMouseEnter={onEdgeMouseEnter}
       onEdgeMouseMove={onEdgeMouseMove}
       onEdgeMouseLeave={onEdgeMouseLeave}
+      onPaneClick={onPaneClick}
       fitView
       fitViewOptions={fitViewOptions}
       // Herhaal de fit na de eerste render: op het allereerste frame heeft

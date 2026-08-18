@@ -37,6 +37,13 @@ const IO_Y_GAP = 90
 
 const NEW_ROLE_SENTINEL = '__new_role__'
 const HIGH_RISK_LEVELS = ['Hoog', 'Kritiek']
+// Node-types die meedimmen zodra er canvas-focus actief is (zie
+// displayNodes in TeamPage) — structurele elementen (zones, lane-
+// achtergronden, workflowstappen) staan hier bewust niet bij.
+const DIMMABLE_NODE_TYPES = new Set(['dependencyMarker', 'ioItem', 'applicatieflowBanner', 'externalTeam', 'capacityBadge'])
+// Node-types die op klik het compacte focuspaneel openen i.p.v. meteen een
+// volledige modal (zie handleNodeClick in TeamPage).
+const FOCUSABLE_NODE_TYPES = new Set(['dependencyMarker', 'applicatieflowBanner', 'ioItem', 'externalTeam'])
 
 function ColorSwatchRow({ value, onChange }) {
   return (
@@ -179,7 +186,12 @@ function ApplicatieflowBannerNode({ data }) {
       {data.onToggleCollapse && (
         <button
           type="button"
-          onClick={data.onToggleCollapse}
+          onClick={(e) => {
+            // Los van de node-klik (die opent het focuspaneel) — in/uitklappen
+            // mag geen focus openen.
+            e.stopPropagation()
+            data.onToggleCollapse()
+          }}
           title={data.toggleLabel}
           className="flex h-5 w-5 shrink-0 items-center justify-center rounded hover:bg-black/5"
           style={{ color: accentColor }}
@@ -195,18 +207,18 @@ function ApplicatieflowBannerNode({ data }) {
           </svg>
         </button>
       )}
-      <button
-        type="button"
-        onClick={data.onClick}
-        className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 pr-1.5 text-left"
-      >
+      {/* Geen eigen onClick meer: de node-klik (ReactFlow's onNodeClick, zie
+          handleNodeClick in TeamPage) opent nu het focuspaneel; data.onClick
+          (naar de app-detailmodal of Applicatieflow-sectie) is verplaatst
+          naar de actieknop in dat paneel. */}
+      <div className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-2 pr-1.5 text-left">
         <span className="truncate text-sm font-semibold" style={{ color: accentColor }}>
           {data.label}
         </span>
         <span className="shrink-0 text-xs" style={{ color: `${accentColor}b3` }}>
           {data.count > 0 ? data.count : data.emptyLabel}
         </span>
-      </button>
+      </div>
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </div>
   )
@@ -416,7 +428,7 @@ function computeWorkflowLayout(
         id: `stage:${WORKFLOW_STAGES[i - 1]}->stage:${stage}`,
         source: `stage:${WORKFLOW_STAGES[i - 1]}`,
         target: `stage:${stage}`,
-        style: { stroke: '#64748b', strokeWidth: 2 },
+        style: { stroke: '#64748b', strokeWidth: 2, opacity: 0.55 },
       })
     }
 
@@ -439,7 +451,7 @@ function computeWorkflowLayout(
         id: `stage:${stage}->${bid}`,
         source: `stage:${stage}`,
         target: bid,
-        style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' },
+        style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 },
       })
     })
 
@@ -459,7 +471,7 @@ function computeWorkflowLayout(
         id: `stage:${stage}->${mid}`,
         source: `stage:${stage}`,
         target: mid,
-        style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' },
+        style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 },
       })
       // Ontwikkelflow-dependency mag optioneel óók een applicatielabel dragen
       // (Run flow en Ontwikkelflow zijn geen losse werelden) — teken dan een
@@ -482,11 +494,14 @@ function computeWorkflowLayout(
   // Run flow-dependencies horen bij hún applicatie, niet bij een
   // workflowstap — ze staan dus NIET meer op de Ontwikkelflow-kolommen
   // uitgelijnd (dat maakte een lane een tweede, gedupliceerde kolomrij).
-  // Een lane is nu een compacte, vaste-hoogte rij: appnaam/banner links,
-  // de bijbehorende dependency-chips stromen daar in één simpele rij naast
-  // (wrap naar een volgende rij pas als een lane echt veel items heeft). In
-  // samengevoegde modus geldt hetzelfde idee maar dan horizontaal: een rij
-  // applicatiekaarten met hun eigen deps pal eronder gegroepeerd.
+  // Elke lane is compact: breedte volgt de eigen inhoud (banner + een paar
+  // chips, wrap na LANE_PACK_MAX_COLS) i.p.v. altijd de volle zonebreedte —
+  // meerdere lanes pakken daardoor naast elkaar in dezelfde rij ('shelf'-
+  // packing, zie packLaneGroup hieronder) i.p.v. elk een eigen, vaak
+  // grotendeels lege rij te vullen. Teambreed krijgt altijd zijn eigen rij
+  // (nooit naast een applicatie-lane gepakt) zodat de zone-indeling — Run
+  // flow-applicaties versus Teambreed — visueel duidelijk blijft, ook als de
+  // lanes zelf compacter worden.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
   const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
   const LANE_BANNER_W = 210
@@ -494,17 +509,21 @@ function computeWorkflowLayout(
   const LANE_CONTENT_GAP = 18
   const LANE_ROW_H = 52
   const LANE_GAP = 22
+  // Lager dan je zou verwachten: bij 3 kolommen is een lane met 2-3 deps al
+  // meer dan de halve zonebreedte, waardoor er zelden meer dan 1 lane per rij
+  // past. Bij 2 kolommen blijft elke lane compact genoeg dat er meestal 2+
+  // naast elkaar passen — dat lost 'brede lege lanes' echt op, ten koste van
+  // iets meer interne regels bij lanes met veel dependencies.
+  const LANE_PACK_MAX_COLS = 2
+  const LANE_PACK_GAP_X = 24
   // Extra ademruimte tussen de laatste chip van de ene applicatie en de
   // eerste van de volgende binnen de Applicatiegerelateerd-groep (Samen-
   // gevoegd) — puur visuele clustering, geen aparte kaart/lane per app.
   const LANE_CLUSTER_GAP = 16
 
   // Berekent voor elke dep een {row, x}-positie binnen de lane, en hoeveel
-  // breedte de volst gevulde rij daadwerkelijk gebruikt — dat laatste is de
-  // basis om de hele chip-cluster te centreren i.p.v. altijd links te
-  // plakken tegen een lane-achtergrond die (vooral in Samengevoegd) vaak
-  // breder is dan nodig (de Run flow-zone deelt haar breedte gedwongen met
-  // de 7-koloms Ontwikkelflow-rij eronder).
+  // breedte de volst gevulde rij daadwerkelijk gebruikt — dat laatste bepaalt
+  // de lane z'n eigen (compacte) breedte i.p.v. altijd de volle zonebreedte.
   function layoutLaneItems(deps, perRow, appIdOf) {
     const itemPos = new Map()
     let maxRowWidth = 0
@@ -531,31 +550,31 @@ function computeWorkflowLayout(
   }
 
   function groupApplicatieflowDeps(deps, appIdOf) {
-    const contentWidth = Math.max(LANE_ITEM_W, BANNER_WIDTH - LANE_BANNER_W - LANE_CONTENT_GAP)
-    const perRow = Math.max(1, Math.floor(contentWidth / LANE_ITEM_W))
+    const perRow = Math.max(1, Math.min(LANE_PACK_MAX_COLS, deps.length))
     const rows = deps.length > 0 ? Math.ceil(deps.length / perRow) : 1
     const height = Math.max(LANE_ROW_H, rows * LANE_ROW_H)
     const { itemPos, maxRowWidth } = layoutLaneItems(deps, perRow, appIdOf)
-    const centerOffset = Math.max(0, (contentWidth - maxRowWidth) / 2)
-    return { perRow, height, itemPos, centerOffset }
+    const width = LANE_BANNER_W + LANE_CONTENT_GAP + Math.max(LANE_ITEM_W, maxRowWidth)
+    return { height, itemPos, width }
   }
 
   const LANE_PAD_X = 14
   const LANE_PAD_TOP = 10
   const LANE_PAD_BOTTOM = 14
 
-  function pushApplicatieflowLane(id, label, deps, y, collapsed, accent, appTagFor, appIdOf) {
+  function pushApplicatieflowLane(id, label, deps, x, y, collapsed, accent, appTagFor, appIdOf, width, height) {
     const bid = `appbanner:${id}`
-    const { height, itemPos, centerOffset } = groupApplicatieflowDeps(deps, appIdOf)
+    const { itemPos } = groupApplicatieflowDeps(deps, appIdOf)
     const effectiveHeight = collapsed ? LANE_ROW_H : height
+    const effectiveWidth = collapsed ? LANE_BANNER_W : width
 
     const bgId = `${bid}:bg`
     nodes.push({
       id: bgId,
       type: 'laneGroup',
-      position: { x: STAGE_START_X - LANE_PAD_X, y: y - LANE_PAD_TOP },
+      position: { x: x - LANE_PAD_X, y: y - LANE_PAD_TOP },
       data: {
-        width: BANNER_WIDTH + LANE_PAD_X * 2,
+        width: effectiveWidth + LANE_PAD_X * 2,
         height: effectiveHeight + LANE_PAD_TOP + LANE_PAD_BOTTOM,
         accent,
       },
@@ -567,11 +586,12 @@ function computeWorkflowLayout(
     nodes.push({
       id: bid,
       type: 'applicatieflowBanner',
-      position: withSavedPosition(bid, { x: STAGE_START_X, y }),
+      position: withSavedPosition(bid, { x, y }),
       data: {
         width: LANE_BANNER_W,
         label,
         count: deps.length,
+        deps,
         emptyLabel: t('teampage.applicatieflowBannerEmpty'),
         accent,
         // Een echte applicatie-lane opent de detailmodal van die applicatie;
@@ -588,7 +608,7 @@ function computeWorkflowLayout(
     if (collapsed) return
 
     deps.forEach((dep) => {
-      const { row, x } = itemPos.get(dep.id)
+      const { row, x: colX } = itemPos.get(dep.id)
       const mid = `${bid}:dep:${dep.id}`
       depNodeIdByDepId.set(dep.id, mid)
       const risk = calculateRisk(dep)
@@ -596,7 +616,7 @@ function computeWorkflowLayout(
         id: mid,
         type: 'dependencyMarker',
         position: withSavedPosition(mid, {
-          x: STAGE_START_X + LANE_BANNER_W + LANE_CONTENT_GAP + centerOffset + x,
+          x: x + LANE_BANNER_W + LANE_CONTENT_GAP + colX,
           y: y + row * LANE_ROW_H,
         }),
         data: {
@@ -608,26 +628,79 @@ function computeWorkflowLayout(
         },
         draggable: true,
       })
-      edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+      edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 } })
     })
   }
 
   // LANE_STACK_GAP houdt rekening met de padding van elke lane's achtergrond-
   // kader (LANE_PAD_TOP/BOTTOM), anders overlappen de kaders van opeenvolgende
-  // lanes elkaar net iets.
+  // rijen elkaar net iets.
   const LANE_STACK_GAP = LANE_GAP + LANE_PAD_TOP + LANE_PAD_BOTTOM
+  const LANE_PACK_MAX_WIDTH = BANNER_WIDTH - LANE_PAD_X * 2
   let applicatieflowTop = STAGE_Y - LANE_GAP - LANE_PAD_BOTTOM
   let topLaneY = null
-  // Id van de eerst geplaatste (dus dichtst-bij-de-stage-rij) lane/groep —
-  // het natuurlijke aanknopingspunt voor Run flow-IO, analoog aan hoe
-  // Ontwikkelflow-IO aan de eerste/laatste workflowstap hangt.
+  // Id van de lane/groep dichtst bij de stage-rij — het natuurlijke
+  // aanknopingspunt voor Run flow-IO, analoog aan hoe Ontwikkelflow-IO aan de
+  // eerste/laatste workflowstap hangt.
   let baseLaneId = null
-  function placeApplicatieflowLane(id, label, deps, accent, appTagFor, appIdOf) {
-    const collapsed = collapsedLaneIds?.has(id) ?? false
-    const height = collapsed ? LANE_ROW_H : groupApplicatieflowDeps(deps, appIdOf).height
-    applicatieflowTop -= height
-    pushApplicatieflowLane(id, label, deps, applicatieflowTop, collapsed, accent, appTagFor, appIdOf)
-    if (baseLaneId === null) baseLaneId = `appbanner:${id}`
+
+  // 'Shelf'-packing: elke aangevraagde lane krijgt zijn eigen (compacte)
+  // breedte; lanes pakken links-naar-rechts in dezelfde rij tot de
+  // zonebreedte vol is, en wrappen dan naar een nieuwe rij. Een lane met
+  // forceOwnRow (Teambreed) sluit de huidige rij altijd af en krijgt een rij
+  // voor zichzelf, zodat 'm nooit tussen applicatie-lanes in komt te staan.
+  // Rijen worden ná elkaar geplaatst met de EERSTE rij bovenaan (verst van de
+  // stage-rij) en de LAATSTE rij het dichtst bij de stage-rij — lanes die
+  // later in de aangeleverde lijst staan (bv. Teambreed, altijd als laatste
+  // toegevoegd) komen dus dicht tegen Ontwikkelflow aan te liggen, als een
+  // rustige basislaag onder de applicatie-lanes.
+  function placeLaneGroup(requests) {
+    if (requests.length === 0) return
+    const sized = requests.map((r) => {
+      const collapsed = collapsedLaneIds?.has(r.id) ?? false
+      const { height, width } = groupApplicatieflowDeps(r.deps, r.appIdOf)
+      return { ...r, collapsed, height: collapsed ? LANE_ROW_H : height, width: collapsed ? LANE_BANNER_W : width }
+    })
+
+    const rows = []
+    let currentRow = []
+    let currentRowWidth = 0
+    sized.forEach((lane) => {
+      const w = lane.width + LANE_PACK_GAP_X
+      const fitsInRow = currentRow.length === 0 || currentRowWidth + w <= LANE_PACK_MAX_WIDTH
+      if (lane.forceOwnRow && currentRow.length > 0) {
+        rows.push(currentRow)
+        currentRow = []
+        currentRowWidth = 0
+      } else if (!fitsInRow) {
+        rows.push(currentRow)
+        currentRow = []
+        currentRowWidth = 0
+      }
+      currentRow.push(lane)
+      currentRowWidth += w
+      if (lane.forceOwnRow) {
+        rows.push(currentRow)
+        currentRow = []
+        currentRowWidth = 0
+      }
+    })
+    if (currentRow.length > 0) rows.push(currentRow)
+
+    const rowHeights = rows.map((row) => Math.max(...row.map((l) => l.height)))
+    const totalHeight = rowHeights.reduce((sum, h) => sum + h, 0) + Math.max(0, rows.length - 1) * LANE_STACK_GAP
+
+    applicatieflowTop -= totalHeight
+    let rowY = applicatieflowTop
+    rows.forEach((row, ri) => {
+      let x = STAGE_START_X
+      row.forEach((lane) => {
+        pushApplicatieflowLane(lane.id, lane.label, lane.deps, x, rowY, lane.collapsed, lane.accent, lane.appTagFor, lane.appIdOf, lane.width, lane.height)
+        if (ri === rows.length - 1 && baseLaneId === null) baseLaneId = `appbanner:${lane.id}`
+        x += lane.width + LANE_PACK_GAP_X
+      })
+      rowY += rowHeights[ri] + LANE_STACK_GAP
+    })
     topLaneY = applicatieflowTop
     applicatieflowTop -= LANE_STACK_GAP
   }
@@ -692,6 +765,7 @@ function computeWorkflowLayout(
           width: LANE_BANNER_W,
           label: app.naam || '—',
           count: appDeps.length,
+          deps: appDeps,
           emptyLabel: t('teampage.applicatieflowBannerEmpty'),
           accent: 'app',
           onClick: onOpenAppDetail ? () => onOpenAppDetail(app.id) : onOpenApplicatieflow,
@@ -711,7 +785,7 @@ function computeWorkflowLayout(
           data: { titel: dep.titel, risk, dependency: dep, dimmed: riskFilterOn && !HIGH_RISK_LEVELS.includes(risk.level) },
           draggable: true,
         })
-        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3' } })
+        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 } })
       })
     })
 
@@ -734,12 +808,16 @@ function computeWorkflowLayout(
 
   if (splitApplicaties && applications.length > 0) {
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
+    const teambreedRequest =
+      unlabeled.length > 0 && showTeambreed
+        ? { id: 'unlabeled', label: t('teampage.teambreed'), deps: unlabeled, accent: 'teambreed', forceOwnRow: true }
+        : null
 
     if (applicatieWeergave === 'netwerk') {
       // Applicatienetwerk: applicaties als raster van knopen i.p.v.
       // gestapelde lanes — Teambreed blijft dezelfde compacte lane-stijl
       // als in de andere twee weergaven (herkenbaar, geen nieuwe vorm).
-      if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
+      if (teambreedRequest) placeLaneGroup([teambreedRequest])
       const labeledForNetwerk = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length > 0)
       const { totalHeight } = netwerkGridStats(applications, labeledForNetwerk)
       applicatieflowTop -= totalHeight
@@ -748,17 +826,19 @@ function computeWorkflowLayout(
       applicatieflowTop -= LANE_STACK_GAP
     } else {
       // Applicatielanes (default) = applicaties zijn hier de hoofdstructuur:
-      // elke applicatie krijgt zijn eigen lane (blauw), Teambreed blijft een
-      // aparte basislaag. Geen appTag nodig op de chips — welke applicatie
-      // het is, blijkt al uit de lane zelf.
+      // elke applicatie krijgt zijn eigen compacte lane (blauw), die naast
+      // andere applicatie-lanes pakt i.p.v. een eigen volle rij te vullen.
+      // Teambreed staat er altijd los onder, als eigen rij. Geen appTag nodig
+      // op de chips — welke applicatie het is, blijkt al uit de lane zelf.
       const query = (laneFilterQuery ?? '').trim().toLowerCase()
       const visibleApplications = query ? applications.filter((app) => (app.naam || '').toLowerCase().includes(query)) : applications
-      if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
-      for (let i = visibleApplications.length - 1; i >= 0; i -= 1) {
-        const app = visibleApplications[i]
-        const appDeps = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id))
-        placeApplicatieflowLane(app.id, app.naam || '—', appDeps, 'app')
-      }
+      const appRequests = visibleApplications.map((app) => ({
+        id: app.id,
+        label: app.naam || '—',
+        deps: applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id)),
+        accent: 'app',
+      }))
+      placeLaneGroup(teambreedRequest ? [...appRequests, teambreedRequest] : appRequests)
 
       // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
       // geeft werk/data door aan welke andere') worden hier als directe
@@ -794,10 +874,21 @@ function computeWorkflowLayout(
       const bIdx = Math.min(...(b.applicatieIds ?? []).map((id) => appIndexOf.get(id) ?? 999), 999)
       return aIdx - bIdx
     })
-    if (unlabeled.length > 0 && showTeambreed) placeApplicatieflowLane('unlabeled', t('teampage.teambreed'), unlabeled, 'teambreed')
+    const groupRequests = []
     if (sortedLabeled.length > 0) {
-      placeApplicatieflowLane('grouped', t('teampage.applicatiegerelateerd'), sortedLabeled, 'group', appTagLabel, primaryAppId)
+      groupRequests.push({
+        id: 'grouped',
+        label: t('teampage.applicatiegerelateerd'),
+        deps: sortedLabeled,
+        accent: 'group',
+        appTagFor: appTagLabel,
+        appIdOf: primaryAppId,
+      })
     }
+    if (unlabeled.length > 0 && showTeambreed) {
+      groupRequests.push({ id: 'unlabeled', label: t('teampage.teambreed'), deps: unlabeled, accent: 'teambreed', forceOwnRow: true })
+    }
+    placeLaneGroup(groupRequests)
   }
 
   const lastStage = WORKFLOW_STAGES[WORKFLOW_STAGES.length - 1]
@@ -934,7 +1025,7 @@ function computeWorkflowLayout(
       id: `input:${item.id}->${runflowInEdgeTarget}`,
       source: id,
       target: runflowInEdgeTarget,
-      style: { stroke: '#2a5f8a', strokeWidth: 1.5 },
+      style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.5 },
     })
   })
   stackCenteredInZone(runflowOutputs, runflowZoneTop, runflowZoneBottom).forEach(({ item, y }) => {
@@ -950,7 +1041,7 @@ function computeWorkflowLayout(
       id: `${runflowOutEdgeTarget}->output:${item.id}`,
       source: runflowOutEdgeTarget,
       target: id,
-      style: { stroke: '#2a5f8a', strokeWidth: 1.5 },
+      style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.5 },
     })
   })
   stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -966,7 +1057,7 @@ function computeWorkflowLayout(
       id: `input:${item.id}->stage:${WORKFLOW_STAGES[0]}`,
       source: id,
       target: `stage:${WORKFLOW_STAGES[0]}`,
-      style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+      style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.5 },
     })
   })
   stackCenteredInZone(devOutputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -982,7 +1073,7 @@ function computeWorkflowLayout(
       id: `stage:${lastStage}->output:${item.id}`,
       source: `stage:${lastStage}`,
       target: id,
-      style: { stroke: '#94a3b8', strokeWidth: 1.5 },
+      style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.5 },
     })
   })
 
@@ -1643,6 +1734,12 @@ export default function TeamPage({ teamId, onBack }) {
   // Input/Output-lijst, zonder de lijst-lokale modalItem-state aan te raken.
   const [canvasIoTarget, setCanvasIoTarget] = useState(null)
   const [canvasHover, setCanvasHover] = useState(null)
+  // Klik op een applicatie/dependency/IO-item/extern team opent eerst een
+  // compact focuspaneel naast het canvas i.p.v. meteen de volledige modal —
+  // dat paneel heeft zelf een actieknop die de bestaande modal opent. Bevat
+  // de aangeklikte ReactFlow-node zelf, zodat het paneel en de dim-laag
+  // (displayNodes/displayEdges) er allebei content/id uit kunnen halen.
+  const [canvasFocus, setCanvasFocus] = useState(null)
   const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
@@ -1868,18 +1965,43 @@ export default function TeamPage({ teamId, onBack }) {
   // (hoverNodeId + een lichte stijl-laag over de edges, los van de layout-
   // berekening zelf zodat hoveren geen herberekening van nodes triggert).
   const [hoverNodeId, setHoverNodeId] = useState(null)
+  // Focus (klik) wint van hover: zodra iets is aangeklikt blijft de
+  // relatie-highlight staan zonder dat de muis erboven hoeft te blijven, en
+  // dimt niet-gerelateerde content veel verder weg dan een losse hover.
+  const focusNodeId = canvasFocus?.id ?? null
+  const activeRelationId = focusNodeId ?? hoverNodeId
   const displayEdges = useMemo(() => {
-    if (!hoverNodeId) return edges
+    if (!activeRelationId) return edges
     return edges.map((edge) => {
-      const related = edge.source === hoverNodeId || edge.target === hoverNodeId
+      const related = edge.source === activeRelationId || edge.target === activeRelationId
       const isAppConn = edge.id.startsWith('appconn:')
       return {
         ...edge,
         animated: isAppConn ? related : edge.animated,
-        style: { ...edge.style, opacity: related ? 1 : (edge.style?.opacity ?? 1) * 0.15 },
+        style: {
+          ...edge.style,
+          opacity: related ? 1 : (edge.style?.opacity ?? 1) * (focusNodeId ? 0.1 : 0.15),
+          strokeWidth: related && focusNodeId ? (edge.style?.strokeWidth ?? 1) + 0.5 : edge.style?.strokeWidth,
+        },
       }
     })
-  }, [edges, hoverNodeId])
+  }, [edges, activeRelationId, focusNodeId])
+  // Niet-gerelateerde content-nodes (dependencies/IO/lanes/externe teams)
+  // dimmen mee zodra er een focus actief is — structurele elementen (zones,
+  // lane-achtergronden, workflowstappen) blijven altijd op volle sterkte,
+  // die zijn de vaste oriëntatiepunten van het canvas.
+  const displayNodes = useMemo(() => {
+    if (!focusNodeId) return nodes
+    const relatedIds = new Set([focusNodeId])
+    edges.forEach((edge) => {
+      if (edge.source === focusNodeId) relatedIds.add(edge.target)
+      if (edge.target === focusNodeId) relatedIds.add(edge.source)
+    })
+    return nodes.map((n) => {
+      if (!DIMMABLE_NODE_TYPES.has(n.type)) return n
+      return { ...n, style: { ...n.style, opacity: relatedIds.has(n.id) ? 1 : 0.3 } }
+    })
+  }, [nodes, edges, focusNodeId])
 
   function handleNodesChange(changes) {
     onNodesChange(changes)
@@ -1897,14 +2019,13 @@ export default function TeamPage({ teamId, onBack }) {
     })
   }
 
+  // Klik op een applicatie/dependency/IO-item/extern team opent eerst het
+  // compacte focuspaneel i.p.v. meteen de volledige modal — de bestaande
+  // modals (DependencyDetail/IoItemModal/ApplicationDetailModal) blijven
+  // bereikbaar via de actieknop van dat paneel (zie buildFocusPanelContent).
   function handleNodeClick(_, node) {
     if (!lineToolActive) {
-      if (node.type === 'dependencyMarker') setSelectedDependency(node.data.dependency)
-      if (node.type === 'ioItem') {
-        const items = node.data.kind === 'input' ? workflow.inputs : workflow.outputs
-        const item = items.find((i) => i.id === node.data.itemId)
-        if (item) setCanvasIoTarget({ kind: node.data.kind, item })
-      }
+      if (FOCUSABLE_NODE_TYPES.has(node.type)) setCanvasFocus(node)
       return
     }
     if (!lineStart) {
@@ -1946,6 +2067,72 @@ export default function TeamPage({ teamId, onBack }) {
     }
     if (node.type === 'externalTeam') {
       return { title: node.data.naam, sub: t('teampage.legendExternalTeam') }
+    }
+    return null
+  }
+
+  // Rijkere inhoud voor het focuspaneel (klik) — zelfde per-type opbouw als
+  // buildCanvasTooltipContent hierboven, maar met een meta-rijenlijst en een
+  // actieknop die de bestaande volledige modal opent. Zo blijft canvas-klik
+  // licht (paneel) terwijl de bestaande modals bereikbaar blijven.
+  function buildFocusPanelContent(node) {
+    if (node.type === 'dependencyMarker') {
+      const dep = node.data.dependency
+      const isRunflow = dep.flowtype === 'applicatieflow'
+      const flowLabel = dep.flowtype ? translateFlowtype(dep.flowtype, language) : t('teampage.flowtypeUndetermined')
+      const app = isRunflow ? workflow.applications.find((a) => (dep.applicatieIds ?? []).includes(a.id)) : null
+      const scopeLabel = isRunflow ? (app?.naam ?? t('teampage.teambreed')) : translateWorkflowStap(dep.workflowStap, language)
+      const meta = [
+        { label: t('matrix.col.categorie'), value: translateCategorie(dep.categorie, language) },
+        { label: t('form.flowtype'), value: flowLabel },
+        { label: isRunflow ? t('teampage.focusTypeApp') : t('form.workflowStap'), value: scopeLabel || '—' },
+        { label: t('matrix.col.status'), value: translateStatus(dep.status, language) },
+      ]
+      if (dep.geraakte_team_extern) meta.push({ label: t('teampage.legendExternalTeam'), value: dep.geraakte_team_extern })
+      return {
+        typeLabel: flowLabel,
+        title: dep.titel,
+        risk: node.data.risk,
+        meta,
+        actionLabel: t('teampage.focusOpenDetail'),
+        onAction: () => setSelectedDependency(dep),
+      }
+    }
+    if (node.type === 'applicatieflowBanner') {
+      const deps = node.data.deps ?? []
+      const risks = deps.map((d) => calculateRisk(d))
+      const highest = risks.reduce((best, r) => (!best || r.score > best.score ? r : best), null)
+      const meta = [{ label: t('tooltip.dependencies'), value: String(deps.length) }]
+      if (highest) meta.push({ label: t('tooltip.highestRisk'), value: translateRiskLevel(highest.level, language) })
+      const typeLabel =
+        node.data.accent === 'app' ? t('teampage.focusTypeApp') : node.data.accent === 'teambreed' ? t('teampage.teambreed') : t('teampage.applicatiegerelateerd')
+      return {
+        typeLabel,
+        title: node.data.label,
+        risk: highest,
+        meta,
+        actionLabel: node.data.accent === 'app' ? t('appflow.detailEdit') : t('teampage.focusGotoApplicatieflow'),
+        onAction: node.data.onClick,
+      }
+    }
+    if (node.type === 'ioItem') {
+      const meta = [{ label: t('teampage.focusFlowcontext'), value: node.data.meta }]
+      if (node.data.linkLabel) meta.push({ label: t('teampage.focusLinkedFrom'), value: node.data.linkLabel })
+      if (node.data.externalTeam) meta.push({ label: t('teampage.legendExternalTeam'), value: node.data.externalTeam })
+      return {
+        typeLabel: node.data.kind === 'input' ? t('teampage.focusTypeInput') : t('teampage.focusTypeOutput'),
+        title: node.data.label || '—',
+        meta,
+        actionLabel: t('appflow.detailEdit'),
+        onAction: () => {
+          const items = node.data.kind === 'input' ? workflow.inputs : workflow.outputs
+          const item = items.find((i) => i.id === node.data.itemId)
+          if (item) setCanvasIoTarget({ kind: node.data.kind, item })
+        },
+      }
+    }
+    if (node.type === 'externalTeam') {
+      return { typeLabel: t('teampage.legendExternalTeam'), title: node.data.naam, meta: [] }
     }
     return null
   }
@@ -2366,40 +2553,102 @@ export default function TeamPage({ teamId, onBack }) {
               </div>
             </div>
 
-            <div
-              data-tour="workflow-canvas"
-              className="relative overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
-              style={{ height: 'clamp(640px, 78vh, 920px)' }}
-            >
-              <PannableFlowCanvas
-                className="teamcanvas-flow"
-                nodes={nodes}
-                edges={displayEdges}
-                nodeTypes={nodeTypes}
-                onNodesChange={handleNodesChange}
-                onNodeClick={handleNodeClick}
-                onNodeMouseEnter={(event, node) => {
-                  setHoverNodeId(node.id)
-                  const content = buildCanvasTooltipContent(node)
-                  if (content) setCanvasHover({ x: event.clientX, y: event.clientY, ...content })
-                }}
-                onNodeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
-                onNodeMouseLeave={() => {
-                  setHoverNodeId(null)
-                  setCanvasHover(null)
-                }}
-                fitViewOptions={{ padding: 0.12, minZoom: 0.45 }}
-                minZoom={0.3}
-                maxZoom={1.5}
-                backgroundColor="#d3dbe3"
-                showMinimap
-              />
-              {canvasHover && (
-                <FloatingTooltip x={canvasHover.x} y={canvasHover.y}>
-                  <div className="font-semibold text-slate-50">{canvasHover.title}</div>
-                  {canvasHover.sub && <div className="mt-0.5 text-[11px] text-slate-300">{canvasHover.sub}</div>}
-                </FloatingTooltip>
-              )}
+            {/* Canvas + focuspaneel als flex-rij (zelfde dockingpatroon als
+                TeamFilterPanel naast GraphView) — het paneel is een vaste-
+                breedte zijkolom die alleen verschijnt zodra canvasFocus
+                gezet is, i.p.v. een overlay bovenop het canvas. */}
+            <div className="flex items-stretch gap-3" style={{ height: 'clamp(640px, 78vh, 920px)' }}>
+              <div
+                data-tour="workflow-canvas"
+                className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
+              >
+                <PannableFlowCanvas
+                  className="teamcanvas-flow"
+                  nodes={displayNodes}
+                  edges={displayEdges}
+                  nodeTypes={nodeTypes}
+                  onNodesChange={handleNodesChange}
+                  onNodeClick={handleNodeClick}
+                  onPaneClick={() => setCanvasFocus(null)}
+                  onNodeMouseEnter={(event, node) => {
+                    setHoverNodeId(node.id)
+                    const content = buildCanvasTooltipContent(node)
+                    if (content) setCanvasHover({ x: event.clientX, y: event.clientY, ...content })
+                  }}
+                  onNodeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
+                  onNodeMouseLeave={() => {
+                    setHoverNodeId(null)
+                    setCanvasHover(null)
+                  }}
+                  fitViewOptions={{ padding: 0.12, minZoom: 0.45 }}
+                  minZoom={0.3}
+                  maxZoom={1.5}
+                  backgroundColor="#d3dbe3"
+                  showMinimap
+                />
+                {canvasHover && (
+                  <FloatingTooltip x={canvasHover.x} y={canvasHover.y}>
+                    <div className="font-semibold text-slate-50">{canvasHover.title}</div>
+                    {canvasHover.sub && <div className="mt-0.5 text-[11px] text-slate-300">{canvasHover.sub}</div>}
+                  </FloatingTooltip>
+                )}
+              </div>
+
+              {canvasFocus &&
+                (() => {
+                  const content = buildFocusPanelContent(canvasFocus)
+                  if (!content) return null
+                  const style = content.risk ? riskStyle(content.risk.level) : null
+                  return (
+                    <div className="flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                      <div className="flex shrink-0 items-start justify-between gap-2 border-b border-slate-100 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{content.typeLabel}</div>
+                          <div className="mt-0.5 truncate text-sm font-semibold text-slate-800">{content.title}</div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setCanvasFocus(null)}
+                          aria-label={t('teampage.focusPanelClose')}
+                          className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                            <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+                        {style && (
+                          <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-semibold ${style.badge}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                            {translateRiskLevel(content.risk.level, language)}
+                          </span>
+                        )}
+                        {content.meta?.length > 0 && (
+                          <dl className="space-y-2">
+                            {content.meta.map((row) => (
+                              <div key={row.label}>
+                                <dt className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{row.label}</dt>
+                                <dd className="mt-0.5 text-xs text-slate-700">{row.value || '—'}</dd>
+                              </div>
+                            ))}
+                          </dl>
+                        )}
+                      </div>
+                      {content.onAction && (
+                        <div className="shrink-0 border-t border-slate-100 px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={content.onAction}
+                            className="w-full rounded-md bg-[#2a5f8a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1f4a6c]"
+                          >
+                            {content.actionLabel}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
             </div>
           </div>
 
