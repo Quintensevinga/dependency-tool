@@ -428,6 +428,39 @@ function computeWorkflowLayout(
     ...WORKFLOW_STAGES.map((s) => (capacityByStage[s]?.length ?? 0) + (depsByStage[s]?.length ?? 0)),
   )
 
+  // --- Gedeelde as: Run flow (boven) en Ontwikkelflow (onder) als één canvas ---
+  // Deze zonegrenzen worden hier, vóór de lane-plaatsing, berekend — niet pas
+  // erna — zodat de lane-stapeling (verderop) zijn eigen vloer kan afleiden
+  // van de échte Run flow-zonegrens (`runflowZoneBottom`) i.p.v. van een los
+  // vast getal. Dat voorkomt dat lane-inhoud structureel buiten zijn eigen
+  // zone kan vallen, ongeacht hoeveel content erin zit.
+  const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
+  // Padding van elk lane-achtergrondkader — hier al gedeclareerd (i.p.v. pas
+  // in de lane-sectie verderop) omdat zowel de zonegrenzen als de lane-vloer
+  // (verderop) er beide van afhangen.
+  const LANE_PAD_X = 14
+  const LANE_PAD_TOP = 10
+  const LANE_PAD_BOTTOM = 14
+  // Beide lagen delen dezelfde linker-/rechtergrens (ZONE_X/ZONE_WIDTH,
+  // afgeleid van dezelfde STAGE_GAP-kolommen als de lanes/stage-rij), zodat
+  // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
+  const ZONE_X = STAGE_START_X - LANE_PAD_X
+  const ZONE_WIDTH = BANNER_WIDTH + LANE_PAD_X * 2
+  // Losse boven-/onderpadding: bovenaan moet er ruimte zijn voor het
+  // label-pilletje ('RUN FLOW'/'ONTWIKKELFLOW', ~52-55px hoog inclusief zijn
+  // eigen top-offset) zodat de eerste lane/stage-rij er niet overheen valt;
+  // onderaan is dat niet nodig, dus die padding mag kleiner blijven.
+  const ZONE_TOP_PAD = 66
+  const ZONE_BOTTOM_PAD = 30
+  const devZoneTop = STAGE_Y - ZONE_TOP_PAD
+  const devZoneBottom = STAGE_Y + 80 + maxStackPerStage * 38 + ZONE_BOTTOM_PAD
+  // SEAM_H is geen lege kloof maar de hoogte van een overgangsvlak (zie
+  // 'zone:seam' verderop) dat de blauwe Run flow-tint geleidelijk laat
+  // overlopen in de witte Ontwikkelflow-zone, zodat het één doorlopend
+  // canvas oogt i.p.v. twee losse afgeronde blokken met een randje ertussen.
+  const SEAM_H = 16
+  const runflowZoneBottom = devZoneTop - SEAM_H
+
   WORKFLOW_STAGES.forEach((stage, i) => {
     const id = `stage:${stage}`
     nodes.push({
@@ -497,7 +530,7 @@ function computeWorkflowLayout(
             id: `crossflow:${dep.id}:${appId}`,
             source: `appbanner:${appId}`,
             target: mid,
-            style: { stroke: '#7a5c8a', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.06 },
+            style: { stroke: '#7a5c8a', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.04 },
           })
         })
       }
@@ -517,7 +550,6 @@ function computeWorkflowLayout(
   // flow-applicaties versus Teambreed — visueel duidelijk blijft, ook als de
   // lanes zelf compacter worden.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
-  const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
   const LANE_BANNER_W = 210
   const LANE_ITEM_W = 195
   const LANE_CONTENT_GAP = 18
@@ -571,10 +603,6 @@ function computeWorkflowLayout(
     const width = LANE_BANNER_W + LANE_CONTENT_GAP + Math.max(LANE_ITEM_W, maxRowWidth)
     return { height, itemPos, width }
   }
-
-  const LANE_PAD_X = 14
-  const LANE_PAD_TOP = 10
-  const LANE_PAD_BOTTOM = 14
 
   function pushApplicatieflowLane(id, label, deps, x, y, collapsed, accent, appTagFor, appIdOf, width, height, connCount) {
     const bid = `appbanner:${id}`
@@ -652,7 +680,13 @@ function computeWorkflowLayout(
   // rijen elkaar net iets.
   const LANE_STACK_GAP = LANE_GAP + LANE_PAD_TOP + LANE_PAD_BOTTOM
   const LANE_PACK_MAX_WIDTH = BANNER_WIDTH - LANE_PAD_X * 2
-  let applicatieflowTop = STAGE_Y - LANE_GAP - LANE_PAD_BOTTOM
+  // Vloer voor de lane-stapeling wordt afgeleid van de échte Run flow-
+  // zonegrens (runflowZoneBottom, hierboven al berekend) in plaats van een
+  // los vast getal vanaf STAGE_Y — zo is een minimale marge tussen de
+  // dichtstbijzijnde lane en de Ontwikkelflow-naad gegarandeerd in de
+  // rekensom zelf, ongeacht hoeveel content er in de lanes zit.
+  const RUNFLOW_GAP_ABOVE_SEAM = 32
+  let applicatieflowTop = runflowZoneBottom - RUNFLOW_GAP_ABOVE_SEAM - LANE_PAD_BOTTOM
   let topLaneY = null
   // Id van de lane/groep dichtst bij de stage-rij — het natuurlijke
   // aanknopingspunt voor Run flow-IO, analoog aan hoe Ontwikkelflow-IO aan de
@@ -779,7 +813,7 @@ function computeWorkflowLayout(
         id: `appconn:${c.id}`,
         source: sourceId,
         target: targetId,
-        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.12 },
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.05 },
       })
     })
   } else {
@@ -818,27 +852,10 @@ function computeWorkflowLayout(
 
   const lastStage = WORKFLOW_STAGES[WORKFLOW_STAGES.length - 1]
 
-  // --- Gedeelde as: Run flow (boven) en Ontwikkelflow (onder) als één
-  // canvas ---
-  // Beide lagen delen dezelfde linker-/rechtergrens (ZONE_X/ZONE_WIDTH,
-  // afgeleid van dezelfde STAGE_GAP-kolommen als de lanes/stage-rij), zodat
-  // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
-  const ZONE_X = STAGE_START_X - LANE_PAD_X
-  const ZONE_WIDTH = BANNER_WIDTH + LANE_PAD_X * 2
-  // Losse boven-/onderpadding: bovenaan moet er ruimte zijn voor het
-  // label-pilletje ('RUN FLOW'/'ONTWIKKELFLOW', ~52-55px hoog inclusief zijn
-  // eigen top-offset) zodat de eerste lane/stage-rij er niet overheen valt;
-  // onderaan is dat niet nodig, dus die padding mag kleiner blijven.
-  const ZONE_TOP_PAD = 58
-  const ZONE_BOTTOM_PAD = 30
-  const devZoneTop = STAGE_Y - ZONE_TOP_PAD
-  const devZoneBottom = STAGE_Y + 80 + maxStackPerStage * 38 + ZONE_BOTTOM_PAD
-  // SEAM_H is geen lege kloof maar de hoogte van een overgangsvlak (zie
-  // 'zone:seam' hieronder) dat de blauwe Run flow-tint geleidelijk laat
-  // overlopen in de witte Ontwikkelflow-zone, zodat het één doorlopend
-  // canvas oogt i.p.v. twee losse afgeronde blokken met een randje ertussen.
-  const SEAM_H = 16
-  const runflowZoneBottom = devZoneTop - SEAM_H
+  // ZONE_X/ZONE_WIDTH/ZONE_TOP_PAD/devZoneTop/devZoneBottom/SEAM_H/
+  // runflowZoneBottom zijn al hierboven berekend (vóór de lane-plaatsing) —
+  // hier volgt alleen nog runflowZoneTop, die pas ná lane-plaatsing bekend
+  // kan zijn (afhankelijk van topLaneY).
   const runflowZoneTop =
     topLaneY !== null ? topLaneY - LANE_PAD_TOP - ZONE_TOP_PAD : runflowZoneBottom - 140
 
@@ -950,7 +967,7 @@ function computeWorkflowLayout(
       id: `input:${item.id}->${runflowInEdgeTarget}`,
       source: id,
       target: runflowInEdgeTarget,
-      style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.06 },
+      style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
     })
   })
   stackCenteredInZone(runflowOutputs, runflowZoneTop, runflowZoneBottom).forEach(({ item, y }) => {
@@ -966,7 +983,7 @@ function computeWorkflowLayout(
       id: `${runflowOutEdgeTarget}->output:${item.id}`,
       source: runflowOutEdgeTarget,
       target: id,
-      style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.06 },
+      style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
     })
   })
   stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -982,7 +999,7 @@ function computeWorkflowLayout(
       id: `input:${item.id}->stage:${WORKFLOW_STAGES[0]}`,
       source: id,
       target: `stage:${WORKFLOW_STAGES[0]}`,
-      style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.06 },
+      style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.04 },
     })
   })
   stackCenteredInZone(devOutputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -998,7 +1015,7 @@ function computeWorkflowLayout(
       id: `stage:${lastStage}->output:${item.id}`,
       source: `stage:${lastStage}`,
       target: id,
-      style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.06 },
+      style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.04 },
     })
   })
 
@@ -2466,8 +2483,8 @@ export default function TeamPage({ teamId, onBack }) {
                     setHoverNodeId(null)
                     setCanvasHover(null)
                   }}
-                  fitViewOptions={{ padding: 0.12, minZoom: 0.45 }}
-                  minZoom={0.3}
+                  fitViewOptions={{ padding: 0.06, minZoom: 0.6 }}
+                  minZoom={0.4}
                   maxZoom={1.5}
                   backgroundColor="#d3dbe3"
                   showMinimap
