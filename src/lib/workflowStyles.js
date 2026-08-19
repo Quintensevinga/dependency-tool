@@ -1,17 +1,20 @@
 import { WORKFLOW_STAGES, BRON_TYPES } from '../data/constants'
 
 // Categorische kleurcodering per workflowfase — bewust een andere kleurfamilie
-// (koeler, gevarieerder van kleurtoon) dan de warme, ordinale risico-ernst-reeks
-// in riskStyles.js, zodat de twee kleursystemen nooit door elkaar gelezen
-// worden. Geen stoplichtkleuren (geen puur rood/groen/geel).
+// (blauw/paars/roze spectrum) dan de warme, ordinale risico-ernst-reeks in
+// riskStyles.js (muted groen/amber/oranje/bordeaux), zodat de twee
+// kleursystemen nooit door elkaar gelezen worden. Vol verzadigd (niet
+// gedimd) zodat de 7 fases ook in de dunne kleurstrook op de stage-kaart
+// duidelijk van elkaar te onderscheiden zijn; de reeks loopt bewust van
+// cyaan naar roze zodat volgorde ook een beetje "leesbaar" is.
 const STAGE_COLORS = {
-  analyse_refinement: '#6b7f8f',
-  ontwikkeling_configuratie: '#4f7a72',
-  testen: '#2a5f8a',
-  acceptatie: '#5c6b8a',
-  hardening: '#7a5c8a',
-  release_overdracht: '#8a6f4f',
-  beheer_nazorg: '#6f6a5c',
+  analyse_refinement: '#06b6d4',
+  ontwikkeling_configuratie: '#2563eb',
+  testen: '#4f46e5',
+  acceptatie: '#7c3aed',
+  hardening: '#a855f7',
+  release_overdracht: '#c026d3',
+  beheer_nazorg: '#db2777',
 }
 
 export function stageColor(stage) {
@@ -29,12 +32,12 @@ export function stageIndex(stage) {
 // handmatige aantekeningen dezelfde beeldtaal spreken als de automatisch
 // gekleurde input-items.
 const BRON_TYPE_COLORS = {
-  team: '#5c7a8a',
-  rol: '#2d4a6b',
-  persoon: '#7a5c8a',
-  systeem: '#4f7a72',
-  omgeving: '#8a6f4f',
-  stakeholder: '#c77a94',
+  team: '#0ea5e9',
+  rol: '#4338ca',
+  persoon: '#9333ea',
+  systeem: '#0d9488',
+  omgeving: '#d97706',
+  stakeholder: '#e11d48',
 }
 
 export function bronTypeColor(bronType) {

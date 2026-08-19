@@ -65,14 +65,29 @@ function ColorSwatchRow({ value, onChange }) {
   )
 }
 
+// Onzichtbaar ankerpunt in het midden van de Run flow-zone — alleen gebruikt
+// als edge-target voor Run flow-IO-lijntjes wanneer er geen enkele
+// applicatie-/Teambreed-lane bestaat om aan te haken (anders viel de lijn
+// terug op de Ontwikkelflow-stagerij, wat het leek alsof de input/output bij
+// Ontwikkelflow hoorde terwijl 'ie in de Run flow-zone stond).
+function FlowAnchorNode() {
+  return (
+    <div className="h-px w-px">
+      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+    </div>
+  )
+}
+
 function StageNode({ data }) {
   const { language } = useLanguage()
   return (
     <div
-      className="relative w-44 overflow-hidden rounded-xl border border-slate-200/90 bg-white px-4 py-3.5 shadow-[0_1px_3px_rgba(15,23,42,0.07)]"
+      className="relative w-44 overflow-hidden rounded-xl border border-slate-200/90 bg-white py-3.5 pl-3.5 pr-4 shadow-[0_1px_3px_rgba(15,23,42,0.07)]"
+      style={{ borderLeftWidth: 4, borderLeftColor: data.color }}
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0.35 }} />
-      <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: data.color }} />
+      <div className="absolute inset-x-0 top-0 h-1.5" style={{ backgroundColor: data.color }} />
       <div className="text-sm font-semibold tracking-tight text-slate-800">{translateWorkflowStage(data.stage, language)}</div>
       <Handle type="source" position={Position.Right} style={{ opacity: 0.35 }} />
     </div>
@@ -290,7 +305,7 @@ function FlowZoneNode({ data }) {
       {/* Korte samenvatting naast het label, bv. hoeveel applicaties er in
           deze Run flow meespelen — puur context, geen aparte structuur. */}
       {data.subtitle && (
-        <span className="absolute left-5 top-9 text-[11px] font-medium" style={{ color: data.labelColor === '#fff' ? '#5479a3' : '#94a3b8' }}>
+        <span className="absolute left-5 top-[46px] text-[11px] font-medium" style={{ color: data.labelColor === '#fff' ? '#5479a3' : '#94a3b8' }}>
           {data.subtitle}
         </span>
       )}
@@ -367,6 +382,7 @@ function ExternalTeamNode({ data }) {
 
 const nodeTypes = {
   stage: StageNode,
+  flowAnchor: FlowAnchorNode,
   ioItem: IoNode,
   annotation: AnnotationNode,
   capacityBadge: CapacityBadgeNode,
@@ -434,7 +450,11 @@ function computeWorkflowLayout(
   // van de échte Run flow-zonegrens (`runflowZoneBottom`) i.p.v. van een los
   // vast getal. Dat voorkomt dat lane-inhoud structureel buiten zijn eigen
   // zone kan vallen, ongeacht hoeveel content erin zit.
-  const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 160
+  // +176 (i.p.v. de kaartbreedte zelf, 176px = w-44) zodat de zone-rechterrand
+  // na de laatste stage-kaart exact zoveel ruimte overhoudt (LANE_PAD_X) als
+  // de zone-linkerrand vóór de eerste stage-kaart al had — anders staat de
+  // laatste kolom (Beheer/nazorg) vrijwel tegen de rand aan.
+  const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 176
   // Padding van elk lane-achtergrondkader — hier al gedeclareerd (i.p.v. pas
   // in de lane-sectie verderop) omdat zowel de zonegrenzen als de lane-vloer
   // (verderop) er beide van afhangen.
@@ -951,8 +971,23 @@ function computeWorkflowLayout(
   const devInputs = effectiveInputs.filter((item) => item.flowtype === 'ontwikkelflow')
   const runflowOutputs = effectiveOutputs.filter((item) => item.flowtype !== 'ontwikkelflow')
   const devOutputs = effectiveOutputs.filter((item) => item.flowtype === 'ontwikkelflow')
-  const runflowInEdgeTarget = baseLaneId ?? `stage:${WORKFLOW_STAGES[0]}`
-  const runflowOutEdgeTarget = baseLaneId ?? `stage:${lastStage}`
+  // Als er geen enkele lane bestaat (geen applicaties/Teambreed-deps) hebben
+  // Run flow-IO-lijntjes niets om aan te haken binnen de Run flow-zone zelf —
+  // zonder dit anker vielen ze terug op de Ontwikkelflow-stagerij, waardoor
+  // het leek alsof een Run flow-input bij Ontwikkelflow hoorde.
+  let runflowInEdgeTarget = baseLaneId
+  let runflowOutEdgeTarget = baseLaneId
+  if (!baseLaneId) {
+    nodes.push({
+      id: 'runflowAnchor',
+      type: 'flowAnchor',
+      position: { x: ZONE_X + ZONE_WIDTH / 2, y: (runflowZoneTop + runflowZoneBottom) / 2 },
+      draggable: false,
+      selectable: false,
+    })
+    runflowInEdgeTarget = 'runflowAnchor'
+    runflowOutEdgeTarget = 'runflowAnchor'
+  }
 
   stackCenteredInZone(runflowInputs, runflowZoneTop, runflowZoneBottom).forEach(({ item, y }) => {
     const id = `input:${item.id}`
@@ -1668,8 +1703,6 @@ export default function TeamPage({ teamId, onBack }) {
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null)
   const [activeColor, setActiveColor] = useState(ANNOTATION_PALETTE[1].value)
-  const [lineToolActive, setLineToolActive] = useState(false)
-  const [lineStart, setLineStart] = useState(null)
   const [capacityModalRow, setCapacityModalRow] = useState(undefined)
   const [appDetailId, setAppDetailId] = useState(null)
   // IO-item aangeklikt op het canvas: opent dezelfde IoItemModal als de
@@ -1960,23 +1993,7 @@ export default function TeamPage({ teamId, onBack }) {
   // modals (DependencyDetail/IoItemModal/ApplicationDetailModal) blijven
   // bereikbaar via de actieknop van dat paneel (zie buildFocusPanelContent).
   function handleNodeClick(_, node) {
-    if (!lineToolActive) {
-      if (FOCUSABLE_NODE_TYPES.has(node.type)) setCanvasFocus(node)
-      return
-    }
-    if (!lineStart) {
-      setLineStart(node.id)
-      return
-    }
-    if (lineStart === node.id) {
-      setLineStart(null)
-      return
-    }
-    patch({
-      annotationEdges: [...workflow.annotationEdges, { id: generateId(), source: lineStart, target: node.id, color: activeColor }],
-    })
-    setLineStart(null)
-    setLineToolActive(false)
+    if (FOCUSABLE_NODE_TYPES.has(node.type)) setCanvasFocus(node)
   }
 
   // Compacte hover-preview-inhoud per node-type — hergebruikt door alle
@@ -2276,43 +2293,9 @@ export default function TeamPage({ teamId, onBack }) {
                 >
                   {t('teampage.toolbarNote')}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => addAnnotation('shape', { shape: 'rect' })}
-                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  {t('teampage.toolbarRect')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addAnnotation('shape', { shape: 'circle' })}
-                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  {t('teampage.toolbarCircle')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => addAnnotation('shape', { shape: 'diamond' })}
-                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  {t('teampage.toolbarDiamond')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLineToolActive((v) => !v)
-                    setLineStart(null)
-                  }}
-                  className={`rounded-md px-2 py-1.5 text-xs font-medium transition-colors ${
-                    lineToolActive ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                  }`}
-                >
-                  {t('teampage.toolbarLine')}
-                </button>
                 <div className="mx-1">
                   <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
                 </div>
-                {lineToolActive && <span className="text-[11px] font-medium text-[#2a5f8a]">{t('teampage.toolbarLineActive')}</span>}
               </div>
 
               <div className="ml-auto flex items-center gap-2">

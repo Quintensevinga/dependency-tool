@@ -342,11 +342,6 @@ export const STRINGS = {
     'teampage.clearConfirm': 'Weet je zeker dat je de volledige workflow van {{team}} wilt wissen — inclusief capaciteit, applicaties, input/output en aantekeningen? Dependencies blijven bestaan. Dit kan niet ongedaan worden gemaakt (tenzij je een momentopname hebt).',
 
     'teampage.toolbarNote': '+ Notitie',
-    'teampage.toolbarRect': '+ Rechthoek',
-    'teampage.toolbarCircle': '+ Cirkel',
-    'teampage.toolbarDiamond': '+ Ruit',
-    'teampage.toolbarLine': '🖇 Lijn',
-    'teampage.toolbarLineActive': 'Klik twee elementen op het canvas om ze te verbinden…',
     'teampage.toolbarColorLabel': 'Kleur voor nieuwe elementen:',
     'teampage.ioBronLabel': 'Bron (optioneel — bepaalt kleurcodering)',
     'teampage.ioBronNone': 'Geen bron gekozen',
@@ -701,11 +696,6 @@ export const STRINGS = {
     'teampage.clearConfirm': "Are you sure you want to clear {{team}}'s entire workflow — including capacity, applications, input/output and annotations? Dependencies stay intact. This cannot be undone (unless you have a snapshot).",
 
     'teampage.toolbarNote': '+ Note',
-    'teampage.toolbarRect': '+ Rectangle',
-    'teampage.toolbarCircle': '+ Circle',
-    'teampage.toolbarDiamond': '+ Diamond',
-    'teampage.toolbarLine': '🖇 Line',
-    'teampage.toolbarLineActive': 'Click two elements on the canvas to connect them…',
     'teampage.toolbarColorLabel': 'Color for new elements:',
     'teampage.ioBronLabel': 'Source (optional — determines color coding)',
     'teampage.ioBronNone': 'No source chosen',
