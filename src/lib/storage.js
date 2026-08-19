@@ -247,6 +247,10 @@ function applyMockTeamWorkflows(state) {
       })),
       outputs: seed.outputs ?? [],
       layout: seed.layout ?? {},
+      applicatieflow: {
+        ...emptyApplicatieflow(),
+        connecties: seed.applicatieflowConnecties ?? [],
+      },
     }
   }
 
