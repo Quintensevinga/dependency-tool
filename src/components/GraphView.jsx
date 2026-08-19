@@ -221,6 +221,12 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   // op de Relatiekaart, blijft actief tot de gebruiker 'm zelf wist (i.t.t.
   // hoverNodeId hierboven, dat alleen tijdens hover geldt).
   const [pinnedPair, setPinnedPair] = useState(null)
+  // Selectie binnen de Heatmap zelf (cel/rij/kolom) — in tegenstelling tot
+  // pinnedPair (dat de Relatiekaart bestuurt) stuurt dit géén viewMode-wissel
+  // aan: de gebruiker blijft op de Heatmap, met een detailsectie + mini-
+  // Relatiekaart-preview eronder. Pas de expliciete 'Open in Relatiekaart'-
+  // knop stuurt dezelfde selectie door naar onDrillToRelatie.
+  const [heatmapSelection, setHeatmapSelection] = useState(null)
 
   const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
 
@@ -255,6 +261,72 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   // Zelfde team×categorie-groepering als de bipartite-edges, herbruikt door
   // Cluster/Heatmap zodat alle drie modi exact dezelfde data tonen.
   const groups = useMemo(() => groupByTeamCategory(visibleDependencies), [visibleDependencies])
+
+  // Titel + dependencies voor de huidige Heatmap-selectie — team en/of
+  // categorie mag leeg zijn (hele rij resp. hele kolom), net als bij
+  // pinnedPair hierboven.
+  const heatmapSelectionInfo = useMemo(() => {
+    if (!heatmapSelection) return null
+    const { teamId, categorie } = heatmapSelection
+    const team = teamId ? teams.find((tm) => tm.id === teamId) : null
+    let deps
+    let title
+    if (teamId && categorie) {
+      deps = groups.get(`${teamId}::${categorie}`) ?? []
+      title = `${team?.naam ?? teamId} → ${translateCategorie(categorie, language)}`
+    } else if (teamId) {
+      deps = visibleDependencies.filter((d) => d.teamId === teamId)
+      title = team?.naam ?? teamId
+    } else {
+      deps = visibleDependencies.filter((d) => d.categorie === categorie)
+      title = translateCategorie(categorie, language)
+    }
+    return { teamId, categorie, team, deps, title }
+  }, [heatmapSelection, groups, visibleDependencies, teams, language])
+
+  // Compacte deelverzameling van de volle Relatiekaart-layout — alleen de
+  // node(s)/edge(s) die bij de huidige Heatmap-selectie horen, herbruikt in
+  // de mini-preview zodat die er identiek uitziet aan (een uitsnede van) de
+  // echte Relatiekaart.
+  const heatmapMiniPreview = useMemo(() => {
+    if (!heatmapSelection) return null
+    const { teamId, categorie } = heatmapSelection
+    const matchEdges = edges.filter((e) => {
+      if (teamId && e.source !== `team:${teamId}`) return false
+      if (categorie && e.target !== `cat:${categorie}`) return false
+      return true
+    })
+    const nodeIds = new Set()
+    matchEdges.forEach((e) => {
+      nodeIds.add(e.source)
+      nodeIds.add(e.target)
+    })
+    return { nodes: nodes.filter((n) => nodeIds.has(n.id)), edges: matchEdges }
+  }, [heatmapSelection, nodes, edges])
+
+  // Alleen selecteren als er ook echt iets te tonen valt — lege rijen/
+  // kolommen/cellen (geen dependencies) openen geen lege detailsectie.
+  function selectHeatmapCell(team, categorie) {
+    const teamId = team ? team.id : null
+    let deps
+    if (teamId && categorie) deps = groups.get(`${teamId}::${categorie}`) ?? []
+    else if (teamId) deps = visibleDependencies.filter((d) => d.teamId === teamId)
+    else deps = visibleDependencies.filter((d) => d.categorie === categorie)
+    if (deps.length === 0) return
+    setHeatmapSelection({ teamId, categorie: categorie ?? null })
+  }
+
+  function clearHeatmapSelection() {
+    setHeatmapSelection(null)
+  }
+
+  // Pas hier, op expliciete gebruikersactie, de bestaande drill-through naar
+  // de Relatiekaart aanroepen (viewMode-wissel + pinnedPair) — een heatmap-
+  // klik zelf doet dat niet meer vanzelf.
+  function openHeatmapSelectionInRelatiekaart() {
+    if (!heatmapSelection || !onDrillToRelatie) return
+    onDrillToRelatie(heatmapSelectionInfo.team, heatmapSelection.categorie)
+  }
 
   // Zet een inkomende highlight-prop (vanuit een Heatmap-cel-, rij- of
   // kolomklik, via App.jsx) om in een gepind team en/of categorie en opent
@@ -501,15 +573,11 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
     setListPanel({ title, deps: node.data.deps })
   }
 
-  // Zelfde detailpaneel als bipartite-nodes/edges, hergebruikt door Cluster-
-  // chips en Heatmap-cellen zodat alle drie modi identiek gedrag hebben.
-  function openCellListPanel(teamLabel, categorie, deps) {
-    if (deps.length === 0) return
-    setListPanel({ title: `${teamLabel} → ${translateCategorie(categorie, language)}`, deps })
-  }
-
   const listPanelRef = useRef(null)
   useModalA11y({ open: Boolean(listPanel), onClose: closeListPanel, containerRef: listPanelRef })
+
+  const heatmapPanelRef = useRef(null)
+  useModalA11y({ open: Boolean(heatmapSelection), onClose: clearHeatmapSelection, containerRef: heatmapPanelRef })
 
   return (
     <div className="flex items-start gap-4">
@@ -537,9 +605,15 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
           <ScopeToggle scope={scope} onChange={setScope} />
         </div>
 
+        {/* Vaste, ruime hoogte is alleen nodig voor de Relatiekaart (een
+            canvas die zelf moet kunnen pannen/zoomen); de Heatmap-tabel mag
+            gewoon zo hoog zijn als de inhoud vraagt — anders houdt hij bij
+            weinig teams/categorieën een groot leeg wit vlak over onder de
+            tabel, met alles wat je erna ziet (detailsectie) ver naar
+            beneden geduwd. */}
         <div
           className={`relative rounded-xl border border-slate-200 bg-white shadow-sm ${viewMode !== 'bipartite' ? 'overflow-auto' : ''}`}
-          style={{ height: 'max(640px, calc(100vh - 232px))' }}
+          style={viewMode === 'bipartite' ? { height: 'max(640px, calc(100vh - 232px))' } : undefined}
         >
           {viewMode === 'bipartite' && (
           <ReactFlow
@@ -613,7 +687,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                         <button
                           key={`head-${cat}`}
                           type="button"
-                          onClick={() => (onDrillToRelatie ? onDrillToRelatie(null, cat) : toggleHighlight(cat))}
+                          onClick={() => selectHeatmapCell(null, cat)}
                           onMouseEnter={(event) => {
                             setHoverHeatmapCol(cat)
                             setHover({ x: event.clientX, y: event.clientY, kind: 'node', payload: { categorie: cat, deps: catDeps } })
@@ -639,7 +713,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                       <button
                         key={`label-${team.id}`}
                         type="button"
-                        onClick={() => (onDrillToRelatie ? onDrillToRelatie(team, null) : undefined)}
+                        onClick={() => selectHeatmapCell(team, null)}
                         onMouseEnter={() => setHoverHeatmapRow(team.id)}
                         onMouseLeave={() => setHoverHeatmapRow(null)}
                         title={team.naam}
@@ -679,7 +753,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                           <button
                             key={cellKey}
                             type="button"
-                            onClick={() => (onDrillToRelatie ? onDrillToRelatie(team, cat) : openCellListPanel(team.naam, cat, deps))}
+                            onClick={() => selectHeatmapCell(team, cat)}
                             onMouseEnter={(event) => {
                               setHoveredCell(cellKey)
                               setHover({
@@ -755,6 +829,77 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
             </div>
             {listPanel ? (
               <DependencyTable dependencies={listPanel.deps} onSelect={onSelect} showTeamColumn />
+            ) : (
+              <div className="px-4 py-10 text-center text-sm text-slate-400">{t('graph.selectionEmptyHint')}</div>
+            )}
+          </div>
+        )}
+
+        {/* Heatmap blijft de verkenningspagina: een klik op een cel/rij/kolom
+            stuurt de gebruiker niet meteen naar de Relatiekaart, maar toont
+            hier context (dezelfde dependency-lijst + een mini-uitsnede van
+            de Relatiekaart voor alleen deze selectie). Pas de expliciete
+            'Open in Relatiekaart'-knop hieronder maakt de overstap. */}
+        {viewMode === 'heatmap' && (
+          <div ref={heatmapPanelRef} className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
+              <h2 className="text-sm font-semibold text-slate-800">
+                {heatmapSelectionInfo ? heatmapSelectionInfo.title : t('graph.selectionEmptyTitle')}
+                {heatmapSelectionInfo && <span className="ml-2 font-normal text-slate-400">({heatmapSelectionInfo.deps.length})</span>}
+              </h2>
+              {heatmapSelectionInfo && (
+                <button
+                  type="button"
+                  onClick={clearHeatmapSelection}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                >
+                  {t('graph.selectionClear')}
+                  <span aria-hidden="true">✕</span>
+                </button>
+              )}
+            </div>
+            {heatmapSelectionInfo ? (
+              <div className="flex flex-col gap-4 p-4 lg:flex-row">
+                <div className="shrink-0 lg:w-72">
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/60" style={{ height: 220 }}>
+                    <ReactFlow
+                      nodes={heatmapMiniPreview?.nodes ?? []}
+                      edges={heatmapMiniPreview?.edges ?? []}
+                      nodeTypes={nodeTypes}
+                      fitView
+                      fitViewOptions={{ padding: 0.25 }}
+                      minZoom={0.1}
+                      maxZoom={1.5}
+                      proOptions={{ hideAttribution: true }}
+                      nodesDraggable={false}
+                      nodesConnectable={false}
+                      elementsSelectable={false}
+                      panOnDrag
+                      zoomOnScroll={false}
+                      zoomOnPinch={false}
+                    >
+                      <Background color="#e2e8f0" gap={20} />
+                    </ReactFlow>
+                  </div>
+                  {/* Direct onder de mini-preview i.p.v. los in de kop: zo is
+                      meteen duidelijk dat deze knop bij dít uitsnedeje hoort. */}
+                  <button
+                    type="button"
+                    onClick={openHeatmapSelectionInRelatiekaart}
+                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#2a5f8a]/30 bg-[#2a5f8a]/10 px-2.5 py-1.5 text-xs font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/15"
+                  >
+                    {t('graph.openInRelatiekaart')}
+                    <span aria-hidden="true">→</span>
+                  </button>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <DependencyTable
+                    dependencies={heatmapSelectionInfo.deps}
+                    onSelect={onSelect}
+                    showTeamColumn={!heatmapSelectionInfo.teamId}
+                  />
+                </div>
+              </div>
             ) : (
               <div className="px-4 py-10 text-center text-sm text-slate-400">{t('graph.selectionEmptyHint')}</div>
             )}
