@@ -141,10 +141,13 @@ function CollapseIcon({ collapsed }) {
 }
 
 function TeamRow({ team, active, onNavigateToTeam }) {
-  const { renameTeam, archiveTeam, deleteTeam } = useAppContext()
+  const { renameTeam, archiveTeam, deleteTeam, teamLabels } = useAppContext()
   const { t } = useLanguage()
   const [editing, setEditing] = useState(false)
+  // Bewerken gaat over de échte naam; alleen de weergave krijgt bij dubbele
+  // namen een volgnummer.
   const [value, setValue] = useState(team.naam)
+  const label = teamLabels[team.id] ?? team.naam
   const [blocked, setBlocked] = useState(false)
 
   function submitRename(e) {
@@ -188,9 +191,10 @@ function TeamRow({ team, active, onNavigateToTeam }) {
         <button
           type="button"
           onClick={() => onNavigateToTeam(team.id)}
+          title={label}
           className={`min-w-0 flex-1 truncate px-3 py-1.5 text-left text-sm ${active ? 'font-medium text-white' : 'text-slate-300'}`}
         >
-          {team.naam}
+          {label}
         </button>
         <span className="hidden shrink-0 items-center gap-0.5 group-hover:flex">
           <button

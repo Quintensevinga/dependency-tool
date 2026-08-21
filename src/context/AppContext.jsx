@@ -13,6 +13,7 @@ import {
   deepClone,
   MAX_SNAPSHOTS_PER_TEAM,
 } from '../lib/storage'
+import { buildTeamLabels } from '../lib/teamLabels'
 
 const AppContext = createContext(null)
 
@@ -32,9 +33,13 @@ export function AppProvider({ children }) {
 
   // --- lookup-helpers (naam <-> id) ---
 
+  // Weergavenamen: gelijk aan team.naam, behalve wanneer twee teams dezelfde
+  // naam dragen — dan krijgen die een volgnummer zodat ze in lijsten en
+  // dropdowns uit elkaar te houden zijn.
+  const teamLabels = useMemo(() => buildTeamLabels(state.teams), [state.teams])
   const teamName = useCallback(
-    (id) => state.teams.find((t) => t.id === id)?.naam ?? (id ? 'Onbekend team' : '—'),
-    [state.teams],
+    (id) => teamLabels[id] ?? (id ? 'Onbekend team' : '—'),
+    [teamLabels],
   )
   const functieName = useCallback(
     (id) => state.functies.find((f) => f.id === id)?.naam ?? id ?? '—',
@@ -357,6 +362,7 @@ export function AppProvider({ children }) {
       scope,
       setScope,
       teamName,
+      teamLabels,
       functieName,
       addTeam,
       renameTeam,
@@ -388,6 +394,7 @@ export function AppProvider({ children }) {
       currentTeamId,
       scope,
       teamName,
+      teamLabels,
       functieName,
       addTeam,
       renameTeam,

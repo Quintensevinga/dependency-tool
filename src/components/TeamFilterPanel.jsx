@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
+import { useAppContext } from '../context/AppContext'
 import { RISK_LEVELS } from '../data/constants'
 import { translateRiskLevel } from '../i18n/labels'
 import { riskStyle } from '../lib/riskStyles'
@@ -103,6 +104,7 @@ export default function TeamFilterPanel({
   effectOpFlow,
 }) {
   const { t, language } = useLanguage()
+  const { teamLabels } = useAppContext()
   const [collapsed, setCollapsed] = useState(false)
 
   const anyNarrowed =
@@ -149,7 +151,10 @@ export default function TeamFilterPanel({
         selected={selected}
         onToggle={onToggle}
         defaultOpen
-        renderLabel={(team) => (team.actief ? team.naam : `${team.naam} (${t('settings.archived')})`)}
+        renderLabel={(team) => {
+          const naam = teamLabels[team.id] ?? team.naam
+          return team.actief ? naam : `${naam} (${t('settings.archived')})`
+        }}
         footer={
           <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
             <button type="button" onClick={onSelectAll} className="font-medium text-[#2a5f8a] hover:underline">

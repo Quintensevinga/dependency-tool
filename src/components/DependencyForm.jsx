@@ -64,7 +64,7 @@ const inputClass =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none'
 
 export default function DependencyForm({ defaultTeamId, initialData, prefill, onSave, onCancel }) {
-  const { teams, activeTeams } = useAppContext()
+  const { teams, activeTeams, teamLabels } = useAppContext()
   const { t, language } = useLanguage()
   const dialogRef = useRef(null)
 
@@ -193,7 +193,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               <option value="">{t('form.teamPlaceholder')}</option>
               {teamChoices.map((tm) => (
                 <option key={tm.id} value={tm.id}>
-                  {tm.naam}
+                  {teamLabels[tm.id] ?? tm.naam}
                   {!tm.actief ? ` (${t('settings.archived')})` : ''}
                 </option>
               ))}

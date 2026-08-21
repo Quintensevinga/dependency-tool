@@ -132,7 +132,7 @@ function EdgeLabel({ categorie, count }) {
 // categorieën (dezelfde taxonomie als het matrix-overzicht) als verticale
 // rail rechts — leesbaarder dan een volle grid met kruisende lijnen, en beter
 // geschikt voor hover-gebaseerde focus (zie hoverTeamId state).
-function computeLayout(visibleTeams, visibleDependencies) {
+function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
   const TEAM_NODE_WIDTH = 210
   const CAT_NODE_WIDTH = 200
   const ROW_H = 96
@@ -147,7 +147,7 @@ function computeLayout(visibleTeams, visibleDependencies) {
       id: `team:${team.id}`,
       type: 'team',
       position: { x: 0, y: 20 + i * ROW_H },
-      data: { label: team.naam, count: teamDeps.length, risk: highestRisk(teamDeps), deps: teamDeps },
+      data: { label: teamLabels[team.id] ?? team.naam, count: teamDeps.length, risk: highestRisk(teamDeps), deps: teamDeps },
       draggable: true,
     }
   })
@@ -170,7 +170,7 @@ function computeLayout(visibleTeams, visibleDependencies) {
     const target = `cat:${categorie}`
     const risk = highestRisk(deps)
     const style = riskStyle(risk.level)
-    const teamLabel = visibleTeams.find((tm) => tm.id === teamId)?.naam ?? teamId
+    const teamLabel = teamLabels[teamId] ?? visibleTeams.find((tm) => tm.id === teamId)?.naam ?? teamId
     return {
       id: `${source}->${target}`,
       source,
@@ -187,7 +187,7 @@ function computeLayout(visibleTeams, visibleDependencies) {
 }
 
 export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight, onClearHighlight, onDrillToRelatie }) {
-  const { teams, dependencies } = useAppContext()
+  const { teams, dependencies, teamLabels } = useAppContext()
   const { t, language } = useLanguage()
   const [listPanel, setListPanel] = useState(null)
   const [hover, setHover] = useState(null) // { x, y, kind: 'node'|'edge', payload }
@@ -252,7 +252,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   // positie vast, ook als die node ondertussen van index/rij was gewisseld
   // (bv. omdat een team ervoor werd uit-/aangevinkt) — daardoor belandden
   // teruggezette teams boven op een ander blokje i.p.v. op hun eigen rij.
-  const [layout, onNodesChange] = useMergedLayout(computeLayout, [visibleTeams, visibleDependencies])
+  const [layout, onNodesChange] = useMergedLayout(computeLayout, [visibleTeams, visibleDependencies, teamLabels])
   const { nodes, edges, categoriesPresent } = layout
   // Zelfde team×categorie-groepering als de bipartite-edges, herbruikt door
   // Cluster/Heatmap zodat alle drie modi exact dezelfde data tonen.
@@ -696,7 +696,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                         onClick={() => selectHeatmapCell(team, null)}
                         onMouseEnter={() => setHoverHeatmapRow(team.id)}
                         onMouseLeave={() => setHoverHeatmapRow(null)}
-                        title={team.naam}
+                        title={teamLabels[team.id] ?? team.naam}
                         className={`flex min-w-0 cursor-pointer items-center overflow-hidden rounded-md px-2 text-left text-sm font-medium transition-colors ${
                           hoverHeatmapRow === team.id ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-700 hover:bg-slate-50'
                         }`}
@@ -705,7 +705,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                             zelf): een lange teamnaam liep anders buiten de
                             140px-labelkolom door en schilderde dwars over de
                             datacellen heen. */}
-                        <span className="min-w-0 truncate">{team.naam}</span>
+                        <span className="min-w-0 truncate">{teamLabels[team.id] ?? team.naam}</span>
                       </button>,
                       ...categoriesPresent.map((cat) => {
                         const deps = groups.get(`${team.id}::${cat}`) ?? []
@@ -744,7 +744,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                                 x: event.clientX,
                                 y: event.clientY,
                                 kind: 'node',
-                                payload: { label: `${team.naam} · ${translateCategorie(cat, language)}`, deps },
+                                payload: { label: `${teamLabels[team.id] ?? team.naam} · ${translateCategorie(cat, language)}`, deps },
                               })
                             }}
                             onMouseMove={(event) => setHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
@@ -752,7 +752,16 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                               setHoveredCell(null)
                               setHover(null)
                             }}
-                            title={`${team.naam} · ${translateCategorie(cat, language)} · ${translateRiskLevel(risk.level, language)}`}
+                            title={`${teamLabels[team.id] ?? team.naam} · ${translateCategorie(cat, language)} · ${translateRiskLevel(risk.level, language)}`}
+                            // Zonder aria-label is de toegankelijke naam van deze
+                            // knop alleen het getal ('3'); je hoort dan niet bij
+                            // welk team of welke categorie die cel hoort.
+                            aria-label={t('graph.heatmapCellLabel', {
+                              team: teamLabels[team.id] ?? team.naam,
+                              categorie: translateCategorie(cat, language),
+                              count: deps.length,
+                              risico: translateRiskLevel(risk.level, language),
+                            })}
                             className={`flex items-center justify-center rounded-lg text-sm font-semibold transition-all hover:opacity-80 ${style.badge}`}
                             style={{ opacity: dimmed ? 0.35 : 1 }}
                           >

@@ -12,6 +12,7 @@ import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
 import TeamFilterPanel from './TeamFilterPanel'
 import ScopeToggle from './ScopeToggle'
+import FloatingTooltip from './FloatingTooltip'
 
 const COLUMN_WIDTH = 480
 const INPUT_X = 0
@@ -137,7 +138,8 @@ function ChainIoNode({ data }) {
 
 const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode }
 
-function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
+function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}) {
+  const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const nodes = []
   const edges = []
 
@@ -173,7 +175,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
       id: `team-header:${team.id}`,
       type: 'chainHeader',
       position: { x: columnX, y: HEADER_Y },
-      data: { label: team.naam, risk, count: risk.count ?? 0, empty, dimmed: risk.dimmed ?? false },
+      data: { label: naamVan(team), risk, count: risk.count ?? 0, empty, dimmed: risk.dimmed ?? false },
       draggable: true,
     })
 
@@ -201,6 +203,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
   const teamIdSet = new Set(visibleTeams.map((team) => team.id))
   const filteredWorkflows = Object.fromEntries(visibleTeams.map((team) => [team.id, teamWorkflows[team.id] ?? emptyTeamWorkflow()]))
   const chainEdges = resolveChainEdges(filteredWorkflows)
+  const teamNaamById = Object.fromEntries(visibleTeams.map((team) => [team.id, naamVan(team)]))
   chainEdges.forEach((edge) => {
     if (!teamIdSet.has(edge.sourceTeam) || !teamIdSet.has(edge.targetTeam)) return
     edges.push({
@@ -209,6 +212,15 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
       target: `chain-input:${edge.targetTeam}:${edge.targetInputId}`,
       style: { stroke: '#2a5f8a', strokeWidth: 2 },
       animated: true,
+      // Zonder deze data was een ketenlijn alleen een streep: je kon nergens
+      // aflezen wélke output aan wélke input hangt zonder beide kaartjes te
+      // zoeken. Hover en klik gebruiken dit (zie ChainOverview).
+      data: {
+        sourceTeamNaam: teamNaamById[edge.sourceTeam] ?? edge.sourceTeam,
+        sourceLabel: edge.sourceLabel,
+        targetTeamNaam: teamNaamById[edge.targetTeam] ?? edge.targetTeam,
+        targetLabel: edge.targetLabel,
+      },
     })
   })
 
@@ -218,7 +230,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
 }
 
 export default function ChainOverview() {
-  const { teams, dependencies, teamWorkflows } = useAppContext()
+  const { teams, dependencies, teamWorkflows, teamLabels } = useAppContext()
   const { t } = useLanguage()
   // Gearchiveerde teams staan bij openen standaard uit, zelfde gedrag als
   // de netwerkweergave — blijven wel aan te vinken voor historische data.
@@ -280,7 +292,31 @@ export default function ChainOverview() {
     visibleTeams,
     teamWorkflows,
     teamRisk,
+    teamLabels,
   ])
+
+  // Hover toont de koppeling vluchtig, klik pint 'm vast — zodat je een lijn
+  // kunt vasthouden terwijl je in het canvas rondkijkt of scrollt.
+  const [hoverEdge, setHoverEdge] = useState(null)
+  const [selectedEdgeId, setSelectedEdgeId] = useState(null)
+
+  const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) ?? null, [edges, selectedEdgeId])
+
+  // Een vastgepinde lijn licht op, de rest zakt weg. Zonder die demping is een
+  // enkele keten niet te volgen zodra er tientallen lijnen door elkaar lopen.
+  const displayEdges = useMemo(
+    () =>
+      edges.map((e) => {
+        if (!selectedEdgeId) return e
+        const active = e.id === selectedEdgeId
+        return {
+          ...e,
+          animated: active,
+          style: { ...e.style, strokeWidth: active ? 3.5 : 1.5, opacity: active ? 1 : 0.15 },
+        }
+      }),
+    [edges, selectedEdgeId],
+  )
 
   function toggleTeam(teamId) {
     setDeselectedTeamIds((prev) => {
@@ -302,8 +338,11 @@ export default function ChainOverview() {
           {/* truncate + title: de hint is toelichting, de bediening rechts moet
               altijd volledig zichtbaar blijven — zonder dit werd de tekst tot
               één woord per regel geperst. */}
-          <span className="min-w-0 truncate" title={focusTeamId ? t('chain.focusHint') : t('chain.hint')}>
-            {focusTeamId ? t('chain.focusHint') : t('chain.hint')}
+          <span
+            className="min-w-0 truncate"
+            title={`${focusTeamId ? t('chain.focusHint') : t('chain.hint')} ${t('chain.edgeHint')}`}
+          >
+            {focusTeamId ? t('chain.focusHint') : t('chain.edgeHint')}
           </span>
           <div className="flex shrink-0 items-center gap-2">
             <label htmlFor="chain-focus" className="text-xs font-medium text-slate-600">
@@ -320,7 +359,7 @@ export default function ChainOverview() {
               <option value="">{t('chain.focusAllTeams')}</option>
               {filteredTeams.map((tm) => (
                 <option key={tm.id} value={tm.id}>
-                  {tm.naam}
+                  {teamLabels[tm.id] ?? tm.naam}
                 </option>
               ))}
             </select>
@@ -339,9 +378,58 @@ export default function ChainOverview() {
               className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
             >
-              <PannableFlowCanvas nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} />
+              <PannableFlowCanvas
+                nodes={nodes}
+                edges={displayEdges}
+                nodeTypes={nodeTypes}
+                onNodesChange={onNodesChange}
+                onEdgeClick={(_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
+                onEdgeMouseEnter={(event, edge) => setHoverEdge({ x: event.clientX, y: event.clientY, data: edge.data })}
+                onEdgeMouseMove={(event) => setHoverEdge((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
+                onEdgeMouseLeave={() => setHoverEdge(null)}
+                onPaneClick={() => setSelectedEdgeId(null)}
+              />
+              {hoverEdge?.data && (
+                <FloatingTooltip x={hoverEdge.x} y={hoverEdge.y}>
+                  <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                    {t('chain.edgeTooltipTitle')}
+                  </div>
+                  <div className="text-slate-300">
+                    <span className="text-slate-50">{hoverEdge.data.sourceTeamNaam}</span> · {hoverEdge.data.sourceLabel || '—'}
+                  </div>
+                  <div className="text-slate-400">↓</div>
+                  <div className="text-slate-300">
+                    <span className="text-slate-50">{hoverEdge.data.targetTeamNaam}</span> · {hoverEdge.data.targetLabel || '—'}
+                  </div>
+                </FloatingTooltip>
+              )}
             </div>
           </ReactFlowProvider>
+        )}
+
+        {selectedEdge?.data && (
+          <div className="mt-2 flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
+            <div className="min-w-0 text-xs">
+              <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">{t('chain.edgeSelectedTitle')}</div>
+              <div className="text-slate-700">
+                <span className="font-medium">{selectedEdge.data.sourceTeamNaam}</span>
+                <span className="text-slate-400"> · {t('chain.edgeOutput')}: </span>
+                {selectedEdge.data.sourceLabel || '—'}
+              </div>
+              <div className="text-slate-700">
+                <span className="font-medium">{selectedEdge.data.targetTeamNaam}</span>
+                <span className="text-slate-400"> · {t('chain.edgeInput')}: </span>
+                {selectedEdge.data.targetLabel || '—'}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSelectedEdgeId(null)}
+              className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {t('graph.selectionClear')}
+            </button>
+          </div>
         )}
       </div>
 
