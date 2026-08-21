@@ -9,6 +9,15 @@ const FOCUSABLE_SELECTOR =
 // - geeft focus terug aan het element dat het paneel opende, bij sluiten
 export function useModalA11y({ open, onClose, containerRef }) {
   const triggerRef = useRef(null)
+  // onClose komt bij de meeste aanroepers (bv. DependencyForm) elke render
+  // opnieuw binnen als een nieuwe inline functie. Die niet rechtstreeks als
+  // effect-dependency gebruiken, maar via een ref bijhouden: anders vuurt dit
+  // effect (incl. de forceer-focus-timer hieronder) bij elke toetsaanslag in
+  // het formulier opnieuw af, en springt de focus middenin het typen naar het
+  // eerste focusbare element (vaak de sluitknop) — precies het "focus
+  // springt weg tijdens typen"-bug dat dit veroorzaakte.
+  const onCloseRef = useRef(onClose)
+  onCloseRef.current = onClose
 
   useEffect(() => {
     if (!open) return undefined
@@ -24,7 +33,7 @@ export function useModalA11y({ open, onClose, containerRef }) {
     function handleKeyDown(e) {
       if (e.key === 'Escape') {
         e.stopPropagation()
-        onClose?.()
+        onCloseRef.current?.()
       }
     }
     document.addEventListener('keydown', handleKeyDown)
@@ -34,5 +43,5 @@ export function useModalA11y({ open, onClose, containerRef }) {
       document.removeEventListener('keydown', handleKeyDown)
       triggerRef.current?.focus?.()
     }
-  }, [open, onClose, containerRef])
+  }, [open, containerRef])
 }

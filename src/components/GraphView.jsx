@@ -10,9 +10,8 @@ import {
   translateCategorie,
   translateWorkflowStap,
   translateEffectOpFlow,
-  translateOplossingsniveau,
 } from '../i18n/labels'
-import { RISK_LEVELS, CATEGORIES_INTERN, WORKFLOW_STAP_LEVELS, OPLOSSINGSNIVEAU_LEVELS } from '../data/constants'
+import { RISK_LEVELS, CATEGORIES_INTERN, WORKFLOW_STAP_LEVELS } from '../data/constants'
 import { CategoryIcon } from '../data/categoryIcons'
 import FloatingTooltip from './FloatingTooltip'
 import TeamFilterPanel from './TeamFilterPanel'
@@ -188,7 +187,7 @@ function computeLayout(visibleTeams, visibleDependencies) {
 }
 
 export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight, onClearHighlight, onDrillToRelatie }) {
-  const { teams, dependencies, functies } = useAppContext()
+  const { teams, dependencies } = useAppContext()
   const { t, language } = useLanguage()
   const [listPanel, setListPanel] = useState(null)
   const [hover, setHover] = useState(null) // { x, y, kind: 'node'|'edge', payload }
@@ -203,8 +202,6 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   // een team dimt niet-gekoppelde categorieën en vice versa.
   const [hoverNodeId, setHoverNodeId] = useState(null)
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
-  const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
-  const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
   // Lokale scope-filter (i.p.v. de globale AppContext-scope die Matrix
   // gebruikt) zodat Netwerkweergave standaard alles blijft tonen — mixen van
   // Teamniveau/Ketenniveau was hier altijd al het gedrag, dit voegt enkel de
@@ -231,21 +228,15 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
 
   const visibleTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
-  const selectedFunctieIds = useMemo(
-    () => [...functies.map((f) => f.id), ''].filter((id) => !excludedFunctieIds.has(id)),
-    [functies, excludedFunctieIds],
-  )
   const visibleDependencies = useMemo(
     () =>
       dependencies.filter((d) => {
         if (!selectedTeamIds.includes(d.teamId) || !selectedRiskLevels.includes(calculateRisk(d).level)) return false
         if (scope !== 'alle' && d.scope !== scope) return false
         if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
-        if (!selectedOplossingsniveau.includes(d.oplossingsniveau ?? '')) return false
-        const owners = Array.isArray(d.eigenaarFunctieIds) ? d.eigenaarFunctieIds : []
-        return owners.length > 0 ? owners.some((id) => selectedFunctieIds.includes(id)) : selectedFunctieIds.includes('')
+        return true
       }),
-    [dependencies, selectedTeamIds, selectedRiskLevels, scope, selectedWorkflowStap, selectedOplossingsniveau, selectedFunctieIds],
+    [dependencies, selectedTeamIds, selectedRiskLevels, scope, selectedWorkflowStap],
   )
 
   // useMergedLayout (dezelfde hulp-hook als Ketenoverzicht/Teampagina) onthoudt
@@ -455,21 +446,6 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
     setSelectedWorkflowStap((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
   }
 
-  function toggleOplossingsniveau(v) {
-    setSelectedOplossingsniveau((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
-  }
-
-  // Uitsluitingsset i.p.v. inclusielijst, zodat een later toegevoegde functie
-  // automatisch zichtbaar blijft i.p.v. verborgen (zelfde patroon als Matrix).
-  function toggleFunctieFilter(id) {
-    setExcludedFunctieIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
   function toggleHighlight(categorie) {
     setHighlightedCategory((prev) => (prev === categorie ? null : categorie))
   }
@@ -531,7 +507,6 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
             const meta = [
               dep.workflowStap && translateWorkflowStap(dep.workflowStap, language),
               dep.effectOpFlow && translateEffectOpFlow(dep.effectOpFlow, language),
-              dep.oplossingsniveau && translateOplossingsniveau(dep.oplossingsniveau, language),
             ].filter(Boolean)
             return (
               <li key={dep.id} className="text-slate-200">
@@ -966,21 +941,6 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
           onSelectAll: () => setSelectedWorkflowStap([...WORKFLOW_STAP_LEVELS, '']),
           onSelectNone: () => setSelectedWorkflowStap([]),
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateWorkflowStap(v, language)),
-        }}
-        oplossingsniveau={{
-          options: [...OPLOSSINGSNIVEAU_LEVELS, ''],
-          selected: selectedOplossingsniveau,
-          onToggle: toggleOplossingsniveau,
-          onSelectAll: () => setSelectedOplossingsniveau([...OPLOSSINGSNIVEAU_LEVELS, '']),
-          onSelectNone: () => setSelectedOplossingsniveau([]),
-          renderLabel: (v) => (v === '' ? t('filter.notSet') : translateOplossingsniveau(v, language)),
-        }}
-        eigenaarFunctie={{
-          options: [...functies, { id: '', naam: t('filter.notSet') }],
-          selected: selectedFunctieIds,
-          onToggle: toggleFunctieFilter,
-          onSelectAll: () => setExcludedFunctieIds(new Set()),
-          onSelectNone: () => setExcludedFunctieIds(new Set([...functies.map((f) => f.id), ''])),
         }}
       />
     </div>

@@ -51,10 +51,10 @@ function InsightRow({ insight, text, teamName }) {
 }
 
 export default function InsightPanel() {
-  const { dependencies, teams, functies, teamName } = useAppContext()
+  const { dependencies, teams, teamName } = useAppContext()
   const { t, language } = useLanguage()
   const [open, setOpen] = useState(false)
-  const insights = useMemo(() => generateInsights(dependencies, teams, functies), [dependencies, teams, functies])
+  const insights = useMemo(() => generateInsights(dependencies, teams), [dependencies, teams])
 
   if (insights.length === 0) return null
 

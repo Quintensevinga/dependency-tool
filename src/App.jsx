@@ -12,9 +12,10 @@ import TeamPage from './components/TeamPage'
 import DependencyDetail from './components/DependencyDetail'
 import DependencyForm from './components/DependencyForm'
 import { exportElementAsPng } from './lib/export'
+import { buildDuplicatePrefill } from './lib/duplicateDependency'
 
 function AppContent() {
-  const { currentTeamId, setCurrentTeamId, teamName, addDependency, updateDependency, deleteDependency } = useAppContext()
+  const { setCurrentTeamId, addDependency, updateDependency, deleteDependency } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('graph')
   // Weergavemodus van Netwerkweergave (Heatmap/Relatiekaart) leeft hier i.p.v.
@@ -63,7 +64,7 @@ function AppContent() {
   function handleQuickCreate(sourceTeamId, categorie, scope) {
     setFormState({
       editing: null,
-      teamId: sourceTeamId,
+      defaultTeamId: sourceTeamId,
       prefill: { scope, categorie },
     })
   }
@@ -84,6 +85,15 @@ function AppContent() {
     }
   }
 
+  // Opent het formulier voorgevuld met een kopie van de gekozen dependency —
+  // nog niets wordt aangemaakt totdat de gebruiker zelf opslaat (zie
+  // buildDuplicatePrefill: geen id/laatst_bijgewerkt/geaccepteerd
+  // overgenomen, team blijft een wijzigbaar veld).
+  function handleDuplicate(dependency) {
+    setSelectedDependency(null)
+    setFormState({ editing: null, prefill: buildDuplicatePrefill(dependency, t('form.duplicateTitlePrefix')) })
+  }
+
   function handleExportPng() {
     const filename = `dependency-insight-${activeTab}-${Date.now()}.png`
     exportElementAsPng(viewRef.current, filename)
@@ -91,7 +101,11 @@ function AppContent() {
 
   return (
     <div className="h-screen overflow-hidden bg-[#f3f6f9]">
-      <Header onNewDependency={() => setFormState({ editing: null, teamId: currentTeamId })} />
+      {/* Geen voorgeselecteerd team meer vanaf de globale knop — de gebruiker
+          kiest expliciet in het formulier zelf i.p.v. een stil geraden
+          standaardteam (zie currentTeamId hierboven, nog wel gebruikt om
+          bij teampagina-navigatie het team te onthouden). */}
+      <Header onNewDependency={() => setFormState({ editing: null })} />
       <Sidebar
         activeTab={activeTab}
         onTabChange={handleTabChange}
@@ -148,16 +162,16 @@ function AppContent() {
           onClose={() => setSelectedDependency(null)}
           onEdit={(dep) => {
             setSelectedDependency(null)
-            setFormState({ editing: dep, teamId: dep.teamId })
+            setFormState({ editing: dep })
           }}
           onDelete={handleDelete}
+          onDuplicate={handleDuplicate}
         />
       )}
 
       {formState && (
         <DependencyForm
-          teamId={formState.teamId}
-          teamName={teamName(formState.teamId)}
+          defaultTeamId={formState.defaultTeamId}
           initialData={formState.editing}
           prefill={formState.prefill}
           onSave={handleSave}

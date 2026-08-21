@@ -24,7 +24,7 @@ function LanguageToggle() {
 }
 
 export default function Header({ onNewDependency }) {
-  const { teams, dependencies, currentTeamId } = useAppContext()
+  const { teams, dependencies } = useAppContext()
   const { t } = useLanguage()
 
   const criticalCount = dependencies.filter((d) => calculateRisk(d).level === 'Kritiek').length
@@ -56,9 +56,7 @@ export default function Header({ onNewDependency }) {
           <button
             type="button"
             onClick={onNewDependency}
-            disabled={!currentTeamId}
-            title={currentTeamId ? undefined : t('header.openTeamPageDisabledHint')}
-            className="rounded-md bg-[#2a5f8a] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#1f4a6c] disabled:cursor-not-allowed disabled:opacity-40"
+            className="rounded-md bg-[#2a5f8a] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#1f4a6c]"
           >
             {t('header.newDependency')}
           </button>

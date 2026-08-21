@@ -39,10 +39,6 @@ export function AppProvider({ children }) {
     (id) => state.functies.find((f) => f.id === id)?.naam ?? id ?? '—',
     [state.functies],
   )
-  const functieNames = useCallback(
-    (ids) => (Array.isArray(ids) && ids.length > 0 ? ids.map(functieName).join(', ') : ''),
-    [functieName],
-  )
 
   const activeTeams = useMemo(() => state.teams.filter((t) => t.actief), [state.teams])
   const activeFuncties = useMemo(() => state.functies.filter((f) => f.actief), [state.functies])
@@ -232,11 +228,12 @@ export function AppProvider({ children }) {
     [state, persist],
   )
 
-  // Retourneert true bij succes, false als de functie nog bij een
-  // dependency als eigenaar staat.
+  // Retourneert true bij succes, false als de functie nog in de Capaciteit
+  // van een team gebruikt wordt (de enige plek waar functies nog gebruikt
+  // worden — het eigenaarveld op dependencies is verwijderd).
   const deleteFunctie = useCallback(
     (id) => {
-      const inUse = state.dependencies.some((d) => Array.isArray(d.eigenaarFunctieIds) && d.eigenaarFunctieIds.includes(id))
+      const inUse = Object.values(state.teamWorkflows).some((wf) => (wf.capacity ?? []).some((row) => row.functieId === id))
       if (inUse) return false
       const next = { ...state, functies: state.functies.filter((f) => f.id !== id) }
       persist(next)
@@ -320,7 +317,6 @@ export function AppProvider({ children }) {
       setScope,
       teamName,
       functieName,
-      functieNames,
       addTeam,
       renameTeam,
       archiveTeam,
@@ -351,7 +347,6 @@ export function AppProvider({ children }) {
       scope,
       teamName,
       functieName,
-      functieNames,
       addTeam,
       renameTeam,
       archiveTeam,

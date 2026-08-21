@@ -171,13 +171,6 @@ export const EFFECT_OP_FLOW_LABELS = {
   anders: { nl: 'Anders', en: 'Other' },
 }
 
-export const OPLOSSINGSNIVEAU_LABELS = {
-  team: { nl: 'Team', en: 'Team' },
-  samenwerking: { nl: 'Samenwerking', en: 'Collaboration' },
-  opschaling: { nl: 'Opschaling', en: 'Escalation' },
-  monitoren: { nl: 'Monitoren', en: 'Monitor' },
-}
-
 export const WORKFLOW_STAGE_LABELS = {
   analyse_refinement: { nl: 'Analyse/refinement', en: 'Analysis/refinement' },
   ontwikkeling_configuratie: { nl: 'Ontwikkeling/configuratie', en: 'Development/configuration' },
@@ -221,7 +214,6 @@ export const translateScope = (key, lang) => lookup(SCOPE_LABELS, key, lang)
 export const translateFlowtype = (key, lang) => (key ? lookup(FLOWTYPE_LABELS, key, lang) : '')
 export const translateWorkflowStap = (key, lang) => (key ? lookup(WORKFLOW_STAP_LABELS, key, lang) : '')
 export const translateEffectOpFlow = (key, lang) => (key ? lookup(EFFECT_OP_FLOW_LABELS, key, lang) : '')
-export const translateOplossingsniveau = (key, lang) => (key ? lookup(OPLOSSINGSNIVEAU_LABELS, key, lang) : '')
 export const translateWorkflowStage = (key, lang) => (key ? lookup(WORKFLOW_STAGE_LABELS, key, lang) : '')
 export const translateBronType = (key, lang) => (key ? lookup(BRON_TYPE_LABELS, key, lang) : '')
 export const translateSeniority = (key, lang) => (key ? lookup(SENIORITY_LABELS, key, lang) : '')

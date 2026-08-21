@@ -13,7 +13,6 @@ import {
   translateScope,
   translateWorkflowStap,
   translateEffectOpFlow,
-  translateOplossingsniveau,
   translateFlowtype,
   getCategoryDescription,
 } from '../i18n/labels'
@@ -29,9 +28,9 @@ function Field({ label, value }) {
   )
 }
 
-export default function DependencyDetail({ dependency, onClose, onEdit, onDelete }) {
+export default function DependencyDetail({ dependency, onClose, onEdit, onDelete, onDuplicate }) {
   const { t, language } = useLanguage()
-  const { teamName, functieNames, teamWorkflows } = useAppContext()
+  const { teamName, teamWorkflows, updateDependency } = useAppContext()
   const panelRef = useRef(null)
   useModalA11y({ open: Boolean(dependency), onClose, containerRef: panelRef })
 
@@ -39,8 +38,6 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
   const risk = calculateRisk(dependency)
   const style = riskStyle(risk.level)
   const riskLevel = translateRiskLevel(risk.level, language)
-  const eigenaar = functieNames(dependency.eigenaarFunctieIds)
-  const showLegacyRol = eigenaar === '' && dependency.rol_betrokkene
   const teamApplications = teamWorkflows[dependency.teamId]?.applications ?? []
   const labeledApplicaties = (dependency.applicatieIds ?? [])
     .map((id) => teamApplications.find((app) => app.id === id)?.naam)
@@ -77,6 +74,9 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
         <div className="flex-1 space-y-4 px-5 py-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className={`rounded px-2 py-1 text-xs font-medium ${style.badge}`}>{riskLevel}</span>
+            {dependency.geaccepteerd && (
+              <span className="rounded bg-[#2a5f8a]/10 px-2 py-1 text-xs font-medium text-[#2a5f8a]">{t('detail.acceptedBadge')}</span>
+            )}
             <span className="text-xs capitalize text-slate-400">{translateScope(dependency.scope, language)} ·</span>
             <span className="group relative flex items-center gap-1 text-xs text-slate-400 underline decoration-dotted underline-offset-2">
               <CategoryIcon categorie={dependency.categorie} className="h-3 w-3 shrink-0" />
@@ -112,11 +112,6 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
                 {t('detail.effectOpFlow')}: {translateEffectOpFlow(dependency.effectOpFlow, language)}
               </span>
             )}
-            {dependency.oplossingsniveau && (
-              <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                {t('detail.oplossingsniveau')}: {translateOplossingsniveau(dependency.oplossingsniveau, language)}
-              </span>
-            )}
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">
@@ -145,8 +140,7 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
           </div>
 
           <Field label={t('detail.toelichting')} value={dependency.toelichting} />
-          <Field label={t('detail.eigenaar')} value={eigenaar} />
-          {showLegacyRol && <Field label={t('detail.legacyRol')} value={dependency.rol_betrokkene} />}
+          <Field label={t('detail.legacyRol')} value={dependency.rol_betrokkene} />
           {dependency.scope === 'extern' && (
             <Field label={t('detail.geraaktTeam')} value={dependency.geraakte_team_extern} />
           )}
@@ -155,18 +149,36 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
           <Field label={t('detail.updated')} value={dependency.laatst_bijgewerkt} />
         </div>
 
-        <div className="flex gap-2 border-t border-slate-200 px-5 py-3">
+        <div className="flex flex-wrap gap-2 border-t border-slate-200 px-5 py-3">
           <button
             type="button"
             onClick={() => onEdit(dependency)}
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
           >
             {t('detail.edit')}
           </button>
           <button
             type="button"
+            onClick={() => onDuplicate(dependency)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {t('detail.duplicate')}
+          </button>
+          <button
+            type="button"
+            onClick={() => updateDependency(dependency.id, { geaccepteerd: !dependency.geaccepteerd })}
+            className={
+              dependency.geaccepteerd
+                ? 'rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+                : 'rounded-md border border-[#2a5f8a]/30 px-3 py-2 text-sm font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/5'
+            }
+          >
+            {dependency.geaccepteerd ? t('detail.unaccept') : t('detail.accept')}
+          </button>
+          <button
+            type="button"
             onClick={() => onDelete(dependency)}
-            className="rounded-md border border-[#9a3b2e]/30 px-3 py-2 text-sm font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
+            className="ml-auto rounded-md border border-[#9a3b2e]/30 px-3 py-2 text-sm font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
           >
             {t('detail.delete')}
           </button>

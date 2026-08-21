@@ -11,7 +11,6 @@ import {
   translateRiskLevel,
   translateWorkflowStap,
   translateEffectOpFlow,
-  translateOplossingsniveau,
   getCategoryDescription,
 } from '../i18n/labels'
 import FloatingTooltip from './FloatingTooltip'
@@ -21,7 +20,7 @@ import { CategoryIcon } from '../data/categoryIcons'
 // Matrix-overzicht, herbruikt door de Relatiekaart-pagina zodat een selectie
 // daar (team/categorie/koppeling) in exact dezelfde vorm getoond wordt.
 export default function DependencyTable({ dependencies, onSelect, showTeamColumn = true, emptyLabel }) {
-  const { teamName, functieNames } = useAppContext()
+  const { teamName } = useAppContext()
   const { t, language } = useLanguage()
   const [hover, setHover] = useState(null)
 
@@ -39,10 +38,8 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
             {showTeamColumn && <th className="px-5 py-2.5 font-medium">{t('matrix.col.team')}</th>}
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.titel')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.categorie')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.eigenaar')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.workflowstap')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.effectOpFlow')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.oplossingsniveau')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.impact')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.frequentie')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.status')}</th>
@@ -69,10 +66,8 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
                     {translateCategorie(dependency.categorie, language)}
                   </span>
                 </td>
-                <td className="px-5 py-3 text-slate-500">{functieNames(dependency.eigenaarFunctieIds) || '—'}</td>
                 <td className="px-5 py-3 text-slate-500">{translateWorkflowStap(dependency.workflowStap, language) || '—'}</td>
                 <td className="px-5 py-3 text-slate-500">{translateEffectOpFlow(dependency.effectOpFlow, language) || '—'}</td>
-                <td className="px-5 py-3 text-slate-500">{translateOplossingsniveau(dependency.oplossingsniveau, language) || '—'}</td>
                 <td className="px-5 py-3 capitalize text-slate-500">{translateImpact(dependency.impact, language)}</td>
                 <td className="px-5 py-3 capitalize text-slate-500">{translateFrequentie(dependency.frequentie, language)}</td>
                 <td className="px-5 py-3 text-slate-500">{translateStatus(dependency.status, language)}</td>
@@ -105,11 +100,10 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
             {getCategoryDescription(hover.dependency.categorie, hover.dependency.scope, language)}
           </div>
           {hover.dependency.toelichting && <div className="mb-2 text-slate-300">{hover.dependency.toelichting}</div>}
-          {(hover.dependency.workflowStap || hover.dependency.effectOpFlow || hover.dependency.oplossingsniveau) && (
+          {(hover.dependency.workflowStap || hover.dependency.effectOpFlow) && (
             <div className="mb-2 space-y-0.5 text-slate-300">
               {hover.dependency.workflowStap && <div>{t('detail.workflowStap')}: {translateWorkflowStap(hover.dependency.workflowStap, language)}</div>}
               {hover.dependency.effectOpFlow && <div>{t('detail.effectOpFlow')}: {translateEffectOpFlow(hover.dependency.effectOpFlow, language)}</div>}
-              {hover.dependency.oplossingsniveau && <div>{t('detail.oplossingsniveau')}: {translateOplossingsniveau(hover.dependency.oplossingsniveau, language)}</div>}
             </div>
           )}
           <div className="space-y-1 border-t border-slate-600/50 pt-2">

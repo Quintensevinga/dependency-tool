@@ -128,6 +128,7 @@ function migrateDependency(raw, teamsState) {
     // "Flowtype nog te bepalen" totdat de gebruiker het bewerkt.
     flowtype: raw.flowtype ?? (raw.workflowStap ? 'ontwikkelflow' : null),
     applicatieIds: Array.isArray(raw.applicatieIds) ? raw.applicatieIds : [],
+    geaccepteerd: raw.geaccepteerd === true,
   }
 }
 

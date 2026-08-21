@@ -18,6 +18,7 @@ import { stageColor, bronTypeColor, ANNOTATION_PALETTE } from '../lib/workflowSt
 import { calculateRisk, compareRiskDesc } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import { generateId, emptyTeamWorkflow, emptyApplicatieflow } from '../lib/storage'
+import { buildDuplicatePrefill } from '../lib/duplicateDependency'
 import { CategoryIcon } from '../data/categoryIcons'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -42,8 +43,9 @@ const HIGH_RISK_LEVELS = ['Hoog', 'Kritiek']
 // achtergronden, workflowstappen) staan hier bewust niet bij.
 const DIMMABLE_NODE_TYPES = new Set(['dependencyMarker', 'ioItem', 'applicatieflowBanner', 'externalTeam', 'capacityBadge'])
 // Node-types die op klik het compacte focuspaneel openen i.p.v. meteen een
-// volledige modal (zie handleNodeClick in TeamPage).
-const FOCUSABLE_NODE_TYPES = new Set(['dependencyMarker', 'applicatieflowBanner', 'ioItem', 'externalTeam'])
+// volledige modal (zie handleNodeClick in TeamPage). dependencyMarker zit
+// hier bewust niet meer bij — die opent nu meteen de volledige modal.
+const FOCUSABLE_NODE_TYPES = new Set(['applicatieflowBanner', 'ioItem', 'externalTeam'])
 
 function ColorSwatchRow({ value, onChange }) {
   return (
@@ -263,14 +265,26 @@ function LaneGroupNode({ data }) {
   const accentColor = laneAccentColor(data.accent)
   return (
     <div
-      className="pointer-events-none rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
+      className="pointer-events-none relative rounded-xl shadow-[0_1px_2px_rgba(15,23,42,0.03)]"
       style={{
         width: data.width,
         height: data.height,
         border: `1px solid ${accentColor}2e`,
         background: data.accent === 'app' ? 'rgba(255,255,255,0.6)' : `${accentColor}0a`,
       }}
-    />
+    >
+      {/* Optioneel label-pilletje, bv. voor de losstaande Ontwikkelflow-
+          Teambreed-band — de gewone Applicatieflow-lanes tonen hun naam al
+          via de banner zelf en geven hier geen label mee. */}
+      {data.label && (
+        <span
+          className="absolute left-3.5 top-2.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white"
+          style={{ background: accentColor, boxShadow: `0 2px 6px ${accentColor}59` }}
+        >
+          {data.label}
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -431,17 +445,26 @@ function computeWorkflowLayout(
     if (!capacityByStage[row.fase]) capacityByStage[row.fase] = []
     capacityByStage[row.fase].push(row)
   }
-  const depsByStage = {}
+  // Ontwikkelflow-dependencies mét applicatielabel blijven in de gewone
+  // kolomstapel staan (onder hun workflowstap). Dependencies zonder label
+  // ('Proces-overstijgend') horen niet bij één specifieke fase — die worden
+  // hieronder als platte lijst verzameld (workflowstap wordt genegeerd) en
+  // verderop als eigen lane onder de hele kolomstapel getoond.
+  const appLabeledDepsByStage = {}
   for (const dep of teamDependencies) {
     if (dep.flowtype !== 'ontwikkelflow') continue
+    if ((dep.applicatieIds ?? []).length === 0) continue
     const stage = WORKFLOW_STAP_TO_STAGE[dep.workflowStap]
     if (!stage) continue
-    if (!depsByStage[stage]) depsByStage[stage] = []
-    depsByStage[stage].push(dep)
+    if (!appLabeledDepsByStage[stage]) appLabeledDepsByStage[stage] = []
+    appLabeledDepsByStage[stage].push(dep)
   }
-  const maxStackPerStage = Math.max(
+  const ontwikkelflowTeambreedDeps = teamDependencies.filter(
+    (dep) => dep.flowtype === 'ontwikkelflow' && (dep.applicatieIds ?? []).length === 0,
+  )
+  const maxAppStackPerStage = Math.max(
     0,
-    ...WORKFLOW_STAGES.map((s) => (capacityByStage[s]?.length ?? 0) + (depsByStage[s]?.length ?? 0)),
+    ...WORKFLOW_STAGES.map((s) => (capacityByStage[s]?.length ?? 0) + (appLabeledDepsByStage[s]?.length ?? 0)),
   )
 
   // --- Gedeelde as: Run flow (boven) en Ontwikkelflow (onder) als één canvas ---
@@ -466,6 +489,77 @@ function computeWorkflowLayout(
   // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
   const ZONE_X = STAGE_START_X - LANE_PAD_X
   const ZONE_WIDTH = BANNER_WIDTH + LANE_PAD_X * 2
+
+  // --- Applicatieflow-lane bouwstenen ---
+  // Hier al gedeclareerd (i.p.v. pas in de Run flow-lanesectie verderop)
+  // omdat zowel de Ontwikkelflow-zonehoogte hieronder (die moet rekening
+  // houden met de Proces-overstijgend-lane) als de latere Run flow-lanes ze
+  // allebei nodig hebben.
+  const LANE_BANNER_W = 210
+  const LANE_ITEM_W = 195
+  const LANE_CONTENT_GAP = 18
+  const LANE_ROW_H = 52
+  const LANE_GAP = 22
+  const LANE_PACK_GAP_X = 24
+  // Extra ademruimte tussen de laatste chip van de ene applicatie en de
+  // eerste van de volgende binnen de Applicatiegerelateerd-groep (Samen-
+  // gevoegd) — puur visuele clustering, geen aparte kaart/lane per app.
+  const LANE_CLUSTER_GAP = 16
+  // Teambreed-lanes ('Applicatie-overstijgend'/'Proces-overstijgend') hebben
+  // geen eigen bannerkaart — alleen het losse label-pilletje op het
+  // achtergrondkader (LaneGroupNode). Chips beginnen daarom aan de
+  // linkerkant van het kader i.p.v. na een banner, met deze marge bovenaan
+  // zodat ze nooit tegen het pilletje aan komen te staan.
+  const LANE_BADGE_PAD_TOP = 46
+  const LANE_PACK_MAX_WIDTH = BANNER_WIDTH - LANE_PAD_X * 2
+
+  // Berekent voor elke dep een {row, x}-positie binnen de lane, en hoeveel
+  // breedte de volst gevulde rij daadwerkelijk gebruikt — dat laatste bepaalt
+  // de lane z'n eigen (compacte) breedte i.p.v. altijd de volle zonebreedte.
+  function layoutLaneItems(deps, perRow, appIdOf) {
+    const itemPos = new Map()
+    let maxRowWidth = 0
+    let row = 0
+    let col = 0
+    let x = 0
+    let prevAppId = null
+    deps.forEach((dep) => {
+      if (col >= perRow) {
+        row += 1
+        col = 0
+        x = 0
+        prevAppId = null
+      }
+      const appId = appIdOf ? appIdOf(dep) : null
+      if (appIdOf && prevAppId !== null && appId !== prevAppId) x += LANE_CLUSTER_GAP
+      itemPos.set(dep.id, { row, x })
+      x += LANE_ITEM_W
+      if (x > maxRowWidth) maxRowWidth = x
+      col += 1
+      prevAppId = appId
+    })
+    return { itemPos, maxRowWidth }
+  }
+
+  // Chips vullen eerst de volle beschikbare breedte van de lane (zoveel
+  // kolommen als er passen) en wrappen pas naar een tweede rij als het echt
+  // niet meer past — elke lane krijgt altijd zijn eigen rij (forceOwnRow),
+  // dus er is geen reden meer om ze kunstmatig op een laag vast aantal
+  // kolommen te houden.
+  function groupApplicatieflowDeps(deps, appIdOf, accent) {
+    const hasBanner = accent !== 'teambreed'
+    const availableWidth = LANE_PACK_MAX_WIDTH - (hasBanner ? LANE_BANNER_W + LANE_CONTENT_GAP : 0)
+    const maxCols = Math.max(1, Math.floor(availableWidth / LANE_ITEM_W))
+    const perRow = Math.max(1, Math.min(maxCols, deps.length))
+    const rows = deps.length > 0 ? Math.ceil(deps.length / perRow) : 1
+    const contentHeight = Math.max(LANE_ROW_H, rows * LANE_ROW_H)
+    const height = hasBanner ? contentHeight : LANE_BADGE_PAD_TOP + contentHeight
+    const { itemPos, maxRowWidth } = layoutLaneItems(deps, perRow, appIdOf)
+    const contentWidth = Math.max(LANE_ITEM_W, maxRowWidth)
+    const width = hasBanner ? LANE_BANNER_W + LANE_CONTENT_GAP + contentWidth : contentWidth
+    return { height, itemPos, width }
+  }
+
   // Losse boven-/onderpadding: bovenaan moet er ruimte zijn voor het
   // label-pilletje ('RUN FLOW'/'ONTWIKKELFLOW', ~52-55px hoog inclusief zijn
   // eigen top-offset) zodat de eerste lane/stage-rij er niet overheen valt;
@@ -473,7 +567,20 @@ function computeWorkflowLayout(
   const ZONE_TOP_PAD = 66
   const ZONE_BOTTOM_PAD = 30
   const devZoneTop = STAGE_Y - ZONE_TOP_PAD
-  const devZoneBottom = STAGE_Y + 80 + maxStackPerStage * 38 + ZONE_BOTTOM_PAD
+  // Proces-overstijgend-lane: eigen sectie ónder de gewone kolomstapel, met
+  // een vaste marge zodat hij nooit tegen de laatste kaart van de
+  // kolomstapel aan komt te staan — en, als hij niet nodig is (geen
+  // procesoverstijgende Ontwikkelflow-dependencies, of uitgezet via
+  // 'Weergeven'), telt hij niet mee in de zonehoogte (geen lege
+  // placeholder-ruimte).
+  const appStackBottom = STAGE_Y + 80 + maxAppStackPerStage * 38
+  const TEAMBREED_BAND_GAP = 30
+  const hasOntwikkelflowTeambreed = showTeambreed && ontwikkelflowTeambreedDeps.length > 0
+  const teambreedBandTop = appStackBottom + TEAMBREED_BAND_GAP
+  const teambreedBandHeight = hasOntwikkelflowTeambreed
+    ? groupApplicatieflowDeps(ontwikkelflowTeambreedDeps, undefined, 'teambreed').height + LANE_PAD_TOP + LANE_PAD_BOTTOM
+    : 0
+  const devZoneBottom = (hasOntwikkelflowTeambreed ? teambreedBandTop + teambreedBandHeight : appStackBottom) + ZONE_BOTTOM_PAD
   // SEAM_H is geen lege kloof maar de hoogte van een overgangsvlak (zie
   // 'zone:seam' verderop) dat de blauwe Run flow-tint geleidelijk laat
   // overlopen in de witte Ontwikkelflow-zone, zodat het één doorlopend
@@ -522,7 +629,7 @@ function computeWorkflowLayout(
       })
     })
 
-    const stageDeps = depsByStage[stage] ?? []
+    const stageDeps = appLabeledDepsByStage[stage] ?? []
     stageDeps.forEach((dep, di) => {
       const mid = `dependency:${dep.id}`
       depNodeIdByDepId.set(dep.id, mid)
@@ -557,76 +664,52 @@ function computeWorkflowLayout(
     })
   })
 
+  // --- Proces-overstijgend-lane: eigen, duidelijk afgebakende sectie ónder
+  // de gewone kolomstapel, voor Ontwikkelflow-dependencies zonder
+  // applicatielabel. Geen kolomuitlijning per workflowstap (die horen per
+  // definitie niet bij één specifieke fase) — gebruikt dezelfde lane-opbouw
+  // als Run flow's 'Applicatie-overstijgend', alleen losstaand onder de hele
+  // kolomstapel geplaatst zodat de twee elkaar nooit raken.
+  if (hasOntwikkelflowTeambreed) {
+    const { height: tbHeight, width: tbWidth } = groupApplicatieflowDeps(ontwikkelflowTeambreedDeps, undefined, 'teambreed')
+    pushApplicatieflowLane(
+      'ontwikkelflow-teambreed',
+      t('teampage.procesOverstijgend'),
+      ontwikkelflowTeambreedDeps,
+      STAGE_START_X,
+      teambreedBandTop + LANE_PAD_TOP,
+      false,
+      'teambreed',
+      undefined,
+      undefined,
+      tbWidth,
+      tbHeight,
+      undefined,
+    )
+  }
+
   // --- Run flow-lane(s) boven de stage-rij ---
   // Run flow-dependencies horen bij hún applicatie, niet bij een
   // workflowstap — ze staan dus NIET meer op de Ontwikkelflow-kolommen
   // uitgelijnd (dat maakte een lane een tweede, gedupliceerde kolomrij).
-  // Elke lane is compact: breedte volgt de eigen inhoud (banner + een paar
-  // chips, wrap na LANE_PACK_MAX_COLS) i.p.v. altijd de volle zonebreedte —
-  // meerdere lanes pakken daardoor naast elkaar in dezelfde rij ('shelf'-
-  // packing, zie packLaneGroup hieronder) i.p.v. elk een eigen, vaak
-  // grotendeels lege rij te vullen. Teambreed krijgt altijd zijn eigen rij
-  // (nooit naast een applicatie-lane gepakt) zodat de zone-indeling — Run
-  // flow-applicaties versus Teambreed — visueel duidelijk blijft, ook als de
-  // lanes zelf compacter worden.
+  // Elke lane is compact: breedte volgt de eigen inhoud (banner + chips,
+  // wrap pas als de volle zonebreedte niet meer past) i.p.v. altijd de volle
+  // zonebreedte — meerdere lanes pakken daardoor naast elkaar in dezelfde
+  // rij ('shelf'-packing, zie packLaneGroup hieronder) i.p.v. elk een eigen,
+  // vaak grotendeels lege rij te vullen. Teambreed krijgt altijd zijn eigen
+  // rij (nooit naast een applicatie-lane gepakt) zodat de zone-indeling —
+  // Run flow-applicaties versus Applicatie-overstijgend — visueel duidelijk
+  // blijft, ook als de lanes zelf compacter worden.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
-  const LANE_BANNER_W = 210
-  const LANE_ITEM_W = 195
-  const LANE_CONTENT_GAP = 18
-  const LANE_ROW_H = 52
-  const LANE_GAP = 22
-  // Lager dan je zou verwachten: bij 3 kolommen is een lane met 2-3 deps al
-  // meer dan de halve zonebreedte, waardoor er zelden meer dan 1 lane per rij
-  // past. Bij 2 kolommen blijft elke lane compact genoeg dat er meestal 2+
-  // naast elkaar passen — dat lost 'brede lege lanes' echt op, ten koste van
-  // iets meer interne regels bij lanes met veel dependencies.
-  const LANE_PACK_MAX_COLS = 2
-  const LANE_PACK_GAP_X = 24
-  // Extra ademruimte tussen de laatste chip van de ene applicatie en de
-  // eerste van de volgende binnen de Applicatiegerelateerd-groep (Samen-
-  // gevoegd) — puur visuele clustering, geen aparte kaart/lane per app.
-  const LANE_CLUSTER_GAP = 16
-
-  // Berekent voor elke dep een {row, x}-positie binnen de lane, en hoeveel
-  // breedte de volst gevulde rij daadwerkelijk gebruikt — dat laatste bepaalt
-  // de lane z'n eigen (compacte) breedte i.p.v. altijd de volle zonebreedte.
-  function layoutLaneItems(deps, perRow, appIdOf) {
-    const itemPos = new Map()
-    let maxRowWidth = 0
-    let row = 0
-    let col = 0
-    let x = 0
-    let prevAppId = null
-    deps.forEach((dep) => {
-      if (col >= perRow) {
-        row += 1
-        col = 0
-        x = 0
-        prevAppId = null
-      }
-      const appId = appIdOf ? appIdOf(dep) : null
-      if (appIdOf && prevAppId !== null && appId !== prevAppId) x += LANE_CLUSTER_GAP
-      itemPos.set(dep.id, { row, x })
-      x += LANE_ITEM_W
-      if (x > maxRowWidth) maxRowWidth = x
-      col += 1
-      prevAppId = appId
-    })
-    return { itemPos, maxRowWidth }
-  }
-
-  function groupApplicatieflowDeps(deps, appIdOf) {
-    const perRow = Math.max(1, Math.min(LANE_PACK_MAX_COLS, deps.length))
-    const rows = deps.length > 0 ? Math.ceil(deps.length / perRow) : 1
-    const height = Math.max(LANE_ROW_H, rows * LANE_ROW_H)
-    const { itemPos, maxRowWidth } = layoutLaneItems(deps, perRow, appIdOf)
-    const width = LANE_BANNER_W + LANE_CONTENT_GAP + Math.max(LANE_ITEM_W, maxRowWidth)
-    return { height, itemPos, width }
-  }
 
   function pushApplicatieflowLane(id, label, deps, x, y, collapsed, accent, appTagFor, appIdOf, width, height, connCount) {
     const bid = `appbanner:${id}`
-    const { itemPos } = groupApplicatieflowDeps(deps, appIdOf)
+    // Teambreed heeft geen eigen bannerkaart meer — alleen het label-
+    // pilletje op het achtergrondkader zelf, net als de Ontwikkelflow-
+    // Teambreed-band. 'app'/'group'-lanes behouden hun banner (nodig voor de
+    // klik-naar-detail en de in/uitklap-toggle).
+    const hasBanner = accent !== 'teambreed'
+    const { itemPos } = groupApplicatieflowDeps(deps, appIdOf, accent)
     const effectiveHeight = collapsed ? LANE_ROW_H : height
     const effectiveWidth = collapsed ? LANE_BANNER_W : width
 
@@ -639,34 +722,37 @@ function computeWorkflowLayout(
         width: effectiveWidth + LANE_PAD_X * 2,
         height: effectiveHeight + LANE_PAD_TOP + LANE_PAD_BOTTOM,
         accent,
+        label: hasBanner ? undefined : label,
       },
       draggable: false,
       selectable: false,
       zIndex: -1,
     })
 
-    nodes.push({
-      id: bid,
-      type: 'applicatieflowBanner',
-      position: withSavedPosition(bid, { x, y }),
-      data: {
-        width: LANE_BANNER_W,
-        label,
-        count: deps.length,
-        deps,
-        connCount: connCount ?? 0,
-        emptyLabel: t('teampage.applicatieflowBannerEmpty'),
-        accent,
-        // Een echte applicatie-lane opent de detailmodal van die applicatie;
-        // Teambreed/Applicatiegerelateerd hebben geen specifieke applicatie
-        // om te tonen en springen daarom naar de Applicaties-sectie.
-        onClick: accent === 'app' && onOpenAppDetail ? () => onOpenAppDetail(id) : onOpenApplicatieflow,
-        collapsed,
-        onToggleCollapse: onToggleLaneCollapse ? () => onToggleLaneCollapse(id) : undefined,
-        toggleLabel: collapsed ? t('teampage.laneExpand') : t('teampage.laneCollapse'),
-      },
-      draggable: true,
-    })
+    if (hasBanner) {
+      nodes.push({
+        id: bid,
+        type: 'applicatieflowBanner',
+        position: withSavedPosition(bid, { x, y }),
+        data: {
+          width: LANE_BANNER_W,
+          label,
+          count: deps.length,
+          deps,
+          connCount: connCount ?? 0,
+          emptyLabel: t('teampage.applicatieflowBannerEmpty'),
+          accent,
+          // Een echte applicatie-lane opent de detailmodal van die applicatie;
+          // Applicatiegerelateerd heeft geen specifieke applicatie om te
+          // tonen en springt daarom naar de Applicaties-sectie.
+          onClick: accent === 'app' && onOpenAppDetail ? () => onOpenAppDetail(id) : onOpenApplicatieflow,
+          collapsed,
+          onToggleCollapse: onToggleLaneCollapse ? () => onToggleLaneCollapse(id) : undefined,
+          toggleLabel: collapsed ? t('teampage.laneExpand') : t('teampage.laneCollapse'),
+        },
+        draggable: true,
+      })
+    }
 
     if (collapsed) return
 
@@ -679,8 +765,8 @@ function computeWorkflowLayout(
         id: mid,
         type: 'dependencyMarker',
         position: withSavedPosition(mid, {
-          x: x + LANE_BANNER_W + LANE_CONTENT_GAP + colX,
-          y: y + row * LANE_ROW_H,
+          x: x + (hasBanner ? LANE_BANNER_W + LANE_CONTENT_GAP : 0) + colX,
+          y: y + (hasBanner ? 0 : LANE_BADGE_PAD_TOP) + row * LANE_ROW_H,
         }),
         data: {
           titel: dep.titel,
@@ -691,7 +777,11 @@ function computeWorkflowLayout(
         },
         draggable: true,
       })
-      edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 } })
+      // Zonder banner is er geen node meer om de chip mee te verbinden — de
+      // omsluitende kader (laneGroup) toont de groepering al visueel.
+      if (hasBanner) {
+        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 } })
+      }
     })
   }
 
@@ -699,7 +789,6 @@ function computeWorkflowLayout(
   // kader (LANE_PAD_TOP/BOTTOM), anders overlappen de kaders van opeenvolgende
   // rijen elkaar net iets.
   const LANE_STACK_GAP = LANE_GAP + LANE_PAD_TOP + LANE_PAD_BOTTOM
-  const LANE_PACK_MAX_WIDTH = BANNER_WIDTH - LANE_PAD_X * 2
   // Vloer voor de lane-stapeling wordt afgeleid van de échte Run flow-
   // zonegrens (runflowZoneBottom, hierboven al berekend) in plaats van een
   // los vast getal vanaf STAGE_Y — zo is een minimale marge tussen de
@@ -726,8 +815,10 @@ function computeWorkflowLayout(
   function placeLaneGroup(requests) {
     if (requests.length === 0) return
     const sized = requests.map((r) => {
-      const collapsed = collapsedLaneIds?.has(r.id) ?? false
-      const { height, width } = groupApplicatieflowDeps(r.deps, r.appIdOf)
+      // Teambreed heeft geen bannerkaart meer en dus ook geen in/uitklap-
+      // toggle meer — altijd volledig getoond.
+      const collapsed = r.accent === 'teambreed' ? false : (collapsedLaneIds?.has(r.id) ?? false)
+      const { height, width } = groupApplicatieflowDeps(r.deps, r.appIdOf, r.accent)
       return { ...r, collapsed, height: collapsed ? LANE_ROW_H : height, width: collapsed ? LANE_BANNER_W : width }
     })
 
@@ -788,7 +879,7 @@ function computeWorkflowLayout(
     const unlabeled = applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).length === 0)
     const teambreedRequest =
       unlabeled.length > 0 && showTeambreed
-        ? { id: 'unlabeled', label: t('teampage.teambreed'), deps: unlabeled, accent: 'teambreed', forceOwnRow: true }
+        ? { id: 'unlabeled', label: t('teampage.appOverstijgend'), deps: unlabeled, accent: 'teambreed', forceOwnRow: true }
         : null
 
     // Applicatielanes: applicaties zijn hier de hoofdstructuur, elke
@@ -815,6 +906,10 @@ function computeWorkflowLayout(
         deps: applicatieflowDeps.filter((d) => (d.applicatieIds ?? []).includes(app.id)),
         accent: 'app',
         connCount: connCountByAppId[app.id] ?? 0,
+        // Elke applicatie krijgt in Split per applicatie zijn eigen rij
+        // (nooit naast een andere applicatie-lane gepakt), zodat de lijst
+        // altijd netjes onder elkaar staat: banner links, dependencies rechts.
+        forceOwnRow: true,
       }))
       .filter((r) => r.deps.length > 0)
     placeLaneGroup(teambreedRequest ? [...appRequests, teambreedRequest] : appRequests)
@@ -865,7 +960,7 @@ function computeWorkflowLayout(
       })
     }
     if (unlabeled.length > 0 && showTeambreed) {
-      groupRequests.push({ id: 'unlabeled', label: t('teampage.teambreed'), deps: unlabeled, accent: 'teambreed', forceOwnRow: true })
+      groupRequests.push({ id: 'unlabeled', label: t('teampage.appOverstijgend'), deps: unlabeled, accent: 'teambreed', forceOwnRow: true })
     }
     placeLaneGroup(groupRequests)
   }
@@ -1104,7 +1199,7 @@ function computeWorkflowLayout(
       type: 'annotation',
       position: withSavedPosition(id, {
         x: 40 + (i % 6) * 190,
-        y: Math.max(STAGE_Y + 100 + maxStackPerStage * 38, canvasHeightFor(inputs, outputs) + 40) + Math.floor(i / 6) * 190,
+        y: Math.max(devZoneBottom + 20, canvasHeightFor(inputs, outputs) + 40) + Math.floor(i / 6) * 190,
       }),
       data: {
         kind: item.kind,
@@ -1130,7 +1225,7 @@ function computeWorkflowLayout(
   })
 
   const annotationRows = Math.ceil(annotations.length / 6)
-  const annotationBaseY = Math.max(STAGE_Y + 100 + maxStackPerStage * 38, canvasHeightFor(inputs, outputs) + 40)
+  const annotationBaseY = Math.max(devZoneBottom + 20, canvasHeightFor(inputs, outputs) + 40)
   const canvasWidth = STAGE_START_X + (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 460
   // applicatieflowTop is negatief zodra er lanes boven de stage-rij staan;
   // die extra ruimte (naar boven) telt hier mee zodat het canvas niet te
@@ -1718,7 +1813,7 @@ export default function TeamPage({ teamId, onBack }) {
   const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
-  const [splitApplicaties, setSplitApplicaties] = useState(false)
+  const [splitApplicaties, setSplitApplicaties] = useState(true)
   // Welke Run flow-lanes op het canvas zijn ingeklapt — puur presentatie,
   // niet bewaard, zodat teams met veel applicaties de stapel compact kunnen
   // houden zonder een onleesbare muur aan lanes.
@@ -1801,11 +1896,28 @@ export default function TeamPage({ teamId, onBack }) {
     [dependencies, teamId],
   )
 
+  // 'Dependencies van dit team' toont standaard alleen actieve (niet-
+  // geaccepteerde) dependencies; geaccepteerde staan achter een eigen tabje
+  // — puur een weergavefilter op de lijst, de canvas (teamDependencies)
+  // blijft alles tonen.
+  const [depTab, setDepTab] = useState('actief')
+  const acceptedDeps = useMemo(() => teamDependencies.filter((d) => d.geaccepteerd), [teamDependencies])
+  const visibleTeamDependencies = useMemo(
+    () => teamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd')),
+    [teamDependencies, depTab],
+  )
+
   // Drieledige splitsing per de Ontwikkelflow/Applicatieflow-scheiding:
   // legacy-data zonder flowtype blijft expliciet zichtbaar i.p.v. geraden.
-  const legacyFlowDeps = useMemo(() => teamDependencies.filter((d) => !d.flowtype), [teamDependencies])
-  const ontwikkelflowDeps = useMemo(() => teamDependencies.filter((d) => d.flowtype === 'ontwikkelflow'), [teamDependencies])
-  const applicatieflowDeps = useMemo(() => teamDependencies.filter((d) => d.flowtype === 'applicatieflow'), [teamDependencies])
+  const legacyFlowDeps = useMemo(() => visibleTeamDependencies.filter((d) => !d.flowtype), [visibleTeamDependencies])
+  const ontwikkelflowDeps = useMemo(
+    () => visibleTeamDependencies.filter((d) => d.flowtype === 'ontwikkelflow'),
+    [visibleTeamDependencies],
+  )
+  const applicatieflowDeps = useMemo(
+    () => visibleTeamDependencies.filter((d) => d.flowtype === 'applicatieflow'),
+    [visibleTeamDependencies],
+  )
 
   function setApplicatieId(dep, appId) {
     updateDependency(dep.id, { applicatieIds: appId ? [appId] : [] })
@@ -1988,11 +2100,16 @@ export default function TeamPage({ teamId, onBack }) {
     })
   }
 
-  // Klik op een applicatie/dependency/IO-item/extern team opent eerst het
-  // compacte focuspaneel i.p.v. meteen de volledige modal — de bestaande
-  // modals (DependencyDetail/IoItemModal/ApplicationDetailModal) blijven
-  // bereikbaar via de actieknop van dat paneel (zie buildFocusPanelContent).
+  // Klik op een applicatie/IO-item/extern team opent eerst het compacte
+  // focuspaneel i.p.v. meteen de volledige modal — die blijven bereikbaar
+  // via de actieknop van dat paneel (zie buildFocusPanelContent). Een
+  // dependency-marker is een uitzondering: die opent meteen de volledige
+  // DependencyDetail, net als een klik in de Heatmap-lijst al deed.
   function handleNodeClick(_, node) {
+    if (node.type === 'dependencyMarker') {
+      setSelectedDependency(node.data.dependency)
+      return
+    }
     if (FOCUSABLE_NODE_TYPES.has(node.type)) setCanvasFocus(node)
   }
 
@@ -2005,7 +2122,11 @@ export default function TeamPage({ teamId, onBack }) {
       const isRunflow = dep.flowtype === 'applicatieflow'
       const flowLabel = dep.flowtype ? translateFlowtype(dep.flowtype, language) : t('teampage.flowtypeUndetermined')
       const app = isRunflow ? workflow.applications.find((a) => (dep.applicatieIds ?? []).includes(a.id)) : null
-      const scopeLabel = isRunflow ? app?.naam ?? t('teampage.teambreed') : translateWorkflowStap(dep.workflowStap, language)
+      const scopeLabel = isRunflow
+        ? (app?.naam ?? t('teampage.appOverstijgend'))
+        : (dep.applicatieIds ?? []).length === 0
+          ? t('teampage.procesOverstijgend')
+          : translateWorkflowStap(dep.workflowStap, language)
       return { title: dep.titel, sub: [flowLabel, scopeLabel, translateRiskLevel(node.data.risk.level, language)].filter(Boolean).join(' · ') }
     }
     if (node.type === 'applicatieflowBanner') {
@@ -2034,7 +2155,11 @@ export default function TeamPage({ teamId, onBack }) {
       const isRunflow = dep.flowtype === 'applicatieflow'
       const flowLabel = dep.flowtype ? translateFlowtype(dep.flowtype, language) : t('teampage.flowtypeUndetermined')
       const app = isRunflow ? workflow.applications.find((a) => (dep.applicatieIds ?? []).includes(a.id)) : null
-      const scopeLabel = isRunflow ? (app?.naam ?? t('teampage.teambreed')) : translateWorkflowStap(dep.workflowStap, language)
+      const scopeLabel = isRunflow
+        ? (app?.naam ?? t('teampage.appOverstijgend'))
+        : (dep.applicatieIds ?? []).length === 0
+          ? t('teampage.procesOverstijgend')
+          : translateWorkflowStap(dep.workflowStap, language)
       const meta = [
         { label: t('matrix.col.categorie'), value: translateCategorie(dep.categorie, language) },
         { label: t('form.flowtype'), value: flowLabel },
@@ -2057,8 +2182,9 @@ export default function TeamPage({ teamId, onBack }) {
       const highest = risks.reduce((best, r) => (!best || r.score > best.score ? r : best), null)
       const meta = [{ label: t('tooltip.dependencies'), value: String(deps.length) }]
       if (highest) meta.push({ label: t('tooltip.highestRisk'), value: translateRiskLevel(highest.level, language) })
-      const typeLabel =
-        node.data.accent === 'app' ? t('teampage.focusTypeApp') : node.data.accent === 'teambreed' ? t('teampage.teambreed') : t('teampage.applicatiegerelateerd')
+      // 'teambreed' rendert geen applicatieflowBanner meer (geen banner, geen
+      // focus/klik) — hier blijven dus alleen 'app' en 'group' over.
+      const typeLabel = node.data.accent === 'app' ? t('teampage.focusTypeApp') : t('teampage.applicatiegerelateerd')
       return {
         typeLabel,
         title: node.data.label,
@@ -2149,6 +2275,14 @@ export default function TeamPage({ teamId, onBack }) {
       deleteDependency(dep.id)
       setSelectedDependency(null)
     }
+  }
+
+  // Opent het formulier voorgevuld met een kopie van de gekozen dependency
+  // (zelfde team als origineel, maar wijzigbaar) — pas bij opslaan ontstaat
+  // er echt een nieuwe dependency.
+  function handleDuplicateDependency(dep) {
+    setSelectedDependency(null)
+    setFormState({ editing: null, prefill: buildDuplicatePrefill(dep, t('form.duplicateTitlePrefix')) })
   }
 
   // Reset alleen de handmatig versleepte posities (niet de data zelf) zodat
@@ -2740,13 +2874,35 @@ export default function TeamPage({ teamId, onBack }) {
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.dependenciesTitle')}</h3>
               <button
                 type="button"
-                onClick={() => setFormState({ editing: null })}
+                onClick={() => setFormState({ editing: null, defaultTeamId: teamId })}
                 className="rounded-md bg-[#2a5f8a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1f4a6c]"
               >
                 {t('header.newDependency')}
               </button>
             </div>
-            {teamDependencies.length === 0 && <p className="text-xs text-slate-400">{t('teampage.dependenciesEmpty')}</p>}
+            <div role="group" aria-label={t('teampage.depTabLabel')} className="mb-3 inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setDepTab('actief')}
+                aria-pressed={depTab === 'actief'}
+                className={`rounded px-2.5 py-1 font-medium transition-colors ${depTab === 'actief' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                {t('teampage.depTabActief')} · {teamDependencies.length - acceptedDeps.length}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDepTab('geaccepteerd')}
+                aria-pressed={depTab === 'geaccepteerd'}
+                className={`rounded px-2.5 py-1 font-medium transition-colors ${depTab === 'geaccepteerd' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                {t('teampage.depTabGeaccepteerd')} · {acceptedDeps.length}
+              </button>
+            </div>
+            {visibleTeamDependencies.length === 0 && (
+              <p className="text-xs text-slate-400">
+                {depTab === 'geaccepteerd' ? t('teampage.dependenciesEmptyAccepted') : t('teampage.dependenciesEmpty')}
+              </p>
+            )}
 
             {legacyFlowDeps.length > 0 && (
               <div className="mb-4">
@@ -2818,21 +2974,25 @@ export default function TeamPage({ teamId, onBack }) {
 
       {selectedDependency && (
         <DependencyDetail
-          dependency={selectedDependency}
+          // Live opzoeken i.p.v. de gevangen state direct doorgeven: anders
+          // toont het paneel na bv. Accepteren nog de oude (niet-
+          // geaccepteerde) versie totdat het opnieuw geopend wordt.
+          dependency={teamDependencies.find((d) => d.id === selectedDependency.id) ?? selectedDependency}
           onClose={() => setSelectedDependency(null)}
           onEdit={(dep) => {
             setSelectedDependency(null)
             setFormState({ editing: dep })
           }}
           onDelete={handleDeleteDependency}
+          onDuplicate={handleDuplicateDependency}
         />
       )}
 
       {formState && (
         <DependencyForm
-          teamId={teamId}
-          teamName={teamNaam}
+          defaultTeamId={formState.defaultTeamId}
           initialData={formState.editing}
+          prefill={formState.prefill}
           onSave={handleSaveDependency}
           onCancel={() => setFormState(null)}
         />

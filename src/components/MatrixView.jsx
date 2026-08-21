@@ -5,11 +5,11 @@ import { calculateRisk } from '../lib/risk'
 import ScopeToggle from './ScopeToggle'
 import DependencyTable from './DependencyTable'
 import TeamFilterPanel from './TeamFilterPanel'
-import { translateWorkflowStap, translateEffectOpFlow, translateOplossingsniveau } from '../i18n/labels'
-import { RISK_LEVELS, WORKFLOW_STAP_LEVELS, EFFECT_OP_FLOW_LEVELS, OPLOSSINGSNIVEAU_LEVELS } from '../data/constants'
+import { translateWorkflowStap, translateEffectOpFlow } from '../i18n/labels'
+import { RISK_LEVELS, WORKFLOW_STAP_LEVELS, EFFECT_OP_FLOW_LEVELS } from '../data/constants'
 
 export default function MatrixView({ onSelect }) {
-  const { dependencies, teams, functies, teamName, scope, setScope } = useAppContext()
+  const { dependencies, teams, teamName, scope, setScope } = useAppContext()
   const { t, language } = useLanguage()
   const [sortBy, setSortBy] = useState('risk_desc')
   // Matrix is een organisatiebreed overzicht en start dus altijd bij alle
@@ -18,8 +18,6 @@ export default function MatrixView({ onSelect }) {
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
   const [selectedEffectOpFlow, setSelectedEffectOpFlow] = useState([...EFFECT_OP_FLOW_LEVELS, ''])
-  const [selectedOplossingsniveau, setSelectedOplossingsniveau] = useState([...OPLOSSINGSNIVEAU_LEVELS, ''])
-  const [excludedFunctieIds, setExcludedFunctieIds] = useState(() => new Set())
 
   function toggleTeam(id) {
     setSelectedTeams((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
@@ -34,23 +32,6 @@ export default function MatrixView({ onSelect }) {
   function toggleEffectOpFlow(v) {
     setSelectedEffectOpFlow((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
   }
-  function toggleOplossingsniveau(v) {
-    setSelectedOplossingsniveau((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
-  }
-  // Uitsluitingsset i.p.v. inclusielijst, zodat een later toegevoegde
-  // functie automatisch zichtbaar blijft in het filter i.p.v. verborgen.
-  function toggleFunctieFilter(id) {
-    setExcludedFunctieIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-  const selectedFunctieIds = useMemo(
-    () => [...functies.map((f) => f.id), ''].filter((id) => !excludedFunctieIds.has(id)),
-    [functies, excludedFunctieIds],
-  )
 
   const SORT_OPTIONS = [
     { id: 'risk_desc', label: t('matrix.sort.riskDesc') },
@@ -64,10 +45,7 @@ export default function MatrixView({ onSelect }) {
       if (scope !== 'alle' && d.scope !== scope) return false
       if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
       if (!selectedEffectOpFlow.includes(d.effectOpFlow ?? '')) return false
-      if (!selectedOplossingsniveau.includes(d.oplossingsniveau ?? '')) return false
-      const owners = Array.isArray(d.eigenaarFunctieIds) ? d.eigenaarFunctieIds : []
-      const ownerMatch = owners.length > 0 ? owners.some((id) => selectedFunctieIds.includes(id)) : selectedFunctieIds.includes('')
-      return ownerMatch
+      return true
     })
     const withRisk = filtered
       .map((d) => ({ dependency: d, risk: calculateRisk(d) }))
@@ -88,8 +66,6 @@ export default function MatrixView({ onSelect }) {
     selectedRiskLevels,
     selectedWorkflowStap,
     selectedEffectOpFlow,
-    selectedOplossingsniveau,
-    selectedFunctieIds,
   ])
 
   const teamLabel =
@@ -153,21 +129,6 @@ export default function MatrixView({ onSelect }) {
           onSelectAll: () => setSelectedEffectOpFlow([...EFFECT_OP_FLOW_LEVELS, '']),
           onSelectNone: () => setSelectedEffectOpFlow([]),
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateEffectOpFlow(v, language)),
-        }}
-        oplossingsniveau={{
-          options: [...OPLOSSINGSNIVEAU_LEVELS, ''],
-          selected: selectedOplossingsniveau,
-          onToggle: toggleOplossingsniveau,
-          onSelectAll: () => setSelectedOplossingsniveau([...OPLOSSINGSNIVEAU_LEVELS, '']),
-          onSelectNone: () => setSelectedOplossingsniveau([]),
-          renderLabel: (v) => (v === '' ? t('filter.notSet') : translateOplossingsniveau(v, language)),
-        }}
-        eigenaarFunctie={{
-          options: [...functies, { id: '', naam: t('filter.notSet') }],
-          selected: selectedFunctieIds,
-          onToggle: toggleFunctieFilter,
-          onSelectAll: () => setExcludedFunctieIds(new Set()),
-          onSelectNone: () => setExcludedFunctieIds(new Set([...functies.map((f) => f.id), ''])),
         }}
       />
     </div>

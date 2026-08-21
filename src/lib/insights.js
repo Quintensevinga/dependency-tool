@@ -12,28 +12,12 @@ function teamNaam(teams, teamId) {
   return teams.find((t) => t.id === teamId)?.naam ?? UNKNOWN_TEAM
 }
 
-function functieNaam(functies, functieId) {
-  return functies.find((f) => f.id === functieId)?.naam ?? functieId
-}
-
 function groupCount(items, keyFn) {
   const map = new Map()
   for (const item of items) {
     const key = keyFn(item)
     if (key == null) continue
     map.set(key, (map.get(key) ?? 0) + 1)
-  }
-  return map
-}
-
-// Voor velden die meerdere waarden per item kunnen hebben (bv.
-// eigenaarFunctieIds): elk item telt mee voor elke waarde in de lijst.
-function groupCountMulti(items, valuesFn) {
-  const map = new Map()
-  for (const item of items) {
-    for (const key of valuesFn(item) ?? []) {
-      map.set(key, (map.get(key) ?? 0) + 1)
-    }
   }
   return map
 }
@@ -78,44 +62,7 @@ export function generateExecutiveStats(dependencies, teams) {
 // Regels leveren taal-neutrale, gestructureerde data op; formatInsightText()
 // zet dit per taal om in een leesbare zin.
 
-const ROLE_CONCENTRATION_MIN_SHARE = 0.4
-const ROLE_CONCENTRATION_MIN_COUNT = 2
 const SHARED_EXTERNAL_MIN_COUNT = 3
-
-// Groepeert eerst op teamId (technisch, stabiel), en binnen elk team op
-// eigenaarfunctie. Een dependency met meerdere eigenaarfuncties telt mee
-// voor elke functie waaraan hij is toegekend.
-function ruleRoleConcentration(dependencies, teams, functies) {
-  const teamIds = [...new Set(dependencies.map((d) => d.teamId))]
-  let best = null
-
-  for (const teamId of teamIds) {
-    const teamHighRisk = dependencies.filter((d) => d.teamId === teamId && isHighRisk(d))
-    if (teamHighRisk.length === 0) continue
-    const byFunctie = groupCountMulti(teamHighRisk, (d) => d.eigenaarFunctieIds)
-    const top = maxEntry(byFunctie)
-    if (!top) continue
-    const share = top.count / teamHighRisk.length
-    if (top.count >= ROLE_CONCENTRATION_MIN_COUNT && share >= ROLE_CONCENTRATION_MIN_SHARE) {
-      const candidate = { teamId, functieId: top.key, count: top.count, total: teamHighRisk.length, share }
-      if (!best || candidate.share > best.share || (candidate.share === best.share && candidate.count > best.count)) {
-        best = candidate
-      }
-    }
-  }
-
-  if (!best) return null
-  return {
-    type: 'roleConcentration',
-    team: teamNaam(teams, best.teamId),
-    role: functieNaam(functies, best.functieId),
-    count: best.count,
-    total: best.total,
-    detail: dependencies.filter(
-      (d) => d.teamId === best.teamId && isHighRisk(d) && (d.eigenaarFunctieIds ?? []).includes(best.functieId),
-    ),
-  }
-}
 
 function ruleSharedExternalTeam(dependencies, teams) {
   const teamIds = [...new Set(dependencies.map((d) => d.teamId))]
@@ -172,9 +119,8 @@ function ruleActiveBlockers(dependencies) {
   }
 }
 
-export function generateInsights(dependencies, teams, functies) {
+export function generateInsights(dependencies, teams) {
   const rules = [
-    (deps) => ruleRoleConcentration(deps, teams, functies),
     (deps) => ruleSharedExternalTeam(deps, teams),
     ruleMostCommonExternalCategory,
     ruleActiveBlockers,
@@ -184,8 +130,6 @@ export function generateInsights(dependencies, teams, functies) {
 
 const TEMPLATES = {
   nl: {
-    roleConcentration: (i) =>
-      `${i.count} van de ${i.total} hoog-risico dependencies binnen ${i.team} zijn geconcentreerd bij de rol '${i.role}' — dit vormt een verhoogd continuïteitsrisico.`,
     sharedExternalTeam: (i) =>
       `${i.team} is voor ${i.count} onderdelen afhankelijk van hetzelfde externe team ('${i.source}'), wat een gedeeld capaciteitsrisico creëert.`,
     mostCommonExternalCategory: (i) =>
@@ -194,8 +138,6 @@ const TEMPLATES = {
       `Er ${i.count === 1 ? 'is' : 'zijn'} momenteel ${i.count} ${i.count === 1 ? 'dependency' : 'dependencies'} met status '${translateStatus('actief blokkerend', 'nl')}', verspreid over ${i.teamCount} ${i.teamCount === 1 ? 'team' : 'teams'} — dit vraagt directe aandacht.`,
   },
   en: {
-    roleConcentration: (i) =>
-      `${i.count} of ${i.total} high-risk dependencies within ${i.team} are concentrated with the role '${i.role}' — this represents an elevated continuity risk.`,
     sharedExternalTeam: (i) =>
       `${i.team} depends on the same external team ('${i.source}') for ${i.count} items, creating a shared capacity risk.`,
     mostCommonExternalCategory: (i) =>

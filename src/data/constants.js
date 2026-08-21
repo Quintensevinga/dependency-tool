@@ -39,7 +39,7 @@ export function categoriesForScope(scope) {
   return scope === 'extern' ? CATEGORIES_EXTERN : CATEGORIES_INTERN
 }
 
-// --- Workflowstap, effect op flow, oplossingsniveau ---
+// --- Workflowstap, effect op flow ---
 // Vaste, canonieke sleutels (geen vrije tekst) zodat later betrouwbaar
 // gefilterd en gegroepeerd kan worden. Labels/vertalingen staan in i18n/labels.js.
 
@@ -65,8 +65,6 @@ export const EFFECT_OP_FLOW_LEVELS = [
   'niet_startklaar',
   'anders',
 ]
-
-export const OPLOSSINGSNIVEAU_LEVELS = ['team', 'samenwerking', 'opschaling', 'monitoren']
 
 // --- Flowtype: scheidt "hoort bij het ontwikkelproces" van "gaat over een
 // applicatie" — bepaalt of workflowstap verplicht is en of de dependency op

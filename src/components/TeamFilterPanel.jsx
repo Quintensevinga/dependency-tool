@@ -101,8 +101,6 @@ export default function TeamFilterPanel({
   onShowAllRisk,
   workflowStap,
   effectOpFlow,
-  oplossingsniveau,
-  eigenaarFunctie,
 }) {
   const { t, language } = useLanguage()
   const [collapsed, setCollapsed] = useState(false)
@@ -110,7 +108,7 @@ export default function TeamFilterPanel({
   const anyNarrowed =
     (selected.length > 0 && selected.length < teams.length) ||
     (riskLevels.length > 0 && riskLevels.length < RISK_LEVELS.length) ||
-    [workflowStap, effectOpFlow, oplossingsniveau, eigenaarFunctie].some(
+    [workflowStap, effectOpFlow].some(
       (group) => group && group.selected.length > 0 && group.selected.length < group.options.length,
     )
 
@@ -206,26 +204,6 @@ export default function TeamFilterPanel({
         />
       )}
 
-      {oplossingsniveau && (
-        <CheckboxGroup
-          title={t('filter.oplossingsniveau')}
-          options={oplossingsniveau.options}
-          selected={oplossingsniveau.selected}
-          onToggle={oplossingsniveau.onToggle}
-          renderLabel={oplossingsniveau.renderLabel}
-          footer={<AllNoneFooter onSelectAll={oplossingsniveau.onSelectAll} onSelectNone={oplossingsniveau.onSelectNone} t={t} />}
-        />
-      )}
-
-      {eigenaarFunctie && (
-        <CheckboxGroup
-          title={t('filter.eigenaarFunctie')}
-          options={eigenaarFunctie.options}
-          selected={eigenaarFunctie.selected}
-          onToggle={eigenaarFunctie.onToggle}
-          footer={<AllNoneFooter onSelectAll={eigenaarFunctie.onSelectAll} onSelectNone={eigenaarFunctie.onSelectNone} t={t} />}
-        />
-      )}
     </div>
   )
 }
