@@ -231,6 +231,11 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   const visibleDependencies = useMemo(
     () =>
       dependencies.filter((d) => {
+        // Geaccepteerde afhankelijkheden zijn bewust afgehandeld; ze horen niet
+        // meer mee te kleuren in het organisatiebrede risicobeeld (Heatmap en
+        // Relatiekaart delen deze berekening). Ze blijven wel gewoon staan op
+        // de teampagina en in het Matrix-overzicht.
+        if (d.geaccepteerd) return false
         if (!selectedTeamIds.includes(d.teamId) || !selectedRiskLevels.includes(calculateRisk(d).level)) return false
         if (scope !== 'alle' && d.scope !== scope) return false
         if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
@@ -692,11 +697,15 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                         onMouseEnter={() => setHoverHeatmapRow(team.id)}
                         onMouseLeave={() => setHoverHeatmapRow(null)}
                         title={team.naam}
-                        className={`flex cursor-pointer items-center whitespace-nowrap rounded-md px-2 text-left text-sm font-medium transition-colors ${
+                        className={`flex min-w-0 cursor-pointer items-center overflow-hidden rounded-md px-2 text-left text-sm font-medium transition-colors ${
                           hoverHeatmapRow === team.id ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-700 hover:bg-slate-50'
                         }`}
                       >
-                        {team.naam}
+                        {/* truncate op een eigen span (niet op de flex-button
+                            zelf): een lange teamnaam liep anders buiten de
+                            140px-labelkolom door en schilderde dwars over de
+                            datacellen heen. */}
+                        <span className="min-w-0 truncate">{team.naam}</span>
                       </button>,
                       ...categoriesPresent.map((cat) => {
                         const deps = groups.get(`${team.id}::${cat}`) ?? []

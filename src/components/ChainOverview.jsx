@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Handle, Position, ReactFlowProvider, useReactFlow } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -98,6 +98,22 @@ function ChainZoomToolbar() {
       </button>
     </div>
   )
+}
+
+// Past het canvas opnieuw in beeld zodra de getoonde teamselectie wijzigt.
+// ReactFlow's fitView-prop werkt alleen bij de eerste render; zonder dit bleef
+// na het aanzetten van de focusmodus de uitgezoomde transform van het volledige
+// overzicht staan, waardoor de drie overgebleven kolommen buiten beeld vielen.
+function ChainAutoFit({ fitKey }) {
+  const { fitView } = useReactFlow()
+  useEffect(() => {
+    // Korte vertraging in plaats van een enkele rAF: de nieuwe nodes worden pas
+    // in een volgende commit door React Flow zelf ingelezen. Direct fitten zou
+    // nog de oude (volledige) bounds meten en dus niets zichtbaar veranderen.
+    const id = window.setTimeout(() => fitView({ padding: 0.15, duration: 200 }), 60)
+    return () => window.clearTimeout(id)
+  }, [fitKey, fitView])
+  return null
 }
 
 function ChainIoNode({ data }) {
@@ -208,7 +224,34 @@ export default function ChainOverview() {
   const [scope, setScope] = useState('alle')
 
   const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
-  const visibleTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
+  const filteredTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
+
+  // Focusmodus: bij veel teams wordt de swimlane-rij zo breed dat de fit
+  // tegen de zoom-ondergrens aanloopt en de helft buiten beeld valt. Focus op
+  // één team toont alleen dat team plus zijn directe ketenpartners, in de
+  // volgorde inkomend → focus → uitgaand, zodat de richting af te lezen is aan
+  // de positie. Standaard uit, dan blijft het volledige overzicht zoals het was.
+  const [focusTeamId, setFocusTeamId] = useState('')
+
+  const visibleTeams = useMemo(() => {
+    if (!focusTeamId) return filteredTeams
+    const focus = teams.find((tm) => tm.id === focusTeamId)
+    if (!focus) return filteredTeams
+    const edges = resolveChainEdges(teamWorkflows)
+    const incoming = new Set(edges.filter((e) => e.targetTeam === focusTeamId).map((e) => e.sourceTeam))
+    const outgoing = new Set(edges.filter((e) => e.sourceTeam === focusTeamId).map((e) => e.targetTeam))
+    incoming.delete(focusTeamId)
+    outgoing.delete(focusTeamId)
+    // Een partner die zowel levert als afneemt hoort maar één kolom te krijgen;
+    // die houden we aan de inkomende kant, links van het focusteam.
+    for (const id of incoming) outgoing.delete(id)
+    const byId = (id) => teams.find((tm) => tm.id === id)
+    return [
+      ...[...incoming].map(byId).filter(Boolean),
+      focus,
+      ...[...outgoing].map(byId).filter(Boolean),
+    ]
+  }, [focusTeamId, filteredTeams, teams, teamWorkflows])
 
   const teamRisk = useMemo(() => {
     const result = {}
@@ -244,8 +287,33 @@ export default function ChainOverview() {
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1">
         <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs text-slate-500 shadow-sm">
-          <span>{t('chain.hint')}</span>
-          <ScopeToggle scope={scope} onChange={setScope} />
+          {/* truncate + title: de hint is toelichting, de bediening rechts moet
+              altijd volledig zichtbaar blijven — zonder dit werd de tekst tot
+              één woord per regel geperst. */}
+          <span className="min-w-0 truncate" title={focusTeamId ? t('chain.focusHint') : t('chain.hint')}>
+            {focusTeamId ? t('chain.focusHint') : t('chain.hint')}
+          </span>
+          <div className="flex shrink-0 items-center gap-2">
+            <label htmlFor="chain-focus" className="text-xs font-medium text-slate-600">
+              {t('chain.focusLabel')}
+            </label>
+            <select
+              id="chain-focus"
+              value={focusTeamId}
+              onChange={(e) => setFocusTeamId(e.target.value)}
+              // max-w: een select schaalt standaard mee met zijn langste optie,
+              // en één lange teamnaam duwde daarmee de scope-knoppen buiten de balk.
+              className="max-w-[168px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              <option value="">{t('chain.focusAllTeams')}</option>
+              {filteredTeams.map((tm) => (
+                <option key={tm.id} value={tm.id}>
+                  {tm.naam}
+                </option>
+              ))}
+            </select>
+            <ScopeToggle scope={scope} onChange={setScope} />
+          </div>
         </div>
         {visibleTeams.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
@@ -254,6 +322,7 @@ export default function ChainOverview() {
         ) : (
           <ReactFlowProvider>
             <ChainZoomToolbar />
+            <ChainAutoFit fitKey={nodes.length} />
             <div
               className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
               style={{ height: 'max(560px, calc(100vh - 280px))' }}

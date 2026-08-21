@@ -25,6 +25,7 @@ export const STRINGS = {
     'team.cancel': 'Annuleer',
 
     'header.newDependency': '+ Nieuwe dependency',
+    'header.newDependencyNoTeams': 'Maak eerst een team aan via Instellingen & privacy — een dependency hoort altijd bij een team.',
     'header.settings': 'Instellingen & privacy',
     'header.language': 'Taal',
 
@@ -294,6 +295,13 @@ export const STRINGS = {
     'teampage.viewFiltersButton': 'Weergeven',
     'teampage.viewFilterShowIO': 'Input / output tonen',
     'teampage.viewFilterShowTeambreed': 'Teambrede afhankelijkheden tonen',
+    'teampage.viewFilterShowGeaccepteerd': 'Geaccepteerde afhankelijkheden tonen',
+    'teampage.appDeleteTitle': "Applicatie '{{naam}}' verwijderen?",
+    'teampage.appDeleteIntro': 'Hier is nog het volgende aan gekoppeld. Dat wordt losgemaakt, niet verwijderd:',
+    'teampage.appDeleteDeps': '{{count}} dependency(s) — die worden Applicatie-overstijgend en blijven zichtbaar',
+    'teampage.appDeleteConns': '{{count}} applicatiekoppeling(en) — die vervallen',
+    'teampage.appDeleteIo': '{{count}} input/output-item(s) — die verliezen hun applicatielabel',
+    'teampage.appDeleteConfirm': 'Verwijderen en losmaken',
     'teampage.viewFilterRiskOnly': 'Alleen hoog / kritiek risico',
     'teampage.viewFilterShowExternalTeams': 'Externe teams als randnodes tonen',
     'teampage.smartOrder': 'Slim ordenen',
@@ -352,6 +360,9 @@ export const STRINGS = {
 
     'chain.hint': 'Elke kolom is een team. Een lijn tussen een output- en inputblokje is een expliciete koppeling die op de teampagina is gelegd — losse blokjes zijn nog niet gekoppeld.',
     'chain.noTeams': 'Selecteer minstens één team om het ketenoverzicht te tonen.',
+    'chain.focusLabel': 'Focus op',
+    'chain.focusAllTeams': 'Alle teams',
+    'chain.focusHint': 'Focus: dit team en zijn directe ketenpartners — links wat binnenkomt, rechts wat uitgaat.',
     'chain.emptyTeam': 'Nog geen workflow ingevuld',
     'chain.zoomIn': 'Inzoomen',
     'chain.zoomOut': 'Uitzoomen',
@@ -383,6 +394,7 @@ export const STRINGS = {
     'team.cancel': 'Cancel',
 
     'header.newDependency': '+ New dependency',
+    'header.newDependencyNoTeams': 'Create a team first via Settings & privacy — a dependency always belongs to a team.',
     'header.settings': 'Settings & privacy',
     'header.language': 'Language',
 
@@ -652,6 +664,13 @@ export const STRINGS = {
     'teampage.viewFiltersButton': 'View',
     'teampage.viewFilterShowIO': 'Show input / output',
     'teampage.viewFilterShowTeambreed': 'Show team-wide dependencies',
+    'teampage.viewFilterShowGeaccepteerd': 'Show accepted dependencies',
+    'teampage.appDeleteTitle': "Delete application '{{naam}}'?",
+    'teampage.appDeleteIntro': 'The following is still linked to it. It will be unlinked, not deleted:',
+    'teampage.appDeleteDeps': '{{count}} dependency/dependencies — these become cross-application and stay visible',
+    'teampage.appDeleteConns': '{{count}} application connection(s) — these are removed',
+    'teampage.appDeleteIo': '{{count}} input/output item(s) — these lose their application label',
+    'teampage.appDeleteConfirm': 'Delete and unlink',
     'teampage.viewFilterRiskOnly': 'High / critical risk only',
     'teampage.viewFilterShowExternalTeams': 'Show external teams as context nodes',
     'teampage.smartOrder': 'Auto-arrange',
@@ -710,6 +729,9 @@ export const STRINGS = {
 
     'chain.hint': "Each column is a team. A line between an output and input block is an explicit link created on that team's page — standalone blocks aren't linked yet.",
     'chain.noTeams': 'Select at least one team to show the chain overview.',
+    'chain.focusLabel': 'Focus on',
+    'chain.focusAllTeams': 'All teams',
+    'chain.focusHint': 'Focus: this team and its direct chain partners — incoming on the left, outgoing on the right.',
     'chain.emptyTeam': 'No workflow filled in yet',
     'chain.zoomIn': 'Zoom in',
     'chain.zoomOut': 'Zoom out',

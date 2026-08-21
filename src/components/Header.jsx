@@ -24,10 +24,14 @@ function LanguageToggle() {
 }
 
 export default function Header({ onNewDependency }) {
-  const { teams, dependencies } = useAppContext()
+  const { teams, activeTeams, dependencies } = useAppContext()
   const { t } = useLanguage()
 
   const criticalCount = dependencies.filter((d) => calculateRisk(d).level === 'Kritiek').length
+  // Zonder team is het formulier niet in te vullen: het teamveld is verplicht
+  // en zou geen enkele keuze bevatten. Blokkeer de knop dus vóór dat
+  // doodlopende formulier i.p.v. erna.
+  const canCreate = activeTeams.length > 0
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-slate-900/10 bg-[#101a2b]">
@@ -56,7 +60,9 @@ export default function Header({ onNewDependency }) {
           <button
             type="button"
             onClick={onNewDependency}
-            className="rounded-md bg-[#2a5f8a] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#1f4a6c]"
+            disabled={!canCreate}
+            title={canCreate ? undefined : t('header.newDependencyNoTeams')}
+            className="rounded-md bg-[#2a5f8a] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#1f4a6c] disabled:cursor-not-allowed disabled:opacity-40"
           >
             {t('header.newDependency')}
           </button>

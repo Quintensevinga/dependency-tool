@@ -9,6 +9,7 @@ import {
   validateImportShape,
   uniqueSlug,
   emptyTeamWorkflow,
+  emptyApplicatieflow,
   deepClone,
   MAX_SNAPSHOTS_PER_TEAM,
 } from '../lib/storage'
@@ -131,6 +132,46 @@ export function AppProvider({ children }) {
     (teamId, patch) => {
       const current = state.teamWorkflows[teamId] ?? emptyTeamWorkflow()
       const next = { ...state, teamWorkflows: { ...state.teamWorkflows, [teamId]: { ...current, ...patch } } }
+      persist(next)
+    },
+    [state, persist],
+  )
+
+  // Verwijdert een applicatie én alle verwijzingen ernaar. Bewust één actie:
+  // dependencies en teamWorkflows zitten in dezelfde state-boom, en twee losse
+  // updates in hetzelfde event zouden allebei van dezelfde momentopname
+  // uitgaan — de laatste overschrijft dan de eerste.
+  // Dependencies worden niet verwijderd, alleen ontlabeld: zonder deze
+  // opruiming bleven ze verwijzen naar een niet-bestaande applicatie en
+  // verdwenen ze volledig van de teampagina.
+  const removeApplicationEverywhere = useCallback(
+    (teamId, appId) => {
+      const workflow = state.teamWorkflows[teamId]
+      if (!workflow) return
+      const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
+      const today = new Date().toISOString().slice(0, 10)
+      const next = {
+        ...state,
+        dependencies: state.dependencies.map((d) =>
+          (d.applicatieIds ?? []).includes(appId)
+            ? { ...d, applicatieIds: d.applicatieIds.filter((a) => a !== appId), laatst_bijgewerkt: today }
+            : d,
+        ),
+        teamWorkflows: {
+          ...state.teamWorkflows,
+          [teamId]: {
+            ...workflow,
+            applications: workflow.applications.filter((a) => a.id !== appId),
+            applicatieflow: {
+              ...applicatieflow,
+              connecties: (applicatieflow.connecties ?? []).filter((c) => c.van !== appId && c.naar !== appId),
+            },
+            inputs: workflow.inputs.map((i) => (i.applicatieId === appId ? { ...i, applicatieId: '' } : i)),
+            outputs: workflow.outputs.map((o) => (o.applicatieId === appId ? { ...o, applicatieId: '' } : o)),
+          },
+        },
+        usingMockData: false,
+      }
       persist(next)
     },
     [state, persist],
@@ -334,6 +375,7 @@ export function AppProvider({ children }) {
       loadMockData,
       importState,
       updateTeamWorkflow,
+      removeApplicationEverywhere,
       saveSnapshot,
       renameSnapshot,
       restoreSnapshot,
@@ -364,6 +406,7 @@ export function AppProvider({ children }) {
       loadMockData,
       importState,
       updateTeamWorkflow,
+      removeApplicationEverywhere,
       saveSnapshot,
       renameSnapshot,
       restoreSnapshot,

@@ -430,7 +430,12 @@ function computeWorkflowLayout(
   viewFilters,
   onOpenAppDetail,
 ) {
-  const { showIO = true, showTeambreed = true, riskFilterOn = false, showExternalTeams = false } = viewFilters ?? {}
+  const {
+    showIO = true,
+    showTeambreed = true,
+    riskFilterOn = false,
+    showExternalTeams = false,
+  } = viewFilters ?? {}
   const nodes = []
   const edges = []
   const depNodeIdByDepId = new Map()
@@ -445,26 +450,26 @@ function computeWorkflowLayout(
     if (!capacityByStage[row.fase]) capacityByStage[row.fase] = []
     capacityByStage[row.fase].push(row)
   }
-  // Ontwikkelflow-dependencies mét applicatielabel blijven in de gewone
-  // kolomstapel staan (onder hun workflowstap). Dependencies zonder label
-  // ('Proces-overstijgend') horen niet bij één specifieke fase — die worden
-  // hieronder als platte lijst verzameld (workflowstap wordt genegeerd) en
-  // verderop als eigen lane onder de hele kolomstapel getoond.
-  const appLabeledDepsByStage = {}
+  // De workflowstap bepaalt waar een Ontwikkelflow-dependency terechtkomt —
+  // niet of hij toevallig een applicatielabel heeft. Mét stap staat hij onder
+  // die stagekolom (ook zonder applicatielabel); zónder herleidbare stap is
+  // hij per definitie niet aan één fase gebonden en valt hij in de
+  // 'Proces-overstijgend'-lane onder de hele kolomstapel. Dit is dezelfde
+  // groepering als de dependencylijst onder het canvas al hanteerde.
+  const depsByStage = {}
   for (const dep of teamDependencies) {
     if (dep.flowtype !== 'ontwikkelflow') continue
-    if ((dep.applicatieIds ?? []).length === 0) continue
     const stage = WORKFLOW_STAP_TO_STAGE[dep.workflowStap]
     if (!stage) continue
-    if (!appLabeledDepsByStage[stage]) appLabeledDepsByStage[stage] = []
-    appLabeledDepsByStage[stage].push(dep)
+    if (!depsByStage[stage]) depsByStage[stage] = []
+    depsByStage[stage].push(dep)
   }
   const ontwikkelflowTeambreedDeps = teamDependencies.filter(
-    (dep) => dep.flowtype === 'ontwikkelflow' && (dep.applicatieIds ?? []).length === 0,
+    (dep) => dep.flowtype === 'ontwikkelflow' && !WORKFLOW_STAP_TO_STAGE[dep.workflowStap],
   )
-  const maxAppStackPerStage = Math.max(
+  const maxStackPerStage = Math.max(
     0,
-    ...WORKFLOW_STAGES.map((s) => (capacityByStage[s]?.length ?? 0) + (appLabeledDepsByStage[s]?.length ?? 0)),
+    ...WORKFLOW_STAGES.map((s) => (capacityByStage[s]?.length ?? 0) + (depsByStage[s]?.length ?? 0)),
   )
 
   // --- Gedeelde as: Run flow (boven) en Ontwikkelflow (onder) als één canvas ---
@@ -573,7 +578,7 @@ function computeWorkflowLayout(
   // procesoverstijgende Ontwikkelflow-dependencies, of uitgezet via
   // 'Weergeven'), telt hij niet mee in de zonehoogte (geen lege
   // placeholder-ruimte).
-  const appStackBottom = STAGE_Y + 80 + maxAppStackPerStage * 38
+  const appStackBottom = STAGE_Y + 80 + maxStackPerStage * 38
   const TEAMBREED_BAND_GAP = 30
   const hasOntwikkelflowTeambreed = showTeambreed && ontwikkelflowTeambreedDeps.length > 0
   const teambreedBandTop = appStackBottom + TEAMBREED_BAND_GAP
@@ -629,7 +634,7 @@ function computeWorkflowLayout(
       })
     })
 
-    const stageDeps = appLabeledDepsByStage[stage] ?? []
+    const stageDeps = depsByStage[stage] ?? []
     stageDeps.forEach((dep, di) => {
       const mid = `dependency:${dep.id}`
       depNodeIdByDepId.set(dep.id, mid)
@@ -1780,6 +1785,7 @@ export default function TeamPage({ teamId, onBack }) {
     dependencies,
     teamWorkflows,
     updateTeamWorkflow,
+    removeApplicationEverywhere,
     addDependency,
     updateDependency,
     deleteDependency,
@@ -1800,6 +1806,8 @@ export default function TeamPage({ teamId, onBack }) {
   const [activeColor, setActiveColor] = useState(ANNOTATION_PALETTE[1].value)
   const [capacityModalRow, setCapacityModalRow] = useState(undefined)
   const [appDetailId, setAppDetailId] = useState(null)
+  // Applicatie die op verwijderen wacht, mét telling van wat eraan hangt.
+  const [appToDelete, setAppToDelete] = useState(null)
   // IO-item aangeklikt op het canvas: opent dezelfde IoItemModal als de
   // Input/Output-lijst, zonder de lijst-lokale modalItem-state aan te raken.
   const [canvasIoTarget, setCanvasIoTarget] = useState(null)
@@ -1821,6 +1829,9 @@ export default function TeamPage({ teamId, onBack }) {
   // Weergave-filters voor het Teamcanvas: puur presentatie, niet bewaard.
   const [showIO, setShowIO] = useState(true)
   const [showTeambreed, setShowTeambreed] = useState(true)
+  // Standaard aan: geaccepteerde afhankelijkheden blijven op het teamcanvas
+  // staan (ze zijn wel uit de organisatiebrede Netwerkweergave gefilterd).
+  const [showGeaccepteerd, setShowGeaccepteerd] = useState(true)
   const [riskFilterOn, setRiskFilterOn] = useState(false)
   const [showExternalTeams, setShowExternalTeams] = useState(false)
   const [viewFiltersOpen, setViewFiltersOpen] = useState(false)
@@ -2017,6 +2028,13 @@ export default function TeamPage({ teamId, onBack }) {
     [showIO, showTeambreed, riskFilterOn, showExternalTeams],
   )
 
+  // Wat het canvas te zien krijgt. Los van de lijst eronder (die op het
+  // Actief/Geaccepteerd-tabje filtert) — hier bepaalt de Weergeven-toggle het.
+  const canvasDependencies = useMemo(
+    () => (showGeaccepteerd ? teamDependencies : teamDependencies.filter((d) => !d.geaccepteerd)),
+    [teamDependencies, showGeaccepteerd],
+  )
+
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     workflow.inputs,
     workflow.outputs,
@@ -2026,7 +2044,7 @@ export default function TeamPage({ teamId, onBack }) {
     workflow.annotationEdges,
     annotationHandlers,
     workflow.capacity,
-    teamDependencies,
+    canvasDependencies,
     functieName,
     workflow.applications,
     splitApplicaties,
@@ -2232,8 +2250,34 @@ export default function TeamPage({ teamId, onBack }) {
   function updateApplication(id, fields) {
     patch({ applications: workflow.applications.map((a) => (a.id === id ? { ...a, ...fields } : a)) })
   }
+  // Wat hangt er nog aan deze applicatie? Wordt gebruikt om te bepalen of er
+  // gewaarschuwd moet worden, en om na bevestiging alles op te ruimen.
+  function applicationUsage(id) {
+    const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
+    return {
+      deps: teamDependencies.filter((d) => (d.applicatieIds ?? []).includes(id)),
+      connecties: (applicatieflow.connecties ?? []).filter((c) => c.van === id || c.naar === id),
+      ioItems: [...workflow.inputs, ...workflow.outputs].filter((i) => i.applicatieId === id),
+    }
+  }
+
+  // Eén atomaire actie in de context: dependencies en teamWorkflows zitten in
+  // dezelfde state-boom, dus twee losse updates zouden elkaar overschrijven.
   function removeApplication(id) {
-    patch({ applications: workflow.applications.filter((a) => a.id !== id) })
+    removeApplicationEverywhere(teamId, id)
+    setAppToDelete(null)
+  }
+
+  // Alleen waarschuwen als er echt iets aan hangt — anders is een dialoog
+  // onnodige wrijving bij het opruimen van een lege regel.
+  function requestRemoveApplication(app) {
+    const usage = applicationUsage(app.id)
+    const total = usage.deps.length + usage.connecties.length + usage.ioItems.length
+    if (total === 0) {
+      removeApplication(app.id)
+      return
+    }
+    setAppToDelete({ app, ...usage })
   }
 
   function saveAppDetail(appId, fields) {
@@ -2486,6 +2530,7 @@ export default function TeamPage({ teamId, onBack }) {
                       {[
                         { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
                         { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
+                        { key: 'showGeaccepteerd', label: t('teampage.viewFilterShowGeaccepteerd'), value: showGeaccepteerd, onChange: setShowGeaccepteerd },
                         { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
                         { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
                       ].map((f) => (
@@ -2600,7 +2645,13 @@ export default function TeamPage({ teamId, onBack }) {
                     setHoverNodeId(null)
                     setCanvasHover(null)
                   }}
-                  fitViewOptions={{ padding: 0.06, minZoom: 0.6 }}
+                  // Bewust géén minZoom in fitViewOptions: die klemde de
+                  // automatische fit af terwijl de volledige inhoud verder moet
+                  // uitzoomen, waardoor precies de buitenste kolommen — de
+                  // input/output-kaarten — bij openen buiten beeld vielen. De
+                  // minZoom-prop hieronder blijft de ondergrens voor handmatig
+                  // uitzoomen.
+                  fitViewOptions={{ padding: 0.06 }}
                   minZoom={0.4}
                   maxZoom={1.5}
                   backgroundColor="#d3dbe3"
@@ -2709,7 +2760,7 @@ export default function TeamPage({ teamId, onBack }) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => removeApplication(app.id)}
+                      onClick={() => requestRemoveApplication(app)}
                       aria-label={t('teampage.remove')}
                       title={t('teampage.remove')}
                       className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
@@ -2739,6 +2790,38 @@ export default function TeamPage({ teamId, onBack }) {
                 />
               )
             })()}
+
+          {appToDelete && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 px-4">
+              <div role="alertdialog" aria-modal="true" aria-labelledby="app-delete-title" className="w-full max-w-md rounded-xl bg-white p-5 shadow-2xl">
+                <h3 id="app-delete-title" className="text-sm font-semibold text-slate-900">
+                  {t('teampage.appDeleteTitle', { naam: appToDelete.app.naam || '—' })}
+                </h3>
+                <p className="mt-2 text-xs text-slate-500">{t('teampage.appDeleteIntro')}</p>
+                <ul className="mt-2.5 space-y-1 text-xs text-slate-700">
+                  {appToDelete.deps.length > 0 && <li>• {t('teampage.appDeleteDeps', { count: appToDelete.deps.length })}</li>}
+                  {appToDelete.connecties.length > 0 && <li>• {t('teampage.appDeleteConns', { count: appToDelete.connecties.length })}</li>}
+                  {appToDelete.ioItems.length > 0 && <li>• {t('teampage.appDeleteIo', { count: appToDelete.ioItems.length })}</li>}
+                </ul>
+                <div className="mt-4 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAppToDelete(null)}
+                    className="rounded-md border border-slate-300 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  >
+                    {t('form.cancel')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => removeApplication(appToDelete.app.id)}
+                    className="rounded-md bg-[#9a3b2e] px-3.5 py-2 text-sm font-medium text-white hover:bg-[#7f3125]"
+                  >
+                    {t('teampage.appDeleteConfirm')}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {canvasIoTarget && (
             <IoItemModal
