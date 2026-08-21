@@ -40,8 +40,13 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.categorie')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.workflowstap')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.effectOpFlow')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.impact')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.frequentie')}</th>
+            {/* Impact en frequentie zijn de twee ingrediënten van de
+                risicoscore die rechts al vastgepind staat, en de hover-tooltip
+                toont de hele berekening. Op smallere schermen duwden ze juist
+                de kolommen met eigen informatie (workflowstap, effect, status)
+                buiten beeld; daar wegen ze het minst. */}
+            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('matrix.col.impact')}</th>
+            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('matrix.col.frequentie')}</th>
             <th className="px-5 py-2.5 font-medium">{t('matrix.col.status')}</th>
             <th className="sticky right-0 border-l border-slate-200 bg-white px-5 py-2.5 font-medium">{t('matrix.col.risico')}</th>
           </tr>
@@ -68,8 +73,8 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
                 </td>
                 <td className="px-5 py-3 text-slate-500">{translateWorkflowStap(dependency.workflowStap, language) || '—'}</td>
                 <td className="px-5 py-3 text-slate-500">{translateEffectOpFlow(dependency.effectOpFlow, language) || '—'}</td>
-                <td className="px-5 py-3 capitalize text-slate-500">{translateImpact(dependency.impact, language)}</td>
-                <td className="px-5 py-3 capitalize text-slate-500">{translateFrequentie(dependency.frequentie, language)}</td>
+                <td className="hidden px-5 py-3 capitalize text-slate-500 2xl:table-cell">{translateImpact(dependency.impact, language)}</td>
+                <td className="hidden px-5 py-3 capitalize text-slate-500 2xl:table-cell">{translateFrequentie(dependency.frequentie, language)}</td>
                 <td className="px-5 py-3 text-slate-500">{translateStatus(dependency.status, language)}</td>
                 <td className="sticky right-0 border-l border-slate-200 bg-white px-5 py-3">
                   <div className="flex items-center gap-2.5">

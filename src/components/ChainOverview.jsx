@@ -33,7 +33,13 @@ function TeamHeaderNode({ data }) {
   const { t, language } = useLanguage()
   const style = riskStyle(data.risk.level)
   return (
-    <div className="w-52 rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md" style={{ borderColor: data.count > 0 ? style.hex : '#cbd5e1' }}>
+    // Gedimd i.p.v. verborgen bij een actief risicofilter: een team wegfilteren
+    // zou de keten zelf doorknippen, terwijl dat team er nog steeds in zit.
+    <div
+      className="w-52 rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity"
+      style={{ borderColor: data.count > 0 ? style.hex : '#cbd5e1', opacity: data.dimmed ? 0.4 : 1 }}
+      title={data.dimmed ? t('chain.dimmedByRiskFilter') : undefined}
+    >
       <div className="text-sm font-semibold text-slate-800">{data.label}</div>
       {data.count > 0 ? (
         <div className={`mt-1 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>
@@ -167,7 +173,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk) {
       id: `team-header:${team.id}`,
       type: 'chainHeader',
       position: { x: columnX, y: HEADER_Y },
-      data: { label: team.naam, risk, count: risk.count ?? 0, empty },
+      data: { label: team.naam, risk, count: risk.count ?? 0, empty, dimmed: risk.dimmed ?? false },
       draggable: true,
     })
 
@@ -254,12 +260,18 @@ export default function ChainOverview() {
   }, [focusTeamId, filteredTeams, teams, teamWorkflows])
 
   const teamRisk = useMemo(() => {
+    // Alleen dimmen als het filter daadwerkelijk versmald is; met alle niveaus
+    // aangevinkt zou anders elk team zonder dependencies gedimd raken.
+    const riskFilterActive = selectedRiskLevels.length < RISK_LEVELS.length
     const result = {}
     for (const team of visibleTeams) {
-      const deps = dependencies.filter(
-        (d) => d.teamId === team.id && selectedRiskLevels.includes(calculateRisk(d).level) && (scope === 'alle' || d.scope === scope),
-      )
-      result[team.id] = { ...highestRisk(deps), count: deps.length }
+      const inScope = dependencies.filter((d) => d.teamId === team.id && (scope === 'alle' || d.scope === scope))
+      const deps = inScope.filter((d) => selectedRiskLevels.includes(calculateRisk(d).level))
+      result[team.id] = {
+        ...highestRisk(deps),
+        count: deps.length,
+        dimmed: riskFilterActive && deps.length === 0 && inScope.length > 0,
+      }
     }
     return result
   }, [visibleTeams, dependencies, selectedRiskLevels, scope])

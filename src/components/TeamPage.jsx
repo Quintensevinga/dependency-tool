@@ -29,6 +29,10 @@ import SpotlightTour from './SpotlightTour'
 import FloatingTooltip from './FloatingTooltip'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
+// Vanaf hoeveel applicaties de beheersectie zoeken/inklappen aanbiedt. Onder
+// deze grens past de lijst prima op één blik en zou extra bediening alleen maar
+// ruis zijn.
+const APPLIST_LONG = 8
 
 const STAGE_GAP = 220
 const STAGE_START_X = 260
@@ -1808,6 +1812,10 @@ export default function TeamPage({ teamId, onBack }) {
   const [appDetailId, setAppDetailId] = useState(null)
   // Applicatie die op verwijderen wacht, mét telling van wat eraan hangt.
   const [appToDelete, setAppToDelete] = useState(null)
+  // Zoeken/inklappen in de beheersectie 'Applicaties in beheer/ontwikkeling' —
+  // los van het canvas-zoekveld, dat alleen de lanes filtert.
+  const [appManageQuery, setAppManageQuery] = useState('')
+  const [appListCollapsed, setAppListCollapsed] = useState(false)
   // IO-item aangeklikt op het canvas: opent dezelfde IoItemModal als de
   // Input/Output-lijst, zonder de lijst-lokale modalItem-state aan te raken.
   const [canvasIoTarget, setCanvasIoTarget] = useState(null)
@@ -2034,6 +2042,15 @@ export default function TeamPage({ teamId, onBack }) {
     () => (showGeaccepteerd ? teamDependencies : teamDependencies.filter((d) => !d.geaccepteerd)),
     [teamDependencies, showGeaccepteerd],
   )
+
+  // Beheerlijst met applicaties: zoeken filtert, inklappen verbergt de rest.
+  // Een actieve zoekterm wint van ingeklapt — anders lijkt zoeken kapot.
+  const visibleManagedApplications = useMemo(() => {
+    const q = appManageQuery.trim().toLowerCase()
+    const matched = q ? workflow.applications.filter((a) => (a.naam || '').toLowerCase().includes(q)) : workflow.applications
+    if (q) return matched
+    return appListCollapsed ? [] : matched
+  }, [workflow.applications, appManageQuery, appListCollapsed])
 
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     workflow.inputs,
@@ -2736,8 +2753,32 @@ export default function TeamPage({ teamId, onBack }) {
             </div>
             <p className="mb-3 text-[11px] text-slate-400">{t('teampage.applicationsHint')}</p>
             {workflow.applications.length === 0 && <p className="text-xs text-slate-400">{t('teampage.applicationsEmpty')}</p>}
+            {/* Bij veel applicaties werd deze sectie een muur van invoervelden
+                (22 stuks ≈ anderhalf scherm) zonder enige manier om te zoeken,
+                terwijl de canvas erboven dat wél had. Zoeken + inklappen pas
+                vanaf APPLIST_LONG, zodat kleine teams niets extra's zien. */}
+            {workflow.applications.length >= APPLIST_LONG && (
+              <div className="mb-2.5 flex items-center gap-2">
+                <input
+                  value={appManageQuery}
+                  onChange={(e) => setAppManageQuery(e.target.value)}
+                  placeholder={t('teampage.appFilterPlaceholder')}
+                  className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setAppListCollapsed((v) => !v)}
+                  className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  {appListCollapsed ? t('teampage.applicationsExpand') : t('teampage.applicationsCollapse')}
+                </button>
+              </div>
+            )}
+            {visibleManagedApplications.length === 0 && workflow.applications.length > 0 && (
+              <p className="text-xs text-slate-400">{t('teampage.applicationsNoMatch')}</p>
+            )}
             <ul className="space-y-2">
-              {workflow.applications.map((app) => {
+              {visibleManagedApplications.map((app) => {
                 const detail = workflow.applicatieflow?.details?.[app.id]
                 const hasDetail = Boolean(detail?.toelichting || detail?.risico_bij_uitval)
                 return (
