@@ -1715,6 +1715,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   const [showExternalTeams, setShowExternalTeams] = useState(false)
   const [viewFiltersOpen, setViewFiltersOpen] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
+  const [addMenuOpen, setAddMenuOpen] = useState(false)
 
   const toggleLaneCollapsed = useCallback((id) => {
     setCollapsedLaneIds((prev) => {
@@ -2362,45 +2363,78 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
               data-tour="toolbar"
               className="-mx-4 -mt-4 mb-3 flex min-h-[56px] flex-wrap items-center gap-1.5 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
             >
-              <div className="flex flex-wrap items-center gap-0.5">
-                {adminSections.applicaties && (
-                  <button
-                    type="button"
-                    onClick={addApplication}
-                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    {t('teampage.applicationsAdd')}
-                  </button>
-                )}
-                {adminSections.input && (
-                  <button
-                    type="button"
-                    onClick={() => setCanvasIoTarget({ kind: 'input', item: null })}
-                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    {t('teampage.inputAdd')}
-                  </button>
-                )}
-                {adminSections.output && (
-                  <button
-                    type="button"
-                    onClick={() => setCanvasIoTarget({ kind: 'output', item: null })}
-                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    {t('teampage.outputAdd')}
-                  </button>
-                )}
-                {adminSections.capaciteit && (
-                  <button
-                    type="button"
-                    onClick={() => setCapacityModalRow(null)}
-                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    {t('teampage.capacityAdd')}
-                  </button>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {(adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit) && (
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setAddMenuOpen((v) => !v)}
+                      aria-expanded={addMenuOpen}
+                      className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        addMenuOpen
+                          ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
+                          : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {t('teampage.addMenuButton')} ▾
+                    </button>
+                    {addMenuOpen && (
+                      <div className="absolute left-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg shadow-slate-900/10">
+                        {adminSections.applicaties && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              addApplication()
+                              setAddMenuOpen(false)
+                            }}
+                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                          >
+                            {t('teampage.applicationsAdd')}
+                          </button>
+                        )}
+                        {adminSections.input && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCanvasIoTarget({ kind: 'input', item: null })
+                              setAddMenuOpen(false)
+                            }}
+                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                          >
+                            {t('teampage.inputAdd')}
+                          </button>
+                        )}
+                        {adminSections.output && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCanvasIoTarget({ kind: 'output', item: null })
+                              setAddMenuOpen(false)
+                            }}
+                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                          >
+                            {t('teampage.outputAdd')}
+                          </button>
+                        )}
+                        {adminSections.capaciteit && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setCapacityModalRow(null)
+                              setAddMenuOpen(false)
+                            }}
+                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                          >
+                            {t('teampage.capacityAdd')}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 {adminSections.aantekeningen && (
                   <>
+                    <div className="h-5 w-px bg-slate-200" />
                     <button
                       type="button"
                       onClick={() => addAnnotation('note')}
@@ -2408,14 +2442,20 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                     >
                       {t('teampage.toolbarNote')}
                     </button>
-                    <div className="mx-1">
-                      <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
-                    </div>
+                    <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
                   </>
                 )}
               </div>
 
-              <div className="ml-auto flex items-center gap-2">
+              <div className="ml-auto flex flex-wrap items-center gap-2">
+                {adminSections.dependencies && (
+                  <input
+                    value={depSearchQuery}
+                    onChange={(e) => setDepSearchQuery(e.target.value)}
+                    placeholder={t('teampage.canvasDepSearchPlaceholder')}
+                    className="w-48 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                  />
+                )}
                 {splitApplicaties && workflow.applications.length > 4 && (
                   <input
                     value={appFilterQuery}
@@ -2424,6 +2464,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                     className="w-40 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
                   />
                 )}
+                <div className="h-5 w-px bg-slate-200" />
                 <div
                   className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs shadow-inner"
                   role="group"
