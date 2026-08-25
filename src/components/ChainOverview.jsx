@@ -18,6 +18,7 @@ const COLUMN_WIDTH = 480
 const INPUT_X = 0
 const OUTPUT_X = 220
 const HEADER_Y = 20
+const GROUP_LABEL_Y = HEADER_Y - 38
 const IO_Y_START = 90
 const IO_Y_GAP = 68
 
@@ -33,13 +34,15 @@ function highestRisk(deps) {
 function TeamHeaderNode({ data }) {
   const { t, language } = useLanguage()
   const style = riskStyle(data.risk.level)
+  const dimmed = data.dimmed || data.groupKind === 'context'
   return (
-    // Gedimd i.p.v. verborgen bij een actief risicofilter: een team wegfilteren
-    // zou de keten zelf doorknippen, terwijl dat team er nog steeds in zit.
+    // Gedimd i.p.v. verborgen bij een actief risicofilter of "Toon context":
+    // een team wegfilteren zou de keten zelf doorknippen, terwijl dat team er
+    // nog steeds in zit — of, bij context, bewust even op de achtergrond staat.
     <div
-      className="w-52 rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity"
-      style={{ borderColor: data.count > 0 ? style.hex : '#cbd5e1', opacity: data.dimmed ? 0.4 : 1 }}
-      title={data.dimmed ? t('chain.dimmedByRiskFilter') : undefined}
+      className="w-52 cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity hover:shadow-lg"
+      style={{ borderColor: data.count > 0 ? style.hex : '#cbd5e1', opacity: dimmed ? 0.4 : 1 }}
+      title={data.dimmed ? t('chain.dimmedByRiskFilter') : t('chain.clickToFocusHint')}
     >
       <div className="text-sm font-semibold text-slate-800">{data.label}</div>
       {data.count > 0 ? (
@@ -53,6 +56,13 @@ function TeamHeaderNode({ data }) {
       {data.empty && <div className="mt-1 text-[11px] italic text-slate-400">{t('chain.emptyTeam')}</div>}
     </div>
   )
+}
+
+// Klein, decoratief label boven een kolomgroep in Focusmodus (Inkomend /
+// Geselecteerd team / Uitgaand / Overige teams) — puur een tekstnode, geen
+// interactie, zodat de richting van de keten in één oogopslag leesbaar is.
+function ChainGroupLabelNode({ data }) {
+  return <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{data.label}</div>
 }
 
 // Decoratieve swimlane-achtergrond per teamkolom — een gewone ReactFlow-node
@@ -136,9 +146,9 @@ function ChainIoNode({ data }) {
   )
 }
 
-const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode }
+const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode, chainGroupLabel: ChainGroupLabelNode }
 
-function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}) {
+function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, groupInfo = null) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const nodes = []
   const edges = []
@@ -154,6 +164,26 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
     }),
   )
   const canvasHeight = Math.max(420, IO_Y_START + maxIoCount * IO_Y_GAP + 60)
+
+  // Focusmodus: label boven de eerste kolom van elke groep (Inkomend/
+  // Geselecteerd team/Uitgaand/Overige teams) zodra die groep niet leeg is.
+  if (groupInfo) {
+    let seen = new Set()
+    visibleTeams.forEach((team, ti) => {
+      const kind = groupInfo.kindById.get(team.id)
+      if (!kind || seen.has(kind)) return
+      seen.add(kind)
+      nodes.push({
+        id: `group-label:${kind}`,
+        type: 'chainGroupLabel',
+        position: { x: ti * COLUMN_WIDTH, y: GROUP_LABEL_Y },
+        data: { label: groupInfo.labelByKind[kind] },
+        draggable: false,
+        selectable: false,
+        focusable: false,
+      })
+    })
+  }
 
   visibleTeams.forEach((team, ti) => {
     const columnX = ti * COLUMN_WIDTH
@@ -175,7 +205,15 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
       id: `team-header:${team.id}`,
       type: 'chainHeader',
       position: { x: columnX, y: HEADER_Y },
-      data: { label: naamVan(team), risk, count: risk.count ?? 0, empty, dimmed: risk.dimmed ?? false },
+      data: {
+        teamId: team.id,
+        label: naamVan(team),
+        risk,
+        count: risk.count ?? 0,
+        empty,
+        dimmed: risk.dimmed ?? false,
+        groupKind: groupInfo?.kindById.get(team.id) ?? null,
+      },
       draggable: true,
     })
 
@@ -231,7 +269,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
 
 export default function ChainOverview({ adminSections }) {
   const { teams, dependencies, teamWorkflows, teamLabels } = useAppContext()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   // Gearchiveerde teams staan bij openen standaard uit, zelfde gedrag als
   // de netwerkweergave — blijven wel aan te vinken voor historische data.
   const [deselectedTeamIds, setDeselectedTeamIds] = useState(() => new Set(teams.filter((tm) => !tm.actief).map((tm) => tm.id)))
@@ -248,13 +286,20 @@ export default function ChainOverview({ adminSections }) {
   // tegen de zoom-ondergrens aanloopt en de helft buiten beeld valt. Focus op
   // één team toont alleen dat team plus zijn directe ketenpartners, in de
   // volgorde inkomend → focus → uitgaand, zodat de richting af te lezen is aan
-  // de positie. Standaard uit, dan blijft het volledige overzicht zoals het was.
+  // de positie. "chainMode" is losgekoppeld van focusTeamId: zo onthoudt de
+  // tool welk team je koos toen je terugschakelde naar Ketenflow.
+  const [chainMode, setChainMode] = useState('overview')
   const [focusTeamId, setFocusTeamId] = useState('')
+  // Verbergen is de standaard (rust); deze knop laat de rest van de teams
+  // alsnog zien, sterk gedimd, voor wie de bredere context wil terugzien.
+  const [showContext, setShowContext] = useState(false)
 
-  const visibleTeams = useMemo(() => {
-    if (!focusTeamId) return filteredTeams
+  const focusActive = chainMode === 'focus' && Boolean(focusTeamId)
+
+  const chainPartners = useMemo(() => {
+    if (!focusActive) return null
     const focus = teams.find((tm) => tm.id === focusTeamId)
-    if (!focus) return filteredTeams
+    if (!focus) return null
     const edges = resolveChainEdges(teamWorkflows)
     const incoming = new Set(edges.filter((e) => e.targetTeam === focusTeamId).map((e) => e.sourceTeam))
     const outgoing = new Set(edges.filter((e) => e.sourceTeam === focusTeamId).map((e) => e.targetTeam))
@@ -263,13 +308,40 @@ export default function ChainOverview({ adminSections }) {
     // Een partner die zowel levert als afneemt hoort maar één kolom te krijgen;
     // die houden we aan de inkomende kant, links van het focusteam.
     for (const id of incoming) outgoing.delete(id)
+    return { focus, incoming, outgoing, incomingCount: edges.filter((e) => e.targetTeam === focusTeamId).length, outgoingCount: edges.filter((e) => e.sourceTeam === focusTeamId).length }
+  }, [focusActive, focusTeamId, teams, teamWorkflows])
+
+  const visibleTeams = useMemo(() => {
+    if (!chainPartners) return filteredTeams
+    const { focus, incoming, outgoing } = chainPartners
     const byId = (id) => teams.find((tm) => tm.id === id)
-    return [
-      ...[...incoming].map(byId).filter(Boolean),
-      focus,
-      ...[...outgoing].map(byId).filter(Boolean),
-    ]
-  }, [focusTeamId, filteredTeams, teams, teamWorkflows])
+    const core = [...[...incoming].map(byId).filter(Boolean), focus, ...[...outgoing].map(byId).filter(Boolean)]
+    if (!showContext) return core
+    const directIds = new Set(core.map((tm) => tm.id))
+    const context = filteredTeams.filter((tm) => !directIds.has(tm.id))
+    return [...core, ...context]
+  }, [chainPartners, filteredTeams, teams, showContext])
+
+  // groupKind per zichtbaar team — drijft zowel de dim-styling van de
+  // teamkaart als de "Inkomend/Geselecteerd team/Uitgaand/Overige teams"-
+  // labels boven de kolommen.
+  const groupInfo = useMemo(() => {
+    if (!chainPartners) return null
+    const kindById = new Map()
+    for (const id of chainPartners.incoming) kindById.set(id, 'incoming')
+    kindById.set(chainPartners.focus.id, 'focus')
+    for (const id of chainPartners.outgoing) kindById.set(id, 'outgoing')
+    for (const tm of visibleTeams) if (!kindById.has(tm.id)) kindById.set(tm.id, 'context')
+    return {
+      kindById,
+      labelByKind: {
+        incoming: t('chain.groupIncoming'),
+        focus: t('chain.groupFocus'),
+        outgoing: t('chain.groupOutgoing'),
+        context: t('chain.groupContext'),
+      },
+    }
+  }, [chainPartners, visibleTeams, t])
 
   const teamRisk = useMemo(() => {
     // Alleen dimmen als het filter daadwerkelijk versmald is; met alle niveaus
@@ -288,11 +360,27 @@ export default function ChainOverview({ adminSections }) {
     return result
   }, [visibleTeams, dependencies, selectedRiskLevels, scope])
 
+  // Hub-statistieken voor het gefocuste team: aantal inkomende/uitgaande
+  // koppelingen (niet unieke partners — een team met 3 losse koppelingen naar
+  // dezelfde partner telt als 3) en het hoogste risiconiveau van zijn eigen
+  // dependencies, ongeacht het huidige risicofilter.
+  const focusStats = useMemo(() => {
+    if (!chainPartners) return null
+    const inScope = dependencies.filter((d) => d.teamId === focusTeamId && (scope === 'alle' || d.scope === scope))
+    return {
+      incoming: chainPartners.incomingCount,
+      outgoing: chainPartners.outgoingCount,
+      total: chainPartners.incomingCount + chainPartners.outgoingCount,
+      risk: inScope.length > 0 ? highestRisk(inScope) : null,
+    }
+  }, [chainPartners, dependencies, focusTeamId, scope])
+
   const [{ nodes, edges }, onNodesChange] = useMergedLayout(computeChainLayout, [
     visibleTeams,
     teamWorkflows,
     teamRisk,
     teamLabels,
+    groupInfo,
   ])
 
   // Hover toont de koppeling vluchtig, klik pint 'm vast — zodat je een lijn
@@ -331,49 +419,139 @@ export default function ChainOverview({ adminSections }) {
     setSelectedRiskLevels((prev) => (prev.includes(level) ? prev.filter((x) => x !== level) : [...prev, level]))
   }
 
+  function focusOnTeam(teamId) {
+    setChainMode('focus')
+    setFocusTeamId(teamId)
+  }
+
+  function clearFocus() {
+    setChainMode('overview')
+    setFocusTeamId('')
+  }
+
+  const teamFilterActive = deselectedTeamIds.size > 0
+  const riskFilterActive = selectedRiskLevels.length < RISK_LEVELS.length
+  const anyFilterActive = teamFilterActive || riskFilterActive
+
   return (
     <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1">
-        <div className="mb-2 flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2 text-xs text-slate-500 shadow-sm">
-          {/* truncate + title: de hint is toelichting, de bediening rechts moet
-              altijd volledig zichtbaar blijven — zonder dit werd de tekst tot
-              één woord per regel geperst. */}
-          <span
-            className="min-w-0 truncate"
-            title={`${focusTeamId ? t('chain.focusHint') : t('chain.hint')} ${t('chain.edgeHint')}`}
-          >
-            {focusTeamId ? t('chain.focusHint') : t('chain.edgeHint')}
-          </span>
+      <div className="min-w-0 flex-1 space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 shadow-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" role="group" aria-label={t('chain.modeLabel')}>
+              <button
+                type="button"
+                onClick={() => setChainMode('overview')}
+                aria-pressed={chainMode === 'overview'}
+                className={`rounded px-2.5 py-1.5 font-medium transition-colors ${
+                  chainMode === 'overview' ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t('chain.modeOverview')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setChainMode('focus')}
+                aria-pressed={chainMode === 'focus'}
+                className={`rounded px-2.5 py-1.5 font-medium transition-colors ${
+                  chainMode === 'focus' ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t('chain.modeFocus')}
+              </button>
+            </div>
+            {anyFilterActive && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                {t('filter.active')}
+              </span>
+            )}
+          </div>
           <div className="flex shrink-0 items-center gap-2">
-            <label htmlFor="chain-focus" className="text-xs font-medium text-slate-600">
-              {t('chain.focusLabel')}
-            </label>
-            <select
-              id="chain-focus"
-              value={focusTeamId}
-              onChange={(e) => setFocusTeamId(e.target.value)}
-              // max-w: een select schaalt standaard mee met zijn langste optie,
-              // en één lange teamnaam duwde daarmee de scope-knoppen buiten de balk.
-              className="max-w-[168px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
-            >
-              <option value="">{t('chain.focusAllTeams')}</option>
-              {filteredTeams.map((tm) => (
-                <option key={tm.id} value={tm.id}>
-                  {teamLabels[tm.id] ?? tm.naam}
-                </option>
-              ))}
-            </select>
+            <span className="hidden text-xs text-slate-400 sm:inline" title={t('chain.edgeHint')}>
+              {t('chain.edgeHint')}
+            </span>
             <ScopeToggle scope={scope} onChange={setScope} />
           </div>
         </div>
-        {visibleTeams.length === 0 ? (
+
+        {chainMode === 'focus' && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
+            <div className="flex flex-wrap items-center gap-2.5">
+              {focusTeamId ? (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2a5f8a]/10 px-3 py-1 text-xs font-medium text-[#2a5f8a]">
+                  {t('chain.focusPillLabel', { team: teamLabels[focusTeamId] ?? teams.find((tm) => tm.id === focusTeamId)?.naam ?? '—' })}
+                </span>
+              ) : (
+                <span className="text-xs text-slate-400">{t('chain.focusChoosePrompt')}</span>
+              )}
+              <select
+                id="chain-focus"
+                value={focusTeamId}
+                onChange={(e) => setFocusTeamId(e.target.value)}
+                className="max-w-[168px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="">{t('chain.focusPlaceholder')}</option>
+                {filteredTeams.map((tm) => (
+                  <option key={tm.id} value={tm.id}>
+                    {teamLabels[tm.id] ?? tm.naam}
+                  </option>
+                ))}
+              </select>
+              {focusTeamId && (
+                <button type="button" onClick={clearFocus} className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline">
+                  {t('chain.focusClear')}
+                </button>
+              )}
+              {focusTeamId && (
+                <label className="flex items-center gap-1.5 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={showContext}
+                    onChange={(e) => setShowContext(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                  />
+                  {t('chain.showContext')}
+                </label>
+              )}
+            </div>
+            {focusStats && (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                <span>
+                  {t('chain.statIncoming')}: <b className="text-slate-800">{focusStats.incoming}</b>
+                </span>
+                <span>
+                  {t('chain.statOutgoing')}: <b className="text-slate-800">{focusStats.outgoing}</b>
+                </span>
+                <span>
+                  {t('chain.statTotal')}: <b className="text-slate-800">{focusStats.total}</b>
+                </span>
+                {focusStats.risk && (
+                  <span className="inline-flex items-center gap-1">
+                    {t('chain.statHighestRisk')}:
+                    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${riskStyle(focusStats.risk.level).badge}`}>
+                      <span className={`h-1.5 w-1.5 rounded-full ${riskStyle(focusStats.risk.level).dot}`} />
+                      {translateRiskLevel(focusStats.risk.level, language)}
+                    </span>
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {focusActive && chainPartners && chainPartners.incoming.size === 0 && chainPartners.outgoing.size === 0 && !showContext ? (
+          <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+            <div>{t('chain.focusEmptyTitle')}</div>
+            <div className="mt-1 text-xs">{t('chain.focusEmptyHint')}</div>
+          </div>
+        ) : visibleTeams.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
             {t('chain.noTeams')}
           </div>
         ) : (
           <ReactFlowProvider>
             <ChainZoomToolbar />
-            <ChainAutoFit fitKey={nodes.length} />
+            <ChainAutoFit fitKey={`${nodes.length}:${chainMode}:${focusTeamId}`} />
             <div
               className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
@@ -383,6 +561,9 @@ export default function ChainOverview({ adminSections }) {
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
                 onNodesChange={onNodesChange}
+                onNodeClick={(_, node) => {
+                  if (node.type === 'chainHeader') focusOnTeam(node.data.teamId)
+                }}
                 onEdgeClick={(_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
                 onEdgeMouseEnter={(event, edge) => setHoverEdge({ x: event.clientX, y: event.clientY, data: edge.data })}
                 onEdgeMouseMove={(event) => setHoverEdge((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
@@ -408,7 +589,7 @@ export default function ChainOverview({ adminSections }) {
         )}
 
         {selectedEdge?.data && (
-          <div className="mt-2 flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
+          <div className="flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
             <div className="min-w-0 text-xs">
               <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">{t('chain.edgeSelectedTitle')}</div>
               <div className="text-slate-700">
