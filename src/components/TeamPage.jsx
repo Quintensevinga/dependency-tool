@@ -3287,7 +3287,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     minZoom={0.4}
                     maxZoom={1.5}
                     backgroundColor="#d3dbe3"
-                    showMinimap
                     hideControls
                   />
                   <TeamCanvasToolbar
