@@ -1666,6 +1666,210 @@ function CapacityRowModal({ row, onSave, onRemove, onClose, t, language }) {
   )
 }
 
+// Herbruikbare filterknop + dropdown voor dependencies — staat zowel in de
+// canvas-toolbar als bij de dependency-lijst, beide keren op dezelfde
+// filterstate (alleen de open/dicht-stand van de dropdown is per plek eigen).
+function DepFiltersDropdown({
+  open,
+  onToggle,
+  active,
+  align = 'right',
+  flowtypeFilter,
+  setFlowtypeFilter,
+  scopeFilter,
+  setScopeFilter,
+  appLabelFilter,
+  setAppLabelFilter,
+  applications,
+  riskLevelFilter,
+  setRiskLevelFilter,
+  statusFilter,
+  setStatusFilter,
+  workflowStapFilter,
+  setWorkflowStapFilter,
+  onClear,
+  t,
+  language,
+}) {
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+          active ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+        }`}
+      >
+        {t('teampage.depFiltersButton')}
+        {active && <span className="h-1.5 w-1.5 rounded-full bg-[#2a5f8a]" aria-hidden="true" />}▾
+      </button>
+      {open && (
+        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-9 z-20 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/10`}>
+          <div className="grid grid-cols-2 gap-2.5">
+            <div>
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.flowtype')}</div>
+              <select
+                value={flowtypeFilter}
+                onChange={(e) => setFlowtypeFilter(e.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="alle">{t('teampage.filterAll')}</option>
+                <option value="ontwikkelflow">{t('form.flowtypeOntwikkelflow')}</option>
+                <option value="applicatieflow">{t('form.flowtypeApplicatieflow')}</option>
+              </select>
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.scope')}</div>
+              <select
+                value={scopeFilter}
+                onChange={(e) => setScopeFilter(e.target.value)}
+                className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="alle">{t('scope.alle')}</option>
+                <option value="intern">{t('scope.intern')}</option>
+                <option value="extern">{t('scope.extern')}</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-2.5">
+            <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.filterAppLabel')}</div>
+            <select
+              value={appLabelFilter}
+              onChange={(e) => setAppLabelFilter(e.target.value)}
+              className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              <option value="alle">{t('teampage.filterAll')}</option>
+              <option value="overstijgend">{t('teampage.appOverstijgend')}</option>
+              {applications.map((app) => (
+                <option key={app.id} value={app.id}>
+                  {app.naam || '—'}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="mt-2.5">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('filter.riskLevel')}</span>
+              <button type="button" onClick={() => setRiskLevelFilter(new Set(RISK_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
+                {t('filter.selectAll')}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {RISK_LEVELS.map((lvl) => {
+                const isActive = riskLevelFilter.has(lvl)
+                return (
+                  <button
+                    key={lvl}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() =>
+                      setRiskLevelFilter((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(lvl)) next.delete(lvl)
+                        else next.add(lvl)
+                        return next
+                      })
+                    }
+                    className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                      isActive ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {translateRiskLevel(lvl, language)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="mt-2.5">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('matrix.col.status')}</span>
+              <button type="button" onClick={() => setStatusFilter(new Set(STATUS_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
+                {t('filter.selectAll')}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {STATUS_LEVELS.map((s) => {
+                const isActive = statusFilter.has(s)
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() =>
+                      setStatusFilter((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(s)) next.delete(s)
+                        else next.add(s)
+                        return next
+                      })
+                    }
+                    className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                      isActive ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {translateStatus(s, language)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="mt-2.5">
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.workflowStap')}</span>
+              <button
+                type="button"
+                onClick={() => setWorkflowStapFilter(new Set(WORKFLOW_STAP_LEVELS))}
+                className="text-[10px] text-[#2a5f8a] hover:underline"
+              >
+                {t('filter.selectAll')}
+              </button>
+            </div>
+            <div className="flex flex-wrap gap-1">
+              {WORKFLOW_STAP_LEVELS.map((stap) => {
+                const isActive = workflowStapFilter.has(stap)
+                return (
+                  <button
+                    key={stap}
+                    type="button"
+                    aria-pressed={isActive}
+                    onClick={() =>
+                      setWorkflowStapFilter((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(stap)) next.delete(stap)
+                        else next.add(stap)
+                        return next
+                      })
+                    }
+                    className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                      isActive ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                  >
+                    {translateWorkflowStap(stap, language)}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClear}
+            disabled={!active}
+            className="mt-3 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {t('teampage.depFiltersClear')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function TeamPage({ teamId, onBack, adminSections }) {
   const {
     teams,
@@ -1806,6 +2010,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   const [workflowStapFilter, setWorkflowStapFilter] = useState(() => new Set(WORKFLOW_STAP_LEVELS))
   const [appLabelFilter, setAppLabelFilter] = useState('alle')
   const [depFiltersOpen, setDepFiltersOpen] = useState(false)
+  const [canvasDepFiltersOpen, setCanvasDepFiltersOpen] = useState(false)
 
   const depFiltersActive =
     depSearchQuery.trim() !== '' ||
@@ -1986,8 +2191,10 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   }
 
   const applicatieflowSectionRef = useRef(null)
+  const [applicatieflowOpen, setApplicatieflowOpen] = useState(false)
   const onOpenApplicatieflow = useCallback(() => {
-    applicatieflowSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setApplicatieflowOpen(true)
+    requestAnimationFrame(() => applicatieflowSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }, [])
 
   const viewFilters = useMemo(
@@ -2449,12 +2656,35 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
 
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 {adminSections.dependencies && (
-                  <input
-                    value={depSearchQuery}
-                    onChange={(e) => setDepSearchQuery(e.target.value)}
-                    placeholder={t('teampage.canvasDepSearchPlaceholder')}
-                    className="w-48 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                  />
+                  <>
+                    <input
+                      value={depSearchQuery}
+                      onChange={(e) => setDepSearchQuery(e.target.value)}
+                      placeholder={t('teampage.canvasDepSearchPlaceholder')}
+                      className="w-48 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                    />
+                    <DepFiltersDropdown
+                      open={canvasDepFiltersOpen}
+                      onToggle={() => setCanvasDepFiltersOpen((v) => !v)}
+                      active={depFiltersActive}
+                      flowtypeFilter={flowtypeFilter}
+                      setFlowtypeFilter={setFlowtypeFilter}
+                      scopeFilter={scopeFilter}
+                      setScopeFilter={setScopeFilter}
+                      appLabelFilter={appLabelFilter}
+                      setAppLabelFilter={setAppLabelFilter}
+                      applications={workflow.applications}
+                      riskLevelFilter={riskLevelFilter}
+                      setRiskLevelFilter={setRiskLevelFilter}
+                      statusFilter={statusFilter}
+                      setStatusFilter={setStatusFilter}
+                      workflowStapFilter={workflowStapFilter}
+                      setWorkflowStapFilter={setWorkflowStapFilter}
+                      onClear={clearDepFilters}
+                      t={t}
+                      language={language}
+                    />
+                  </>
                 )}
                 {splitApplicaties && workflow.applications.length > 4 && (
                   <input
@@ -2809,184 +3039,27 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                 placeholder={t('teampage.depSearchPlaceholder')}
                 className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
               />
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setDepFiltersOpen((v) => !v)}
-                  aria-expanded={depFiltersOpen}
-                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    depFiltersActive
-                      ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
-                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
-                  }`}
-                >
-                  {t('teampage.depFiltersButton')}
-                  {depFiltersActive && <span className="h-1.5 w-1.5 rounded-full bg-[#2a5f8a]" aria-hidden="true" />}
-                  ▾
-                </button>
-                {depFiltersOpen && (
-                  <div className="absolute right-0 top-9 z-20 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/10">
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div>
-                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.flowtype')}</div>
-                        <select
-                          value={flowtypeFilter}
-                          onChange={(e) => setFlowtypeFilter(e.target.value)}
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
-                        >
-                          <option value="alle">{t('teampage.filterAll')}</option>
-                          <option value="ontwikkelflow">{t('form.flowtypeOntwikkelflow')}</option>
-                          <option value="applicatieflow">{t('form.flowtypeApplicatieflow')}</option>
-                        </select>
-                      </div>
-                      <div>
-                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.scope')}</div>
-                        <select
-                          value={scopeFilter}
-                          onChange={(e) => setScopeFilter(e.target.value)}
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
-                        >
-                          <option value="alle">{t('scope.alle')}</option>
-                          <option value="intern">{t('scope.intern')}</option>
-                          <option value="extern">{t('scope.extern')}</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="mt-2.5">
-                      <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.filterAppLabel')}</div>
-                      <select
-                        value={appLabelFilter}
-                        onChange={(e) => setAppLabelFilter(e.target.value)}
-                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
-                      >
-                        <option value="alle">{t('teampage.filterAll')}</option>
-                        <option value="overstijgend">{t('teampage.appOverstijgend')}</option>
-                        {workflow.applications.map((app) => (
-                          <option key={app.id} value={app.id}>
-                            {app.naam || '—'}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="mt-2.5">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('filter.riskLevel')}</span>
-                        <button type="button" onClick={() => setRiskLevelFilter(new Set(RISK_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
-                          {t('filter.selectAll')}
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {RISK_LEVELS.map((lvl) => {
-                          const active = riskLevelFilter.has(lvl)
-                          return (
-                            <button
-                              key={lvl}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() =>
-                                setRiskLevelFilter((prev) => {
-                                  const next = new Set(prev)
-                                  if (next.has(lvl)) next.delete(lvl)
-                                  else next.add(lvl)
-                                  return next
-                                })
-                              }
-                              className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
-                                active ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                              }`}
-                            >
-                              {translateRiskLevel(lvl, language)}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="mt-2.5">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('matrix.col.status')}</span>
-                        <button type="button" onClick={() => setStatusFilter(new Set(STATUS_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
-                          {t('filter.selectAll')}
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {STATUS_LEVELS.map((s) => {
-                          const active = statusFilter.has(s)
-                          return (
-                            <button
-                              key={s}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() =>
-                                setStatusFilter((prev) => {
-                                  const next = new Set(prev)
-                                  if (next.has(s)) next.delete(s)
-                                  else next.add(s)
-                                  return next
-                                })
-                              }
-                              className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
-                                active ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                              }`}
-                            >
-                              {translateStatus(s, language)}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    <div className="mt-2.5">
-                      <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.workflowStap')}</span>
-                        <button
-                          type="button"
-                          onClick={() => setWorkflowStapFilter(new Set(WORKFLOW_STAP_LEVELS))}
-                          className="text-[10px] text-[#2a5f8a] hover:underline"
-                        >
-                          {t('filter.selectAll')}
-                        </button>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {WORKFLOW_STAP_LEVELS.map((stap) => {
-                          const active = workflowStapFilter.has(stap)
-                          return (
-                            <button
-                              key={stap}
-                              type="button"
-                              aria-pressed={active}
-                              onClick={() =>
-                                setWorkflowStapFilter((prev) => {
-                                  const next = new Set(prev)
-                                  if (next.has(stap)) next.delete(stap)
-                                  else next.add(stap)
-                                  return next
-                                })
-                              }
-                              className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
-                                active ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                              }`}
-                            >
-                              {translateWorkflowStap(stap, language)}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={clearDepFilters}
-                      disabled={!depFiltersActive}
-                      className="mt-3 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      {t('teampage.depFiltersClear')}
-                    </button>
-                  </div>
-                )}
-              </div>
+              <DepFiltersDropdown
+                open={depFiltersOpen}
+                onToggle={() => setDepFiltersOpen((v) => !v)}
+                active={depFiltersActive}
+                flowtypeFilter={flowtypeFilter}
+                setFlowtypeFilter={setFlowtypeFilter}
+                scopeFilter={scopeFilter}
+                setScopeFilter={setScopeFilter}
+                appLabelFilter={appLabelFilter}
+                setAppLabelFilter={setAppLabelFilter}
+                applications={workflow.applications}
+                riskLevelFilter={riskLevelFilter}
+                setRiskLevelFilter={setRiskLevelFilter}
+                statusFilter={statusFilter}
+                setStatusFilter={setStatusFilter}
+                workflowStapFilter={workflowStapFilter}
+                setWorkflowStapFilter={setWorkflowStapFilter}
+                onClear={clearDepFilters}
+                t={t}
+                language={language}
+              />
             </div>
             )}
 
@@ -3086,10 +3159,22 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
 
           {adminSections.applicatieflow && (
           <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.tabApplicatieflow')}</h3>
-            </div>
-            <ApplicatieflowTab workflow={workflow} patch={patch} onAddApplication={adminSections.applicaties ? addApplication : undefined} />
+            <button
+              type="button"
+              onClick={() => setApplicatieflowOpen((v) => !v)}
+              aria-expanded={applicatieflowOpen}
+              className="flex w-full items-center gap-1.5 text-left text-sm font-semibold text-slate-800"
+            >
+              <span className={`text-slate-400 transition-transform ${applicatieflowOpen ? 'rotate-90' : ''}`} aria-hidden="true">
+                ›
+              </span>
+              {t('teampage.tabApplicatieflow')}
+            </button>
+            {applicatieflowOpen && (
+              <div className="mt-3">
+                <ApplicatieflowTab workflow={workflow} patch={patch} onAddApplication={adminSections.applicaties ? addApplication : undefined} />
+              </div>
+            )}
           </div>
           )}
 
