@@ -2786,6 +2786,40 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     patch({ layout: {} })
   }
 
+  // Eén keer opgebouwd, tweemaal hergebruikt: dezelfde tab-knoppen staan nu
+  // in de kop van zowel de Dependencies- als de Teamgegevens-kaart, zodat je
+  // altijd kunt wisselen zonder dat het een los blokje boven de kaart is.
+  const hasDependenciesTab = adminSections.dependencies
+  const hasTeamDataTab =
+    adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit
+  const tabSelector = (hasDependenciesTab || hasTeamDataTab) && (
+    <div role="group" aria-label={t('teampage.bottomTabsLabel')} className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-sm">
+      {hasDependenciesTab && (
+        <button
+          type="button"
+          onClick={() => setBottomSectionTab('dependencies')}
+          aria-pressed={bottomSectionTab === 'dependencies'}
+          className={`rounded px-3 py-1.5 font-medium transition-colors ${
+            bottomSectionTab === 'dependencies' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {t('teampage.dependenciesTitle')}
+        </button>
+      )}
+      {hasTeamDataTab && (
+        <button
+          type="button"
+          onClick={() => setBottomSectionTab('teamgegevens')}
+          aria-pressed={bottomSectionTab === 'teamgegevens'}
+          className={`rounded px-3 py-1.5 font-medium transition-colors ${
+            bottomSectionTab === 'teamgegevens' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {t('teampage.teamDataTitle')}
+        </button>
+      )}
+    </div>
+  )
 
   return (
     <div className="space-y-4">
@@ -3254,43 +3288,10 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
             />
           )}
 
-          {(adminSections.dependencies ||
-            adminSections.applicaties ||
-            adminSections.applicatieflow ||
-            adminSections.input ||
-            adminSections.output ||
-            adminSections.capaciteit) && (
-            <div role="group" aria-label={t('teampage.bottomTabsLabel')} className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-sm">
-              {adminSections.dependencies && (
-                <button
-                  type="button"
-                  onClick={() => setBottomSectionTab('dependencies')}
-                  aria-pressed={bottomSectionTab === 'dependencies'}
-                  className={`rounded px-3 py-1.5 font-medium transition-colors ${
-                    bottomSectionTab === 'dependencies' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {t('teampage.dependenciesTitle')}
-                </button>
-              )}
-              {(adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit) && (
-                <button
-                  type="button"
-                  onClick={() => setBottomSectionTab('teamgegevens')}
-                  aria-pressed={bottomSectionTab === 'teamgegevens'}
-                  className={`rounded px-3 py-1.5 font-medium transition-colors ${
-                    bottomSectionTab === 'teamgegevens' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                  }`}
-                >
-                  {t('teampage.teamDataTitle')}
-                </button>
-              )}
-            </div>
-          )}
-
           {adminSections.dependencies && bottomSectionTab === 'dependencies' && (
           <div data-tour="dependencies" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-end">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              {tabSelector}
               <button
                 type="button"
                 onClick={() => setFormState({ editing: null, defaultTeamId: teamId })}
@@ -3429,6 +3430,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
           {(adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit) &&
             bottomSectionTab === 'teamgegevens' && (
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3">{tabSelector}</div>
             <div className="divide-y divide-slate-100">
               {adminSections.applicaties && (
                 <TeamDataBlock
