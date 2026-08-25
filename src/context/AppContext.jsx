@@ -300,6 +300,23 @@ export function AppProvider({ children }) {
     [state, persist],
   )
 
+  // Voor 'N dependencies tegelijk aanmaken' (bv. een ketenafhankelijkheid
+  // voor meerdere teams): meerdere addDependency-aanroepen ná elkaar zouden
+  // allemaal vanuit dezelfde (stale) state-snapshot bouwen — élke aanroep
+  // overschrijft dan de vorige in plaats van erop voort te bouwen, en alleen
+  // de laatste blijft over. Bouw de records daarom in één keer en persist ze
+  // in één state-update.
+  const addDependencies = useCallback(
+    (deps) => {
+      const now = new Date().toISOString().slice(0, 10)
+      const records = deps.map((dependency) => ({ ...dependency, id: generateId(), laatst_bijgewerkt: now }))
+      const next = { ...state, dependencies: [...state.dependencies, ...records], usingMockData: false }
+      persist(next)
+      return records
+    },
+    [state, persist],
+  )
+
   const updateDependency = useCallback(
     (id, updates) => {
       const next = {
@@ -346,6 +363,15 @@ export function AppProvider({ children }) {
     setCurrentTeamId(firstActiveTeamId(next.teams))
   }, [])
 
+  // Admin: pagina's/secties tonen of verbergen. Puur UI, geen datawijziging —
+  // zie DEFAULT_ADMIN_SETTINGS in lib/storage.js voor de volledige structuur.
+  const updateAdminSettings = useCallback(
+    (next) => {
+      persist({ ...state, adminSettings: next })
+    },
+    [state, persist],
+  )
+
   const value = useMemo(
     () => ({
       schemaVersion: state.schemaVersion,
@@ -357,6 +383,8 @@ export function AppProvider({ children }) {
       teamWorkflows: state.teamWorkflows,
       teamSnapshots: state.teamSnapshots,
       usingMockData: state.usingMockData,
+      adminSettings: state.adminSettings,
+      updateAdminSettings,
       currentTeamId,
       setCurrentTeamId,
       scope,
@@ -375,6 +403,7 @@ export function AppProvider({ children }) {
       unarchiveFunctie,
       deleteFunctie,
       addDependency,
+      addDependencies,
       updateDependency,
       deleteDependency,
       clearAllData,
@@ -407,6 +436,7 @@ export function AppProvider({ children }) {
       unarchiveFunctie,
       deleteFunctie,
       addDependency,
+      addDependencies,
       updateDependency,
       deleteDependency,
       clearAllData,
@@ -418,6 +448,7 @@ export function AppProvider({ children }) {
       renameSnapshot,
       restoreSnapshot,
       deleteSnapshot,
+      updateAdminSettings,
     ],
   )
 

@@ -8,7 +8,7 @@ import TeamFilterPanel from './TeamFilterPanel'
 import { translateWorkflowStap, translateEffectOpFlow } from '../i18n/labels'
 import { RISK_LEVELS, WORKFLOW_STAP_LEVELS, EFFECT_OP_FLOW_LEVELS } from '../data/constants'
 
-export default function MatrixView({ onSelect }) {
+export default function MatrixView({ onSelect, adminSections }) {
   const { dependencies, teams, teamName, scope, setScope } = useAppContext()
   const { t, language } = useLanguage()
   const [sortBy, setSortBy] = useState('risk_desc')
@@ -78,33 +78,36 @@ export default function MatrixView({ onSelect }) {
 
   return (
     <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-slate-800">
-            {teamLabel}
-            <span className="ml-2 font-normal text-slate-400">({rows.length})</span>
-          </h2>
-          <div className="flex items-center gap-2">
-            <ScopeToggle scope={scope} onChange={setScope} />
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
-              aria-label={t('matrix.sort.label')}
-              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
-            >
-              {SORT_OPTIONS.map((opt) => (
-                <option key={opt.id} value={opt.id}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+      {adminSections.tabel && (
+        <div className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
+            <h2 className="text-sm font-semibold text-slate-800">
+              {teamLabel}
+              <span className="ml-2 font-normal text-slate-400">({rows.length})</span>
+            </h2>
+            <div className="flex items-center gap-2">
+              <ScopeToggle scope={scope} onChange={setScope} />
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                aria-label={t('matrix.sort.label')}
+                className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                {SORT_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          <DependencyTable dependencies={rows.map(({ dependency }) => dependency)} showTeamColumn={showTeamColumn} onSelect={onSelect} />
         </div>
+      )}
 
-        <DependencyTable dependencies={rows.map(({ dependency }) => dependency)} showTeamColumn={showTeamColumn} onSelect={onSelect} />
-      </div>
-
-      <TeamFilterPanel
+      {adminSections.filters && (
+        <TeamFilterPanel
         teams={teams}
         selected={selectedTeams}
         onToggle={toggleTeam}
@@ -131,6 +134,7 @@ export default function MatrixView({ onSelect }) {
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateEffectOpFlow(v, language)),
         }}
       />
+      )}
     </div>
   )
 }

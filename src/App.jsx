@@ -14,8 +14,29 @@ import DependencyForm from './components/DependencyForm'
 import { exportElementAsPng } from './lib/export'
 import { buildDuplicatePrefill } from './lib/duplicateDependency'
 
+// Bewust géén silent no-op als een pagina via Admin uitgezet is (bv. een
+// verweesde teampagina-navigatie of een handmatige URL/state-restore): een
+// duidelijk bericht i.p.v. een leeg scherm, met een weg terug als die er is.
+function PageDisabledNotice({ onBack }) {
+  const { t } = useLanguage()
+  return (
+    <div className="mx-auto mt-10 max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+      <p className="text-sm text-slate-600">{t('admin.pageDisabled')}</p>
+      {onBack && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mt-3 rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+        >
+          {t('teampage.back')}
+        </button>
+      )}
+    </div>
+  )
+}
+
 function AppContent() {
-  const { setCurrentTeamId, addDependency, updateDependency, deleteDependency } = useAppContext()
+  const { setCurrentTeamId, addDependency, updateDependency, deleteDependency, adminSettings } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState('graph')
   // Weergavemodus van Netwerkweergave (Heatmap/Relatiekaart) leeft hier i.p.v.
@@ -128,29 +149,52 @@ function AppContent() {
         className={`mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${sidebarCollapsed ? 'md:pl-16' : 'md:pl-60'} ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
       >
         {teamPageTeamId ? (
-          <TeamPage key={teamPageTeamId} teamId={teamPageTeamId} onBack={() => setTeamPageTeamId(null)} />
+          adminSettings.pages.team ? (
+            <TeamPage
+              key={teamPageTeamId}
+              teamId={teamPageTeamId}
+              onBack={() => setTeamPageTeamId(null)}
+              adminSections={adminSettings.sections.team}
+            />
+          ) : (
+            <PageDisabledNotice onBack={() => setTeamPageTeamId(null)} />
+          )
         ) : (
           <>
-            {activeTab === 'matrix' && (
+            {activeTab === 'matrix' && adminSettings.pages.matrix && (
               <>
-                <ExecutiveSummary />
-                <InsightPanel />
+                {adminSettings.sections.matrix.samenvattingskaarten && <ExecutiveSummary />}
+                {adminSettings.sections.matrix.keyObservations && <InsightPanel />}
               </>
             )}
 
             <div ref={viewRef} className="bg-[#f3f6f9]">
-              {activeTab === 'matrix' && <MatrixView onSelect={setSelectedDependency} />}
-              {activeTab === 'graph' && (
-                <GraphView
-                  onSelect={setSelectedDependency}
-                  onQuickCreate={handleQuickCreate}
-                  viewMode={graphViewMode}
-                  highlight={graphHighlight}
-                  onClearHighlight={() => setGraphHighlight(null)}
-                  onDrillToRelatie={handleDrillToRelatie}
-                />
-              )}
-              {activeTab === 'chain' && <ChainOverview />}
+              {activeTab === 'matrix' &&
+                (adminSettings.pages.matrix ? (
+                  <MatrixView onSelect={setSelectedDependency} adminSections={adminSettings.sections.matrix} />
+                ) : (
+                  <PageDisabledNotice />
+                ))}
+              {activeTab === 'graph' &&
+                (adminSettings.pages.netwerk ? (
+                  <GraphView
+                    onSelect={setSelectedDependency}
+                    onQuickCreate={handleQuickCreate}
+                    viewMode={graphViewMode}
+                    highlight={graphHighlight}
+                    onClearHighlight={() => setGraphHighlight(null)}
+                    onDrillToRelatie={handleDrillToRelatie}
+                    adminSections={adminSettings.sections.netwerk}
+                  />
+                ) : (
+                  <PageDisabledNotice />
+                ))}
+              {activeTab === 'chain' &&
+                (adminSettings.pages.keten ? (
+                  <ChainOverview adminSections={adminSettings.sections.keten} />
+                ) : (
+                  <PageDisabledNotice />
+                ))}
             </div>
           </>
         )}

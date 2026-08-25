@@ -2,7 +2,17 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Handle, Position } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
-import { WORKFLOW_STAGES, BRON_TYPES, SENIORITY_LEVELS, RISICO_BIJ_UITVAL, WORKFLOW_STAP_TO_STAGE, FLOWTYPE_LEVELS } from '../data/constants'
+import {
+  WORKFLOW_STAGES,
+  BRON_TYPES,
+  SENIORITY_LEVELS,
+  RISICO_BIJ_UITVAL,
+  WORKFLOW_STAP_TO_STAGE,
+  FLOWTYPE_LEVELS,
+  WORKFLOW_STAP_LEVELS,
+  STATUS_LEVELS,
+  RISK_LEVELS,
+} from '../data/constants'
 import {
   translateWorkflowStage,
   translateWorkflowStap,
@@ -1783,7 +1793,7 @@ function CapacityRowModal({ row, activeFuncties, addFunctie, onSave, onRemove, o
   )
 }
 
-export default function TeamPage({ teamId, onBack }) {
+export default function TeamPage({ teamId, onBack, adminSections }) {
   const {
     teams,
     dependencies,
@@ -1791,16 +1801,12 @@ export default function TeamPage({ teamId, onBack }) {
     updateTeamWorkflow,
     removeApplicationEverywhere,
     addDependency,
+    addDependencies,
     updateDependency,
     deleteDependency,
     teamName,
     activeFuncties,
     addFunctie,
-    teamSnapshots,
-    saveSnapshot,
-    renameSnapshot,
-    restoreSnapshot,
-    deleteSnapshot,
   } = useAppContext()
   const { t, language } = useLanguage()
   const teamNaam = teamName(teamId)
@@ -1826,7 +1832,6 @@ export default function TeamPage({ teamId, onBack }) {
   // de aangeklikte ReactFlow-node zelf, zodat het paneel en de dim-laag
   // (displayNodes/displayEdges) er allebei content/id uit kunnen halen.
   const [canvasFocus, setCanvasFocus] = useState(null)
-  const [snapshotsOpen, setSnapshotsOpen] = useState(false)
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
   const [splitApplicaties, setSplitApplicaties] = useState(true)
@@ -1873,12 +1878,15 @@ export default function TeamPage({ teamId, onBack }) {
   const tourSteps = [
     { target: 'workflow-canvas', title: t('tour.step.canvas.title'), body: t('tour.step.canvas.body') },
     { target: 'toolbar', title: t('tour.step.toolbar.title'), body: t('tour.step.toolbar.body') },
-    { target: 'applications', title: t('tour.step.applications.title'), body: t('tour.step.applications.body') },
-    { target: 'applicatieflow-section', title: t('tour.step.applicatieflow.title'), body: t('tour.step.applicatieflow.body') },
-    { target: 'capacity', title: t('tour.step.capacity.title'), body: t('tour.step.capacity.body') },
-    { target: 'dependencies', title: t('tour.step.dependencies.title'), body: t('tour.step.dependencies.body') },
-    { target: 'snapshots-button', title: t('tour.step.snapshots.title'), body: t('tour.step.snapshots.body') },
-  ]
+    adminSections.applicaties && { target: 'applications', title: t('tour.step.applications.title'), body: t('tour.step.applications.body') },
+    adminSections.applicatieflow && {
+      target: 'applicatieflow-section',
+      title: t('tour.step.applicatieflow.title'),
+      body: t('tour.step.applicatieflow.body'),
+    },
+    adminSections.capaciteit && { target: 'capacity', title: t('tour.step.capacity.title'), body: t('tour.step.capacity.body') },
+    adminSections.dependencies && { target: 'dependencies', title: t('tour.step.dependencies.title'), body: t('tour.step.dependencies.body') },
+  ].filter(Boolean)
 
   const workflow = teamWorkflows[teamId] ?? emptyTeamWorkflow()
 
@@ -1915,15 +1923,96 @@ export default function TeamPage({ teamId, onBack }) {
     [dependencies, teamId],
   )
 
+  // --- Dependency-filters: beïnvloeden canvas én lijst tegelijk ---
+  // Bewust ruim opgezet (zoeken + 6 aparte filters) i.p.v. één simpele
+  // schakelaar, zodat een team met veel dependencies zelf kan bepalen hoeveel
+  // hij tegelijk ziet. 'Alle' / een lege Set-selectie betekent hier steeds
+  // "geen filter actief" — dat is ook de startstand.
+  const [depSearchQuery, setDepSearchQuery] = useState('')
+  const [flowtypeFilter, setFlowtypeFilter] = useState('alle')
+  const [scopeFilter, setScopeFilter] = useState('alle')
+  const [riskLevelFilter, setRiskLevelFilter] = useState(() => new Set(RISK_LEVELS))
+  const [statusFilter, setStatusFilter] = useState(() => new Set(STATUS_LEVELS))
+  const [workflowStapFilter, setWorkflowStapFilter] = useState(() => new Set(WORKFLOW_STAP_LEVELS))
+  const [appLabelFilter, setAppLabelFilter] = useState('alle')
+  const [depFiltersOpen, setDepFiltersOpen] = useState(false)
+
+  const depFiltersActive =
+    depSearchQuery.trim() !== '' ||
+    flowtypeFilter !== 'alle' ||
+    scopeFilter !== 'alle' ||
+    riskLevelFilter.size !== RISK_LEVELS.length ||
+    statusFilter.size !== STATUS_LEVELS.length ||
+    workflowStapFilter.size !== WORKFLOW_STAP_LEVELS.length ||
+    appLabelFilter !== 'alle'
+
+  function clearDepFilters() {
+    setDepSearchQuery('')
+    setFlowtypeFilter('alle')
+    setScopeFilter('alle')
+    setRiskLevelFilter(new Set(RISK_LEVELS))
+    setStatusFilter(new Set(STATUS_LEVELS))
+    setWorkflowStapFilter(new Set(WORKFLOW_STAP_LEVELS))
+    setAppLabelFilter('alle')
+  }
+
+  function depMatchesSearch(dep, query) {
+    if (!query) return true
+    const appNamen = (dep.applicatieIds ?? [])
+      .map((id) => workflow.applications.find((a) => a.id === id)?.naam)
+      .filter(Boolean)
+      .join(' ')
+    const haystack = [
+      dep.titel,
+      dep.toelichting,
+      dep.categorie,
+      dep.workflowStap ? translateWorkflowStap(dep.workflowStap, language) : '',
+      appNamen,
+      dep.actieAfspraak,
+      dep.mitigatie,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(query)
+  }
+
+  const filteredTeamDependencies = useMemo(() => {
+    const query = depSearchQuery.trim().toLowerCase()
+    return teamDependencies.filter((dep) => {
+      if (flowtypeFilter !== 'alle' && dep.flowtype !== flowtypeFilter) return false
+      if (scopeFilter !== 'alle' && dep.scope !== scopeFilter) return false
+      if (!riskLevelFilter.has(calculateRisk(dep).level)) return false
+      if (dep.status && !statusFilter.has(dep.status)) return false
+      if (dep.workflowStap && !workflowStapFilter.has(dep.workflowStap)) return false
+      if (appLabelFilter === 'overstijgend' && (dep.applicatieIds ?? []).length > 0) return false
+      if (appLabelFilter !== 'alle' && appLabelFilter !== 'overstijgend' && !(dep.applicatieIds ?? []).includes(appLabelFilter))
+        return false
+      if (!depMatchesSearch(dep, query)) return false
+      return true
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    teamDependencies,
+    depSearchQuery,
+    flowtypeFilter,
+    scopeFilter,
+    riskLevelFilter,
+    statusFilter,
+    workflowStapFilter,
+    appLabelFilter,
+    workflow.applications,
+    language,
+  ])
+
   // 'Dependencies van dit team' toont standaard alleen actieve (niet-
   // geaccepteerde) dependencies; geaccepteerde staan achter een eigen tabje
-  // — puur een weergavefilter op de lijst, de canvas (teamDependencies)
-  // blijft alles tonen.
+  // — bovenop dezelfde filters/zoekopdracht als de rest van de pagina.
   const [depTab, setDepTab] = useState('actief')
-  const acceptedDeps = useMemo(() => teamDependencies.filter((d) => d.geaccepteerd), [teamDependencies])
+  const acceptedDeps = useMemo(() => filteredTeamDependencies.filter((d) => d.geaccepteerd), [filteredTeamDependencies])
   const visibleTeamDependencies = useMemo(
-    () => teamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd')),
-    [teamDependencies, depTab],
+    () => filteredTeamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd')),
+    [filteredTeamDependencies, depTab],
   )
 
   // Drieledige splitsing per de Ontwikkelflow/Applicatieflow-scheiding:
@@ -2036,11 +2125,14 @@ export default function TeamPage({ teamId, onBack }) {
     [showIO, showTeambreed, riskFilterOn, showExternalTeams],
   )
 
-  // Wat het canvas te zien krijgt. Los van de lijst eronder (die op het
-  // Actief/Geaccepteerd-tabje filtert) — hier bepaalt de Weergeven-toggle het.
+  // Wat het canvas te zien krijgt: dezelfde dependency-filters/zoekopdracht
+  // als de lijst eronder (zie filteredTeamDependencies), plus de losse
+  // Weergeven-toggle voor geaccepteerd — zo blijven canvas en lijst altijd
+  // consistent, ook al heeft de lijst daarbovenop nog het Actief/Geaccepteerd-
+  // tabje.
   const canvasDependencies = useMemo(
-    () => (showGeaccepteerd ? teamDependencies : teamDependencies.filter((d) => !d.geaccepteerd)),
-    [teamDependencies, showGeaccepteerd],
+    () => (showGeaccepteerd ? filteredTeamDependencies : filteredTeamDependencies.filter((d) => !d.geaccepteerd)),
+    [filteredTeamDependencies, showGeaccepteerd],
   )
 
   // Beheerlijst met applicaties: zoeken filtert, inklappen verbergt de rest.
@@ -2322,11 +2414,22 @@ export default function TeamPage({ teamId, onBack }) {
     patch({ outputs: workflow.outputs.filter((o) => o.id !== id) })
   }
 
+  // Ketenniveau + meerdere teams: het datamodel kent maar één team per
+  // dependency, dus 'meerdere teams' wordt hier veilig vertaald naar één
+  // echte dependency per gekozen team (zelfde inhoud, eigen id, eigen
+  // teamId). extraTeamIds is puur formulierstate en hoort niet in het
+  // opgeslagen record.
   function handleSaveDependency(payload) {
+    const { extraTeamIds, ...rest } = payload
     if (formState?.editing) {
-      updateDependency(formState.editing.id, payload)
+      updateDependency(formState.editing.id, rest)
+    } else if (extraTeamIds?.length) {
+      // Eén enkele batch-aanroep i.p.v. addDependency N keer ná elkaar: die
+      // zouden allemaal vanuit dezelfde state-snapshot bouwen en elkaar dus
+      // overschrijven in plaats van optellen (zie addDependencies).
+      addDependencies([rest, ...extraTeamIds.map((teamId) => ({ ...rest, teamId }))])
     } else {
-      addDependency(payload)
+      addDependency(rest)
     }
     setFormState(null)
   }
@@ -2353,31 +2456,6 @@ export default function TeamPage({ teamId, onBack }) {
     patch({ layout: {} })
   }
 
-  function handleClearWorkflow() {
-    if (window.confirm(t('teampage.clearConfirm', { team: teamNaam }))) {
-      updateTeamWorkflow(teamId, emptyTeamWorkflow())
-    }
-  }
-
-  const snapshots = [...(teamSnapshots[teamId] ?? [])].reverse()
-
-  function handleSaveSnapshot() {
-    saveSnapshot(teamId)
-  }
-
-  function handleLoadSnapshot(snapshot) {
-    if (window.confirm(t('teampage.snapshotsLoadConfirm', { naam: snapshot.naam, team: teamNaam }))) {
-      restoreSnapshot(teamId, snapshot.id)
-      setSnapshotsOpen(false)
-    }
-  }
-
-  function formatSnapshotTimestamp(iso) {
-    return new Date(iso).toLocaleString(language === 'nl' ? 'nl-NL' : 'en-GB', {
-      dateStyle: 'short',
-      timeStyle: 'short',
-    })
-  }
 
   return (
     <div className="space-y-4">
@@ -2397,74 +2475,6 @@ export default function TeamPage({ teamId, onBack }) {
           >
             {t('tour.replay')}
           </button>
-          <div className="relative">
-            <button
-              type="button"
-              data-tour="snapshots-button"
-              onClick={() => setSnapshotsOpen((v) => !v)}
-              className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-            >
-              {t('teampage.snapshots')} ({snapshots.length})
-            </button>
-            {snapshotsOpen && (
-              <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-xl">
-                <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                  <h3 className="text-sm font-semibold text-slate-800">{t('teampage.snapshots')}</h3>
-                  <button type="button" onClick={() => setSnapshotsOpen(false)} className="text-slate-400 hover:text-slate-600">
-                    ✕
-                  </button>
-                </div>
-                <div className="space-y-3 px-4 py-3.5">
-                  <button
-                    type="button"
-                    onClick={handleSaveSnapshot}
-                    className="w-full rounded-md bg-[#2a5f8a] px-3 py-2 text-xs font-medium text-white hover:bg-[#1f4a6c]"
-                  >
-                    {t('teampage.snapshotsSave')}
-                  </button>
-                  <p className="text-[11px] text-slate-400">{t('teampage.snapshotsMaxHint')}</p>
-                  {snapshots.length === 0 && <p className="text-xs text-slate-400">{t('teampage.snapshotsEmpty')}</p>}
-                  <div className="max-h-72 space-y-2 overflow-y-auto">
-                    {snapshots.map((snapshot) => (
-                      <div key={snapshot.id} className="rounded-md border border-slate-200 p-2.5">
-                        <input
-                          value={snapshot.naam}
-                          onChange={(e) => renameSnapshot(teamId, snapshot.id, e.target.value)}
-                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
-                        />
-                        <div className="mt-1.5 flex items-center justify-between">
-                          <span className="text-[11px] text-slate-400">{formatSnapshotTimestamp(snapshot.timestamp)}</span>
-                          <div className="flex gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleLoadSnapshot(snapshot)}
-                              className="rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
-                            >
-                              {t('teampage.snapshotsLoad')}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => deleteSnapshot(teamId, snapshot.id)}
-                              className="rounded-md border border-[#9a3b2e]/30 px-2 py-1 text-[11px] text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
-                            >
-                              {t('teampage.remove')}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={handleClearWorkflow}
-            className="rounded-md border border-[#9a3b2e]/30 px-2.5 py-1 text-xs font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
-          >
-            {t('teampage.clear')}
-          </button>
         </div>
       </div>
 
@@ -2473,25 +2483,26 @@ export default function TeamPage({ teamId, onBack }) {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.workflowTitle')}</h3>
-              <span className="text-[11px] text-slate-400">{t('teampage.workflowHint')}</span>
             </div>
 
             <div
               data-tour="toolbar"
               className="-mx-4 -mt-4 mb-3 flex min-h-[56px] flex-wrap items-center gap-1.5 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
             >
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => addAnnotation('note')}
-                  className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  {t('teampage.toolbarNote')}
-                </button>
-                <div className="mx-1">
-                  <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
+              {adminSections.aantekeningen && (
+                <div className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => addAnnotation('note')}
+                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    {t('teampage.toolbarNote')}
+                  </button>
+                  <div className="mx-1">
+                    <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="ml-auto flex items-center gap-2">
                 {splitApplicaties && workflow.applications.length > 4 && (
@@ -2740,6 +2751,7 @@ export default function TeamPage({ teamId, onBack }) {
             </div>
           </div>
 
+          {adminSections.applicaties && (
           <div data-tour="applications" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-1 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.applicationsTitle')}</h3>
@@ -2815,6 +2827,7 @@ export default function TeamPage({ teamId, onBack }) {
               })}
             </ul>
           </div>
+          )}
 
           {appDetailId &&
             (() => {
@@ -2888,14 +2901,17 @@ export default function TeamPage({ teamId, onBack }) {
             />
           )}
 
+          {adminSections.applicatieflow && (
           <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3">
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.tabApplicatieflow')}</h3>
             </div>
-            <ApplicatieflowTab workflow={workflow} patch={patch} />
+            <ApplicatieflowTab workflow={workflow} patch={patch} onAddApplication={adminSections.applicaties ? addApplication : undefined} />
           </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
+            {adminSections.input && (
             <IoListEditor
               title={t('teampage.inputsTitle')}
               kind="input"
@@ -2912,6 +2928,8 @@ export default function TeamPage({ teamId, onBack }) {
               t={t}
               language={language}
             />
+            )}
+            {adminSections.output && (
             <IoListEditor
               title={t('teampage.outputsTitle')}
               kind="output"
@@ -2927,8 +2945,10 @@ export default function TeamPage({ teamId, onBack }) {
               t={t}
               language={language}
             />
+            )}
           </div>
 
+          {adminSections.capaciteit && (
           <div data-tour="capacity" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.capacityTitle')}</h3>
@@ -2968,6 +2988,7 @@ export default function TeamPage({ teamId, onBack }) {
               })}
             </ul>
           </div>
+          )}
 
           {capacityModalRow !== undefined && (
             <CapacityRowModal
@@ -2993,6 +3014,7 @@ export default function TeamPage({ teamId, onBack }) {
             />
           )}
 
+          {adminSections.dependencies && (
           <div data-tour="dependencies" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.dependenciesTitle')}</h3>
@@ -3004,6 +3026,196 @@ export default function TeamPage({ teamId, onBack }) {
                 {t('header.newDependency')}
               </button>
             </div>
+
+            {adminSections.filters && (
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <input
+                value={depSearchQuery}
+                onChange={(e) => setDepSearchQuery(e.target.value)}
+                placeholder={t('teampage.depSearchPlaceholder')}
+                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+              />
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setDepFiltersOpen((v) => !v)}
+                  aria-expanded={depFiltersOpen}
+                  className={`flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    depFiltersActive
+                      ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
+                      : 'border-slate-300 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {t('teampage.depFiltersButton')}
+                  {depFiltersActive && <span className="h-1.5 w-1.5 rounded-full bg-[#2a5f8a]" aria-hidden="true" />}
+                  ▾
+                </button>
+                {depFiltersOpen && (
+                  <div className="absolute right-0 top-9 z-20 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/10">
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.flowtype')}</div>
+                        <select
+                          value={flowtypeFilter}
+                          onChange={(e) => setFlowtypeFilter(e.target.value)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+                        >
+                          <option value="alle">{t('teampage.filterAll')}</option>
+                          <option value="ontwikkelflow">{t('form.flowtypeOntwikkelflow')}</option>
+                          <option value="applicatieflow">{t('form.flowtypeApplicatieflow')}</option>
+                        </select>
+                      </div>
+                      <div>
+                        <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.scope')}</div>
+                        <select
+                          value={scopeFilter}
+                          onChange={(e) => setScopeFilter(e.target.value)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+                        >
+                          <option value="alle">{t('scope.alle')}</option>
+                          <option value="intern">{t('scope.intern')}</option>
+                          <option value="extern">{t('scope.extern')}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5">
+                      <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.filterAppLabel')}</div>
+                      <select
+                        value={appLabelFilter}
+                        onChange={(e) => setAppLabelFilter(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+                      >
+                        <option value="alle">{t('teampage.filterAll')}</option>
+                        <option value="overstijgend">{t('teampage.appOverstijgend')}</option>
+                        {workflow.applications.map((app) => (
+                          <option key={app.id} value={app.id}>
+                            {app.naam || '—'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="mt-2.5">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('filter.riskLevel')}</span>
+                        <button type="button" onClick={() => setRiskLevelFilter(new Set(RISK_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
+                          {t('filter.selectAll')}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {RISK_LEVELS.map((lvl) => {
+                          const active = riskLevelFilter.has(lvl)
+                          return (
+                            <button
+                              key={lvl}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() =>
+                                setRiskLevelFilter((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(lvl)) next.delete(lvl)
+                                  else next.add(lvl)
+                                  return next
+                                })
+                              }
+                              className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                                active ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                            >
+                              {translateRiskLevel(lvl, language)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('matrix.col.status')}</span>
+                        <button type="button" onClick={() => setStatusFilter(new Set(STATUS_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
+                          {t('filter.selectAll')}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {STATUS_LEVELS.map((s) => {
+                          const active = statusFilter.has(s)
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() =>
+                                setStatusFilter((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(s)) next.delete(s)
+                                  else next.add(s)
+                                  return next
+                                })
+                              }
+                              className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                                active ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                            >
+                              {translateStatus(s, language)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="mt-2.5">
+                      <div className="mb-1 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.workflowStap')}</span>
+                        <button
+                          type="button"
+                          onClick={() => setWorkflowStapFilter(new Set(WORKFLOW_STAP_LEVELS))}
+                          className="text-[10px] text-[#2a5f8a] hover:underline"
+                        >
+                          {t('filter.selectAll')}
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {WORKFLOW_STAP_LEVELS.map((stap) => {
+                          const active = workflowStapFilter.has(stap)
+                          return (
+                            <button
+                              key={stap}
+                              type="button"
+                              aria-pressed={active}
+                              onClick={() =>
+                                setWorkflowStapFilter((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(stap)) next.delete(stap)
+                                  else next.add(stap)
+                                  return next
+                                })
+                              }
+                              className={`rounded-full px-2 py-0.5 text-[11px] transition-colors ${
+                                active ? 'bg-[#2a5f8a]/10 font-medium text-[#2a5f8a]' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                            >
+                              {translateWorkflowStap(stap, language)}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={clearDepFilters}
+                      disabled={!depFiltersActive}
+                      className="mt-3 w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {t('teampage.depFiltersClear')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            )}
+
             <div role="group" aria-label={t('teampage.depTabLabel')} className="mb-3 inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-xs">
               <button
                 type="button"
@@ -3011,7 +3223,7 @@ export default function TeamPage({ teamId, onBack }) {
                 aria-pressed={depTab === 'actief'}
                 className={`rounded px-2.5 py-1 font-medium transition-colors ${depTab === 'actief' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
               >
-                {t('teampage.depTabActief')} · {teamDependencies.length - acceptedDeps.length}
+                {t('teampage.depTabActief')} · {filteredTeamDependencies.length - acceptedDeps.length}
               </button>
               <button
                 type="button"
@@ -3024,7 +3236,11 @@ export default function TeamPage({ teamId, onBack }) {
             </div>
             {visibleTeamDependencies.length === 0 && (
               <p className="text-xs text-slate-400">
-                {depTab === 'geaccepteerd' ? t('teampage.dependenciesEmptyAccepted') : t('teampage.dependenciesEmpty')}
+                {depFiltersActive
+                  ? t('teampage.dependenciesEmptyFiltered')
+                  : depTab === 'geaccepteerd'
+                    ? t('teampage.dependenciesEmptyAccepted')
+                    : t('teampage.dependenciesEmpty')}
               </p>
             )}
 
@@ -3092,6 +3308,7 @@ export default function TeamPage({ teamId, onBack }) {
               </div>
             )}
           </div>
+          )}
         </>
       )}
       </div>

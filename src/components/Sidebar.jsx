@@ -278,6 +278,17 @@ export default function Sidebar({
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { t } = useLanguage()
+  const { adminSettings } = useAppContext()
+
+  // Admin-toggles filteren de navigatie i.p.v. de losse view-componenten elk
+  // voor zich te laten checken of ze zelf nog wel getoond mogen worden.
+  const visibleNavItems = NAV_ITEMS.filter((item) => {
+    if (item.key === 'heatmap') return adminSettings.pages.netwerk && adminSettings.sections.netwerk.heatmap
+    if (item.key === 'bipartite') return adminSettings.pages.netwerk && adminSettings.sections.netwerk.relatiekaart
+    if (item.key === 'matrix') return adminSettings.pages.matrix
+    if (item.key === 'chain') return adminSettings.pages.keten
+    return true
+  })
 
   return (
     <nav
@@ -298,7 +309,7 @@ export default function Sidebar({
         <CollapseIcon collapsed={collapsed} />
       </button>
 
-      {NAV_ITEMS.map((item) => {
+      {visibleNavItems.map((item) => {
         const Icon = item.icon
         const active = item.graphMode ? activeTab === 'graph' && graphViewMode === item.graphMode : activeTab === item.tab
         return (
@@ -320,7 +331,7 @@ export default function Sidebar({
 
       <div className={`my-1 h-px bg-white/10 ${collapsed ? 'w-8' : ''}`} />
 
-      {!collapsed && <TeamsSection activeTeamId={activeTeamId} onNavigateToTeam={onNavigateToTeam} />}
+      {!collapsed && adminSettings.pages.team && <TeamsSection activeTeamId={activeTeamId} onNavigateToTeam={onNavigateToTeam} />}
 
       <div className="relative mt-auto">
         <RailButton

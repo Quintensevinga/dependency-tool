@@ -90,6 +90,12 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   const [form, setForm] = useState(() => initialFormRef.current)
   const [touched, setTouched] = useState({})
   const [confirmDiscard, setConfirmDiscard] = useState(false)
+  // Ketenniveau + meerdere teams: puur formulierstate, geen dependency-veld.
+  // Bij opslaan maakt TeamPage hier één dependency-kopie per gekozen team
+  // van (zie handleSaveDependency) — het datamodel kent maar één team per
+  // dependency.
+  const [multiTeam, setMultiTeam] = useState(false)
+  const [extraTeamIds, setExtraTeamIds] = useState([])
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
 
@@ -134,6 +140,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     if (Object.keys(errors).length > 0) return
     const payload = { ...form }
     if (form.scope === 'intern') delete payload.geraakte_team_extern
+    if (form.scope === 'extern' && multiTeam && extraTeamIds.length > 0) payload.extraTeamIds = extraTeamIds
     onSave(payload)
   }
 
@@ -327,6 +334,55 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 className={inputClass}
               />
               {touched.geraakte_team_extern && <FieldError id="err-geraakt" message={errors.geraakte_team_extern} />}
+            </div>
+          )}
+
+          {form.scope === 'extern' && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <label className="flex items-start gap-2 text-xs text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={multiTeam}
+                  onChange={(e) => {
+                    setMultiTeam(e.target.checked)
+                    if (!e.target.checked) setExtraTeamIds([])
+                  }}
+                  className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                />
+                <span className="font-medium text-slate-700">{t('form.multiTeamQuestion')}</span>
+              </label>
+              {multiTeam && (
+                <div className="mt-2.5">
+                  <div className="mb-1.5 text-[11px] text-slate-500">
+                    {t('form.multiTeamHint', { team: teamLabels[form.teamId] ?? '—' })}
+                  </div>
+                  <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-slate-200 bg-white p-2">
+                    {activeTeams
+                      .filter((tm) => tm.id !== form.teamId)
+                      .map((tm) => {
+                        const checked = extraTeamIds.includes(tm.id)
+                        return (
+                          <label key={tm.id} className="flex items-center gap-2 rounded px-1 py-1 text-xs text-slate-700 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() =>
+                                setExtraTeamIds((prev) => (checked ? prev.filter((id) => id !== tm.id) : [...prev, tm.id]))
+                              }
+                              className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                            />
+                            {teamLabels[tm.id] ?? tm.naam}
+                          </label>
+                        )
+                      })}
+                  </div>
+                  {extraTeamIds.length > 0 && (
+                    <p className="mt-1.5 text-[11px] text-[#2a5f8a]">
+                      {t('form.multiTeamCount', { count: extraTeamIds.length + 1 })}
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

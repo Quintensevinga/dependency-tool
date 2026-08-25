@@ -34,6 +34,50 @@ export function emptyTeamWorkflow() {
   }
 }
 
+// --- admin: pagina's/secties aan- of uitzetten ---
+// Puur zichtbaarheid, geen dataverwijdering: een uitgezette sectie levert
+// gewoon geen JSX op, de onderliggende data blijft ongemoeid. Alles staat
+// standaard aan. Instellingen zelf zit hier bewust niet in — die pagina (en
+// daarmee Admin) moet altijd bereikbaar blijven, dus is niet uit te zetten.
+export const DEFAULT_ADMIN_SETTINGS = {
+  pages: {
+    matrix: true,
+    netwerk: true,
+    keten: true,
+    team: true,
+  },
+  sections: {
+    matrix: { samenvattingskaarten: true, keyObservations: true, tabel: true, filters: true },
+    netwerk: { heatmap: true, relatiekaart: true, categorieUitleg: true, selectiepaneel: true, filters: true },
+    keten: { filters: true, legenda: true },
+    team: {
+      applicatieflow: true,
+      ontwikkelflow: true,
+      applicaties: true,
+      input: true,
+      output: true,
+      capaciteit: true,
+      dependencies: true,
+      aantekeningen: true,
+      filters: true,
+    },
+  },
+}
+
+// Merget opgeslagen instellingen diep met de defaults: een nieuw toegevoegde
+// toggle in een latere versie staat zo altijd aan, en een onbekende/oude
+// sleutel in geïmporteerde data valt gewoon weg i.p.v. de UI te breken.
+export function migrateAdminSettings(raw) {
+  const source = raw && typeof raw === 'object' ? raw : {}
+  const pages = { ...DEFAULT_ADMIN_SETTINGS.pages, ...(source.pages && typeof source.pages === 'object' ? source.pages : {}) }
+  const sections = {}
+  for (const [pageKey, defaults] of Object.entries(DEFAULT_ADMIN_SETTINGS.sections)) {
+    const savedPage = source.sections?.[pageKey]
+    sections[pageKey] = { ...defaults, ...(savedPage && typeof savedPage === 'object' ? savedPage : {}) }
+  }
+  return { pages, sections }
+}
+
 // --- migratie ---
 
 // Zet teams (oud: array van strings, of al objecten) om naar het canonieke
@@ -146,6 +190,8 @@ export function migrateState(raw) {
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
   const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
 
+  const adminSettings = migrateAdminSettings(source.adminSettings)
+
   return {
     schemaVersion: SCHEMA_VERSION,
     teams: teamsState.teams,
@@ -154,6 +200,7 @@ export function migrateState(raw) {
     teamWorkflows,
     teamSnapshots,
     usingMockData: Boolean(source.usingMockData),
+    adminSettings,
   }
 }
 
@@ -216,6 +263,7 @@ function emptyState() {
     teamWorkflows: {},
     teamSnapshots: {},
     usingMockData: false,
+    adminSettings: migrateAdminSettings(),
   }
 }
 

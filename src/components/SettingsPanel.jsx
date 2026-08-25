@@ -2,7 +2,63 @@ import { useRef, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
+import { emptyTeamWorkflow } from '../lib/storage'
 import { useModalA11y } from '../lib/a11y'
+
+// Structuur voor de Admin-toggles: welke pagina's en secties zijn er, en hoe
+// heten ze. Bewust hier als platte config i.p.v. door het volledige i18n-
+// systeem (tientallen nieuwe sleutels voor wat een tijdelijk prototype-
+// paneel is) — wel gewoon NL/EN, alleen niet via strings.js.
+const ADMIN_PAGE_CONFIG = [
+  {
+    key: 'matrix',
+    labelNl: 'Matrix-overzicht',
+    labelEn: 'Matrix overview',
+    sections: [
+      { key: 'samenvattingskaarten', labelNl: 'Samenvattingskaarten', labelEn: 'Summary cards' },
+      { key: 'keyObservations', labelNl: 'Belangrijkste observaties', labelEn: 'Key observations' },
+      { key: 'tabel', labelNl: 'Tabel', labelEn: 'Table' },
+      { key: 'filters', labelNl: 'Filters', labelEn: 'Filters' },
+    ],
+  },
+  {
+    key: 'netwerk',
+    labelNl: 'Netwerkweergave',
+    labelEn: 'Network view',
+    sections: [
+      { key: 'heatmap', labelNl: 'Heatmap', labelEn: 'Heatmap' },
+      { key: 'relatiekaart', labelNl: 'Relatiekaart', labelEn: 'Relation map' },
+      { key: 'categorieUitleg', labelNl: 'Categorie-uitleg', labelEn: 'Category legend' },
+      { key: 'selectiepaneel', labelNl: 'Selectiepaneel', labelEn: 'Selection panel' },
+      { key: 'filters', labelNl: 'Filters', labelEn: 'Filters' },
+    ],
+  },
+  {
+    key: 'keten',
+    labelNl: 'Ketenoverzicht',
+    labelEn: 'Chain overview',
+    sections: [
+      { key: 'filters', labelNl: 'Filters', labelEn: 'Filters' },
+      { key: 'legenda', labelNl: 'Legenda', labelEn: 'Legend' },
+    ],
+  },
+  {
+    key: 'team',
+    labelNl: 'Teampagina',
+    labelEn: 'Team page',
+    sections: [
+      { key: 'applicatieflow', labelNl: 'Applicatieflow', labelEn: 'Application flow' },
+      { key: 'ontwikkelflow', labelNl: 'Ontwikkelflow', labelEn: 'Development flow' },
+      { key: 'applicaties', labelNl: 'Applicaties', labelEn: 'Applications' },
+      { key: 'input', labelNl: 'Input', labelEn: 'Input' },
+      { key: 'output', labelNl: 'Output', labelEn: 'Output' },
+      { key: 'capaciteit', labelNl: 'Capaciteit', labelEn: 'Capacity' },
+      { key: 'dependencies', labelNl: 'Dependencies van dit team', labelEn: "This team's dependencies" },
+      { key: 'aantekeningen', labelNl: 'Aantekeningen', labelEn: 'Notes' },
+      { key: 'filters', labelNl: 'Filters', labelEn: 'Filters' },
+    ],
+  },
+]
 
 function IconButton({ label, onClick, danger, children }) {
   return (
@@ -194,6 +250,7 @@ export default function SettingsPanel({ onClose, onExportPng }) {
     usingMockData,
     loadMockData,
     clearAllData,
+    updateTeamWorkflow,
     importState,
     addTeam,
     renameTeam,
@@ -205,18 +262,55 @@ export default function SettingsPanel({ onClose, onExportPng }) {
     archiveFunctie,
     unarchiveFunctie,
     deleteFunctie,
+    adminSettings,
+    updateAdminSettings,
   } = useAppContext()
-  const { t } = useLanguage()
+  const { t, language } = useLanguage()
   const [confirmingReset, setConfirmingReset] = useState(false)
+  const activeTeams = teams.filter((tm) => tm.actief)
+  const [clearTeamId, setClearTeamId] = useState('')
+  const [confirmingClearTeam, setConfirmingClearTeam] = useState(false)
   const [importError, setImportError] = useState('')
   const fileInputRef = useRef(null)
   const panelRef = useRef(null)
+  // Sessie-only: geen 'echte' auth, gewoon een tijdelijke prototype-
+  // afscherming. Ontgrendelt opnieuw bij elke page load/heropen — geen
+  // localStorage-vlag, dat zou de suggestie van echte beveiliging wekken.
+  const [adminUnlocked, setAdminUnlocked] = useState(false)
+  const [adminPasswordInput, setAdminPasswordInput] = useState('')
+  const [adminPasswordError, setAdminPasswordError] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
+
+  function handleAdminUnlock(e) {
+    e.preventDefault()
+    if (adminPasswordInput === 'ww') {
+      setAdminUnlocked(true)
+      setAdminPasswordError(false)
+      setAdminPasswordInput('')
+    } else {
+      setAdminPasswordError(true)
+    }
+  }
+
+  function togglePage(pageKey) {
+    updateAdminSettings({ ...adminSettings, pages: { ...adminSettings.pages, [pageKey]: !adminSettings.pages[pageKey] } })
+  }
+
+  function toggleSection(pageKey, sectionKey) {
+    updateAdminSettings({
+      ...adminSettings,
+      sections: {
+        ...adminSettings.sections,
+        [pageKey]: { ...adminSettings.sections[pageKey], [sectionKey]: !adminSettings.sections[pageKey][sectionKey] },
+      },
+    })
+  }
 
   useModalA11y({ open: true, onClose, containerRef: panelRef })
 
   function handleExportJson() {
     exportDataAsJson(
-      { teams, dependencies, functies, teamWorkflows, teamSnapshots, usingMockData, schemaVersion },
+      { teams, dependencies, functies, teamWorkflows, teamSnapshots, usingMockData, schemaVersion, adminSettings },
       `dependency-insight-export-${Date.now()}.json`,
     )
   }
@@ -328,7 +422,70 @@ export default function SettingsPanel({ onClose, onExportPng }) {
           )}
         </div>
 
-        <div className="border-t border-slate-100 pt-3">
+        <div className="space-y-3 border-t border-slate-100 pt-3">
+          <h3 className="text-xs font-semibold text-[#9a3b2e]">{t('settings.dangerZoneTitle')}</h3>
+
+          {activeTeams.length > 0 ? (
+            <div className="space-y-2 rounded-md border border-[#9a3b2e]/20 p-3">
+              <label htmlFor="clear-team-select" className="sr-only">
+                {t('settings.clearTeamPickerLabel')}
+              </label>
+              <select
+                id="clear-team-select"
+                value={clearTeamId || activeTeams[0].id}
+                onChange={(e) => {
+                  setClearTeamId(e.target.value)
+                  setConfirmingClearTeam(false)
+                }}
+                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                {activeTeams.map((tm) => (
+                  <option key={tm.id} value={tm.id}>
+                    {tm.naam}
+                  </option>
+                ))}
+              </select>
+              {!confirmingClearTeam ? (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingClearTeam(true)}
+                  className="w-full rounded-md border border-[#9a3b2e]/30 px-3 py-2 text-xs font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
+                >
+                  {t('teampage.clear')}
+                </button>
+              ) : (
+                <div className="space-y-2">
+                  <p className="text-xs text-slate-500">
+                    {t('teampage.clearConfirm', {
+                      team: activeTeams.find((tm) => tm.id === (clearTeamId || activeTeams[0].id))?.naam ?? '',
+                    })}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        updateTeamWorkflow(clearTeamId || activeTeams[0].id, emptyTeamWorkflow())
+                        setConfirmingClearTeam(false)
+                      }}
+                      className="flex-1 rounded-md bg-[#9a3b2e] px-3 py-2 text-xs font-medium text-white hover:bg-[#7f2f24]"
+                    >
+                      {t('settings.resetConfirmButton')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingClearTeam(false)}
+                      className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {t('settings.resetCancel')}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-slate-400">{t('settings.clearTeamNoTeams')}</p>
+          )}
+
           {!confirmingReset ? (
             <button
               type="button"
@@ -359,6 +516,84 @@ export default function SettingsPanel({ onClose, onExportPng }) {
                   {t('settings.resetCancel')}
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        <div className="border-t border-slate-100 pt-3">
+          <button
+            type="button"
+            onClick={() => setAdminOpen((v) => !v)}
+            aria-expanded={adminOpen}
+            className="flex w-full items-center justify-between rounded-md px-1 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            {t('settings.admin.title')}
+            <span className={`transition-transform ${adminOpen ? 'rotate-90' : ''}`} aria-hidden="true">
+              ›
+            </span>
+          </button>
+          {adminOpen && (
+            <div className="mt-2">
+              {!adminUnlocked ? (
+                <form onSubmit={handleAdminUnlock} className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.admin.disclaimer')}</p>
+                  <label htmlFor="admin-password" className="sr-only">
+                    {t('settings.admin.passwordLabel')}
+                  </label>
+                  <input
+                    id="admin-password"
+                    type="password"
+                    value={adminPasswordInput}
+                    onChange={(e) => {
+                      setAdminPasswordInput(e.target.value)
+                      setAdminPasswordError(false)
+                    }}
+                    placeholder={t('settings.admin.passwordLabel')}
+                    className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                  />
+                  {adminPasswordError && (
+                    <p role="alert" className="text-[11px] font-medium text-[#9a3b2e]">
+                      {t('settings.admin.passwordError')}
+                    </p>
+                  )}
+                  <button type="submit" className="w-full rounded-md bg-[#2a5f8a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1f4a6c]">
+                    {t('settings.admin.unlock')}
+                  </button>
+                </form>
+              ) : (
+                <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.admin.toggleHint')}</p>
+                  {ADMIN_PAGE_CONFIG.map((page) => (
+                    <div key={page.key} className="rounded-md border border-slate-200 bg-white p-2.5">
+                      <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={adminSettings.pages[page.key]}
+                          onChange={() => togglePage(page.key)}
+                          className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                        />
+                        {language === 'nl' ? page.labelNl : page.labelEn}
+                      </label>
+                      <div className="ml-5 mt-1.5 space-y-0.5">
+                        {page.sections.map((section) => (
+                          <label key={section.key} className="flex items-center gap-2 text-[11px] text-slate-600">
+                            <input
+                              type="checkbox"
+                              checked={adminSettings.sections[page.key][section.key]}
+                              disabled={!adminSettings.pages[page.key]}
+                              onChange={() => toggleSection(page.key, section.key)}
+                              className="h-3 w-3 rounded border-slate-300 accent-[#2a5f8a] disabled:opacity-40"
+                            />
+                            <span className={adminSettings.pages[page.key] ? '' : 'opacity-40'}>
+                              {language === 'nl' ? section.labelNl : section.labelEn}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

@@ -186,7 +186,7 @@ function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
   return { nodes: nodeList, edges: edgeList, categoriesPresent, graphHeight }
 }
 
-export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight, onClearHighlight, onDrillToRelatie }) {
+export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight, onClearHighlight, onDrillToRelatie, adminSections }) {
   const { teams, dependencies, teamLabels } = useAppContext()
   const { t, language } = useLanguage()
   const [listPanel, setListPanel] = useState(null)
@@ -224,6 +224,10 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   // Relatiekaart-preview eronder. Pas de expliciete 'Open in Relatiekaart'-
   // knop stuurt dezelfde selectie door naar onDrillToRelatie.
   const [heatmapSelection, setHeatmapSelection] = useState(null)
+  // Categorie-uitleg staat standaard ingeklapt: puur beschrijvende content die
+  // veel verticale ruimte innam. Eén gedeelde state, want Heatmap en
+  // Relatiekaart tonen 'm nooit tegelijk (ze wisselen elkaar af via viewMode).
+  const [legendOpen, setLegendOpen] = useState(false)
 
   const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
 
@@ -559,6 +563,18 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   const heatmapPanelRef = useRef(null)
   useModalA11y({ open: Boolean(heatmapSelection), onClose: clearHeatmapSelection, containerRef: heatmapPanelRef })
 
+  // De sidebar laat Heatmap/Relatiekaart al weg als de bijbehorende sectie
+  // via Admin uitstaat, maar viewMode zelf (App.jsx-state) kan daar los van
+  // blijven staan (bv. nog op 'heatmap' na het uitzetten ervan) — zonder deze
+  // check zou de content dan alsnog renderen.
+  if ((viewMode === 'heatmap' && !adminSections.heatmap) || (viewMode === 'bipartite' && !adminSections.relatiekaart)) {
+    return (
+      <div className="mx-auto mt-10 max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+        <p className="text-sm text-slate-600">{t('admin.pageDisabled')}</p>
+      </div>
+    )
+  }
+
   return (
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1">
@@ -774,15 +790,29 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                 )}
               </div>
 
-              {categoriesPresent.length > 0 && (
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-slate-100 bg-white px-4 py-2.5">
-                  <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{t('graph.legendHint')}</span>
-                  {categoriesPresent.map((cat) => (
-                    <span key={`legend-${cat}`} className="flex items-center gap-1 text-xs text-slate-500">
-                      <CategoryIcon categorie={cat} className="h-3.5 w-3.5 shrink-0" />
-                      {translateCategorie(cat, language)}
+              {categoriesPresent.length > 0 && adminSections.categorieUitleg && (
+                <div className="border-t border-slate-100 bg-white px-4 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setLegendOpen((v) => !v)}
+                    aria-expanded={legendOpen}
+                    className="flex items-center gap-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-400 hover:text-slate-600"
+                  >
+                    <span className={`transition-transform ${legendOpen ? 'rotate-90' : ''}`} aria-hidden="true">
+                      ›
                     </span>
-                  ))}
+                    {legendOpen ? t('graph.legendHide') : t('graph.legendShow')}
+                  </button>
+                  {legendOpen && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1.5 pb-0.5">
+                      {categoriesPresent.map((cat) => (
+                        <span key={`legend-${cat}`} className="flex items-center gap-1 text-xs text-slate-500">
+                          <CategoryIcon categorie={cat} className="h-3.5 w-3.5 shrink-0" />
+                          {translateCategorie(cat, language)}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -802,29 +832,23 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
 
         </div>
 
-        {viewMode === 'bipartite' && (
+        {viewMode === 'bipartite' && listPanel && adminSections.selectiepaneel && (
           <div ref={listPanelRef} className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
               <h2 className="text-sm font-semibold text-slate-800">
-                {listPanel ? listPanel.title : t('graph.selectionEmptyTitle')}
-                {listPanel && <span className="ml-2 font-normal text-slate-400">({listPanel.deps.length})</span>}
+                {listPanel.title}
+                <span className="ml-2 font-normal text-slate-400">({listPanel.deps.length})</span>
               </h2>
-              {listPanel && (
-                <button
-                  type="button"
-                  onClick={closeListPanel}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
-                >
-                  {t('graph.selectionClear')}
-                  <span aria-hidden="true">✕</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={closeListPanel}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+              >
+                {t('graph.selectionClear')}
+                <span aria-hidden="true">✕</span>
+              </button>
             </div>
-            {listPanel ? (
-              <DependencyTable dependencies={listPanel.deps} onSelect={onSelect} showTeamColumn />
-            ) : (
-              <div className="px-4 py-10 text-center text-sm text-slate-400">{t('graph.selectionEmptyHint')}</div>
-            )}
+            <DependencyTable dependencies={listPanel.deps} onSelect={onSelect} showTeamColumn />
           </div>
         )}
 
@@ -833,25 +857,22 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
             hier context (dezelfde dependency-lijst + een mini-uitsnede van
             de Relatiekaart voor alleen deze selectie). Pas de expliciete
             'Open in Relatiekaart'-knop hieronder maakt de overstap. */}
-        {viewMode === 'heatmap' && (
+        {viewMode === 'heatmap' && heatmapSelectionInfo && adminSections.selectiepaneel && (
           <div ref={heatmapPanelRef} className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
               <h2 className="text-sm font-semibold text-slate-800">
-                {heatmapSelectionInfo ? heatmapSelectionInfo.title : t('graph.selectionEmptyTitle')}
-                {heatmapSelectionInfo && <span className="ml-2 font-normal text-slate-400">({heatmapSelectionInfo.deps.length})</span>}
+                {heatmapSelectionInfo.title}
+                <span className="ml-2 font-normal text-slate-400">({heatmapSelectionInfo.deps.length})</span>
               </h2>
-              {heatmapSelectionInfo && (
-                <button
-                  type="button"
-                  onClick={clearHeatmapSelection}
-                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
-                >
-                  {t('graph.selectionClear')}
-                  <span aria-hidden="true">✕</span>
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={clearHeatmapSelection}
+                className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+              >
+                {t('graph.selectionClear')}
+                <span aria-hidden="true">✕</span>
+              </button>
             </div>
-            {heatmapSelectionInfo ? (
               <div className="flex flex-col gap-4 p-4 lg:flex-row">
                 <div className="shrink-0 lg:w-72">
                   <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/60" style={{ height: 220 }}>
@@ -893,55 +914,65 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                   />
                 </div>
               </div>
-            ) : (
-              <div className="px-4 py-10 text-center text-sm text-slate-400">{t('graph.selectionEmptyHint')}</div>
-            )}
           </div>
         )}
 
-        {categoriesPresent.length > 0 && viewMode === 'bipartite' && (
-          <div className="mt-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
-            <div className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-              {t('graph.legendHint')}
-            </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
-              {categoriesPresent.map((cat) => {
-                const active = highlightedCategory === cat
-                return (
-                  <button
-                    key={cat}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => toggleHighlight(cat)}
-                    className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors ${
-                      active ? 'bg-[#2a5f8a]/10 text-[#2a5f8a] font-medium' : 'text-slate-500 hover:bg-slate-50'
-                    }`}
-                  >
-                    <CategoryIcon categorie={cat} className="h-3.5 w-3.5 shrink-0" />
-                    {translateCategorie(cat, language)}
-                  </button>
-                )
-              })}
-            </div>
-
-            <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2.5">
-              <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                {t('graph.riskLegendTitle')}
+        {categoriesPresent.length > 0 && viewMode === 'bipartite' && adminSections.categorieUitleg && (
+          <div className="mt-3 rounded-lg border border-slate-200 bg-white px-4 py-2 shadow-sm">
+            <button
+              type="button"
+              onClick={() => setLegendOpen((v) => !v)}
+              aria-expanded={legendOpen}
+              className="flex items-center gap-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide text-slate-400 hover:text-slate-600"
+            >
+              <span className={`transition-transform ${legendOpen ? 'rotate-90' : ''}`} aria-hidden="true">
+                ›
               </span>
-              {RISK_LEVELS.slice()
-                .reverse()
-                .map((level) => (
-                  <span key={level} className="flex items-center gap-1.5 text-xs text-slate-500">
-                    <span className="h-1.5 w-4 shrink-0 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />
-                    {translateRiskLevel(level, language)}
+              {legendOpen ? t('graph.legendHide') : t('graph.legendShow')}
+            </button>
+            {legendOpen && (
+              <>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+                  {categoriesPresent.map((cat) => {
+                    const active = highlightedCategory === cat
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => toggleHighlight(cat)}
+                        className={`flex items-center gap-1.5 rounded-full px-2 py-1 text-xs transition-colors ${
+                          active ? 'bg-[#2a5f8a]/10 text-[#2a5f8a] font-medium' : 'text-slate-500 hover:bg-slate-50'
+                        }`}
+                      >
+                        <CategoryIcon categorie={cat} className="h-3.5 w-3.5 shrink-0" />
+                        {translateCategorie(cat, language)}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 border-t border-slate-100 pt-2.5">
+                  <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                    {t('graph.riskLegendTitle')}
                   </span>
-                ))}
-              <span className="text-[11px] text-slate-400">{t('graph.lineWidthHint')}</span>
-            </div>
+                  {RISK_LEVELS.slice()
+                    .reverse()
+                    .map((level) => (
+                      <span key={level} className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <span className="h-1.5 w-4 shrink-0 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />
+                        {translateRiskLevel(level, language)}
+                      </span>
+                    ))}
+                  <span className="text-[11px] text-slate-400">{t('graph.lineWidthHint')}</span>
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>
 
+      {adminSections.filters && (
       <TeamFilterPanel
         teams={teams}
         selected={selectedTeamIds}
@@ -961,6 +992,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
           renderLabel: (v) => (v === '' ? t('filter.notSet') : translateWorkflowStap(v, language)),
         }}
       />
+      )}
     </div>
   )
 }

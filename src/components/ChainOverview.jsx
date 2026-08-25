@@ -229,7 +229,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
   return { nodes, edges, canvasWidth, canvasHeight }
 }
 
-export default function ChainOverview() {
+export default function ChainOverview({ adminSections }) {
   const { teams, dependencies, teamWorkflows, teamLabels } = useAppContext()
   const { t } = useLanguage()
   // Gearchiveerde teams staan bij openen standaard uit, zelfde gedrag als
@@ -433,17 +433,19 @@ export default function ChainOverview() {
         )}
       </div>
 
-      <TeamFilterPanel
-        teams={teams}
-        selected={selectedTeamIds}
-        onToggle={toggleTeam}
-        onSelectAll={() => setDeselectedTeamIds(new Set())}
-        onSelectNone={() => setDeselectedTeamIds(new Set(teams.map((tm) => tm.id)))}
-        riskLevels={selectedRiskLevels}
-        onToggleRisk={toggleRiskLevel}
-        onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}
-        onShowAllRisk={() => setSelectedRiskLevels(RISK_LEVELS)}
-      />
+      {adminSections.filters && (
+        <TeamFilterPanel
+          teams={teams}
+          selected={selectedTeamIds}
+          onToggle={toggleTeam}
+          onSelectAll={() => setDeselectedTeamIds(new Set())}
+          onSelectNone={() => setDeselectedTeamIds(new Set(teams.map((tm) => tm.id)))}
+          riskLevels={selectedRiskLevels}
+          onToggleRisk={toggleRiskLevel}
+          onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}
+          onShowAllRisk={() => setSelectedRiskLevels(RISK_LEVELS)}
+        />
+      )}
     </div>
   )
 }
