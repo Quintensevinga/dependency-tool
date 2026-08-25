@@ -51,6 +51,20 @@ function Label({ children, required, htmlFor }) {
   )
 }
 
+function InfoIcon({ tooltip }) {
+  return (
+    <div className="group relative -mt-1 flex items-center">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="cursor-help text-slate-400" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+        <path d="M12 11v5.5M12 8v.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      </svg>
+      <div className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden w-64 rounded-lg bg-[#1e293b] px-3 py-2.5 text-xs leading-relaxed text-slate-100 shadow-xl group-hover:block">
+        {tooltip}
+      </div>
+    </div>
+  )
+}
+
 function FieldError({ id, message }) {
   if (!message) return null
   return (
@@ -228,7 +242,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
           </div>
 
           <div>
-            <Label required>{t('form.flowtype')}</Label>
+            <div className="mb-1 flex items-center gap-1.5">
+              <Label required>{t('form.flowtype')}</Label>
+              <InfoIcon tooltip={t('form.flowtypeHelper')} />
+            </div>
             <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
               {FLOWTYPE_LEVELS.map((value) => (
                 <button
@@ -245,26 +262,13 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 </button>
               ))}
             </div>
-            <p className="mt-1 text-xs text-slate-400">{t('form.flowtypeHelper')}</p>
             {touched.flowtype && <FieldError id="err-flowtype" message={errors.flowtype} />}
           </div>
 
           <div>
             <div className="mb-1 flex items-center gap-1.5">
               <Label required htmlFor="dep-categorie">{t('form.categorie')}</Label>
-              {/* Altijd zichtbaar (niet pas na een keuze) — hover is hier een
-                  extra, niet de enige manier om te zien dat categorieën een
-                  eigen uitleg hebben; de beschrijving zelf verschijnt na
-                  selectie hieronder, permanent zichtbaar. */}
-              <div className="group relative -mt-1 flex items-center">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="cursor-help text-slate-400" aria-hidden="true">
-                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
-                  <path d="M12 11v5.5M12 8v.01" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                </svg>
-                <div className="pointer-events-none absolute left-0 top-full z-20 mt-1.5 hidden w-64 rounded-lg bg-[#1e293b] px-3 py-2.5 text-xs leading-relaxed text-slate-100 shadow-xl group-hover:block">
-                  {t('form.categorieIconTooltip')}
-                </div>
-              </div>
+              <InfoIcon tooltip={t('form.categorieIconTooltip')} />
             </div>
             <p className="mb-1.5 text-xs text-slate-400">{t('form.categorieHelper')}</p>
             <select
@@ -448,9 +452,12 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
-                {t('form.workflowStap')}
-              </Label>
+              <div className="mb-1 flex items-center gap-1.5">
+                <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
+                  {t('form.workflowStap')}
+                </Label>
+                <InfoIcon tooltip={form.flowtype === 'ontwikkelflow' ? t('form.workflowStapRequiredHelper') : t('form.workflowStapOptionalHelper')} />
+              </div>
               {(
                 <>
                   <select
@@ -468,15 +475,15 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                       </option>
                     ))}
                   </select>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {form.flowtype === 'ontwikkelflow' ? t('form.workflowStapRequiredHelper') : t('form.workflowStapOptionalHelper')}
-                  </p>
                   {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
                 </>
               )}
             </div>
             <div>
-              <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
+              <div className="mb-1 flex items-center gap-1.5">
+                <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
+                <InfoIcon tooltip={t('form.effectOpFlowHelper')} />
+              </div>
               <select id="dep-effect" value={form.effectOpFlow} onChange={(e) => update('effectOpFlow', e.target.value)} className={inputClass}>
                 <option value="">—</option>
                 {EFFECT_OP_FLOW_LEVELS.map((lvl) => (
@@ -485,7 +492,6 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                   </option>
                 ))}
               </select>
-              <p className="mt-1 text-xs text-slate-400">{t('form.effectOpFlowHelper')}</p>
             </div>
           </div>
 
