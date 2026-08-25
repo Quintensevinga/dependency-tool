@@ -22,7 +22,7 @@ import {
 } from '../i18n/labels'
 
 const EMPTY_FORM = {
-  teamId: '',
+  teamIds: [],
   scope: 'intern',
   flowtype: '',
   categorie: '',
@@ -82,11 +82,16 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   const { t, language } = useLanguage()
   const dialogRef = useRef(null)
 
+  // Bewerken raakt altijd precies één bestaand record — Team(s) is daarom
+  // alleen een echte multi-select bij het aanmaken van een nieuwe dependency.
+  const isEditing = Boolean(initialData)
+
   // Eenmalig berekende startwaarde, ook bewaard (niet alleen als useState-
   // initializer) zodat we 'm later kunnen vergelijken met de live formstate
   // om te bepalen of de gebruiker iets heeft ingevuld/gewijzigd.
   const initialFormRef = useRef(null)
   if (initialFormRef.current === null) {
+    const initialTeamId = initialData?.teamId ?? prefill?.teamId ?? defaultTeamId ?? ''
     initialFormRef.current = {
       ...EMPTY_FORM,
       ...prefill,
@@ -94,7 +99,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
       // Bij een nieuwe dependency mag het team al voorgeselecteerd staan
       // (bv. vanaf de teampagina), maar blijft gewoon een normaal, wijzigbaar
       // keuzeveld — geen stille auto-select zonder zichtbare UI meer.
-      teamId: initialData?.teamId ?? prefill?.teamId ?? defaultTeamId ?? '',
+      teamIds: initialTeamId ? [initialTeamId] : [],
       flowtype: initialData?.flowtype ?? prefill?.flowtype ?? '',
       workflowStap: initialData?.workflowStap ?? prefill?.workflowStap ?? '',
       effectOpFlow: initialData?.effectOpFlow ?? prefill?.effectOpFlow ?? '',
@@ -104,12 +109,16 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   const [form, setForm] = useState(() => initialFormRef.current)
   const [touched, setTouched] = useState({})
   const [confirmDiscard, setConfirmDiscard] = useState(false)
-  // Ketenniveau + meerdere teams: puur formulierstate, geen dependency-veld.
-  // Bij opslaan maakt TeamPage hier één dependency-kopie per gekozen team
-  // van (zie handleSaveDependency) — het datamodel kent maar één team per
-  // dependency.
-  const [multiTeam, setMultiTeam] = useState(false)
-  const [extraTeamIds, setExtraTeamIds] = useState([])
+
+  // "Afhankelijk van / geraakt team of afdeling" is een vrij tekstveld in het
+  // datamodel (blijft dat ook — geen migratie nodig), maar biedt in de UI een
+  // keuze: een bestaand team (dan wordt de teamnaam in dat tekstveld gezet)
+  // of externe vrije tekst. Bij bewerken van een bestaande dependency wiens
+  // waarde toevallig exact een huidige teamnaam is, start de toggle al op
+  // "Bestaand team" met dat team voorgeselecteerd.
+  const matchedGeraaktTeam = teams.find((tm) => (teamLabels[tm.id] ?? tm.naam) === initialFormRef.current.geraakte_team_extern)
+  const [geraaktMode, setGeraaktMode] = useState(matchedGeraaktTeam ? 'team' : 'extern')
+  const [selectedGeraaktTeamId, setSelectedGeraaktTeamId] = useState(matchedGeraaktTeam?.id ?? '')
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
 
@@ -123,11 +132,12 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
 
   useModalA11y({ open: true, onClose: handleClose, containerRef: dialogRef })
 
-  const requiredFields = ['teamId', 'flowtype', 'categorie', 'titel', 'impact', 'frequentie', 'status']
+  const requiredFields = ['flowtype', 'categorie', 'titel', 'impact', 'frequentie', 'status']
   const errors = {}
   for (const field of requiredFields) {
     if (!form[field]?.trim?.()) errors[field] = t('form.required')
   }
+  if (form.teamIds.length === 0) errors.teamIds = t('form.required')
   if (form.scope === 'extern' && !form.geraakte_team_extern?.trim()) {
     errors.geraakte_team_extern = t('form.required')
   }
@@ -148,24 +158,33 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     })
   }
 
+  function toggleTeamId(teamId) {
+    setForm((f) => ({
+      ...f,
+      teamIds: f.teamIds.includes(teamId) ? f.teamIds.filter((id) => id !== teamId) : [...f.teamIds, teamId],
+    }))
+  }
+
   function handleSubmit(e) {
     e.preventDefault()
-    setTouched(Object.fromEntries([...requiredFields, 'workflowStap'].map((f) => [f, true])))
+    setTouched(Object.fromEntries([...requiredFields, 'teamIds', 'workflowStap'].map((f) => [f, true])))
     if (Object.keys(errors).length > 0) return
-    const payload = { ...form }
+    const { teamIds, ...rest } = form
+    const [teamId, ...extraTeamIds] = teamIds
+    const payload = { ...rest, teamId }
     if (form.scope === 'intern') delete payload.geraakte_team_extern
-    if (form.scope === 'extern' && multiTeam && extraTeamIds.length > 0) payload.extraTeamIds = extraTeamIds
+    if (extraTeamIds.length > 0) payload.extraTeamIds = extraTeamIds
     onSave(payload)
   }
 
   const categories = categoriesForScope(form.scope)
 
   // Een reeds gekoppeld, inmiddels gearchiveerd team blijft zichtbaar in de
-  // dropdown (anders verdwijnt het teamveld van een bestaande dependency
+  // keuzelijst (anders verdwijnt het teamveld van een bestaande dependency
   // spoorloos), maar is niet als nieuwe keuze te selecteren voor nieuwe
   // records.
-  const archivedSelectedTeam = teams.find((tm) => !tm.actief && tm.id === form.teamId)
-  const teamChoices = archivedSelectedTeam ? [...activeTeams, archivedSelectedTeam] : activeTeams
+  const archivedSelectedTeams = teams.filter((tm) => !tm.actief && form.teamIds.includes(tm.id))
+  const teamChoices = archivedSelectedTeams.length > 0 ? [...activeTeams, ...archivedSelectedTeams] : activeTeams
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
@@ -202,24 +221,54 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div>
-            <Label required htmlFor="dep-team">{t('form.team')}</Label>
-            <select
-              id="dep-team"
-              value={form.teamId}
-              onChange={(e) => update('teamId', e.target.value)}
-              onBlur={() => markTouched('teamId')}
-              aria-describedby={touched.teamId && errors.teamId ? 'err-team' : undefined}
-              className={inputClass}
-            >
-              <option value="">{t('form.teamPlaceholder')}</option>
-              {teamChoices.map((tm) => (
-                <option key={tm.id} value={tm.id}>
-                  {teamLabels[tm.id] ?? tm.naam}
-                  {!tm.actief ? ` (${t('settings.archived')})` : ''}
-                </option>
-              ))}
-            </select>
-            {touched.teamId && <FieldError id="err-team" message={errors.teamId} />}
+            <Label required htmlFor="dep-team">{isEditing ? t('form.team') : t('form.teams')}</Label>
+            {!isEditing && <p className="mb-1.5 text-xs text-slate-400">{t('form.teamsHelper')}</p>}
+            {isEditing ? (
+              <select
+                id="dep-team"
+                value={form.teamIds[0] ?? ''}
+                onChange={(e) => update('teamIds', e.target.value ? [e.target.value] : [])}
+                onBlur={() => markTouched('teamIds')}
+                aria-describedby={touched.teamIds && errors.teamIds ? 'err-team' : undefined}
+                className={inputClass}
+              >
+                <option value="">{t('form.teamPlaceholder')}</option>
+                {teamChoices.map((tm) => (
+                  <option key={tm.id} value={tm.id}>
+                    {teamLabels[tm.id] ?? tm.naam}
+                    {!tm.actief ? ` (${t('settings.archived')})` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <div id="dep-team" onBlur={() => markTouched('teamIds')} tabIndex={-1}>
+                {teamChoices.length === 0 ? (
+                  <p className="text-xs text-slate-400">{t('form.teamsEmpty')}</p>
+                ) : (
+                  <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-md border border-slate-300 bg-white p-1.5">
+                    {teamChoices.map((tm) => {
+                      const checked = form.teamIds.includes(tm.id)
+                      return (
+                        <label key={tm.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 hover:bg-slate-50">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleTeamId(tm.id)}
+                            className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                          />
+                          {teamLabels[tm.id] ?? tm.naam}
+                          {!tm.actief ? ` (${t('settings.archived')})` : ''}
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+                {form.teamIds.length > 1 && (
+                  <p className="mt-1.5 text-[11px] text-[#2a5f8a]">{t('form.teamsCount', { count: form.teamIds.length })}</p>
+                )}
+              </div>
+            )}
+            {touched.teamIds && <FieldError id="err-team" message={errors.teamIds} />}
           </div>
 
           <div>
@@ -328,65 +377,64 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
           {form.scope === 'extern' && (
             <div>
               <Label required htmlFor="dep-geraakt">{t('form.geraaktTeam')}</Label>
-              <input
-                id="dep-geraakt"
-                value={form.geraakte_team_extern}
-                onChange={(e) => update('geraakte_team_extern', e.target.value)}
-                onBlur={() => markTouched('geraakte_team_extern')}
-                placeholder={t('form.geraaktTeamPlaceholder')}
-                aria-describedby={touched.geraakte_team_extern && errors.geraakte_team_extern ? 'err-geraakt' : undefined}
-                className={inputClass}
-              />
-              {touched.geraakte_team_extern && <FieldError id="err-geraakt" message={errors.geraakte_team_extern} />}
-            </div>
-          )}
-
-          {form.scope === 'extern' && (
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <label className="flex items-start gap-2 text-xs text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={multiTeam}
+              <p className="mb-1.5 text-xs text-slate-400">{t('form.geraaktTeamHelper')}</p>
+              <div className="mb-1.5 inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" role="group" aria-label={t('form.geraaktTeam')}>
+                {['team', 'extern'].map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setGeraaktMode(mode)
+                      if (mode === 'extern') {
+                        setSelectedGeraaktTeamId('')
+                        update('geraakte_team_extern', '')
+                      } else if (selectedGeraaktTeamId) {
+                        update('geraakte_team_extern', teamLabels[selectedGeraaktTeamId] ?? '')
+                      } else {
+                        update('geraakte_team_extern', '')
+                      }
+                    }}
+                    aria-pressed={geraaktMode === mode}
+                    className={`rounded px-2.5 py-1 transition-colors ${
+                      geraaktMode === mode ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {mode === 'team' ? t('form.geraaktModeTeam') : t('form.geraaktModeExtern')}
+                  </button>
+                ))}
+              </div>
+              {geraaktMode === 'team' ? (
+                <select
+                  id="dep-geraakt"
+                  value={selectedGeraaktTeamId}
                   onChange={(e) => {
-                    setMultiTeam(e.target.checked)
-                    if (!e.target.checked) setExtraTeamIds([])
+                    const tm = teams.find((t) => t.id === e.target.value)
+                    setSelectedGeraaktTeamId(e.target.value)
+                    update('geraakte_team_extern', tm ? (teamLabels[tm.id] ?? tm.naam) : '')
                   }}
-                  className="mt-0.5 h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                  onBlur={() => markTouched('geraakte_team_extern')}
+                  aria-describedby={touched.geraakte_team_extern && errors.geraakte_team_extern ? 'err-geraakt' : undefined}
+                  className={inputClass}
+                >
+                  <option value="">{t('form.teamPlaceholder')}</option>
+                  {teams.map((tm) => (
+                    <option key={tm.id} value={tm.id}>
+                      {teamLabels[tm.id] ?? tm.naam}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="dep-geraakt"
+                  value={form.geraakte_team_extern}
+                  onChange={(e) => update('geraakte_team_extern', e.target.value)}
+                  onBlur={() => markTouched('geraakte_team_extern')}
+                  placeholder={t('form.geraaktTeamPlaceholder')}
+                  aria-describedby={touched.geraakte_team_extern && errors.geraakte_team_extern ? 'err-geraakt' : undefined}
+                  className={inputClass}
                 />
-                <span className="font-medium text-slate-700">{t('form.multiTeamQuestion')}</span>
-              </label>
-              {multiTeam && (
-                <div className="mt-2.5">
-                  <div className="mb-1.5 text-[11px] text-slate-500">
-                    {t('form.multiTeamHint', { team: teamLabels[form.teamId] ?? '—' })}
-                  </div>
-                  <div className="max-h-32 space-y-1 overflow-y-auto rounded-md border border-slate-200 bg-white p-2">
-                    {activeTeams
-                      .filter((tm) => tm.id !== form.teamId)
-                      .map((tm) => {
-                        const checked = extraTeamIds.includes(tm.id)
-                        return (
-                          <label key={tm.id} className="flex items-center gap-2 rounded px-1 py-1 text-xs text-slate-700 hover:bg-slate-50">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() =>
-                                setExtraTeamIds((prev) => (checked ? prev.filter((id) => id !== tm.id) : [...prev, tm.id]))
-                              }
-                              className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
-                            />
-                            {teamLabels[tm.id] ?? tm.naam}
-                          </label>
-                        )
-                      })}
-                  </div>
-                  {extraTeamIds.length > 0 && (
-                    <p className="mt-1.5 text-[11px] text-[#2a5f8a]">
-                      {t('form.multiTeamCount', { count: extraTeamIds.length + 1 })}
-                    </p>
-                  )}
-                </div>
               )}
+              {touched.geraakte_team_extern && <FieldError id="err-geraakt" message={errors.geraakte_team_extern} />}
             </div>
           )}
 
