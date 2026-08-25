@@ -62,7 +62,11 @@ function AppContent() {
     setGraphViewMode(mode)
     setGraphHighlight(null)
   }
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  // Drie standen i.p.v. alleen open/smal: 'open' (breed, vast), 'icons'
+  // (smal, vast) en 'auto' (bijna volledig verborgen, schuift tijdelijk open
+  // bij hover/focus op de handle — zie Sidebar.jsx). Niet gepersisteerd,
+  // zelfde gedrag als de vorige boolean.
+  const [sidebarMode, setSidebarMode] = useState('open')
   const [teamPageTeamId, setTeamPageTeamId] = useState(null)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
@@ -135,8 +139,8 @@ function AppContent() {
         activeTeamId={teamPageTeamId}
         graphViewMode={graphViewMode}
         onGraphViewModeChange={handleGraphViewModeChange}
-        collapsed={sidebarCollapsed}
-        onToggleCollapsed={() => setSidebarCollapsed((v) => !v)}
+        mode={sidebarMode}
+        onModeChange={setSidebarMode}
       />
 
       {/* Topbar en sidebar staan vast (position:fixed); alleen <main> scrolt,
@@ -146,7 +150,9 @@ function AppContent() {
           (netwerk/keten/teampagina) mogen de volledige beschikbare breedte
           benutten — daar was juist de klacht dat ze te smal/gecentreerd stonden. */}
       <main
-        className={`mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${sidebarCollapsed ? 'md:pl-16' : 'md:pl-60'} ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
+        className={`mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${
+          sidebarMode === 'open' ? 'md:pl-60' : sidebarMode === 'icons' ? 'md:pl-16' : 'md:pl-8'
+        } ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
       >
         {teamPageTeamId ? (
           adminSettings.pages.team ? (
@@ -155,7 +161,7 @@ function AppContent() {
               teamId={teamPageTeamId}
               onBack={() => setTeamPageTeamId(null)}
               adminSections={adminSettings.sections.team}
-              sidebarCollapsed={sidebarCollapsed}
+              sidebarCollapsed={sidebarMode !== 'open'}
             />
           ) : (
             <PageDisabledNotice onBack={() => setTeamPageTeamId(null)} />

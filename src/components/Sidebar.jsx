@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import SettingsPanel from './SettingsPanel'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -140,6 +140,31 @@ function CollapseIcon({ collapsed }) {
   )
 }
 
+// Vastzetten (pin) vs automatisch verbergen (auto-hide) — gevuld wanneer de
+// zijbalk momenteel gepind is ('open'/'icons'), open/leeg wanneer 'auto'.
+function PinIcon({ pinned }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill={pinned ? 'currentColor' : 'none'}>
+      <path
+        d="M14.5 3.5 20.5 9.5 17 13l-.5 5-2.5-2.5L9 20l-1-1 4.5-4.5L10 12l3.5-3.5L14.5 3.5Z"
+        stroke="currentColor"
+        strokeWidth={pinned ? '0.5' : '1.6'}
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+// Chevron voor de smalle auto-hide-handle: wijst naar rechts (de zijbalk
+// schuift die kant op open).
+function ChevronRightIcon() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 function TeamRow({ team, active, onNavigateToTeam }) {
   const { renameTeam, archiveTeam, deleteTeam, teamLabels } = useAppContext()
   const { t } = useLanguage()
@@ -273,12 +298,40 @@ export default function Sidebar({
   activeTeamId,
   graphViewMode,
   onGraphViewModeChange,
-  collapsed,
-  onToggleCollapsed,
+  mode,
+  onModeChange,
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { t } = useLanguage()
   const { adminSettings } = useAppContext()
+
+  // 'auto': bijna volledig verborgen, alleen een handle — schuift tijdelijk
+  // open bij hover/focus (autoExpanded) zonder de content-padding in App.jsx
+  // aan te passen, dus als een overlay bovenop het canvas i.p.v. het opzij
+  // te duwen zoals 'open'/'icons' dat wél doen.
+  const isAuto = mode === 'auto'
+  const [autoExpanded, setAutoExpanded] = useState(false)
+  const navRef = useRef(null)
+
+  useEffect(() => {
+    if (!isAuto) return
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') setAutoExpanded(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isAuto])
+
+  // Bij modewissel (bv. vastzetten vanuit een andere stand) telt de
+  // tijdelijke open-stand niet meer mee.
+  useEffect(() => {
+    setAutoExpanded(false)
+  }, [mode])
+
+  // collapsed = smal/iconen-weergave. Bij 'auto' + tijdelijk open tonen we
+  // bewust de brede weergave (herkenbaar, makkelijker te scannen tijdens een
+  // kort bezoek) i.p.v. de smalle iconenrail.
+  const collapsed = mode === 'icons'
 
   // Admin-toggles filteren de navigatie i.p.v. de losse view-componenten elk
   // voor zich te laten checken of ze zelf nog wel getoond mogen worden.
@@ -290,24 +343,71 @@ export default function Sidebar({
     return true
   })
 
-  return (
-    <nav
-      className={`fixed bottom-0 left-0 top-[57px] z-30 hidden flex-col gap-1 overflow-y-auto bg-[#16324a] py-3 transition-[width] md:flex ${
-        collapsed ? 'w-14 items-center px-2' : 'w-56 px-2.5'
-      }`}
-      aria-label={t('nav.views')}
-    >
+  // Na een navigatie-actie klapt een niet-gepinde (auto-hide) zijbalk weer
+  // dicht — gepind ('open'/'icons') blijft gewoon staan zoals voorheen.
+  function afterNavigate() {
+    if (isAuto) setAutoExpanded(false)
+  }
+
+  if (isAuto && !autoExpanded) {
+    return (
       <button
         type="button"
-        onClick={onToggleCollapsed}
-        title={collapsed ? t('nav.expand') : t('nav.collapse')}
-        className={`mb-1 flex h-8 items-center rounded-lg border border-white/10 bg-white/5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white ${
-          collapsed ? 'w-10 justify-center' : 'w-full justify-between px-2.5'
-        }`}
+        onMouseEnter={() => setAutoExpanded(true)}
+        onFocus={() => setAutoExpanded(true)}
+        title={t('nav.showNavigation')}
+        aria-label={t('nav.showNavigation')}
+        className="fixed left-0 top-1/2 z-30 hidden h-16 w-3.5 -translate-y-1/2 items-center justify-center rounded-r-lg border border-l-0 border-white/10 bg-[#16324a] text-slate-400 transition-colors hover:w-4 hover:text-white md:flex"
       >
-        {!collapsed && <span className="text-xs font-medium">{t('nav.collapse')}</span>}
-        <CollapseIcon collapsed={collapsed} />
+        <ChevronRightIcon />
       </button>
+    )
+  }
+
+  return (
+    <nav
+      ref={navRef}
+      onMouseLeave={isAuto ? () => setAutoExpanded(false) : undefined}
+      onBlur={
+        isAuto
+          ? (e) => {
+              if (!navRef.current?.contains(e.relatedTarget)) setAutoExpanded(false)
+            }
+          : undefined
+      }
+      className={`fixed bottom-0 left-0 top-[57px] z-30 hidden flex-col gap-1 overflow-y-auto bg-[#16324a] py-3 transition-[width] md:flex ${
+        collapsed ? 'w-14 items-center px-2' : 'w-56 px-2.5'
+      } ${isAuto ? 'shadow-2xl shadow-black/30' : ''}`}
+      aria-label={t('nav.views')}
+    >
+      <div className={collapsed ? 'mb-1 flex flex-col gap-1' : 'mb-1 flex items-center gap-1'}>
+        {!isAuto && (
+          <button
+            type="button"
+            onClick={() => onModeChange(mode === 'open' ? 'icons' : 'open')}
+            title={collapsed ? t('nav.expand') : t('nav.collapse')}
+            className={`flex h-8 items-center rounded-lg border border-white/10 bg-white/5 text-slate-400 transition-colors hover:bg-white/10 hover:text-white ${
+              collapsed ? 'w-10 justify-center' : 'flex-1 justify-between px-2.5'
+            }`}
+          >
+            {!collapsed && <span className="text-xs font-medium">{t('nav.collapse')}</span>}
+            <CollapseIcon collapsed={collapsed} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => onModeChange(isAuto ? 'open' : 'auto')}
+          title={isAuto ? t('nav.pin') : t('nav.autoHide')}
+          aria-label={isAuto ? t('nav.pin') : t('nav.autoHide')}
+          className={`flex h-8 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+            isAuto
+              ? 'border-[#2a5f8a]/50 bg-[#2a5f8a]/20 text-white hover:bg-[#2a5f8a]/30'
+              : 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white'
+          }`}
+        >
+          <PinIcon pinned={isAuto} />
+        </button>
+      </div>
 
       {visibleNavItems.map((item) => {
         const Icon = item.icon
@@ -321,6 +421,7 @@ export default function Sidebar({
             onClick={() => {
               if (item.graphMode) onGraphViewModeChange(item.graphMode)
               onTabChange(item.tab)
+              afterNavigate()
             }}
             collapsed={collapsed}
           >
@@ -331,7 +432,15 @@ export default function Sidebar({
 
       <div className={`my-1 h-px bg-white/10 ${collapsed ? 'w-8' : ''}`} />
 
-      {!collapsed && adminSettings.pages.team && <TeamsSection activeTeamId={activeTeamId} onNavigateToTeam={onNavigateToTeam} />}
+      {!collapsed && adminSettings.pages.team && (
+        <TeamsSection
+          activeTeamId={activeTeamId}
+          onNavigateToTeam={(teamId) => {
+            onNavigateToTeam(teamId)
+            afterNavigate()
+          }}
+        />
+      )}
 
       <div className="relative mt-auto">
         <RailButton
