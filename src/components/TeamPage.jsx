@@ -2073,7 +2073,7 @@ function DepFiltersDropdown({
   )
 }
 
-export default function TeamPage({ teamId, onBack, adminSections }) {
+export default function TeamPage({ teamId, onBack, adminSections, sidebarCollapsed }) {
   const {
     teams,
     dependencies,
@@ -2127,6 +2127,22 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   useClickOutside(legendRef, legendOpen, () => setLegendOpen(false))
   useClickOutside(addMenuRef, addMenuOpen, () => setAddMenuOpen(false))
 
+  // Presentatiemodus: een fixed overlay binnen dezelfde component-instantie
+  // i.p.v. de browser Fullscreen API — die vereist een gebruikersgebaar-
+  // context die in een ingesloten preview niet altijd beschikbaar is, en een
+  // overlay heeft toch al hetzelfde effect (sidebar/topbar visueel weg) zonder
+  // dat team, filters, zoekopdracht of selectie ooit hoeven te resetten: het
+  // is dezelfde render, alleen anders gepositioneerd.
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  useEffect(() => {
+    if (!isFullscreen) return
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isFullscreen])
+
   const toggleLaneCollapsed = useCallback((id) => {
     setCollapsedLaneIds((prev) => {
       const next = new Set(prev)
@@ -2162,7 +2178,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     },
     adminSections.dependencies && { target: 'dependencies', title: t('tour.step.dependencies.title'), body: t('tour.step.dependencies.body') },
     adminSections.applicatieflow && {
-      target: 'applicatieflow-section',
+      target: 'toolbar',
       title: t('tour.step.applicatieflow.title'),
       body: t('tour.step.applicatieflow.body'),
     },
@@ -2826,27 +2842,47 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
       {/* Eén omsluitend kader zodat workflow/applicaties/capaciteit/dependencies
           visueel als één teamcontext-geheel lezen i.p.v. losse kaarten. */}
       <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/60 p-5">
-      <div className="flex items-center justify-between">
-        <button type="button" onClick={onBack} className="text-sm font-medium text-[#2a5f8a] hover:underline">
-          {t('teampage.back')}
-        </button>
-        <h2 className="text-lg font-semibold text-slate-900">{teamNaam}</h2>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={startTour}
-            className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            {t('tour.replay')}
-          </button>
-        </div>
-      </div>
-
       {(
         <>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div
+            className={
+              isFullscreen
+                ? 'fixed inset-0 z-[100] flex flex-col overflow-hidden bg-white p-4'
+                : 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
+            }
+          >
             <div className="mb-2 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.workflowTitle')}</h3>
+              <button
+                type="button"
+                onClick={() => setIsFullscreen((v) => !v)}
+                title={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
+                aria-label={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                {isFullscreen ? (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M9 4H5a1 1 0 0 0-1 1v4M15 4h4a1 1 0 0 1 1 1v4M9 20H5a1 1 0 0 1-1-1v-4M15 20h4a1 1 0 0 0 1-1v-4"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path d="m7 7 3 3M17 7l-3 3M7 17l3-3M17 17l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  </svg>
+                ) : (
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </button>
             </div>
 
             <div
@@ -2856,6 +2892,24 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
               {/* Rij 1 — acties en hulpmiddelen: toevoegen/notitie links, canvas-hulpmiddelen rechts. */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={onBack}
+                    title={t('teampage.back')}
+                    className="flex items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    {sidebarCollapsed && t('teampage.backCompact')}
+                  </button>
+                  <span
+                    className="max-w-[140px] truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                    title={teamNaam}
+                  >
+                    {teamNaam}
+                  </span>
+                  <div className="h-5 w-px bg-slate-200" />
                   {(adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit || adminSections.applicatieflow) && (
                     <div ref={addMenuRef} className="relative">
                       <button
@@ -2968,14 +3022,18 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                       type="button"
                       onClick={() => setLegendOpen((v) => !v)}
                       aria-expanded={legendOpen}
-                      className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                        legendOpen ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                      title={t('teampage.helpAndLegend')}
+                      aria-label={t('teampage.helpAndLegend')}
+                      className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold transition-colors ${
+                        legendOpen
+                          ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
+                          : 'border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                       }`}
                     >
-                      {t('teampage.legend')}
+                      ?
                     </button>
                     {legendOpen && (
-                      <div className="absolute right-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10">
+                      <div className="absolute right-0 top-9 z-20 w-60 rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10">
                         <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendRiskTitle')}</div>
                         <div className="mb-3 space-y-1">
                           {['Kritiek', 'Hoog', 'Gemiddeld', 'Laag'].map((level) => (
@@ -2986,7 +3044,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                           ))}
                         </div>
                         <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendDisplayTitle')}</div>
-                        <div className="space-y-1.5 text-xs text-slate-600">
+                        <div className="mb-3 space-y-1.5 text-xs text-slate-600">
                           <div className="flex items-center gap-2">
                             <span className="inline-block h-0.5 w-4 shrink-0 bg-[#2a5f8a]" />
                             {t('teampage.legendConnection')}
@@ -3006,6 +3064,28 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                           <div className="flex items-center gap-2">
                             <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-[#5c6b8a55] bg-white" />
                             {t('teampage.legendExternalTeam')}
+                          </div>
+                        </div>
+                        <div className="border-t border-slate-100 pt-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLegendOpen(false)
+                              startTour()
+                            }}
+                            className="mb-2 flex w-full items-center rounded-md px-1.5 py-1 text-left text-xs font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/5"
+                          >
+                            {t('teampage.helpTourStart')}
+                          </button>
+                          <div className="space-y-2">
+                            <div>
+                              <div className="text-[11px] font-semibold text-slate-600">{t('teampage.helpApplicatieflowTitle')}</div>
+                              <p className="text-[11px] leading-relaxed text-slate-500">{t('teampage.helpApplicatieflowText')}</p>
+                            </div>
+                            <div>
+                              <div className="text-[11px] font-semibold text-slate-600">{t('teampage.helpOntwikkelflowTitle')}</div>
+                              <p className="text-[11px] leading-relaxed text-slate-500">{t('teampage.helpOntwikkelflowText')}</p>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -3102,7 +3182,10 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                 TeamFilterPanel naast GraphView) — het paneel is een vaste-
                 breedte zijkolom die alleen verschijnt zodra canvasFocus
                 gezet is, i.p.v. een overlay bovenop het canvas. */}
-            <div className="flex items-stretch gap-3" style={{ height: 'clamp(640px, 78vh, 920px)' }}>
+            <div
+              className={isFullscreen ? 'flex min-h-0 flex-1 items-stretch gap-3' : 'flex items-stretch gap-3'}
+              style={isFullscreen ? undefined : { height: 'clamp(640px, 78vh, 920px)' }}
+            >
               <div
                 data-tour="workflow-canvas"
                 className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 shadow-sm"

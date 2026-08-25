@@ -155,6 +155,7 @@ function AppContent() {
               teamId={teamPageTeamId}
               onBack={() => setTeamPageTeamId(null)}
               adminSections={adminSettings.sections.team}
+              sidebarCollapsed={sidebarCollapsed}
             />
           ) : (
             <PageDisabledNotice onBack={() => setTeamPageTeamId(null)} />
