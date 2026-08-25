@@ -34,7 +34,6 @@ import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
 import DependencyForm from './DependencyForm'
 import DependencyDetail from './DependencyDetail'
-import ApplicatieflowTab from './ApplicatieflowTab'
 import SpotlightTour from './SpotlightTour'
 import FloatingTooltip from './FloatingTooltip'
 
@@ -1259,6 +1258,25 @@ function emptyIoItem(kind) {
     : { id: generateId(), label: '', flowtype: '', applicatieId: '', externalTeam: '' }
 }
 
+// Compacte beschrijving van een input/output-item voor de Teamgegevens-lijst
+// — maakt in het bijzonder zichtbaar of een item aan een team/output of een
+// applicatie gekoppeld is, zonder dat daarvoor de bewerk-modal open hoeft.
+function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName, language) {
+  const parts = []
+  if (item.flowtype) parts.push(translateFlowtype(item.flowtype, language))
+  if (kind === 'input' && item.bron_type) parts.push(translateBronType(item.bron_type, language))
+  if (kind === 'input' && item.linkedTeam) {
+    const linkedOutput = (teamWorkflows[item.linkedTeam]?.outputs ?? []).find((o) => o.id === item.linkedOutputId)
+    parts.push(`${teamName(item.linkedTeam)}${linkedOutput ? ` → ${linkedOutput.label || '—'}` : ''}`)
+  }
+  if (item.applicatieId) {
+    const app = applications.find((a) => a.id === item.applicatieId)
+    if (app) parts.push(app.naam || '—')
+  }
+  if (item.externalTeam) parts.push(`↔ ${item.externalTeam}`)
+  return parts.join(' · ')
+}
+
 // Klein modal-formulier voor één input-/output-item — vervangt de eerder
 // altijd-open inline velden per rij, zodat de lijst daarboven een rustig,
 // leesbaar overzicht blijft en je alleen bij bewerken de details ziet.
@@ -1662,6 +1680,140 @@ function CapacityRowModal({ row, onSave, onRemove, onClose, t, language }) {
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+// Vervangt het vroegere losse Van/Naar-invoervak onderaan de
+// applicatieflow-sectie: koppelen gaat nu via deze modal, bereikbaar vanaf
+// zowel "+ Toevoegen" in de toolbar als de inline knop bij Applicatieverbindingen.
+function ConnectApplicationsModal({ applications, existingConnections, onSave, onClose, t }) {
+  const [van, setVan] = useState('')
+  const [naar, setNaar] = useState('')
+  const [touched, setTouched] = useState(false)
+
+  const errors = {}
+  if (!van) errors.van = t('form.required')
+  if (!naar) errors.naar = t('form.required')
+  else if (van === naar) errors.naar = t('appflow.sameAppError')
+  else if (existingConnections.some((c) => c.van === van && c.naar === naar)) errors.naar = t('appflow.duplicateConnectionError')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    setTouched(true)
+    if (Object.keys(errors).length > 0) return
+    onSave(van, naar)
+  }
+
+  if (applications.length < 2) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+        <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white shadow-2xl">
+          <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+            <h3 className="text-base font-semibold text-slate-900">{t('appflow.connectModalTitle')}</h3>
+            <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
+              ✕
+            </button>
+          </div>
+          <div className="px-5 py-4">
+            <p className="text-sm text-slate-500">{t('appflow.needTwoApps')}</p>
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200 px-5 py-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {t('form.close')}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900">{t('appflow.connectModalTitle')}</h3>
+          <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('appflow.vanLabel')}</label>
+            <select
+              value={van}
+              onChange={(e) => setVan(e.target.value)}
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              <option value="">—</option>
+              {applications.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.naam || '—'}
+                </option>
+              ))}
+            </select>
+            {touched && errors.van && <p className="mt-1 text-xs font-medium text-[#9a3b2e]">{errors.van}</p>}
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('appflow.naarLabel')}</label>
+            <select
+              value={naar}
+              onChange={(e) => setNaar(e.target.value)}
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              <option value="">—</option>
+              {applications.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.naam || '—'}
+                </option>
+              ))}
+            </select>
+            {touched && errors.naar && <p className="mt-1 text-xs font-medium text-[#9a3b2e]">{errors.naar}</p>}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-slate-200 pt-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+            >
+              {t('form.cancel')}
+            </button>
+            <button type="submit" className="rounded-md bg-[#2a5f8a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1f4a6c]">
+              {t('form.save')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// Eén compact, inklapbaar blok binnen "Teamgegevens" — titel + aantal
+// toegevoegde items, een inline actieknop rechts, en de content pas
+// zichtbaar na openklappen. Standaard dicht zodat de pagina rustig blijft.
+function TeamDataBlock({ title, count, open, onToggle, action, children, blockRef }) {
+  return (
+    <div ref={blockRef} className="py-3 first:pt-0 last:pb-0">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={open}
+          className="flex flex-1 items-center gap-1.5 text-left text-sm font-medium text-slate-700"
+        >
+          <span className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-90' : ''}`} aria-hidden="true">
+            ›
+          </span>
+          {title}
+          <span className="text-xs font-normal text-slate-400">— {count}</span>
+        </button>
+        {action}
+      </div>
+      {open && <div className="mt-2.5 pl-5">{children}</div>}
     </div>
   )
 }
@@ -2238,10 +2390,34 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     )
   }
 
+  // "Teamgegevens" bundelt Applicaties/Applicatieverbindingen/Input/Output/
+  // Capaciteit in losse, standaard dichte blokjes — elk blok houdt zijn eigen
+  // open/dicht-stand bij zodat openklappen er één niet de rest verstoort.
+  const [teamDataOpenBlocks, setTeamDataOpenBlocks] = useState({
+    applicaties: false,
+    verbindingen: false,
+    input: false,
+    output: false,
+    capaciteit: false,
+  })
+  function toggleTeamDataBlock(key) {
+    setTeamDataOpenBlocks((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+  const [connectModalOpen, setConnectModalOpen] = useState(false)
+  const [connectionsExpanded, setConnectionsExpanded] = useState(false)
+  function addAppConnection(van, naar) {
+    const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
+    patch({ applicatieflow: { ...applicatieflow, connecties: [...(applicatieflow.connecties ?? []), { id: generateId(), van, naar }] } })
+    setConnectModalOpen(false)
+  }
+  function removeAppConnection(id) {
+    const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
+    patch({ applicatieflow: { ...applicatieflow, connecties: (applicatieflow.connecties ?? []).filter((c) => c.id !== id) } })
+  }
+
   const applicatieflowSectionRef = useRef(null)
-  const [applicatieflowOpen, setApplicatieflowOpen] = useState(false)
   const onOpenApplicatieflow = useCallback(() => {
-    setApplicatieflowOpen(true)
+    setTeamDataOpenBlocks((prev) => ({ ...prev, verbindingen: true }))
     requestAnimationFrame(() => applicatieflowSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }, [])
 
@@ -2616,141 +2792,223 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
 
             <div
               data-tour="toolbar"
-              className="-mx-4 -mt-4 mb-3 flex min-h-[56px] flex-wrap items-center gap-1.5 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
+              className="-mx-4 -mt-4 mb-3 space-y-2 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
             >
-              <div className="flex flex-wrap items-center gap-1.5">
-                {(adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit) && (
+              {/* Rij 1 — acties en hulpmiddelen: toevoegen/notitie links, canvas-hulpmiddelen rechts. */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {(adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit || adminSections.applicatieflow) && (
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setAddMenuOpen((v) => !v)}
+                        aria-expanded={addMenuOpen}
+                        className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                          addMenuOpen
+                            ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
+                            : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {t('teampage.addMenuButton')} ▾
+                      </button>
+                      {addMenuOpen && (
+                        <div className="absolute left-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg shadow-slate-900/10">
+                          {adminSections.applicaties && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                addApplication()
+                                setAddMenuOpen(false)
+                                setTeamDataOpenBlocks((prev) => ({ ...prev, applicaties: true }))
+                              }}
+                              className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              {t('teampage.applicationsAdd')}
+                            </button>
+                          )}
+                          {adminSections.applicatieflow && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setConnectModalOpen(true)
+                                setAddMenuOpen(false)
+                              }}
+                              className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              {t('appflow.connectInline')}
+                            </button>
+                          )}
+                          {adminSections.input && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCanvasIoTarget({ kind: 'input', item: null })
+                                setAddMenuOpen(false)
+                              }}
+                              className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              {t('teampage.inputAdd')}
+                            </button>
+                          )}
+                          {adminSections.output && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCanvasIoTarget({ kind: 'output', item: null })
+                                setAddMenuOpen(false)
+                              }}
+                              className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              {t('teampage.outputAdd')}
+                            </button>
+                          )}
+                          {adminSections.capaciteit && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCapacityModalRow(null)
+                                setAddMenuOpen(false)
+                              }}
+                              className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              {t('teampage.capacityAdd')}
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {adminSections.aantekeningen && (
+                    <>
+                      <div className="h-5 w-px bg-slate-200" />
+                      <button
+                        type="button"
+                        onClick={() => addAnnotation('note')}
+                        className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                      >
+                        {t('teampage.toolbarNote')}
+                      </button>
+                      <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
+                    </>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={handleSmartOrder}
+                    title={t('teampage.smartOrderHint')}
+                    className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    {t('teampage.smartOrder')}
+                  </button>
+
                   <div className="relative">
                     <button
                       type="button"
-                      onClick={() => setAddMenuOpen((v) => !v)}
-                      aria-expanded={addMenuOpen}
-                      className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                        addMenuOpen
-                          ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
-                          : 'border-slate-200 text-slate-600 hover:bg-slate-100'
+                      onClick={() => setLegendOpen((v) => !v)}
+                      aria-expanded={legendOpen}
+                      className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                        legendOpen ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
                       }`}
                     >
-                      {t('teampage.addMenuButton')} ▾
+                      {t('teampage.legend')}
                     </button>
-                    {addMenuOpen && (
-                      <div className="absolute left-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg shadow-slate-900/10">
-                        {adminSections.applicaties && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              addApplication()
-                              setAddMenuOpen(false)
-                            }}
-                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-                          >
-                            {t('teampage.applicationsAdd')}
-                          </button>
-                        )}
-                        {adminSections.input && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCanvasIoTarget({ kind: 'input', item: null })
-                              setAddMenuOpen(false)
-                            }}
-                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-                          >
-                            {t('teampage.inputAdd')}
-                          </button>
-                        )}
-                        {adminSections.output && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCanvasIoTarget({ kind: 'output', item: null })
-                              setAddMenuOpen(false)
-                            }}
-                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-                          >
-                            {t('teampage.outputAdd')}
-                          </button>
-                        )}
-                        {adminSections.capaciteit && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setCapacityModalRow(null)
-                              setAddMenuOpen(false)
-                            }}
-                            className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-                          >
-                            {t('teampage.capacityAdd')}
-                          </button>
-                        )}
+                    {legendOpen && (
+                      <div className="absolute right-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10">
+                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendRiskTitle')}</div>
+                        <div className="mb-3 space-y-1">
+                          {['Kritiek', 'Hoog', 'Gemiddeld', 'Laag'].map((level) => (
+                            <div key={level} className="flex items-center gap-2 text-xs text-slate-600">
+                              <span className={`h-2 w-2 shrink-0 rounded-full ${riskStyle(level).dot}`} />
+                              {translateRiskLevel(level, language)}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendDisplayTitle')}</div>
+                        <div className="space-y-1.5 text-xs text-slate-600">
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-0.5 w-4 shrink-0 bg-[#2a5f8a]" />
+                            {t('teampage.legendConnection')}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#2a5f8a] bg-[#eef4f9]" />
+                            {t('teampage.legendInput')}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#5c8a72] bg-[#eef6f1]" />
+                            {t('teampage.legendOutput')}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#5c8a72]/50 bg-[#5c8a72]/10" />
+                            {t('teampage.legendTeambreed')}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-[#5c6b8a55] bg-white" />
+                            {t('teampage.legendExternalTeam')}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
-                {adminSections.aantekeningen && (
-                  <>
-                    <div className="h-5 w-px bg-slate-200" />
-                    <button
-                      type="button"
-                      onClick={() => addAnnotation('note')}
-                      className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                    >
-                      {t('teampage.toolbarNote')}
-                    </button>
-                    <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
-                  </>
-                )}
+                </div>
               </div>
 
-              <div className="ml-auto flex flex-wrap items-center gap-2">
-                {adminSections.dependencies && (
-                  <input
-                    value={depSearchQuery}
-                    onChange={(e) => setDepSearchQuery(e.target.value)}
-                    placeholder={t('teampage.canvasDepSearchPlaceholder')}
-                    className="w-48 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                  />
-                )}
-                {adminSections.dependencies && (
-                  <DepFiltersDropdown
-                    open={canvasDepFiltersOpen}
-                    onToggle={() => setCanvasDepFiltersOpen((v) => !v)}
-                    active={weergaveActive}
-                    label={t('teampage.viewFiltersButton')}
-                    viewToggles={[
-                      { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
-                      { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
-                      { key: 'showGeaccepteerd', label: t('teampage.viewFilterShowGeaccepteerd'), value: showGeaccepteerd, onChange: setShowGeaccepteerd },
-                      { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
-                      { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
-                    ]}
-                    flowtypeFilter={flowtypeFilter}
-                    setFlowtypeFilter={setFlowtypeFilter}
-                    scopeFilter={scopeFilter}
-                    setScopeFilter={setScopeFilter}
-                    appLabelFilter={appLabelFilter}
-                    setAppLabelFilter={setAppLabelFilter}
-                    applications={workflow.applications}
-                    riskLevelFilter={riskLevelFilter}
-                    setRiskLevelFilter={setRiskLevelFilter}
-                    statusFilter={statusFilter}
-                    setStatusFilter={setStatusFilter}
-                    workflowStapFilter={workflowStapFilter}
-                    setWorkflowStapFilter={setWorkflowStapFilter}
-                    onClear={clearWeergave}
-                    t={t}
-                    language={language}
-                  />
-                )}
-                {splitApplicaties && workflow.applications.length > 4 && (
-                  <input
-                    value={appFilterQuery}
-                    onChange={(e) => setAppFilterQuery(e.target.value)}
-                    placeholder={t('teampage.appFilterPlaceholder')}
-                    className="w-40 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                  />
-                )}
-                <div className="h-5 w-px bg-slate-200" />
+              {/* Rij 2 — zoeken, filteren, weergave: zoekvelden links, Weergeven in het midden, weergavetoggle rechts. */}
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {adminSections.dependencies && (
+                    <input
+                      value={depSearchQuery}
+                      onChange={(e) => setDepSearchQuery(e.target.value)}
+                      placeholder={t('teampage.canvasDepSearchPlaceholder')}
+                      className="h-8 w-48 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                    />
+                  )}
+                  {splitApplicaties && workflow.applications.length > 4 && (
+                    <input
+                      value={appFilterQuery}
+                      onChange={(e) => setAppFilterQuery(e.target.value)}
+                      placeholder={t('teampage.appFilterPlaceholder')}
+                      className="h-8 w-40 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                    />
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {adminSections.dependencies && (
+                    <DepFiltersDropdown
+                      open={canvasDepFiltersOpen}
+                      onToggle={() => setCanvasDepFiltersOpen((v) => !v)}
+                      active={weergaveActive}
+                      label={t('teampage.viewFiltersButton')}
+                      viewToggles={[
+                        { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
+                        { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
+                        { key: 'showGeaccepteerd', label: t('teampage.viewFilterShowGeaccepteerd'), value: showGeaccepteerd, onChange: setShowGeaccepteerd },
+                        { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
+                        { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
+                      ]}
+                      flowtypeFilter={flowtypeFilter}
+                      setFlowtypeFilter={setFlowtypeFilter}
+                      scopeFilter={scopeFilter}
+                      setScopeFilter={setScopeFilter}
+                      appLabelFilter={appLabelFilter}
+                      setAppLabelFilter={setAppLabelFilter}
+                      applications={workflow.applications}
+                      riskLevelFilter={riskLevelFilter}
+                      setRiskLevelFilter={setRiskLevelFilter}
+                      statusFilter={statusFilter}
+                      setStatusFilter={setStatusFilter}
+                      workflowStapFilter={workflowStapFilter}
+                      setWorkflowStapFilter={setWorkflowStapFilter}
+                      onClear={clearWeergave}
+                      t={t}
+                      language={language}
+                    />
+                  )}
+                </div>
+
                 <div
                   className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs shadow-inner"
                   role="group"
@@ -2777,66 +3035,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                     {t('teampage.viewMerged')}
                   </button>
                 </div>
-
-                <div className="h-5 w-px bg-slate-200" />
-
-                <button
-                  type="button"
-                  onClick={handleSmartOrder}
-                  title={t('teampage.smartOrderHint')}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  {t('teampage.smartOrder')}
-                </button>
-
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setLegendOpen((v) => !v)}
-                    aria-expanded={legendOpen}
-                    className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                      legendOpen ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                    }`}
-                  >
-                    {t('teampage.legend')}
-                  </button>
-                {legendOpen && (
-                  <div className="absolute right-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10">
-                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendRiskTitle')}</div>
-                    <div className="mb-3 space-y-1">
-                      {['Kritiek', 'Hoog', 'Gemiddeld', 'Laag'].map((level) => (
-                        <div key={level} className="flex items-center gap-2 text-xs text-slate-600">
-                          <span className={`h-2 w-2 shrink-0 rounded-full ${riskStyle(level).dot}`} />
-                          {translateRiskLevel(level, language)}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendDisplayTitle')}</div>
-                    <div className="space-y-1.5 text-xs text-slate-600">
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block h-0.5 w-4 shrink-0 bg-[#2a5f8a]" />
-                        {t('teampage.legendConnection')}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#2a5f8a] bg-[#eef4f9]" />
-                        {t('teampage.legendInput')}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#5c8a72] bg-[#eef6f1]" />
-                        {t('teampage.legendOutput')}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#5c8a72]/50 bg-[#5c8a72]/10" />
-                        {t('teampage.legendTeambreed')}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-[#5c6b8a55] bg-white" />
-                        {t('teampage.legendExternalTeam')}
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
               </div>
             </div>
 
@@ -3169,24 +3367,256 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
           </div>
           )}
 
-          {adminSections.applicatieflow && (
-          <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <button
-              type="button"
-              onClick={() => setApplicatieflowOpen((v) => !v)}
-              aria-expanded={applicatieflowOpen}
-              className="flex w-full items-center gap-1.5 text-left text-sm font-semibold text-slate-800"
-            >
-              <span className={`text-slate-400 transition-transform ${applicatieflowOpen ? 'rotate-90' : ''}`} aria-hidden="true">
-                ›
-              </span>
-              {t('teampage.tabApplicatieflow')}
-            </button>
-            {applicatieflowOpen && (
-              <div className="mt-3">
-                <ApplicatieflowTab workflow={workflow} patch={patch} onAddApplication={adminSections.applicaties ? addApplication : undefined} />
-              </div>
-            )}
+          {(adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit) && (
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h3 className="mb-1 text-sm font-semibold text-slate-800">{t('teampage.teamDataTitle')}</h3>
+            <div className="divide-y divide-slate-100">
+              {adminSections.applicaties && (
+                <TeamDataBlock
+                  title={t('teampage.applicationsShort')}
+                  count={t('teampage.itemsAddedCount', { count: workflow.applications.length })}
+                  open={teamDataOpenBlocks.applicaties}
+                  onToggle={() => toggleTeamDataBlock('applicaties')}
+                  action={
+                    <button
+                      type="button"
+                      onClick={addApplication}
+                      className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {t('teampage.applicationsAdd')}
+                    </button>
+                  }
+                >
+                  {workflow.applications.length === 0 ? (
+                    <p className="text-xs text-slate-400">{t('teampage.applicationsEmpty')}</p>
+                  ) : (
+                    <ul className="space-y-1.5">
+                      {workflow.applications.map((app) => {
+                        const detail = workflow.applicatieflow?.details?.[app.id]
+                        const hasDetail = Boolean(detail?.toelichting || detail?.risico_bij_uitval)
+                        return (
+                          <li key={app.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2">
+                            <input
+                              value={app.naam}
+                              onChange={(e) => updateApplication(app.id, { naam: e.target.value })}
+                              placeholder={t('teampage.applicationsPlaceholder')}
+                              className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                            />
+                            {detail?.risico_bij_uitval === 'ja' && (
+                              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('appflow.detailRisico')} />
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setAppDetailId(app.id)}
+                              className={`shrink-0 text-xs font-medium ${hasDetail ? 'text-[#2a5f8a]' : 'text-slate-400 hover:text-[#2a5f8a]'}`}
+                            >
+                              {hasDetail ? t('appflow.detailEdit') : t('appflow.detailAdd')}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => requestRemoveApplication(app)}
+                              aria-label={t('teampage.remove')}
+                              title={t('teampage.remove')}
+                              className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </TeamDataBlock>
+              )}
+
+              {adminSections.applicatieflow && (
+                <TeamDataBlock
+                  title={t('teampage.connectionsShort')}
+                  count={t('teampage.itemsAddedCount', { count: (workflow.applicatieflow?.connecties ?? []).length })}
+                  open={teamDataOpenBlocks.verbindingen}
+                  onToggle={() => toggleTeamDataBlock('verbindingen')}
+                  blockRef={applicatieflowSectionRef}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setConnectModalOpen(true)}
+                      className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {t('appflow.connectInline')}
+                    </button>
+                  }
+                >
+                  <p className="mb-2 text-xs text-slate-400">{t('appflow.questionTitle')}</p>
+                  {(() => {
+                    const connections = workflow.applicatieflow?.connecties ?? []
+                    if (connections.length === 0) return <p className="text-xs text-slate-400">{t('appflow.connectionsEmpty')}</p>
+                    const visible = connectionsExpanded ? connections : connections.slice(0, 5)
+                    return (
+                      <>
+                        <ul className="space-y-1.5">
+                          {visible.map((c) => {
+                            const van = workflow.applications.find((a) => a.id === c.van)
+                            const naar = workflow.applications.find((a) => a.id === c.naar)
+                            return (
+                              <li key={c.id} className="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-1.5 text-sm">
+                                <span className="font-medium text-slate-700">{van?.naam || '—'}</span>
+                                <span className="text-slate-400">→</span>
+                                <span className="font-medium text-slate-700">{naar?.naam || '—'}</span>
+                                <button type="button" onClick={() => removeAppConnection(c.id)} className="ml-auto text-xs text-[#9a3b2e] hover:underline">
+                                  {t('teampage.remove')}
+                                </button>
+                              </li>
+                            )
+                          })}
+                        </ul>
+                        {connections.length > 5 && (
+                          <button
+                            type="button"
+                            onClick={() => setConnectionsExpanded((v) => !v)}
+                            className="mt-2 text-xs font-medium text-[#2a5f8a] hover:underline"
+                          >
+                            {connectionsExpanded ? t('appflow.showFewerConnections') : t('appflow.showAllConnections', { count: connections.length })}
+                          </button>
+                        )}
+                      </>
+                    )
+                  })()}
+                </TeamDataBlock>
+              )}
+
+              {adminSections.input && (
+                <TeamDataBlock
+                  title={t('teampage.inputShort')}
+                  count={t('teampage.itemsAddedCount', { count: workflow.inputs.length })}
+                  open={teamDataOpenBlocks.input}
+                  onToggle={() => toggleTeamDataBlock('input')}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setCanvasIoTarget({ kind: 'input', item: null })}
+                      className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {t('teampage.inputAdd')}
+                    </button>
+                  }
+                >
+                  <p className="mb-2 text-xs text-slate-400">{t('teampage.inputsTitle')}</p>
+                  {workflow.inputs.length === 0 ? (
+                    <p className="text-xs text-slate-400">{t('teampage.ioEmpty')}</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100">
+                      {workflow.inputs.map((item) => {
+                        const summary = ioItemSummary(item, 'input', teams, teamWorkflows, workflow.applications, teamName, language)
+                        return (
+                          <li key={item.id}>
+                            <button
+                              type="button"
+                              onClick={() => setCanvasIoTarget({ kind: 'input', item })}
+                              className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
+                            >
+                              <span className="min-w-0 flex-1 truncate text-slate-700">{item.label || '—'}</span>
+                              {summary && <span className="max-w-[55%] shrink-0 truncate text-xs text-slate-400">{summary}</span>}
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </TeamDataBlock>
+              )}
+
+              {adminSections.output && (
+                <TeamDataBlock
+                  title={t('teampage.outputShort')}
+                  count={t('teampage.itemsAddedCount', { count: workflow.outputs.length })}
+                  open={teamDataOpenBlocks.output}
+                  onToggle={() => toggleTeamDataBlock('output')}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setCanvasIoTarget({ kind: 'output', item: null })}
+                      className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {t('teampage.outputAdd')}
+                    </button>
+                  }
+                >
+                  <p className="mb-2 text-xs text-slate-400">{t('teampage.outputsTitle')}</p>
+                  {workflow.outputs.length === 0 ? (
+                    <p className="text-xs text-slate-400">{t('teampage.ioEmpty')}</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100">
+                      {workflow.outputs.map((item) => {
+                        const summary = ioItemSummary(item, 'output', teams, teamWorkflows, workflow.applications, teamName, language)
+                        return (
+                          <li key={item.id}>
+                            <button
+                              type="button"
+                              onClick={() => setCanvasIoTarget({ kind: 'output', item })}
+                              className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
+                            >
+                              <span className="min-w-0 flex-1 truncate text-slate-700">{item.label || '—'}</span>
+                              {summary && <span className="max-w-[55%] shrink-0 truncate text-xs text-slate-400">{summary}</span>}
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </TeamDataBlock>
+              )}
+
+              {adminSections.capaciteit && (
+                <TeamDataBlock
+                  title={t('teampage.capacityTitle')}
+                  count={t('teampage.itemsAddedCount', { count: workflow.capacity.length })}
+                  open={teamDataOpenBlocks.capaciteit}
+                  onToggle={() => toggleTeamDataBlock('capaciteit')}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setCapacityModalRow(null)}
+                      className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      {t('teampage.capacityAdd')}
+                    </button>
+                  }
+                >
+                  {workflow.capacity.length === 0 ? (
+                    <p className="text-xs text-slate-400">{t('teampage.capacityEmpty')}</p>
+                  ) : (
+                    <ul className="divide-y divide-slate-100">
+                      {workflow.capacity.map((row) => {
+                        const summary = [
+                          row.seniority && translateSeniority(row.seniority, language),
+                          row.fase && translateWorkflowStage(row.fase, language),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')
+                        return (
+                          <li key={row.id}>
+                            <button
+                              type="button"
+                              onClick={() => setCapacityModalRow(row)}
+                              className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
+                            >
+                              {row.risico_bij_uitval === 'ja' && (
+                                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('teampage.capacityRisicoLabel')} />
+                              )}
+                              <span className="min-w-0 flex-1 truncate text-slate-700">{row.rol || '—'}</span>
+                              {summary && <span className="shrink-0 text-xs text-slate-400">{summary}</span>}
+                              <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{row.aantal}</span>
+                            </button>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                </TeamDataBlock>
+              )}
+            </div>
           </div>
           )}
 
@@ -3209,6 +3639,16 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                     }
                   : undefined
               }
+            />
+          )}
+
+          {connectModalOpen && (
+            <ConnectApplicationsModal
+              applications={workflow.applications}
+              existingConnections={workflow.applicatieflow?.connecties ?? []}
+              onSave={addAppConnection}
+              onClose={() => setConnectModalOpen(false)}
+              t={t}
             />
           )}
         </>

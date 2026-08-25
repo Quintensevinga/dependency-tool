@@ -118,6 +118,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   // "Bestaand team" met dat team voorgeselecteerd.
   const matchedGeraaktTeam = teams.find((tm) => (teamLabels[tm.id] ?? tm.naam) === initialFormRef.current.geraakte_team_extern)
   const [geraaktMode, setGeraaktMode] = useState(matchedGeraaktTeam ? 'team' : 'extern')
+  // Team(s) start als simpele dropdown voor het gangbare geval (één team);
+  // "Selecteer meerdere teams" schakelt pas dan om naar de volledige,
+  // altijd-open checklist — geen geneste dropdown voor de multi-select.
+  const [multiTeamMode, setMultiTeamMode] = useState(initialFormRef.current.teamIds.length > 1)
   const [selectedGeraaktTeamId, setSelectedGeraaktTeamId] = useState(matchedGeraaktTeam?.id ?? '')
 
   const isDirty = JSON.stringify(form) !== JSON.stringify(initialFormRef.current)
@@ -221,9 +225,20 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
           <div>
-            <Label required htmlFor="dep-team">{isEditing ? t('form.team') : t('form.teams')}</Label>
-            {!isEditing && <p className="mb-1.5 text-xs text-slate-400">{t('form.teamsHelper')}</p>}
-            {isEditing ? (
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <Label required htmlFor="dep-team">{isEditing || !multiTeamMode ? t('form.team') : t('form.teams')}</Label>
+              {!isEditing && (
+                <button
+                  type="button"
+                  onClick={() => setMultiTeamMode((v) => !v)}
+                  className="text-[11px] font-medium text-[#2a5f8a] hover:underline"
+                >
+                  {multiTeamMode ? t('form.teamsModeSingle') : t('form.teamsModeMulti')}
+                </button>
+              )}
+            </div>
+            {!isEditing && multiTeamMode && <p className="mb-1.5 text-xs text-slate-400">{t('form.teamsHelper')}</p>}
+            {isEditing || !multiTeamMode ? (
               <select
                 id="dep-team"
                 value={form.teamIds[0] ?? ''}
@@ -245,7 +260,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 {teamChoices.length === 0 ? (
                   <p className="text-xs text-slate-400">{t('form.teamsEmpty')}</p>
                 ) : (
-                  <div className="max-h-36 space-y-0.5 overflow-y-auto rounded-md border border-slate-300 bg-white p-1.5">
+                  <div className="space-y-0.5 rounded-md border border-slate-300 bg-white p-1.5">
                     {teamChoices.map((tm) => {
                       const checked = form.teamIds.includes(tm.id)
                       return (
