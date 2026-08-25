@@ -29,6 +29,11 @@ export default function PannableFlowCanvas({
   minZoom = 0.2,
   maxZoom = 2,
   hideControls = false,
+  // De teampagina-canvas doet zijn eigen initiële fit (toolbar-bewust, zie
+  // TeamCanvasToolbar in TeamPage.jsx) — deze generieke fit-op-mount zou
+  // daarmee racen (wie het laatst zet, wint) en soms zonder toolbar-marge
+  // winnen, met content onder de zwevende toolbar als gevolg.
+  disableAutoFit = false,
 }) {
   return (
     <ReactFlow
@@ -48,13 +53,15 @@ export default function PannableFlowCanvas({
       onEdgeMouseMove={onEdgeMouseMove}
       onEdgeMouseLeave={onEdgeMouseLeave}
       onPaneClick={onPaneClick}
-      fitView
+      fitView={!disableAutoFit}
       fitViewOptions={fitViewOptions}
       // Herhaal de fit na de eerste render: op het allereerste frame heeft
       // ReactFlow de node-afmetingen soms nog niet volledig gemeten,
       // waardoor de eenmalige `fitView`-prop breder canvasinhoud (bv. de
       // Teamcanvas met meerdere lanes) net buiten beeld kan laten vallen.
-      onInit={(instance) => window.requestAnimationFrame(() => instance.fitView(fitViewOptions))}
+      onInit={(instance) => {
+        if (!disableAutoFit) window.requestAnimationFrame(() => instance.fitView(fitViewOptions))
+      }}
       minZoom={minZoom}
       maxZoom={maxZoom}
       proOptions={{ hideAttribution: true }}

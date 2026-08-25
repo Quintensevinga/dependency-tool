@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Handle, Position, ReactFlowProvider, useReactFlow } from 'reactflow'
+import { Handle, Position, ReactFlowProvider, useReactFlow, useNodesInitialized } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import {
@@ -1842,6 +1842,7 @@ function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t, paneRe
   const { zoomIn, zoomOut } = instance
   const toolbarRef = useRef(null)
   const isFirstRender = useRef(true)
+  const nodesInitialized = useNodesInitialized()
 
   // Fit die rekening houdt met de eigen footprint van deze toolbar (linksonder
   // in het canvas), zodat nodes daar nooit onder verdwijnen — zie
@@ -1865,15 +1866,24 @@ function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t, paneRe
     [instance, paneRef],
   )
 
-  // Eerste fit na mount (overschrijft de generieke onInit-fit van
-  // PannableFlowCanvas, die de toolbar-hoek nog niet kent), en telkens
-  // opnieuw wanneer de zijbalk *definitief* wisselt (open/iconen/auto) — niet
-  // bij het tijdelijk uitklappen op hover, want dat is geen sidebarMode-
-  // wijziging. De vertraging wacht de CSS-transitie van <main> se
+  // Eerste fit zodra React Flow de node-afmetingen echt heeft gemeten
+  // (useNodesInitialized), i.p.v. een gegokte timeout — bij veel/complexe
+  // nodes kan meten langer duren dan een vaste delay, met een fit tegen
+  // ongemeten (0-brede) bounds tot gevolg die de viewport ongewijzigd laat.
+  useEffect(() => {
+    if (!nodesInitialized || !isFirstRender.current) return
+    isFirstRender.current = false
+    fitAvoidingToolbar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodesInitialized])
+
+  // Opnieuw fitten wanneer de zijbalk *definitief* wisselt (open/iconen/
+  // auto) — niet bij het tijdelijk uitklappen op hover, want dat is geen
+  // sidebarMode-wijziging. De vertraging wacht de CSS-transitie van <main>'s
   // padding-left af zodat het canvas al zijn uiteindelijke breedte heeft.
   useEffect(() => {
-    const id = window.setTimeout(() => fitAvoidingToolbar(), isFirstRender.current ? 60 : 220)
-    isFirstRender.current = false
+    if (isFirstRender.current) return
+    const id = window.setTimeout(() => fitAvoidingToolbar(), 220)
     return () => window.clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sidebarMode])
@@ -3341,6 +3351,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     maxZoom={1.5}
                     backgroundColor="#d3dbe3"
                     hideControls
+                    disableAutoFit
                   />
                   <TeamCanvasToolbar
                     onSmartOrder={handleSmartOrder}
@@ -3516,13 +3527,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             </div>
 
             {adminSections.filters && (
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <input
-                value={depSearchQuery}
-                onChange={(e) => setDepSearchQuery(e.target.value)}
-                placeholder={t('teampage.depSearchPlaceholder')}
-                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-              />
+            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
               <DepFiltersDropdown
                 open={depFiltersOpen}
                 onToggle={() => setDepFiltersOpen((v) => !v)}
@@ -3605,14 +3610,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 </h4>
                 {applicatieflowDeps.length === 0 && (
                   <p className="mb-2 text-xs text-slate-400">{t('teampage.applicatieflowEmpty')}</p>
-                )}
-                {workflow.applications.length > 3 && (
-                  <input
-                    value={appFilterQuery}
-                    onChange={(e) => setAppFilterQuery(e.target.value)}
-                    placeholder={t('teampage.appFilterPlaceholder')}
-                    className="mb-2 w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                  />
                 )}
                 {workflow.applications
                   .filter((app) => !appFilterQuery.trim() || (app.naam || '').toLowerCase().includes(appFilterQuery.trim().toLowerCase()))
