@@ -2160,6 +2160,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   }, [])
 
   function startTour() {
+    // Vaste startstand zodat de laatste stap (Dependencies/Teamgegevens-
+    // tabs) altijd zijn data-tour-target vindt, ook als de rondleiding
+    // wordt herstart terwijl de gebruiker toevallig op het Teamgegevens-tab
+    // stond.
+    setBottomSectionTab('dependencies')
     setTourActive(true)
   }
 
@@ -2168,19 +2173,36 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     setTourActive(false)
   }
 
+  // Volgorde volgt het scherm van boven naar beneden, links naar rechts:
+  // eerst het canvas zelf, dan de toolbar-rijen erboven in de volgorde
+  // waarin ze staan (toevoegen/notitie → zoeken/weergave → help), dan
+  // fullscreen, en tot slot de tabs onder het canvas. Elke stap beschrijft
+  // alleen wat er nu daadwerkelijk staat — geen stappen voor functies die
+  // niet (meer) bestaan.
   const tourSteps = [
     { target: 'workflow-canvas', title: t('tour.step.canvas.title'), body: t('tour.step.canvas.body') },
-    { target: 'toolbar', title: t('tour.step.toolbar.title'), body: t('tour.step.toolbar.body') },
-    (adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit) && {
+    (adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit || adminSections.applicatieflow) && {
       target: 'toolbar',
-      title: t('tour.step.applications.title'),
-      body: t('tour.step.applications.body'),
+      title: t('tour.step.addMenu.title'),
+      body: t('tour.step.addMenu.body'),
     },
-    adminSections.dependencies && { target: 'dependencies', title: t('tour.step.dependencies.title'), body: t('tour.step.dependencies.body') },
-    adminSections.applicatieflow && {
+    adminSections.aantekeningen && {
       target: 'toolbar',
-      title: t('tour.step.applicatieflow.title'),
-      body: t('tour.step.applicatieflow.body'),
+      title: t('tour.step.annotations.title'),
+      body: t('tour.step.annotations.body'),
+    },
+    { target: 'toolbar', title: t('tour.step.searchFilter.title'), body: t('tour.step.searchFilter.body') },
+    { target: 'toolbar', title: t('tour.step.help.title'), body: t('tour.step.help.body') },
+    { target: 'workflow-card-header', title: t('tour.step.fullscreen.title'), body: t('tour.step.fullscreen.body') },
+    (adminSections.dependencies ||
+      adminSections.applicaties ||
+      adminSections.applicatieflow ||
+      adminSections.input ||
+      adminSections.output ||
+      adminSections.capaciteit) && {
+      target: 'dependencies',
+      title: t('tour.step.tabs.title'),
+      body: t('tour.step.tabs.body'),
     },
   ].filter(Boolean)
 
@@ -2700,7 +2722,9 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   }
 
   function addApplication() {
-    patch({ applications: [...workflow.applications, { id: generateId(), naam: '' }] })
+    const id = generateId()
+    patch({ applications: [...workflow.applications, { id, naam: '' }] })
+    return id
   }
   function updateApplication(id, fields) {
     patch({ applications: workflow.applications.map((a) => (a.id === id ? { ...a, ...fields } : a)) })
@@ -2844,27 +2868,25 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
           <div
             className={
               isFullscreen
-                ? 'fixed inset-0 z-[100] flex flex-col overflow-hidden bg-white p-4'
+                ? 'fixed inset-0 top-0 left-0 z-[100] h-screen w-screen flex flex-col overflow-hidden bg-white p-4'
                 : 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
             }
           >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={onBack}
-                  title={t('teampage.back')}
-                  className="flex shrink-0 items-center gap-1 rounded-md border border-slate-200 p-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  {sidebarCollapsed && t('teampage.backCompact')}
-                </button>
-                <h3 className="truncate text-sm font-semibold text-slate-800" title={teamNaam}>
-                  {teamNaam}
-                </h3>
-              </div>
+            <div data-tour="workflow-card-header" className="mb-2 grid grid-cols-[auto_1fr_auto] items-center gap-2">
+              <button
+                type="button"
+                onClick={onBack}
+                title={t('teampage.back')}
+                className="flex shrink-0 items-center gap-1 rounded-md border border-slate-200 p-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                {sidebarCollapsed && t('teampage.backCompact')}
+              </button>
+              <h3 className="truncate text-center text-sm font-semibold text-slate-800" title={teamNaam}>
+                {teamNaam}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsFullscreen((v) => !v)}
@@ -2920,20 +2942,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                       </button>
                       {addMenuOpen && (
                         <div className="absolute left-0 top-9 z-20 w-56 rounded-xl border border-slate-200 bg-white p-1.5 shadow-lg shadow-slate-900/10">
-                          {adminSections.applicaties && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                addApplication()
-                                setAddMenuOpen(false)
-                                setBottomSectionTab('teamgegevens')
-                                setTeamDataOpenBlocks((prev) => ({ ...prev, applicaties: true }))
-                              }}
-                              className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-                            >
-                              {t('teampage.applicationsAdd')}
-                            </button>
-                          )}
                           {adminSections.applicatieflow && (
                             <button
                               type="button"
@@ -2944,6 +2952,18 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                               className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
                             >
                               {t('appflow.connectInline')}
+                            </button>
+                          )}
+                          {adminSections.applicaties && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAppDetailId(addApplication())
+                                setAddMenuOpen(false)
+                              }}
+                              className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                            >
+                              {t('teampage.applicationsAdd')}
                             </button>
                           )}
                           {adminSections.input && (
@@ -3518,7 +3538,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   action={
                     <button
                       type="button"
-                      onClick={addApplication}
+                      onClick={() => setAppDetailId(addApplication())}
                       className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
                     >
                       {t('teampage.applicationsAdd')}
