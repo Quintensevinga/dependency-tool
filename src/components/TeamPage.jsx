@@ -2863,8 +2863,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 </button>
                 <h3 className="truncate text-sm font-semibold text-slate-800" title={teamNaam}>
                   {teamNaam}
-                  <span className="mx-1.5 text-slate-300">·</span>
-                  {t('teampage.workflowTitle')}
                 </h3>
               </div>
               <button
