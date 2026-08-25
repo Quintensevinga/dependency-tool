@@ -162,6 +162,7 @@ function AppContent() {
               onBack={() => setTeamPageTeamId(null)}
               adminSections={adminSettings.sections.team}
               sidebarCollapsed={sidebarMode !== 'open'}
+              sidebarMode={sidebarMode}
             />
           ) : (
             <PageDisabledNotice onBack={() => setTeamPageTeamId(null)} />
@@ -192,13 +193,15 @@ function AppContent() {
                     onClearHighlight={() => setGraphHighlight(null)}
                     onDrillToRelatie={handleDrillToRelatie}
                     adminSections={adminSettings.sections.netwerk}
+                    onNavigateToTeam={handleNavigateToTeam}
+                    sidebarMode={sidebarMode}
                   />
                 ) : (
                   <PageDisabledNotice />
                 ))}
               {activeTab === 'chain' &&
                 (adminSettings.pages.keten ? (
-                  <ChainOverview adminSections={adminSettings.sections.keten} />
+                  <ChainOverview adminSections={adminSettings.sections.keten} sidebarMode={sidebarMode} />
                 ) : (
                   <PageDisabledNotice />
                 ))}

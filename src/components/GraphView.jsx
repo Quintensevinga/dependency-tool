@@ -186,7 +186,17 @@ function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
   return { nodes: nodeList, edges: edgeList, categoriesPresent, graphHeight }
 }
 
-export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight, onClearHighlight, onDrillToRelatie, adminSections }) {
+export default function GraphView({
+  onSelect,
+  onQuickCreate,
+  viewMode,
+  highlight,
+  onClearHighlight,
+  onDrillToRelatie,
+  adminSections,
+  onNavigateToTeam,
+  sidebarMode,
+}) {
   const { teams, dependencies, teamLabels } = useAppContext()
   const { t, language } = useLanguage()
   const [listPanel, setListPanel] = useState(null)
@@ -540,6 +550,25 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
   const listPanelRef = useRef(null)
   useModalA11y({ open: Boolean(listPanel), onClose: closeListPanel, containerRef: listPanelRef })
 
+  // Past de Relatiekaart opnieuw in beeld wanneer de zijbalk *definitief*
+  // wisselt (open/iconen/auto) en daardoor de beschikbare canvasbreedte
+  // permanent verandert — niet bij het tijdelijk uitklappen op hover, want
+  // sidebarMode zelf blijft dan ongewijzigd. De vertraging wacht de
+  // CSS-transitie van <main>'s padding-left af.
+  const flowInstanceRef = useRef(null)
+  const isFirstSidebarRender = useRef(true)
+  useEffect(() => {
+    if (isFirstSidebarRender.current) {
+      isFirstSidebarRender.current = false
+      return
+    }
+    if (viewMode !== 'bipartite') return
+    const id = window.setTimeout(() => {
+      flowInstanceRef.current?.fitView({ padding: 0.15, duration: 200 })
+    }, 220)
+    return () => window.clearTimeout(id)
+  }, [sidebarMode, viewMode])
+
   const heatmapPanelRef = useRef(null)
   useModalA11y({ open: Boolean(heatmapSelection), onClose: clearHeatmapSelection, containerRef: heatmapPanelRef })
 
@@ -622,6 +651,9 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
             onEdgeMouseEnter={(event, edge) => setHover({ x: event.clientX, y: event.clientY, kind: 'edge', payload: edge.data })}
             onEdgeMouseMove={(event) => setHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
             onEdgeMouseLeave={() => setHover(null)}
+            onInit={(instance) => {
+              flowInstanceRef.current = instance
+            }}
             fitView
             fitViewOptions={{ padding: 0.15 }}
             minZoom={0.2}
@@ -828,7 +860,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                 <span aria-hidden="true">✕</span>
               </button>
             </div>
-            <DependencyTable dependencies={listPanel.deps} onSelect={onSelect} showTeamColumn />
+            <DependencyTable dependencies={listPanel.deps} onSelect={onSelect} showTeamColumn onTeamClick={onNavigateToTeam} />
           </div>
         )}
 
@@ -869,6 +901,7 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
                 dependencies={heatmapSelectionInfo.deps}
                 onSelect={onSelect}
                 showTeamColumn={!heatmapSelectionInfo.teamId}
+                onTeamClick={onNavigateToTeam}
               />
             </div>
           </div>

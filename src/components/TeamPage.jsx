@@ -29,6 +29,7 @@ import { calculateRisk, compareRiskDesc } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import { generateId, emptyTeamWorkflow, emptyApplicatieflow } from '../lib/storage'
 import { buildDuplicatePrefill } from '../lib/duplicateDependency'
+import { fitViewAvoidingCorner } from '../lib/flowFit'
 import { CategoryIcon } from '../data/categoryIcons'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -1836,11 +1837,51 @@ function TeamDataBlock({ title, count, open, onToggle, action, children, blockRe
 // React Flow's eigen — nu verborgen — standaardknoppen): zoom, passend maken
 // en slim ordenen boven een streepje, volledig scherm apart eronder. Moet
 // binnen een ReactFlowProvider staan voor useReactFlow().
-function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t }) {
-  const { zoomIn, zoomOut, fitView } = useReactFlow()
+function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t, paneRef, sidebarMode }) {
+  const instance = useReactFlow()
+  const { zoomIn, zoomOut } = instance
+  const toolbarRef = useRef(null)
+  const isFirstRender = useRef(true)
+
+  // Fit die rekening houdt met de eigen footprint van deze toolbar (linksonder
+  // in het canvas), zodat nodes daar nooit onder verdwijnen — zie
+  // src/lib/flowFit.js. reserveLeft/-Bottom worden live gemeten i.p.v.
+  // hardcoded, zodat dit vanzelf klopt blijft als de toolbar ooit verandert.
+  const fitAvoidingToolbar = useCallback(
+    (opts) => {
+      const el = toolbarRef.current
+      const reserveLeft = el ? el.getBoundingClientRect().width + 24 : 0
+      const reserveBottom = el ? el.getBoundingClientRect().height + 24 : 0
+      fitViewAvoidingCorner(instance, paneRef?.current, {
+        reserveLeft,
+        reserveBottom,
+        padding: 0.06,
+        minZoom: 0.4,
+        maxZoom: 1.5,
+        duration: 200,
+        ...opts,
+      })
+    },
+    [instance, paneRef],
+  )
+
+  // Eerste fit na mount (overschrijft de generieke onInit-fit van
+  // PannableFlowCanvas, die de toolbar-hoek nog niet kent), en telkens
+  // opnieuw wanneer de zijbalk *definitief* wisselt (open/iconen/auto) — niet
+  // bij het tijdelijk uitklappen op hover, want dat is geen sidebarMode-
+  // wijziging. De vertraging wacht de CSS-transitie van <main> se
+  // padding-left af zodat het canvas al zijn uiteindelijke breedte heeft.
+  useEffect(() => {
+    const id = window.setTimeout(() => fitAvoidingToolbar(), isFirstRender.current ? 60 : 220)
+    isFirstRender.current = false
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sidebarMode])
+
   const btnClass = 'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700'
   return (
     <div
+      ref={toolbarRef}
       data-tour="canvas-toolbar"
       className="absolute bottom-3 left-3 z-10 flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur-sm"
     >
@@ -1859,7 +1900,7 @@ function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t }) {
       <div className="my-0.5 h-px w-4 bg-slate-200" />
       <button
         type="button"
-        onClick={() => fitView({ padding: 0.06, duration: 200 })}
+        onClick={() => fitAvoidingToolbar()}
         title={t('teampage.canvasFitView')}
         aria-label={t('teampage.canvasFitView')}
         className={btnClass}
@@ -2163,7 +2204,7 @@ function DepFiltersDropdown({
   )
 }
 
-export default function TeamPage({ teamId, onBack, adminSections, sidebarCollapsed }) {
+export default function TeamPage({ teamId, onBack, adminSections, sidebarCollapsed, sidebarMode }) {
   const {
     teams,
     dependencies,
@@ -2214,6 +2255,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const legendRef = useRef(null)
   const addMenuRef = useRef(null)
+  const canvasPaneRef = useRef(null)
   useClickOutside(legendRef, legendOpen, () => setLegendOpen(false))
   useClickOutside(addMenuRef, addMenuOpen, () => setAddMenuOpen(false))
 
@@ -3265,6 +3307,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 door de kaarthoogte hierboven, niet los geschat. */}
             <div className="flex min-h-0 flex-1 items-stretch gap-3">
               <div
+                ref={canvasPaneRef}
                 data-tour="workflow-canvas"
                 className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
               >
@@ -3304,6 +3347,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     onFullscreen={() => setIsFullscreen((v) => !v)}
                     isFullscreen={isFullscreen}
                     t={t}
+                    paneRef={canvasPaneRef}
+                    sidebarMode={sidebarMode}
                   />
                 </ReactFlowProvider>
                 {canvasHover && (

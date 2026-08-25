@@ -19,7 +19,7 @@ import { CategoryIcon } from '../data/categoryIcons'
 // Gedeelde dependency-tabel: dezelfde kolommen/hover-tooltip als het
 // Matrix-overzicht, herbruikt door de Relatiekaart-pagina zodat een selectie
 // daar (team/categorie/koppeling) in exact dezelfde vorm getoond wordt.
-export default function DependencyTable({ dependencies, onSelect, showTeamColumn = true, emptyLabel }) {
+export default function DependencyTable({ dependencies, onSelect, showTeamColumn = true, emptyLabel, onTeamClick }) {
   const { teamName } = useAppContext()
   const { t, language } = useLanguage()
   const [hover, setHover] = useState(null)
@@ -63,7 +63,24 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
                 onMouseLeave={() => setHover(null)}
                 className="cursor-pointer border-b border-slate-100 last:border-b-0 hover:bg-[#2a5f8a]/[0.03]"
               >
-                {showTeamColumn && <td className="px-5 py-3 text-slate-500">{teamName(dependency.teamId)}</td>}
+                {showTeamColumn && (
+                  <td className="px-5 py-3 text-slate-500">
+                    {onTeamClick ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onTeamClick(dependency.teamId)
+                        }}
+                        className="rounded text-slate-600 underline decoration-slate-300 underline-offset-2 hover:text-[#2a5f8a] hover:decoration-[#2a5f8a]"
+                      >
+                        {teamName(dependency.teamId)}
+                      </button>
+                    ) : (
+                      teamName(dependency.teamId)
+                    )}
+                  </td>
+                )}
                 <td className="px-5 py-3 font-medium text-slate-800">{dependency.titel}</td>
                 <td className="px-5 py-3 text-slate-500">
                   <span className="flex items-center gap-1.5">

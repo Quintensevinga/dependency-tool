@@ -117,17 +117,19 @@ function ChainZoomToolbar() {
   )
 }
 
-// Past het canvas opnieuw in beeld zodra de getoonde teamselectie wijzigt.
+// Past het canvas opnieuw in beeld zodra de getoonde teamselectie wijzigt, of
+// wanneer de zijbalk *definitief* wisselt (open/iconen/auto) en zo de
+// beschikbare breedte permanent verandert (fitKey bevat sidebarMode).
 // ReactFlow's fitView-prop werkt alleen bij de eerste render; zonder dit bleef
 // na het aanzetten van de focusmodus de uitgezoomde transform van het volledige
 // overzicht staan, waardoor de drie overgebleven kolommen buiten beeld vielen.
 function ChainAutoFit({ fitKey }) {
   const { fitView } = useReactFlow()
   useEffect(() => {
-    // Korte vertraging in plaats van een enkele rAF: de nieuwe nodes worden pas
-    // in een volgende commit door React Flow zelf ingelezen. Direct fitten zou
-    // nog de oude (volledige) bounds meten en dus niets zichtbaar veranderen.
-    const id = window.setTimeout(() => fitView({ padding: 0.15, duration: 200 }), 60)
+    // 200ms i.p.v. een enkele rAF: dekt zowel de React Flow-commit-lag van
+    // nieuwe nodes als de CSS-transitie van <main>'s padding-left bij een
+    // sidebarMode-wissel, zodat er tegen de uiteindelijke bounds gefit wordt.
+    const id = window.setTimeout(() => fitView({ padding: 0.15, duration: 200 }), 200)
     return () => window.clearTimeout(id)
   }, [fitKey, fitView])
   return null
@@ -267,7 +269,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
   return { nodes, edges, canvasWidth, canvasHeight }
 }
 
-export default function ChainOverview({ adminSections }) {
+export default function ChainOverview({ adminSections, sidebarMode }) {
   const { teams, dependencies, teamWorkflows, teamLabels } = useAppContext()
   const { t, language } = useLanguage()
   // Gearchiveerde teams staan bij openen standaard uit, zelfde gedrag als
@@ -551,7 +553,7 @@ export default function ChainOverview({ adminSections }) {
         ) : (
           <ReactFlowProvider>
             <ChainZoomToolbar />
-            <ChainAutoFit fitKey={`${nodes.length}:${chainMode}:${focusTeamId}`} />
+            <ChainAutoFit fitKey={`${nodes.length}:${chainMode}:${focusTeamId}:${sidebarMode}`} />
             <div
               className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
