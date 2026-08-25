@@ -39,6 +39,20 @@ import FloatingTooltip from './FloatingTooltip'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
 
+// Sluit een floating dropdown/popover zodra er ergens buiten geklikt wordt —
+// naast de eigen toggle-knop, die al werkt via de gewone onClick. Gebruikt
+// door de toolbar-menu's (+ Toevoegen, Weergeven/Filters, Legenda).
+function useClickOutside(ref, active, onOutside) {
+  useEffect(() => {
+    if (!active) return
+    function handlePointerDown(e) {
+      if (ref.current && !ref.current.contains(e.target)) onOutside()
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => document.removeEventListener('mousedown', handlePointerDown)
+  }, [active, onOutside, ref])
+}
+
 const STAGE_GAP = 220
 const STAGE_START_X = 260
 const STAGE_Y = 260
@@ -1845,8 +1859,10 @@ function DepFiltersDropdown({
   t,
   language,
 }) {
+  const containerRef = useRef(null)
+  useClickOutside(containerRef, open, onToggle)
   return (
-    <div className="relative">
+    <div ref={containerRef} className="relative">
       <button
         type="button"
         onClick={onToggle}
@@ -2106,6 +2122,10 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   const [showExternalTeams, setShowExternalTeams] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
+  const legendRef = useRef(null)
+  const addMenuRef = useRef(null)
+  useClickOutside(legendRef, legendOpen, () => setLegendOpen(false))
+  useClickOutside(addMenuRef, addMenuOpen, () => setAddMenuOpen(false))
 
   const toggleLaneCollapsed = useCallback((id) => {
     setCollapsedLaneIds((prev) => {
@@ -2798,7 +2818,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {(adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit || adminSections.applicatieflow) && (
-                    <div className="relative">
+                    <div ref={addMenuRef} className="relative">
                       <button
                         type="button"
                         onClick={() => setAddMenuOpen((v) => !v)}
@@ -2903,7 +2923,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                     {t('teampage.smartOrder')}
                   </button>
 
-                  <div className="relative">
+                  <div ref={legendRef} className="relative">
                     <button
                       type="button"
                       onClick={() => setLegendOpen((v) => !v)}
