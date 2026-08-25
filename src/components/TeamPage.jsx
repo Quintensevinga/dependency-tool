@@ -2839,9 +2839,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
 
   return (
     <div className="space-y-4">
-      {/* Eén omsluitend kader zodat workflow/applicaties/capaciteit/dependencies
-          visueel als één teamcontext-geheel lezen i.p.v. losse kaarten. */}
-      <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/60 p-5">
       {(
         <>
           <div
@@ -2857,20 +2854,18 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   type="button"
                   onClick={onBack}
                   title={t('teampage.back')}
-                  className="flex shrink-0 items-center gap-1 rounded-md p-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  className="flex shrink-0 items-center gap-1 rounded-md border border-slate-200 p-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                   </svg>
                   {sidebarCollapsed && t('teampage.backCompact')}
                 </button>
-                <span
-                  className="max-w-[140px] shrink-0 truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
-                  title={teamNaam}
-                >
+                <h3 className="truncate text-sm font-semibold text-slate-800" title={teamNaam}>
                   {teamNaam}
-                </span>
-                <h3 className="truncate text-sm font-semibold text-slate-800">{t('teampage.workflowTitle')}</h3>
+                  <span className="mx-1.5 text-slate-300">·</span>
+                  {t('teampage.workflowTitle')}
+                </h3>
               </div>
               <button
                 type="button"
@@ -3798,7 +3793,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
           )}
         </>
       )}
-      </div>
 
       {selectedDependency && (
         <DependencyDetail
