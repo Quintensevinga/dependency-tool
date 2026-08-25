@@ -284,26 +284,6 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
     return { teamId, categorie, team, deps, title }
   }, [heatmapSelection, groups, visibleDependencies, teams, language])
 
-  // Compacte deelverzameling van de volle Relatiekaart-layout — alleen de
-  // node(s)/edge(s) die bij de huidige Heatmap-selectie horen, herbruikt in
-  // de mini-preview zodat die er identiek uitziet aan (een uitsnede van) de
-  // echte Relatiekaart.
-  const heatmapMiniPreview = useMemo(() => {
-    if (!heatmapSelection) return null
-    const { teamId, categorie } = heatmapSelection
-    const matchEdges = edges.filter((e) => {
-      if (teamId && e.source !== `team:${teamId}`) return false
-      if (categorie && e.target !== `cat:${categorie}`) return false
-      return true
-    })
-    const nodeIds = new Set()
-    matchEdges.forEach((e) => {
-      nodeIds.add(e.source)
-      nodeIds.add(e.target)
-    })
-    return { nodes: nodes.filter((n) => nodeIds.has(n.id)), edges: matchEdges }
-  }, [heatmapSelection, nodes, edges])
-
   // Alleen selecteren als er ook echt iets te tonen valt — lege rijen/
   // kolommen/cellen (geen dependencies) openen geen lege detailsectie.
   function selectHeatmapCell(team, categorie) {
@@ -854,66 +834,43 @@ export default function GraphView({ onSelect, onQuickCreate, viewMode, highlight
 
         {/* Heatmap blijft de verkenningspagina: een klik op een cel/rij/kolom
             stuurt de gebruiker niet meteen naar de Relatiekaart, maar toont
-            hier context (dezelfde dependency-lijst + een mini-uitsnede van
-            de Relatiekaart voor alleen deze selectie). Pas de expliciete
-            'Open in Relatiekaart'-knop hieronder maakt de overstap. */}
+            hier de dependency-lijst voor die selectie. De mini-uitsnede van
+            de Relatiekaart die hier eerder naast stond voegde weinig toe
+            naast de lijst zelf — een expliciete knop volstaat om over te
+            stappen. */}
         {viewMode === 'heatmap' && heatmapSelectionInfo && adminSections.selectiepaneel && (
           <div ref={heatmapPanelRef} className="mt-3 rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3.5">
-              <h2 className="text-sm font-semibold text-slate-800">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-3.5">
+              <h2 className="min-w-0 text-sm font-semibold text-slate-800">
                 {heatmapSelectionInfo.title}
                 <span className="ml-2 font-normal text-slate-400">({heatmapSelectionInfo.deps.length})</span>
               </h2>
-              <button
-                type="button"
-                onClick={clearHeatmapSelection}
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
-              >
-                {t('graph.selectionClear')}
-                <span aria-hidden="true">✕</span>
-              </button>
-            </div>
-              <div className="flex flex-col gap-4 p-4 lg:flex-row">
-                <div className="shrink-0 lg:w-72">
-                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50/60" style={{ height: 220 }}>
-                    <ReactFlow
-                      nodes={heatmapMiniPreview?.nodes ?? []}
-                      edges={heatmapMiniPreview?.edges ?? []}
-                      nodeTypes={nodeTypes}
-                      fitView
-                      fitViewOptions={{ padding: 0.25 }}
-                      minZoom={0.1}
-                      maxZoom={1.5}
-                      proOptions={{ hideAttribution: true }}
-                      nodesDraggable={false}
-                      nodesConnectable={false}
-                      elementsSelectable={false}
-                      panOnDrag
-                      zoomOnScroll={false}
-                      zoomOnPinch={false}
-                    >
-                      <Background color="#e2e8f0" gap={20} />
-                    </ReactFlow>
-                  </div>
-                  {/* Direct onder de mini-preview i.p.v. los in de kop: zo is
-                      meteen duidelijk dat deze knop bij dít uitsnedeje hoort. */}
-                  <button
-                    type="button"
-                    onClick={openHeatmapSelectionInRelatiekaart}
-                    className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-[#2a5f8a]/30 bg-[#2a5f8a]/10 px-2.5 py-1.5 text-xs font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/15"
-                  >
-                    {t('graph.openInRelatiekaart')}
-                    <span aria-hidden="true">→</span>
-                  </button>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <DependencyTable
-                    dependencies={heatmapSelectionInfo.deps}
-                    onSelect={onSelect}
-                    showTeamColumn={!heatmapSelectionInfo.teamId}
-                  />
-                </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={openHeatmapSelectionInRelatiekaart}
+                  className="flex items-center gap-1.5 rounded-full border border-[#2a5f8a]/30 bg-[#2a5f8a]/10 px-2.5 py-1 text-xs font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/15"
+                >
+                  {t('graph.openInRelatiekaart')}
+                  <span aria-hidden="true">→</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={clearHeatmapSelection}
+                  className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-50"
+                >
+                  {t('graph.selectionClear')}
+                  <span aria-hidden="true">✕</span>
+                </button>
               </div>
+            </div>
+            <div className="p-4">
+              <DependencyTable
+                dependencies={heatmapSelectionInfo.deps}
+                onSelect={onSelect}
+                showTeamColumn={!heatmapSelectionInfo.teamId}
+              />
+            </div>
           </div>
         )}
 

@@ -2851,8 +2851,27 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 : 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
             }
           >
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.workflowTitle')}</h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={onBack}
+                  title={t('teampage.back')}
+                  className="flex shrink-0 items-center gap-1 rounded-md p-1 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {sidebarCollapsed && t('teampage.backCompact')}
+                </button>
+                <span
+                  className="max-w-[140px] shrink-0 truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
+                  title={teamNaam}
+                >
+                  {teamNaam}
+                </span>
+                <h3 className="truncate text-sm font-semibold text-slate-800">{t('teampage.workflowTitle')}</h3>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsFullscreen((v) => !v)}
@@ -2892,24 +2911,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               {/* Rij 1 — acties en hulpmiddelen: toevoegen/notitie links, canvas-hulpmiddelen rechts. */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    title={t('teampage.back')}
-                    className="flex items-center gap-1 rounded-md px-1.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                      <path d="M15 6l-6 6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    {sidebarCollapsed && t('teampage.backCompact')}
-                  </button>
-                  <span
-                    className="max-w-[140px] truncate rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600"
-                    title={teamNaam}
-                  >
-                    {teamNaam}
-                  </span>
-                  <div className="h-5 w-px bg-slate-200" />
                   {(adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit || adminSections.applicatieflow) && (
                     <div ref={addMenuRef} className="relative">
                       <button
