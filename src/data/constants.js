@@ -43,15 +43,17 @@ export function categoriesForScope(scope) {
 // Vaste, canonieke sleutels (geen vrije tekst) zodat later betrouwbaar
 // gefilterd en gegroepeerd kan worden. Labels/vertalingen staan in i18n/labels.js.
 
+// Gelijk aan de canvas-stages (WORKFLOW_STAGES), min 'hardening': dat is een
+// canvas-only fase (alleen bereikt via capaciteit), geen moment waarop een
+// dependency zelf wordt vastgelegd. Zo komt wat je in het formulier kiest
+// 1-op-1 overeen met de kolom waar de dependency straks verschijnt.
 export const WORKFLOW_STAP_LEVELS = [
-  'idee_input',
-  'refinement',
-  'ready',
-  'build',
-  'test',
+  'analyse_refinement',
+  'ontwikkeling_configuratie',
+  'testen',
   'acceptatie',
-  'release',
-  'beheer',
+  'release_overdracht',
+  'beheer_nazorg',
 ]
 
 export const EFFECT_OP_FLOW_LEVELS = [
@@ -71,21 +73,11 @@ export const EFFECT_OP_FLOW_LEVELS = [
 // het workflow-canvas dan wel bij een applicatie op de teampagina verschijnt.
 export const FLOWTYPE_LEVELS = ['ontwikkelflow', 'applicatieflow']
 
-// Vaste mapping van de (fijnmaziger) per-dependency workflowstap naar de
-// (grovere) teamcanvas-stages, zodat een Ontwikkelflow-dependency op de
-// juiste kolom van het workflow-canvas verschijnt. 'hardening' heeft bewust
-// geen bronwaarde: dat is een canvas-only fase (capaciteit), geen moment
-// waarop een dependency zelf wordt vastgelegd.
-export const WORKFLOW_STAP_TO_STAGE = {
-  idee_input: 'analyse_refinement',
-  refinement: 'analyse_refinement',
-  ready: 'ontwikkeling_configuratie',
-  build: 'ontwikkeling_configuratie',
-  test: 'testen',
-  acceptatie: 'acceptatie',
-  release: 'release_overdracht',
-  beheer: 'beheer_nazorg',
-}
+// Workflowstap en canvas-stage delen nu dezelfde sleutels (zie
+// WORKFLOW_STAP_LEVELS hierboven); deze map is een identity-map zodat de
+// bestaande WORKFLOW_STAP_TO_STAGE[dep.workflowStap]-lookups door de rest
+// van de app heen ongewijzigd kunnen blijven werken.
+export const WORKFLOW_STAP_TO_STAGE = Object.fromEntries(WORKFLOW_STAP_LEVELS.map((stap) => [stap, stap]))
 
 // --- Teamworkflow-bord (teampagina, ketenoverzicht) ---
 // Vaste, globale werkstappen-reeks (niet per team aanpasbaar in v1).

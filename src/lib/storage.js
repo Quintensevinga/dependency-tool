@@ -139,13 +139,32 @@ function resolveTeamId(dep, teamsState) {
   return dep.teamId ?? null
 }
 
+// Oudere data kende 8 fijnmazige workflowstappen die niet 1-op-1 overeenkwamen
+// met de 7 (bredere) canvas-stages — verwarrend, want wat je in het formulier
+// koos leek dan niet overeen te komen met de kolom waar de dependency
+// verscheen. Workflowstap deelt nu dezelfde sleutels als de canvas-stage
+// (zie WORKFLOW_STAP_LEVELS in constants.js); deze map zet bestaande waarden
+// eenmalig om naar de nieuwe, bredere sleutels.
+const LEGACY_WORKFLOWSTAP_MIGRATION = {
+  idee_input: 'analyse_refinement',
+  refinement: 'analyse_refinement',
+  ready: 'ontwikkeling_configuratie',
+  build: 'ontwikkeling_configuratie',
+  test: 'testen',
+  release: 'release_overdracht',
+  beheer: 'beheer_nazorg',
+}
+
 function migrateDependency(raw, teamsState) {
   const teamId = resolveTeamId(raw, teamsState)
   const { eigenaarFunctieIds, oplossingsniveau, ...rest } = raw
+  const workflowStap = raw.workflowStap
+    ? (LEGACY_WORKFLOWSTAP_MIGRATION[raw.workflowStap] ?? raw.workflowStap)
+    : null
   return {
     ...rest,
     teamId,
-    workflowStap: raw.workflowStap ?? null,
+    workflowStap,
     effectOpFlow: raw.effectOpFlow ?? null,
     actieAfspraak: typeof raw.actieAfspraak === 'string' ? raw.actieAfspraak : '',
     // Bestaande data met een workflowstap wordt aangenomen Ontwikkelflow te

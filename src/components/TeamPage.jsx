@@ -2426,20 +2426,49 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
               data-tour="toolbar"
               className="-mx-4 -mt-4 mb-3 flex min-h-[56px] flex-wrap items-center gap-1.5 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
             >
-              {adminSections.aantekeningen && (
-                <div className="flex items-center gap-0.5">
+              <div className="flex flex-wrap items-center gap-0.5">
+                {adminSections.applicaties && (
                   <button
                     type="button"
-                    onClick={() => addAnnotation('note')}
+                    onClick={addApplication}
                     className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
                   >
-                    {t('teampage.toolbarNote')}
+                    {t('teampage.applicationsAdd')}
                   </button>
-                  <div className="mx-1">
-                    <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
-                  </div>
-                </div>
-              )}
+                )}
+                {adminSections.input && (
+                  <button
+                    type="button"
+                    onClick={() => setCanvasIoTarget({ kind: 'input', item: null })}
+                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    {t('teampage.inputAdd')}
+                  </button>
+                )}
+                {adminSections.output && (
+                  <button
+                    type="button"
+                    onClick={() => setCanvasIoTarget({ kind: 'output', item: null })}
+                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    {t('teampage.outputAdd')}
+                  </button>
+                )}
+                {adminSections.aantekeningen && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => addAnnotation('note')}
+                      className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      {t('teampage.toolbarNote')}
+                    </button>
+                    <div className="mx-1">
+                      <ColorSwatchRow value={activeColor} onChange={setActiveColor} />
+                    </div>
+                  </>
+                )}
+              </div>
 
               <div className="ml-auto flex items-center gap-2">
                 {splitApplicaties && workflow.applications.length > 4 && (
@@ -2819,15 +2848,23 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
               kind={canvasIoTarget.kind}
               item={canvasIoTarget.item}
               onSave={(draft) => {
-                if (canvasIoTarget.kind === 'input') updateInput(draft.id, draft)
-                else updateOutput(draft.id, draft)
+                const isNew = !canvasIoTarget.item
+                if (canvasIoTarget.kind === 'input') {
+                  isNew ? addInput(draft) : updateInput(draft.id, draft)
+                } else {
+                  isNew ? addOutput(draft) : updateOutput(draft.id, draft)
+                }
                 setCanvasIoTarget(null)
               }}
-              onRemove={() => {
-                if (canvasIoTarget.kind === 'input') removeInput(canvasIoTarget.item.id)
-                else removeOutput(canvasIoTarget.item.id)
-                setCanvasIoTarget(null)
-              }}
+              onRemove={
+                canvasIoTarget.item
+                  ? () => {
+                      if (canvasIoTarget.kind === 'input') removeInput(canvasIoTarget.item.id)
+                      else removeOutput(canvasIoTarget.item.id)
+                      setCanvasIoTarget(null)
+                    }
+                  : undefined
+              }
               onClose={() => setCanvasIoTarget(null)}
               teams={teams}
               currentTeamId={teamId}

@@ -148,15 +148,15 @@ export const FLOWTYPE_LABELS = {
   applicatieflow: { nl: 'Applicatieflow', en: 'Application flow' },
 }
 
+// Gelijk aan WORKFLOW_STAGE_LABELS (min 'hardening'): zie WORKFLOW_STAP_LEVELS
+// in constants.js voor waarom stap en stage nu dezelfde sleutels delen.
 export const WORKFLOW_STAP_LABELS = {
-  idee_input: { nl: 'Idee / input', en: 'Idea / input' },
-  refinement: { nl: 'Refinement', en: 'Refinement' },
-  ready: { nl: 'Ready', en: 'Ready' },
-  build: { nl: 'Build', en: 'Build' },
-  test: { nl: 'Test', en: 'Test' },
+  analyse_refinement: { nl: 'Analyse/refinement', en: 'Analysis/refinement' },
+  ontwikkeling_configuratie: { nl: 'Ontwikkeling/configuratie', en: 'Development/configuration' },
+  testen: { nl: 'Testen', en: 'Testing' },
   acceptatie: { nl: 'Acceptatie', en: 'Acceptance' },
-  release: { nl: 'Release', en: 'Release' },
-  beheer: { nl: 'Beheer', en: 'Operations' },
+  release_overdracht: { nl: 'Release/overdracht', en: 'Release/handover' },
+  beheer_nazorg: { nl: 'Beheer/nazorg', en: 'Operations/aftercare' },
 }
 
 export const EFFECT_OP_FLOW_LABELS = {
