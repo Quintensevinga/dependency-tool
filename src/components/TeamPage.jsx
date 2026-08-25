@@ -2304,6 +2304,10 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   // geaccepteerde) dependencies; geaccepteerde staan achter een eigen tabje
   // — bovenop dezelfde filters/zoekopdracht als de rest van de pagina.
   const [depTab, setDepTab] = useState('actief')
+  // Dependencies en Teamgegevens stonden onder elkaar — bij een team met veel
+  // input/output/capaciteit moest je helemaal naar beneden scrollen om bij
+  // Teamgegevens te komen. Nu twee tabs op dezelfde plek, Dependencies default.
+  const [bottomSectionTab, setBottomSectionTab] = useState('dependencies')
   const acceptedDeps = useMemo(() => filteredTeamDependencies.filter((d) => d.geaccepteerd), [filteredTeamDependencies])
   const visibleTeamDependencies = useMemo(
     () => filteredTeamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd')),
@@ -2437,6 +2441,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
 
   const applicatieflowSectionRef = useRef(null)
   const onOpenApplicatieflow = useCallback(() => {
+    setBottomSectionTab('teamgegevens')
     setTeamDataOpenBlocks((prev) => ({ ...prev, verbindingen: true }))
     requestAnimationFrame(() => applicatieflowSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }, [])
@@ -2839,6 +2844,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                               onClick={() => {
                                 addApplication()
                                 setAddMenuOpen(false)
+                                setBottomSectionTab('teamgegevens')
                                 setTeamDataOpenBlocks((prev) => ({ ...prev, applicaties: true }))
                               }}
                               className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
@@ -3248,7 +3254,41 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
             />
           )}
 
-          {adminSections.dependencies && (
+          {(adminSections.dependencies ||
+            adminSections.applicaties ||
+            adminSections.applicatieflow ||
+            adminSections.input ||
+            adminSections.output ||
+            adminSections.capaciteit) && (
+            <div role="group" aria-label={t('teampage.bottomTabsLabel')} className="inline-flex rounded-md border border-slate-200 bg-slate-50 p-0.5 text-sm">
+              {adminSections.dependencies && (
+                <button
+                  type="button"
+                  onClick={() => setBottomSectionTab('dependencies')}
+                  aria-pressed={bottomSectionTab === 'dependencies'}
+                  className={`rounded px-3 py-1.5 font-medium transition-colors ${
+                    bottomSectionTab === 'dependencies' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {t('teampage.dependenciesTitle')}
+                </button>
+              )}
+              {(adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit) && (
+                <button
+                  type="button"
+                  onClick={() => setBottomSectionTab('teamgegevens')}
+                  aria-pressed={bottomSectionTab === 'teamgegevens'}
+                  className={`rounded px-3 py-1.5 font-medium transition-colors ${
+                    bottomSectionTab === 'teamgegevens' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                  }`}
+                >
+                  {t('teampage.teamDataTitle')}
+                </button>
+              )}
+            </div>
+          )}
+
+          {adminSections.dependencies && bottomSectionTab === 'dependencies' && (
           <div data-tour="dependencies" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-slate-800">{t('teampage.dependenciesTitle')}</h3>
@@ -3387,7 +3427,8 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
           </div>
           )}
 
-          {(adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit) && (
+          {(adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit) &&
+            bottomSectionTab === 'teamgegevens' && (
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <h3 className="mb-1 text-sm font-semibold text-slate-800">{t('teampage.teamDataTitle')}</h3>
             <div className="divide-y divide-slate-100">
