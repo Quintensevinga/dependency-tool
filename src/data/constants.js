@@ -108,24 +108,3 @@ export const SENIORITY_LEVELS = ['junior', 'medior', 'senior']
 // "Vormt het wegvallen van deze persoon/rol een risico voor de workflow?"
 export const RISICO_BIJ_UITVAL = ['ja', 'nee']
 
-// --- Standaard functies/rollen (seed-lijst, aanpasbaar via Instellingen) ---
-// Elke functie krijgt een stabiele id (slug) zodat filteren/groeperen op
-// eigenaarfunctie betrouwbaar blijft, ook als de naam ooit wijzigt.
-export const DEFAULT_FUNCTIES = [
-  { id: 'product-owner', naam: 'Product Owner', actief: true },
-  { id: 'scrum-master', naam: 'Scrum Master', actief: true },
-  { id: 'developer', naam: 'Developer', actief: true },
-  { id: 'tester', naam: 'Tester', actief: true },
-  { id: 'testcoordinator', naam: 'Testcoördinator', actief: true },
-  { id: 'architect', naam: 'Architect', actief: true },
-  { id: 'business-analist', naam: 'Business analist', actief: true },
-  { id: 'beheerder', naam: 'Beheerder', actief: true },
-  { id: 'functioneel-beheerder', naam: 'Functioneel beheerder', actief: true },
-  { id: 'technisch-beheerder', naam: 'Technisch beheerder', actief: true },
-  { id: 'security-officer', naam: 'Security officer', actief: true },
-  { id: 'privacy-officer', naam: 'Privacy officer', actief: true },
-  { id: 'manager', naam: 'Manager', actief: true },
-  { id: 'leverancier', naam: 'Leverancier', actief: true },
-  { id: 'stakeholder-business', naam: 'Stakeholder / business', actief: true },
-  { id: 'overig', naam: 'Overig', actief: true },
-]

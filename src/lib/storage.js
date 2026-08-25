@@ -1,5 +1,4 @@
 import { MOCK_TEAMS, MOCK_DEPENDENCIES, MOCK_TEAM_WORKFLOWS } from '../data/mockData'
-import { DEFAULT_FUNCTIES } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
 const STORAGE_KEY = 'dependency-insight:v1'
@@ -140,31 +139,14 @@ function resolveTeamId(dep, teamsState) {
   return dep.teamId ?? null
 }
 
-function migrateFuncties(rawFuncties) {
-  if (Array.isArray(rawFuncties) && rawFuncties.length > 0) {
-    const existingIds = new Set()
-    const clean = []
-    for (const raw of rawFuncties) {
-      if (!raw || typeof raw !== 'object') continue
-      const id = raw.id ? String(raw.id) : uniqueSlug(raw.naam ?? 'functie', existingIds)
-      if (existingIds.has(id)) continue
-      existingIds.add(id)
-      clean.push({ id, naam: String(raw.naam ?? id), actief: raw.actief !== false })
-    }
-    return clean.length > 0 ? clean : DEFAULT_FUNCTIES.map((f) => ({ ...f }))
-  }
-  return DEFAULT_FUNCTIES.map((f) => ({ ...f }))
-}
-
 function migrateDependency(raw, teamsState) {
   const teamId = resolveTeamId(raw, teamsState)
+  const { eigenaarFunctieIds, oplossingsniveau, ...rest } = raw
   return {
-    ...raw,
+    ...rest,
     teamId,
-    eigenaarFunctieIds: Array.isArray(raw.eigenaarFunctieIds) ? raw.eigenaarFunctieIds : [],
     workflowStap: raw.workflowStap ?? null,
     effectOpFlow: raw.effectOpFlow ?? null,
-    oplossingsniveau: raw.oplossingsniveau ?? null,
     actieAfspraak: typeof raw.actieAfspraak === 'string' ? raw.actieAfspraak : '',
     // Bestaande data met een workflowstap wordt aangenomen Ontwikkelflow te
     // zijn; zonder workflowstap blijft flowtype expliciet onbepaald (null) —
@@ -186,7 +168,6 @@ export function migrateState(raw) {
   const dependencies = (Array.isArray(source.dependencies) ? source.dependencies : []).map((dep) =>
     migrateDependency(dep, teamsState),
   )
-  const functies = migrateFuncties(source.functies)
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
   const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
 
@@ -195,7 +176,6 @@ export function migrateState(raw) {
   return {
     schemaVersion: SCHEMA_VERSION,
     teams: teamsState.teams,
-    functies,
     dependencies,
     teamWorkflows,
     teamSnapshots,
@@ -207,11 +187,26 @@ export function migrateState(raw) {
 // Zorgt dat elk team een geldig teamWorkflow-record heeft (id-based, ook na
 // import van een export die dit nog niet kende). Onbekende/verweesde keys
 // (team inmiddels verwijderd) worden hier stilzwijgend niet meegenomen.
+// Oudere data kende een 'functieId' dat verwees naar een los beheerde
+// functies/rollen-lijst; die lijst is vervallen. Bestaande rijen behouden
+// hun rol-tekst door functieId direct als leestekst te hergebruiken.
+function migrateCapacityRow(row) {
+  if (!row || typeof row !== 'object') return row
+  if (row.rol !== undefined) {
+    const { functieId, ...rest } = row
+    return rest
+  }
+  const { functieId, ...rest } = row
+  return { ...rest, rol: functieId ?? '' }
+}
+
 function migrateTeamWorkflows(rawWorkflows, teams) {
   const source = rawWorkflows && typeof rawWorkflows === 'object' ? rawWorkflows : {}
   const result = {}
   for (const team of teams) {
-    result[team.id] = source[team.id] && typeof source[team.id] === 'object' ? { ...emptyTeamWorkflow(), ...source[team.id] } : emptyTeamWorkflow()
+    const workflow =
+      source[team.id] && typeof source[team.id] === 'object' ? { ...emptyTeamWorkflow(), ...source[team.id] } : emptyTeamWorkflow()
+    result[team.id] = { ...workflow, capacity: (workflow.capacity ?? []).map(migrateCapacityRow) }
   }
   return result
 }
@@ -258,7 +253,6 @@ function emptyState() {
   return {
     schemaVersion: SCHEMA_VERSION,
     teams: [],
-    functies: DEFAULT_FUNCTIES.map((f) => ({ ...f })),
     dependencies: [],
     teamWorkflows: {},
     teamSnapshots: {},
@@ -283,7 +277,7 @@ function applyMockTeamWorkflows(state) {
       applications: seed.applications ?? [],
       capacity: (seed.capacity ?? []).map((row) => ({
         id: row.id,
-        functieId: row.rol ? slugify(row.rol) : '',
+        rol: row.rol ?? '',
         seniority: row.seniority ?? '',
         aantal: row.aantal ?? 1,
         fase: row.fase ?? '',

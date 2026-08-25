@@ -50,7 +50,6 @@ const STAGE_Y = 260
 const IO_Y_START = 40
 const IO_Y_GAP = 90
 
-const NEW_ROLE_SENTINEL = '__new_role__'
 const HIGH_RISK_LEVELS = ['Hoog', 'Kritiek']
 // Node-types die meedimmen zodra er canvas-focus actief is (zie
 // displayNodes in TeamPage) — structurele elementen (zones, lane-
@@ -431,7 +430,6 @@ function computeWorkflowLayout(
   annotationHandlers,
   capacity,
   teamDependencies,
-  functieName,
   applications,
   splitApplicaties,
   applicatieflowConnecties,
@@ -633,7 +631,7 @@ function computeWorkflowLayout(
         type: 'capacityBadge',
         position: withSavedPosition(bid, { x: STAGE_START_X + i * STAGE_GAP, y: STAGE_Y + 80 + ci * 38 }),
         data: {
-          functieNaam: functieName(row.functieId),
+          functieNaam: row.rol,
           seniority: row.seniority,
           risico: row.risico_bij_uitval === 'ja',
           risicoToelichting: row.risico_toelichting,
@@ -1596,37 +1594,16 @@ function ApplicationDetailModal({ app, data, onSave, onClose, t, language }) {
 }
 
 function emptyCapacityRow() {
-  return { id: generateId(), functieId: '', seniority: '', risico_bij_uitval: '', risico_toelichting: '', aantal: 1, fase: '' }
+  return { id: generateId(), rol: '', seniority: '', risico_bij_uitval: '', risico_toelichting: '', aantal: 1, fase: '' }
 }
 
-// Klein modal-formulier voor één capaciteitsrij, inclusief de inline
-// 'nieuwe functie/rol toevoegen'-subflow die voorheen los per rij op de
-// pagina zelf stond.
-function CapacityRowModal({ row, activeFuncties, addFunctie, onSave, onRemove, onClose, t, language }) {
+// Klein modal-formulier voor één capaciteitsrij.
+function CapacityRowModal({ row, onSave, onRemove, onClose, t, language }) {
   const [draft, setDraft] = useState(() => ({ ...emptyCapacityRow(), ...row }))
-  const [addingRole, setAddingRole] = useState(false)
-  const [newRoleName, setNewRoleName] = useState('')
   const isEditing = Boolean(row)
 
   function update(fields) {
     setDraft((d) => ({ ...d, ...fields }))
-  }
-
-  function handleRoleChange(value) {
-    if (value === NEW_ROLE_SENTINEL) {
-      setAddingRole(true)
-      return
-    }
-    update({ functieId: value })
-  }
-
-  function confirmNewRole() {
-    const name = newRoleName.trim()
-    if (!name) return
-    const id = addFunctie(name)
-    if (id) update({ functieId: id })
-    setNewRoleName('')
-    setAddingRole(false)
   }
 
   function handleSubmit(e) {
@@ -1648,48 +1625,12 @@ function CapacityRowModal({ row, activeFuncties, addFunctie, onSave, onRemove, o
         <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.capacityRolPlaceholder')}</label>
-            {addingRole ? (
-              <div className="flex items-center gap-1.5">
-                <input
-                  autoFocus
-                  value={newRoleName}
-                  onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder={t('teampage.capacityRolPlaceholder')}
-                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={confirmNewRole}
-                  className="shrink-0 rounded-md bg-[#2a5f8a] px-2.5 py-1.5 text-sm text-white hover:bg-[#1f4a6c]"
-                >
-                  {t('form.categorieNewConfirm')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddingRole(false)
-                    setNewRoleName('')
-                  }}
-                  className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
-                >
-                  {t('form.cancel')}
-                </button>
-              </div>
-            ) : (
-              <select
-                value={draft.functieId ?? ''}
-                onChange={(e) => handleRoleChange(e.target.value)}
-                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
-              >
-                <option value="">—</option>
-                {activeFuncties.map((functie) => (
-                  <option key={functie.id} value={functie.id}>
-                    {functie.naam}
-                  </option>
-                ))}
-                <option value={NEW_ROLE_SENTINEL}>{t('teampage.capacityNewRole')}</option>
-              </select>
-            )}
+            <input
+              value={draft.rol ?? ''}
+              onChange={(e) => update({ rol: e.target.value })}
+              placeholder={t('teampage.capacityRolPlaceholder')}
+              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -1805,12 +1746,9 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     updateDependency,
     deleteDependency,
     teamName,
-    activeFuncties,
-    addFunctie,
   } = useAppContext()
   const { t, language } = useLanguage()
   const teamNaam = teamName(teamId)
-  const functieName = useCallback((id) => activeFuncties.find((f) => f.id === id)?.naam ?? '', [activeFuncties])
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null)
   const [activeColor, setActiveColor] = useState(ANNOTATION_PALETTE[1].value)
@@ -2154,7 +2092,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     annotationHandlers,
     workflow.capacity,
     canvasDependencies,
-    functieName,
     workflow.applications,
     splitApplicaties,
     workflow.applicatieflow?.connecties ?? [],
@@ -2979,7 +2916,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                       {row.risico_bij_uitval === 'ja' && (
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('teampage.capacityRisicoLabel')} />
                       )}
-                      <span className="min-w-0 flex-1 truncate text-slate-700">{functieName(row.functieId) || '—'}</span>
+                      <span className="min-w-0 flex-1 truncate text-slate-700">{row.rol || '—'}</span>
                       {summary && <span className="shrink-0 text-xs text-slate-400">{summary}</span>}
                       <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{row.aantal}</span>
                     </button>
@@ -2993,8 +2930,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
           {capacityModalRow !== undefined && (
             <CapacityRowModal
               row={capacityModalRow}
-              activeFuncties={activeFuncties}
-              addFunctie={addFunctie}
               t={t}
               language={language}
               onClose={() => setCapacityModalRow(undefined)}
@@ -3300,7 +3235,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                   if (unlabeled.length === 0) return null
                   return (
                     <div className="mb-3 rounded-lg border border-dashed border-slate-200 p-2.5">
-                      <div className="mb-1.5 text-xs font-semibold text-slate-500">{t('teampage.teambreed')}</div>
+                      <div className="mb-1.5 text-xs font-semibold text-slate-500">{t('teampage.appOverstijgend')}</div>
                       <StageGroupedDeps deps={unlabeled} showAppPicker />
                     </div>
                   )

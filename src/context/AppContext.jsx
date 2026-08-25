@@ -41,13 +41,7 @@ export function AppProvider({ children }) {
     (id) => teamLabels[id] ?? (id ? 'Onbekend team' : '—'),
     [teamLabels],
   )
-  const functieName = useCallback(
-    (id) => state.functies.find((f) => f.id === id)?.naam ?? id ?? '—',
-    [state.functies],
-  )
-
   const activeTeams = useMemo(() => state.teams.filter((t) => t.actief), [state.teams])
-  const activeFuncties = useMemo(() => state.functies.filter((f) => f.actief), [state.functies])
 
   // --- teams ---
 
@@ -230,64 +224,6 @@ export function AppProvider({ children }) {
     [state, persist],
   )
 
-  // --- functies/rollen ---
-
-  const addFunctie = useCallback(
-    (naam) => {
-      const trimmed = naam.trim()
-      if (!trimmed) return null
-      const existingIds = new Set(state.functies.map((f) => f.id))
-      const id = uniqueSlug(trimmed, existingIds)
-      const next = { ...state, functies: [...state.functies, { id, naam: trimmed, actief: true }] }
-      persist(next)
-      return id
-    },
-    [state, persist],
-  )
-
-  const renameFunctie = useCallback(
-    (id, naam) => {
-      const trimmed = naam.trim()
-      if (!trimmed) return
-      const next = {
-        ...state,
-        functies: state.functies.map((f) => (f.id === id ? { ...f, naam: trimmed } : f)),
-      }
-      persist(next)
-    },
-    [state, persist],
-  )
-
-  const archiveFunctie = useCallback(
-    (id) => {
-      const next = { ...state, functies: state.functies.map((f) => (f.id === id ? { ...f, actief: false } : f)) }
-      persist(next)
-    },
-    [state, persist],
-  )
-
-  const unarchiveFunctie = useCallback(
-    (id) => {
-      const next = { ...state, functies: state.functies.map((f) => (f.id === id ? { ...f, actief: true } : f)) }
-      persist(next)
-    },
-    [state, persist],
-  )
-
-  // Retourneert true bij succes, false als de functie nog in de Capaciteit
-  // van een team gebruikt wordt (de enige plek waar functies nog gebruikt
-  // worden — het eigenaarveld op dependencies is verwijderd).
-  const deleteFunctie = useCallback(
-    (id) => {
-      const inUse = Object.values(state.teamWorkflows).some((wf) => (wf.capacity ?? []).some((row) => row.functieId === id))
-      if (inUse) return false
-      const next = { ...state, functies: state.functies.filter((f) => f.id !== id) }
-      persist(next)
-      return true
-    },
-    [state, persist],
-  )
-
   // --- dependencies ---
 
   const addDependency = useCallback(
@@ -377,8 +313,6 @@ export function AppProvider({ children }) {
       schemaVersion: state.schemaVersion,
       teams: state.teams,
       activeTeams,
-      functies: state.functies,
-      activeFuncties,
       dependencies: state.dependencies,
       teamWorkflows: state.teamWorkflows,
       teamSnapshots: state.teamSnapshots,
@@ -391,17 +325,11 @@ export function AppProvider({ children }) {
       setScope,
       teamName,
       teamLabels,
-      functieName,
       addTeam,
       renameTeam,
       archiveTeam,
       unarchiveTeam,
       deleteTeam,
-      addFunctie,
-      renameFunctie,
-      archiveFunctie,
-      unarchiveFunctie,
-      deleteFunctie,
       addDependency,
       addDependencies,
       updateDependency,
@@ -419,22 +347,15 @@ export function AppProvider({ children }) {
     [
       state,
       activeTeams,
-      activeFuncties,
       currentTeamId,
       scope,
       teamName,
       teamLabels,
-      functieName,
       addTeam,
       renameTeam,
       archiveTeam,
       unarchiveTeam,
       deleteTeam,
-      addFunctie,
-      renameFunctie,
-      archiveFunctie,
-      unarchiveFunctie,
-      deleteFunctie,
       addDependency,
       addDependencies,
       updateDependency,

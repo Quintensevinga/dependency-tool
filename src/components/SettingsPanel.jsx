@@ -243,7 +243,6 @@ export default function SettingsPanel({ onClose, onExportPng }) {
   const {
     dependencies,
     teams,
-    functies,
     teamWorkflows,
     teamSnapshots,
     schemaVersion,
@@ -257,11 +256,6 @@ export default function SettingsPanel({ onClose, onExportPng }) {
     archiveTeam,
     unarchiveTeam,
     deleteTeam,
-    addFunctie,
-    renameFunctie,
-    archiveFunctie,
-    unarchiveFunctie,
-    deleteFunctie,
     adminSettings,
     updateAdminSettings,
   } = useAppContext()
@@ -310,7 +304,7 @@ export default function SettingsPanel({ onClose, onExportPng }) {
 
   function handleExportJson() {
     exportDataAsJson(
-      { teams, dependencies, functies, teamWorkflows, teamSnapshots, usingMockData, schemaVersion, adminSettings },
+      { teams, dependencies, teamWorkflows, teamSnapshots, usingMockData, schemaVersion, adminSettings },
       `dependency-insight-export-${Date.now()}.json`,
     )
   }
@@ -370,19 +364,6 @@ export default function SettingsPanel({ onClose, onExportPng }) {
           onUnarchive={unarchiveTeam}
           onDelete={deleteTeam}
           blockedMessage={t('settings.teams.deleteBlocked')}
-        />
-
-        <ManageSection
-          title={t('settings.functies.title')}
-          items={functies}
-          addPlaceholder={t('settings.functies.addPlaceholder')}
-          onAdd={addFunctie}
-          onRename={renameFunctie}
-          onArchive={archiveFunctie}
-          onUnarchive={unarchiveFunctie}
-          onDelete={deleteFunctie}
-          blockedMessage={t('settings.functies.deleteBlocked')}
-          helper={t('settings.functies.helper')}
         />
 
         <div className="flex flex-col gap-1.5">

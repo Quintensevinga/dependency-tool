@@ -211,11 +211,6 @@ export const STRINGS = {
     'settings.teams.addPlaceholder': 'Naam nieuw team',
     'settings.teams.deleteBlocked': 'Dit team heeft nog dependencies — archiveer in plaats van verwijderen.',
 
-    'settings.functies.title': 'Functies / rollen beheren',
-    'settings.functies.addPlaceholder': 'Naam nieuwe functie/rol',
-    'settings.functies.deleteBlocked': 'Deze functie wordt nog als eigenaar gebruikt — archiveer in plaats van verwijderen.',
-    'settings.functies.helper': 'Gebruik bij voorkeur functies/rollen, geen persoonsnamen.',
-
     'impact.laag': 'laag',
     'impact.midden': 'midden',
     'impact.hoog': 'hoog',
@@ -255,7 +250,6 @@ export const STRINGS = {
     'teampage.capacityAantal': 'Aantal',
     'teampage.capacityFase': 'Fase (optioneel)',
     'teampage.capacityEmpty': 'Nog geen capaciteit vastgelegd.',
-    'teampage.capacityNewRole': '+ Nieuwe functie/rol toevoegen',
     'teampage.capacitySeniority': 'Senioriteit',
     'teampage.capacityRisicoLabel': 'Risico bij wegvallen:',
     'teampage.capacityRisicoToelichtingPlaceholder': "bijv. 'Enige kennishouder van het betaalsysteem'",
@@ -603,11 +597,6 @@ export const STRINGS = {
     'settings.teams.addPlaceholder': 'New team name',
     'settings.teams.deleteBlocked': 'This team still has dependencies — archive it instead of deleting.',
 
-    'settings.functies.title': 'Manage functions / roles',
-    'settings.functies.addPlaceholder': 'New function/role name',
-    'settings.functies.deleteBlocked': 'This function is still used as an owner — archive it instead of deleting.',
-    'settings.functies.helper': 'Preferably use functions/roles, not personal names.',
-
     'impact.laag': 'low',
     'impact.midden': 'medium',
     'impact.hoog': 'high',
@@ -647,7 +636,6 @@ export const STRINGS = {
     'teampage.capacityAantal': 'Count',
     'teampage.capacityFase': 'Stage (optional)',
     'teampage.capacityEmpty': 'No capacity recorded yet.',
-    'teampage.capacityNewRole': '+ Add new function/role',
     'teampage.capacitySeniority': 'Seniority',
     'teampage.capacityRisicoLabel': 'Risk if this person leaves:',
     'teampage.capacityRisicoToelichtingPlaceholder': "e.g. 'Sole knowledge holder of the payment system'",
