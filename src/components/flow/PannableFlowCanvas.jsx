@@ -28,6 +28,7 @@ export default function PannableFlowCanvas({
   fitViewOptions = { padding: 0.2 },
   minZoom = 0.2,
   maxZoom = 2,
+  hideControls = false,
 }) {
   return (
     <ReactFlow
@@ -65,7 +66,7 @@ export default function PannableFlowCanvas({
       zoomOnPinch
     >
       <Background color={backgroundColor} gap={24} />
-      <Controls showInteractive={false} />
+      {!hideControls && <Controls showInteractive={false} />}
       {showMinimap && (
         <MiniMap
           pannable

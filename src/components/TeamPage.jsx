@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Handle, Position } from 'reactflow'
+import { Handle, Position, ReactFlowProvider, useReactFlow } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import {
@@ -1832,6 +1832,96 @@ function TeamDataBlock({ title, count, open, onToggle, action, children, blockRe
   )
 }
 
+// Compacte zwevende toolbar linksonder in het canvas zelf (dezelfde hoek als
+// React Flow's eigen — nu verborgen — standaardknoppen): zoom, passend maken
+// en slim ordenen boven een streepje, volledig scherm apart eronder. Moet
+// binnen een ReactFlowProvider staan voor useReactFlow().
+function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t }) {
+  const { zoomIn, zoomOut, fitView } = useReactFlow()
+  const btnClass = 'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700'
+  return (
+    <div
+      data-tour="canvas-toolbar"
+      className="absolute bottom-3 left-3 z-10 flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur-sm"
+    >
+      <button type="button" onClick={() => zoomOut()} title={t('teampage.canvasZoomOut')} aria-label={t('teampage.canvasZoomOut')} className={btnClass}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M8 11h6M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+      <button type="button" onClick={() => zoomIn()} title={t('teampage.canvasZoomIn')} aria-label={t('teampage.canvasZoomIn')} className={btnClass}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
+          <path d="M11 8v6M8 11h6M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+      <div className="my-0.5 h-px w-4 bg-slate-200" />
+      <button
+        type="button"
+        onClick={() => fitView({ padding: 0.06, duration: 200 })}
+        title={t('teampage.canvasFitView')}
+        aria-label={t('teampage.canvasFitView')}
+        className={btnClass}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+          <circle cx="12" cy="12" r="2.25" stroke="currentColor" strokeWidth="1.8" />
+        </svg>
+      </button>
+      <button type="button" onClick={onSmartOrder} title={t('teampage.smartOrderHint')} aria-label={t('teampage.smartOrder')} className={btnClass}>
+        {/* Toverstaf met sparkles, zoals "Automatisch verbeteren" in Apple
+            Foto's — grote ster aan de punt van de staf, kleintje los ernaast. */}
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M4.5 19.5 14 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          <path
+            d="M17 3.5 18 6l2.5 1-2.5 1-1 2.5-1-2.5L13.5 7l2.5-1 1-2.5Z"
+            fill="currentColor"
+          />
+          <path d="M6.5 14 7 15.3 8.3 15.8 7 16.3 6.5 17.6 6 16.3 4.7 15.8 6 15.3 6.5 14Z" fill="currentColor" />
+        </svg>
+      </button>
+      <div className="my-0.5 h-px w-4 bg-slate-200" />
+      <button
+        type="button"
+        onClick={onFullscreen}
+        title={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
+        aria-label={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
+        className={btnClass}
+      >
+        {isFullscreen ? (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M9 4H5a1 1 0 0 0-1 1v4M15 4h4a1 1 0 0 1 1 1v4M9 20H5a1 1 0 0 1-1-1v-4M15 20h4a1 1 0 0 0 1-1v-4"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <path d="m7 7 3 3M17 7l-3 3M7 17l3-3M17 17l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        ) : (
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        )}
+      </button>
+    </div>
+  )
+}
+
 // Herbruikbare filterknop + dropdown voor dependencies — staat zowel in de
 // canvas-toolbar als bij de dependency-lijst, beide keren op dezelfde
 // filterstate (alleen de open/dicht-stand van de dropdown is per plek eigen).
@@ -2193,7 +2283,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     },
     { target: 'toolbar', title: t('tour.step.searchFilter.title'), body: t('tour.step.searchFilter.body') },
     { target: 'toolbar', title: t('tour.step.help.title'), body: t('tour.step.help.body') },
-    { target: 'workflow-card-header', title: t('tour.step.fullscreen.title'), body: t('tour.step.fullscreen.body') },
+    { target: 'canvas-toolbar', title: t('tour.step.canvasToolbar.title'), body: t('tour.step.canvasToolbar.body') },
     (adminSections.dependencies ||
       adminSections.applicaties ||
       adminSections.applicatieflow ||
@@ -2872,7 +2962,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 : 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
             }
           >
-            <div data-tour="workflow-card-header" className="mb-2 grid grid-cols-[auto_1fr_auto] items-center gap-2">
+            <div className="mb-2 grid grid-cols-[auto_1fr_auto] items-center gap-2">
               <button
                 type="button"
                 onClick={onBack}
@@ -2887,43 +2977,92 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               <h3 className="truncate text-center text-sm font-semibold text-slate-800" title={teamNaam}>
                 {teamNaam}
               </h3>
-              <button
-                type="button"
-                onClick={() => setIsFullscreen((v) => !v)}
-                title={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
-                aria-label={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-              >
-                {isFullscreen ? (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M9 4H5a1 1 0 0 0-1 1v4M15 4h4a1 1 0 0 1 1 1v4M9 20H5a1 1 0 0 1-1-1v-4M15 20h4a1 1 0 0 0 1-1v-4"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                    <path d="m7 7 3 3M17 7l-3 3M7 17l3-3M17 17l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-                  </svg>
-                ) : (
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-                    <path
-                      d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
-                      stroke="currentColor"
-                      strokeWidth="1.8"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </svg>
-                )}
-              </button>
+              {/* Help/legenda staat hier i.p.v. in de toolbar eronder — houdt de
+                  teamnaam in het grid ook meteen echt gecentreerd t.o.v. de
+                  hele rij, symmetrisch met de terugknop links. */}
+              <div className="flex items-center gap-1">
+                <div ref={legendRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setLegendOpen((v) => !v)}
+                    aria-expanded={legendOpen}
+                    title={t('teampage.helpAndLegend')}
+                    aria-label={t('teampage.helpAndLegend')}
+                    className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold transition-colors ${
+                      legendOpen
+                        ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
+                        : 'border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
+                    }`}
+                  >
+                    ?
+                  </button>
+                  {legendOpen && (
+                    <div className="absolute right-0 top-9 z-20 w-60 rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10">
+                      <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendRiskTitle')}</div>
+                      <div className="mb-3 space-y-1">
+                        {['Kritiek', 'Hoog', 'Gemiddeld', 'Laag'].map((level) => (
+                          <div key={level} className="flex items-center gap-2 text-xs text-slate-600">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${riskStyle(level).dot}`} />
+                            {translateRiskLevel(level, language)}
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendDisplayTitle')}</div>
+                      <div className="mb-3 space-y-1.5 text-xs text-slate-600">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-0.5 w-4 shrink-0 bg-[#2a5f8a]" />
+                          {t('teampage.legendConnection')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#2a5f8a] bg-[#eef4f9]" />
+                          {t('teampage.legendInput')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#5c8a72] bg-[#eef6f1]" />
+                          {t('teampage.legendOutput')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#5c8a72]/50 bg-[#5c8a72]/10" />
+                          {t('teampage.legendTeambreed')}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-[#5c6b8a55] bg-white" />
+                          {t('teampage.legendExternalTeam')}
+                        </div>
+                      </div>
+                      <div className="border-t border-slate-100 pt-2.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setLegendOpen(false)
+                            startTour()
+                          }}
+                          className="mb-2 flex w-full items-center rounded-md px-1.5 py-1 text-left text-xs font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/5"
+                        >
+                          {t('teampage.helpTourStart')}
+                        </button>
+                        <div className="space-y-2">
+                          <div>
+                            <div className="text-[11px] font-semibold text-slate-600">{t('teampage.helpApplicatieflowTitle')}</div>
+                            <p className="text-[11px] leading-relaxed text-slate-500">{t('teampage.helpApplicatieflowText')}</p>
+                          </div>
+                          <div>
+                            <div className="text-[11px] font-semibold text-slate-600">{t('teampage.helpOntwikkelflowTitle')}</div>
+                            <p className="text-[11px] leading-relaxed text-slate-500">{t('teampage.helpOntwikkelflowText')}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             <div
               data-tour="toolbar"
               className="-mx-4 -mt-4 mb-3 space-y-2 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
             >
-              {/* Rij 1 — acties en hulpmiddelen: toevoegen/notitie links, canvas-hulpmiddelen rechts. */}
+              {/* Rij 1 — acties links (toevoegen/notitie), weergavetoggle rechts. */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {(adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit || adminSections.applicatieflow) && (
@@ -3021,94 +3160,35 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   )}
                 </div>
 
-                <div className="flex items-center gap-1">
+                <div
+                  className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs shadow-inner"
+                  role="group"
+                  aria-label={t('teampage.viewModeLabel')}
+                >
                   <button
                     type="button"
-                    onClick={handleSmartOrder}
-                    title={t('teampage.smartOrderHint')}
-                    className="rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                    onClick={() => setSplitApplicaties(true)}
+                    aria-pressed={splitApplicaties}
+                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
+                      splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
                   >
-                    {t('teampage.smartOrder')}
+                    {t('teampage.splitApplicaties')}
                   </button>
-
-                  <div ref={legendRef} className="relative">
-                    <button
-                      type="button"
-                      onClick={() => setLegendOpen((v) => !v)}
-                      aria-expanded={legendOpen}
-                      title={t('teampage.helpAndLegend')}
-                      aria-label={t('teampage.helpAndLegend')}
-                      className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold transition-colors ${
-                        legendOpen
-                          ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]'
-                          : 'border-slate-300 text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                      }`}
-                    >
-                      ?
-                    </button>
-                    {legendOpen && (
-                      <div className="absolute right-0 top-9 z-20 w-60 rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10">
-                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendRiskTitle')}</div>
-                        <div className="mb-3 space-y-1">
-                          {['Kritiek', 'Hoog', 'Gemiddeld', 'Laag'].map((level) => (
-                            <div key={level} className="flex items-center gap-2 text-xs text-slate-600">
-                              <span className={`h-2 w-2 shrink-0 rounded-full ${riskStyle(level).dot}`} />
-                              {translateRiskLevel(level, language)}
-                            </div>
-                          ))}
-                        </div>
-                        <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.legendDisplayTitle')}</div>
-                        <div className="mb-3 space-y-1.5 text-xs text-slate-600">
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-0.5 w-4 shrink-0 bg-[#2a5f8a]" />
-                            {t('teampage.legendConnection')}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#2a5f8a] bg-[#eef4f9]" />
-                            {t('teampage.legendInput')}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-3 w-3 shrink-0 rounded border border-[#5c8a72] bg-[#eef6f1]" />
-                            {t('teampage.legendOutput')}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-3 w-3 shrink-0 rounded-full border border-[#5c8a72]/50 bg-[#5c8a72]/10" />
-                            {t('teampage.legendTeambreed')}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="inline-block h-3 w-3 shrink-0 rounded-full border-2 border-[#5c6b8a55] bg-white" />
-                            {t('teampage.legendExternalTeam')}
-                          </div>
-                        </div>
-                        <div className="border-t border-slate-100 pt-2.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setLegendOpen(false)
-                              startTour()
-                            }}
-                            className="mb-2 flex w-full items-center rounded-md px-1.5 py-1 text-left text-xs font-medium text-[#2a5f8a] hover:bg-[#2a5f8a]/5"
-                          >
-                            {t('teampage.helpTourStart')}
-                          </button>
-                          <div className="space-y-2">
-                            <div>
-                              <div className="text-[11px] font-semibold text-slate-600">{t('teampage.helpApplicatieflowTitle')}</div>
-                              <p className="text-[11px] leading-relaxed text-slate-500">{t('teampage.helpApplicatieflowText')}</p>
-                            </div>
-                            <div>
-                              <div className="text-[11px] font-semibold text-slate-600">{t('teampage.helpOntwikkelflowTitle')}</div>
-                              <p className="text-[11px] leading-relaxed text-slate-500">{t('teampage.helpOntwikkelflowText')}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSplitApplicaties(false)}
+                    aria-pressed={!splitApplicaties}
+                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
+                      !splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {t('teampage.viewMerged')}
+                  </button>
                 </div>
               </div>
 
-              {/* Rij 2 — zoeken, filteren, weergave: zoekvelden links, Weergeven in het midden, weergavetoggle rechts. */}
+              {/* Rij 2 — zoeken en filteren: zoekvelden links, Weergeven rechts. */}
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   {adminSections.dependencies && (
@@ -3163,32 +3243,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   )}
                 </div>
 
-                <div
-                  className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs shadow-inner"
-                  role="group"
-                  aria-label={t('teampage.viewModeLabel')}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setSplitApplicaties(true)}
-                    aria-pressed={splitApplicaties}
-                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
-                      splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {t('teampage.splitApplicaties')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSplitApplicaties(false)}
-                    aria-pressed={!splitApplicaties}
-                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
-                      !splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {t('teampage.viewMerged')}
-                  </button>
-                </div>
               </div>
             </div>
 
@@ -3204,36 +3258,45 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 data-tour="workflow-canvas"
                 className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
               >
-                <PannableFlowCanvas
-                  className="teamcanvas-flow"
-                  nodes={displayNodes}
-                  edges={displayEdges}
-                  nodeTypes={nodeTypes}
-                  onNodesChange={handleNodesChange}
-                  onNodeClick={handleNodeClick}
-                  onPaneClick={() => setCanvasFocus(null)}
-                  onNodeMouseEnter={(event, node) => {
-                    setHoverNodeId(node.id)
-                    const content = buildCanvasTooltipContent(node)
-                    if (content) setCanvasHover({ x: event.clientX, y: event.clientY, ...content })
-                  }}
-                  onNodeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
-                  onNodeMouseLeave={() => {
-                    setHoverNodeId(null)
-                    setCanvasHover(null)
-                  }}
-                  // Bewust géén minZoom in fitViewOptions: die klemde de
-                  // automatische fit af terwijl de volledige inhoud verder moet
-                  // uitzoomen, waardoor precies de buitenste kolommen — de
-                  // input/output-kaarten — bij openen buiten beeld vielen. De
-                  // minZoom-prop hieronder blijft de ondergrens voor handmatig
-                  // uitzoomen.
-                  fitViewOptions={{ padding: 0.06 }}
-                  minZoom={0.4}
-                  maxZoom={1.5}
-                  backgroundColor="#d3dbe3"
-                  showMinimap
-                />
+                <ReactFlowProvider>
+                  <PannableFlowCanvas
+                    className="teamcanvas-flow"
+                    nodes={displayNodes}
+                    edges={displayEdges}
+                    nodeTypes={nodeTypes}
+                    onNodesChange={handleNodesChange}
+                    onNodeClick={handleNodeClick}
+                    onPaneClick={() => setCanvasFocus(null)}
+                    onNodeMouseEnter={(event, node) => {
+                      setHoverNodeId(node.id)
+                      const content = buildCanvasTooltipContent(node)
+                      if (content) setCanvasHover({ x: event.clientX, y: event.clientY, ...content })
+                    }}
+                    onNodeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
+                    onNodeMouseLeave={() => {
+                      setHoverNodeId(null)
+                      setCanvasHover(null)
+                    }}
+                    // Bewust géén minZoom in fitViewOptions: die klemde de
+                    // automatische fit af terwijl de volledige inhoud verder moet
+                    // uitzoomen, waardoor precies de buitenste kolommen — de
+                    // input/output-kaarten — bij openen buiten beeld vielen. De
+                    // minZoom-prop hieronder blijft de ondergrens voor handmatig
+                    // uitzoomen.
+                    fitViewOptions={{ padding: 0.06 }}
+                    minZoom={0.4}
+                    maxZoom={1.5}
+                    backgroundColor="#d3dbe3"
+                    showMinimap
+                    hideControls
+                  />
+                  <TeamCanvasToolbar
+                    onSmartOrder={handleSmartOrder}
+                    onFullscreen={() => setIsFullscreen((v) => !v)}
+                    isFullscreen={isFullscreen}
+                    t={t}
+                  />
+                </ReactFlowProvider>
                 {canvasHover && (
                   <FloatingTooltip x={canvasHover.x} y={canvasHover.y}>
                     <div className="font-semibold text-slate-50">{canvasHover.title}</div>
