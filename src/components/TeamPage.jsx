@@ -3290,8 +3290,7 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
 
           {adminSections.dependencies && bottomSectionTab === 'dependencies' && (
           <div data-tour="dependencies" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.dependenciesTitle')}</h3>
+            <div className="mb-3 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => setFormState({ editing: null, defaultTeamId: teamId })}
@@ -3430,7 +3429,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
           {(adminSections.applicaties || adminSections.applicatieflow || adminSections.input || adminSections.output || adminSections.capaciteit) &&
             bottomSectionTab === 'teamgegevens' && (
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h3 className="mb-1 text-sm font-semibold text-slate-800">{t('teampage.teamDataTitle')}</h3>
             <div className="divide-y divide-slate-100">
               {adminSections.applicaties && (
                 <TeamDataBlock
