@@ -1674,6 +1674,8 @@ function DepFiltersDropdown({
   onToggle,
   active,
   align = 'right',
+  label,
+  viewToggles,
   flowtypeFilter,
   setFlowtypeFilter,
   scopeFilter,
@@ -1701,11 +1703,44 @@ function DepFiltersDropdown({
           active ? 'border-[#2a5f8a]/40 bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-slate-300 text-slate-600 hover:bg-slate-50'
         }`}
       >
-        {t('teampage.depFiltersButton')}
+        {label ?? t('teampage.depFiltersButton')}
         {active && <span className="h-1.5 w-1.5 rounded-full bg-[#2a5f8a]" aria-hidden="true" />}▾
       </button>
       {open && (
-        <div className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-9 z-20 w-80 rounded-xl border border-slate-200 bg-white p-3 shadow-lg shadow-slate-900/10`}>
+        <div
+          className={`absolute ${align === 'right' ? 'right-0' : 'left-0'} top-9 z-20 ${viewToggles ? 'w-96' : 'w-80'} rounded-xl border border-slate-200 bg-white p-3.5 shadow-lg shadow-slate-900/10`}
+        >
+          {viewToggles && (
+            <div className="mb-3.5 border-b border-slate-100 pb-3.5">
+              <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.viewToggleSectionTitle')}</div>
+              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5">
+                {viewToggles.map((toggle) => (
+                  <button
+                    key={toggle.key}
+                    type="button"
+                    onClick={() => toggle.onChange((v) => !v)}
+                    className="flex items-center gap-2 rounded-md px-1.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
+                  >
+                    <span
+                      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
+                        toggle.value ? 'border-[#2a5f8a] bg-[#2a5f8a]' : 'border-slate-300 bg-white'
+                      }`}
+                    >
+                      {toggle.value && (
+                        <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
+                          <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                    </span>
+                    {toggle.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {viewToggles && (
+            <div className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('teampage.filterSectionTitle')}</div>
+          )}
           <div className="grid grid-cols-2 gap-2.5">
             <div>
               <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('form.flowtype')}</div>
@@ -1917,7 +1952,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   const [showGeaccepteerd, setShowGeaccepteerd] = useState(true)
   const [riskFilterOn, setRiskFilterOn] = useState(false)
   const [showExternalTeams, setShowExternalTeams] = useState(false)
-  const [viewFiltersOpen, setViewFiltersOpen] = useState(false)
   const [legendOpen, setLegendOpen] = useState(false)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
 
@@ -2029,6 +2063,20 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     setStatusFilter(new Set(STATUS_LEVELS))
     setWorkflowStapFilter(new Set(WORKFLOW_STAP_LEVELS))
     setAppLabelFilter('alle')
+  }
+
+  // De canvas-toolbar combineert dependency-filters met de losse
+  // canvas-weergaveschakelaars (showIO e.d.) onder één "Weergave"-knop —
+  // "actief" en "wissen" tellen daarom ook die schakelaars mee.
+  const viewTogglesActive = !showIO || !showTeambreed || !showGeaccepteerd || riskFilterOn || showExternalTeams
+  const weergaveActive = depFiltersActive || viewTogglesActive
+  function clearWeergave() {
+    clearDepFilters()
+    setShowIO(true)
+    setShowTeambreed(true)
+    setShowGeaccepteerd(true)
+    setRiskFilterOn(false)
+    setShowExternalTeams(false)
   }
 
   function depMatchesSearch(dep, query) {
@@ -2656,35 +2704,43 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
 
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 {adminSections.dependencies && (
-                  <>
-                    <input
-                      value={depSearchQuery}
-                      onChange={(e) => setDepSearchQuery(e.target.value)}
-                      placeholder={t('teampage.canvasDepSearchPlaceholder')}
-                      className="w-48 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                    />
-                    <DepFiltersDropdown
-                      open={canvasDepFiltersOpen}
-                      onToggle={() => setCanvasDepFiltersOpen((v) => !v)}
-                      active={depFiltersActive}
-                      flowtypeFilter={flowtypeFilter}
-                      setFlowtypeFilter={setFlowtypeFilter}
-                      scopeFilter={scopeFilter}
-                      setScopeFilter={setScopeFilter}
-                      appLabelFilter={appLabelFilter}
-                      setAppLabelFilter={setAppLabelFilter}
-                      applications={workflow.applications}
-                      riskLevelFilter={riskLevelFilter}
-                      setRiskLevelFilter={setRiskLevelFilter}
-                      statusFilter={statusFilter}
-                      setStatusFilter={setStatusFilter}
-                      workflowStapFilter={workflowStapFilter}
-                      setWorkflowStapFilter={setWorkflowStapFilter}
-                      onClear={clearDepFilters}
-                      t={t}
-                      language={language}
-                    />
-                  </>
+                  <input
+                    value={depSearchQuery}
+                    onChange={(e) => setDepSearchQuery(e.target.value)}
+                    placeholder={t('teampage.canvasDepSearchPlaceholder')}
+                    className="w-48 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                  />
+                )}
+                {adminSections.dependencies && (
+                  <DepFiltersDropdown
+                    open={canvasDepFiltersOpen}
+                    onToggle={() => setCanvasDepFiltersOpen((v) => !v)}
+                    active={weergaveActive}
+                    label={t('teampage.viewFiltersButton')}
+                    viewToggles={[
+                      { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
+                      { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
+                      { key: 'showGeaccepteerd', label: t('teampage.viewFilterShowGeaccepteerd'), value: showGeaccepteerd, onChange: setShowGeaccepteerd },
+                      { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
+                      { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
+                    ]}
+                    flowtypeFilter={flowtypeFilter}
+                    setFlowtypeFilter={setFlowtypeFilter}
+                    scopeFilter={scopeFilter}
+                    setScopeFilter={setScopeFilter}
+                    appLabelFilter={appLabelFilter}
+                    setAppLabelFilter={setAppLabelFilter}
+                    applications={workflow.applications}
+                    riskLevelFilter={riskLevelFilter}
+                    setRiskLevelFilter={setRiskLevelFilter}
+                    statusFilter={statusFilter}
+                    setStatusFilter={setStatusFilter}
+                    workflowStapFilter={workflowStapFilter}
+                    setWorkflowStapFilter={setWorkflowStapFilter}
+                    onClear={clearWeergave}
+                    t={t}
+                    language={language}
+                  />
                 )}
                 {splitApplicaties && workflow.applications.length > 4 && (
                   <input
@@ -2723,50 +2779,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                 </div>
 
                 <div className="h-5 w-px bg-slate-200" />
-
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setViewFiltersOpen((v) => !v)}
-                    aria-expanded={viewFiltersOpen}
-                    className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                      viewFiltersOpen ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-                    }`}
-                  >
-                    {t('teampage.viewFiltersButton')} ▾
-                  </button>
-                  {viewFiltersOpen && (
-                    <div className="absolute right-0 top-9 z-20 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-lg shadow-slate-900/10">
-                      {[
-                        { key: 'showIO', label: t('teampage.viewFilterShowIO'), value: showIO, onChange: setShowIO },
-                        { key: 'showTeambreed', label: t('teampage.viewFilterShowTeambreed'), value: showTeambreed, onChange: setShowTeambreed },
-                        { key: 'showGeaccepteerd', label: t('teampage.viewFilterShowGeaccepteerd'), value: showGeaccepteerd, onChange: setShowGeaccepteerd },
-                        { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
-                        { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
-                      ].map((f) => (
-                        <button
-                          key={f.key}
-                          type="button"
-                          onClick={() => f.onChange((v) => !v)}
-                          className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
-                        >
-                          <span
-                            className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border ${
-                              f.value ? 'border-[#2a5f8a] bg-[#2a5f8a]' : 'border-slate-300 bg-white'
-                            }`}
-                          >
-                            {f.value && (
-                              <svg width="9" height="9" viewBox="0 0 24 24" fill="none">
-                                <path d="M5 13l4 4L19 7" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-                              </svg>
-                            )}
-                          </span>
-                          {f.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
                 <button
                   type="button"
