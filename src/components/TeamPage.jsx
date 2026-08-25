@@ -39,10 +39,6 @@ import SpotlightTour from './SpotlightTour'
 import FloatingTooltip from './FloatingTooltip'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
-// Vanaf hoeveel applicaties de beheersectie zoeken/inklappen aanbiedt. Onder
-// deze grens past de lijst prima op één blik en zou extra bediening alleen maar
-// ruis zijn.
-const APPLIST_LONG = 8
 
 const STAGE_GAP = 220
 const STAGE_START_X = 260
@@ -58,7 +54,7 @@ const DIMMABLE_NODE_TYPES = new Set(['dependencyMarker', 'ioItem', 'applicatiefl
 // Node-types die op klik het compacte focuspaneel openen i.p.v. meteen een
 // volledige modal (zie handleNodeClick in TeamPage). dependencyMarker zit
 // hier bewust niet meer bij — die opent nu meteen de volledige modal.
-const FOCUSABLE_NODE_TYPES = new Set(['applicatieflowBanner', 'ioItem', 'externalTeam'])
+const FOCUSABLE_NODE_TYPES = new Set(['applicatieflowBanner', 'ioItem', 'externalTeam', 'capacityBadge'])
 
 function ColorSwatchRow({ value, onChange }) {
   return (
@@ -143,7 +139,7 @@ function IoNode({ data }) {
 function CapacityBadgeNode({ data }) {
   const { language } = useLanguage()
   return (
-    <div className="relative flex w-44 items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+    <div className="relative flex w-44 cursor-pointer items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-1.5 shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-all hover:border-slate-300 hover:shadow-[0_2px_6px_rgba(15,23,42,0.08)]">
       <Handle type="target" position={Position.Top} style={{ opacity: 0.3 }} />
       {data.risico && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={data.risicoToelichting} />}
       <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">{data.functieNaam || '—'}</span>
@@ -631,6 +627,7 @@ function computeWorkflowLayout(
         type: 'capacityBadge',
         position: withSavedPosition(bid, { x: STAGE_START_X + i * STAGE_GAP, y: STAGE_Y + 80 + ci * 38 }),
         data: {
+          rowId: row.id,
           functieNaam: row.rol,
           seniority: row.seniority,
           risico: row.risico_bij_uitval === 'ja',
@@ -1262,23 +1259,6 @@ function emptyIoItem(kind) {
     : { id: generateId(), label: '', flowtype: '', applicatieId: '', externalTeam: '' }
 }
 
-function ioItemSummary(item, kind, teams, teamWorkflows, applications, language) {
-  const parts = []
-  if (item.flowtype) parts.push(translateFlowtype(item.flowtype, language))
-  if (kind === 'input' && item.bron_type) parts.push(translateBronType(item.bron_type, language))
-  if (kind === 'input' && item.linkedTeam) {
-    const team = teams.find((tm) => tm.id === item.linkedTeam)
-    const out = (teamWorkflows[item.linkedTeam]?.outputs ?? []).find((o) => o.id === item.linkedOutputId)
-    parts.push(`${team?.naam ?? item.linkedTeam}${out ? ` → ${out.label || '—'}` : ''}`)
-  }
-  if (item.applicatieId) {
-    const app = applications.find((a) => a.id === item.applicatieId)
-    if (app) parts.push(app.naam || '—')
-  }
-  if (item.externalTeam) parts.push(`↔ ${item.externalTeam}`)
-  return parts.join(' · ')
-}
-
 // Klein modal-formulier voor één input-/output-item — vervangt de eerder
 // altijd-open inline velden per rij, zodat de lijst daarboven een rustig,
 // leesbaar overzicht blijft en je alleen bij bewerken de details ziet.
@@ -1456,76 +1436,11 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
   )
 }
 
-function IoListEditor({ title, kind, items, onAdd, onUpdate, onRemove, showLink, showBron, teams, currentTeamId, teamWorkflows, applications, t, language }) {
-  // undefined = gesloten, null = nieuw item, object = item in bewerking
-  const [modalItem, setModalItem] = useState(undefined)
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
-        <button
-          type="button"
-          onClick={() => setModalItem(null)}
-          className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        >
-          {t('teampage.ioAdd')}
-        </button>
-      </div>
-      {items.length === 0 && <p className="text-xs text-slate-400">{t('teampage.ioEmpty')}</p>}
-      <ul className="divide-y divide-slate-100">
-        {items.map((item) => {
-          const summary = ioItemSummary(item, kind, teams, teamWorkflows, applications, language)
-          return (
-            <li key={item.id}>
-              <button
-                type="button"
-                onClick={() => setModalItem(item)}
-                className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
-              >
-                <span className="min-w-0 flex-1 truncate text-slate-700">{item.label || '—'}</span>
-                {summary && <span className="max-w-[55%] shrink-0 truncate text-xs text-slate-400">{summary}</span>}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-
-      {modalItem !== undefined && (
-        <IoItemModal
-          kind={kind}
-          item={modalItem}
-          teams={teams}
-          currentTeamId={currentTeamId}
-          teamWorkflows={teamWorkflows}
-          applications={applications}
-          t={t}
-          language={language}
-          onClose={() => setModalItem(undefined)}
-          onSave={(draft) => {
-            if (modalItem) onUpdate(draft.id, draft)
-            else onAdd(draft)
-            setModalItem(undefined)
-          }}
-          onRemove={
-            modalItem
-              ? () => {
-                  onRemove(modalItem.id)
-                  setModalItem(undefined)
-                }
-              : undefined
-          }
-        />
-      )}
-    </div>
-  )
-}
-
 // Klein modal voor de toelichting/risico-bij-uitval van één applicatie —
 // getriggerd vanuit 'Applicaties in beheer/ontwikkeling' zelf. Stond eerder
 // in een eigen 'Applicatie-details'-blok naast de koppel-vragenlijst, wat
 // samen met die lijst als dubbelop aanvoelde.
-function ApplicationDetailModal({ app, data, onSave, onClose, t, language }) {
+function ApplicationDetailModal({ app, data, onSave, onRename, onRequestRemove, onClose, t, language }) {
   const [draft, setDraft] = useState(() => ({ toelichting: '', risico_bij_uitval: '', risico_toelichting: '', ...data }))
 
   function update(fields) {
@@ -1538,8 +1453,18 @@ function ApplicationDetailModal({ app, data, onSave, onClose, t, language }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h3 className="text-base font-semibold text-slate-900">{app.naam || '—'}</h3>
-          <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
+          <input
+            value={app.naam}
+            onChange={(e) => onRename(e.target.value)}
+            placeholder={t('teampage.applicationsPlaceholder')}
+            className="min-w-0 flex-1 rounded-md border border-transparent px-1.5 py-1 text-base font-semibold text-slate-900 hover:border-slate-200 focus:border-[#2a5f8a] focus:bg-white focus:outline-none"
+          />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={t('form.close')}
+            className="ml-2 shrink-0 text-slate-400 hover:text-slate-600"
+          >
             ✕
           </button>
         </div>
@@ -1579,7 +1504,14 @@ function ApplicationDetailModal({ app, data, onSave, onClose, t, language }) {
             </div>
           )}
         </div>
-        <div className="flex justify-end border-t border-slate-200 px-5 py-3">
+        <div className="flex items-center justify-between border-t border-slate-200 px-5 py-3">
+          <button
+            type="button"
+            onClick={onRequestRemove}
+            className="rounded-md px-2.5 py-1.5 text-sm font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/10"
+          >
+            {t('teampage.remove')}
+          </button>
           <button
             type="button"
             onClick={onClose}
@@ -1756,10 +1688,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   const [appDetailId, setAppDetailId] = useState(null)
   // Applicatie die op verwijderen wacht, mét telling van wat eraan hangt.
   const [appToDelete, setAppToDelete] = useState(null)
-  // Zoeken/inklappen in de beheersectie 'Applicaties in beheer/ontwikkeling' —
-  // los van het canvas-zoekveld, dat alleen de lanes filtert.
-  const [appManageQuery, setAppManageQuery] = useState('')
-  const [appListCollapsed, setAppListCollapsed] = useState(false)
   // IO-item aangeklikt op het canvas: opent dezelfde IoItemModal als de
   // Input/Output-lijst, zonder de lijst-lokale modalItem-state aan te raken.
   const [canvasIoTarget, setCanvasIoTarget] = useState(null)
@@ -1816,14 +1744,17 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
   const tourSteps = [
     { target: 'workflow-canvas', title: t('tour.step.canvas.title'), body: t('tour.step.canvas.body') },
     { target: 'toolbar', title: t('tour.step.toolbar.title'), body: t('tour.step.toolbar.body') },
-    adminSections.applicaties && { target: 'applications', title: t('tour.step.applications.title'), body: t('tour.step.applications.body') },
+    (adminSections.applicaties || adminSections.input || adminSections.output || adminSections.capaciteit) && {
+      target: 'toolbar',
+      title: t('tour.step.applications.title'),
+      body: t('tour.step.applications.body'),
+    },
+    adminSections.dependencies && { target: 'dependencies', title: t('tour.step.dependencies.title'), body: t('tour.step.dependencies.body') },
     adminSections.applicatieflow && {
       target: 'applicatieflow-section',
       title: t('tour.step.applicatieflow.title'),
       body: t('tour.step.applicatieflow.body'),
     },
-    adminSections.capaciteit && { target: 'capacity', title: t('tour.step.capacity.title'), body: t('tour.step.capacity.body') },
-    adminSections.dependencies && { target: 'dependencies', title: t('tour.step.dependencies.title'), body: t('tour.step.dependencies.body') },
   ].filter(Boolean)
 
   const workflow = teamWorkflows[teamId] ?? emptyTeamWorkflow()
@@ -2073,15 +2004,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     [filteredTeamDependencies, showGeaccepteerd],
   )
 
-  // Beheerlijst met applicaties: zoeken filtert, inklappen verbergt de rest.
-  // Een actieve zoekterm wint van ingeklapt — anders lijkt zoeken kapot.
-  const visibleManagedApplications = useMemo(() => {
-    const q = appManageQuery.trim().toLowerCase()
-    const matched = q ? workflow.applications.filter((a) => (a.naam || '').toLowerCase().includes(q)) : workflow.applications
-    if (q) return matched
-    return appListCollapsed ? [] : matched
-  }, [workflow.applications, appManageQuery, appListCollapsed])
-
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     workflow.inputs,
     workflow.outputs,
@@ -2277,6 +2199,20 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
     if (node.type === 'externalTeam') {
       return { typeLabel: t('teampage.legendExternalTeam'), title: node.data.naam, meta: [] }
     }
+    if (node.type === 'capacityBadge') {
+      const meta = []
+      if (node.data.seniority) meta.push({ label: t('teampage.capacitySeniority'), value: translateSeniority(node.data.seniority, language) })
+      return {
+        typeLabel: t('teampage.capacityTitle'),
+        title: node.data.functieNaam || '—',
+        meta,
+        actionLabel: t('appflow.detailEdit'),
+        onAction: () => {
+          const row = workflow.capacity.find((c) => c.id === node.data.rowId)
+          if (row) setCapacityModalRow(row)
+        },
+      }
+    }
     return null
   }
 
@@ -2454,6 +2390,15 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                     {t('teampage.outputAdd')}
                   </button>
                 )}
+                {adminSections.capaciteit && (
+                  <button
+                    type="button"
+                    onClick={() => setCapacityModalRow(null)}
+                    className="rounded-md px-2 py-1.5 text-xs font-medium text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                  >
+                    {t('teampage.capacityAdd')}
+                  </button>
+                )}
                 {adminSections.aantekeningen && (
                   <>
                     <button
@@ -2486,16 +2431,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                 >
                   <button
                     type="button"
-                    onClick={() => setSplitApplicaties(false)}
-                    aria-pressed={!splitApplicaties}
-                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
-                      !splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                    }`}
-                  >
-                    {t('teampage.viewMerged')}
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => setSplitApplicaties(true)}
                     aria-pressed={splitApplicaties}
                     className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
@@ -2503,6 +2438,16 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                     }`}
                   >
                     {t('teampage.splitApplicaties')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSplitApplicaties(false)}
+                    aria-pressed={!splitApplicaties}
+                    className={`rounded-md px-2.5 py-1.5 font-medium transition-colors ${
+                      !splitApplicaties ? 'bg-white text-[#2a5f8a] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                    }`}
+                  >
+                    {t('teampage.viewMerged')}
                   </button>
                 </div>
 
@@ -2717,84 +2662,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
             </div>
           </div>
 
-          {adminSections.applicaties && (
-          <div data-tour="applications" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-1 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.applicationsTitle')}</h3>
-              <button
-                type="button"
-                onClick={addApplication}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                {t('teampage.applicationsAdd')}
-              </button>
-            </div>
-            <p className="mb-3 text-[11px] text-slate-400">{t('teampage.applicationsHint')}</p>
-            {workflow.applications.length === 0 && <p className="text-xs text-slate-400">{t('teampage.applicationsEmpty')}</p>}
-            {/* Bij veel applicaties werd deze sectie een muur van invoervelden
-                (22 stuks ≈ anderhalf scherm) zonder enige manier om te zoeken,
-                terwijl de canvas erboven dat wél had. Zoeken + inklappen pas
-                vanaf APPLIST_LONG, zodat kleine teams niets extra's zien. */}
-            {workflow.applications.length >= APPLIST_LONG && (
-              <div className="mb-2.5 flex items-center gap-2">
-                <input
-                  value={appManageQuery}
-                  onChange={(e) => setAppManageQuery(e.target.value)}
-                  placeholder={t('teampage.appFilterPlaceholder')}
-                  className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setAppListCollapsed((v) => !v)}
-                  className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-                >
-                  {appListCollapsed ? t('teampage.applicationsExpand') : t('teampage.applicationsCollapse')}
-                </button>
-              </div>
-            )}
-            {visibleManagedApplications.length === 0 && workflow.applications.length > 0 && (
-              <p className="text-xs text-slate-400">{t('teampage.applicationsNoMatch')}</p>
-            )}
-            <ul className="space-y-2">
-              {visibleManagedApplications.map((app) => {
-                const detail = workflow.applicatieflow?.details?.[app.id]
-                const hasDetail = Boolean(detail?.toelichting || detail?.risico_bij_uitval)
-                return (
-                  <li key={app.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2.5">
-                    <input
-                      value={app.naam}
-                      onChange={(e) => updateApplication(app.id, { naam: e.target.value })}
-                      placeholder={t('teampage.applicationsPlaceholder')}
-                      className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
-                    />
-                    {detail?.risico_bij_uitval === 'ja' && (
-                      <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('appflow.detailRisico')} />
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => setAppDetailId(app.id)}
-                      className={`shrink-0 text-xs font-medium ${hasDetail ? 'text-[#2a5f8a]' : 'text-slate-400 hover:text-[#2a5f8a]'}`}
-                    >
-                      {hasDetail ? t('appflow.detailEdit') : t('appflow.detailAdd')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => requestRemoveApplication(app)}
-                      aria-label={t('teampage.remove')}
-                      title={t('teampage.remove')}
-                      className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-[#9a3b2e]/10 hover:text-[#9a3b2e]"
-                    >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
-                        <path d="M6 6l12 12M18 6 6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                      </svg>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-          )}
-
           {appDetailId &&
             (() => {
               const app = workflow.applications.find((a) => a.id === appDetailId)
@@ -2804,6 +2671,11 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
                   app={app}
                   data={workflow.applicatieflow?.details?.[appDetailId] ?? {}}
                   onSave={(fields) => saveAppDetail(appDetailId, fields)}
+                  onRename={(naam) => updateApplication(appDetailId, { naam })}
+                  onRequestRemove={() => {
+                    setAppDetailId(null)
+                    requestRemoveApplication(app)
+                  }}
                   onClose={() => setAppDetailId(null)}
                   t={t}
                   language={language}
@@ -2872,117 +2744,6 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
               applications={workflow.applications}
               t={t}
               language={language}
-            />
-          )}
-
-          {adminSections.applicatieflow && (
-          <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.tabApplicatieflow')}</h3>
-            </div>
-            <ApplicatieflowTab workflow={workflow} patch={patch} onAddApplication={adminSections.applicaties ? addApplication : undefined} />
-          </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-4">
-            {adminSections.input && (
-            <IoListEditor
-              title={t('teampage.inputsTitle')}
-              kind="input"
-              items={workflow.inputs}
-              onAdd={addInput}
-              onUpdate={updateInput}
-              onRemove={removeInput}
-              showLink
-              showBron
-              teams={teams}
-              currentTeamId={teamId}
-              teamWorkflows={teamWorkflows}
-              applications={workflow.applications}
-              t={t}
-              language={language}
-            />
-            )}
-            {adminSections.output && (
-            <IoListEditor
-              title={t('teampage.outputsTitle')}
-              kind="output"
-              items={workflow.outputs}
-              onAdd={addOutput}
-              onUpdate={updateOutput}
-              onRemove={removeOutput}
-              showLink={false}
-              teams={teams}
-              currentTeamId={teamId}
-              teamWorkflows={teamWorkflows}
-              applications={workflow.applications}
-              t={t}
-              language={language}
-            />
-            )}
-          </div>
-
-          {adminSections.capaciteit && (
-          <div data-tour="capacity" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.capacityTitle')}</h3>
-              <button
-                type="button"
-                onClick={() => setCapacityModalRow(null)}
-                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                {t('teampage.capacityAdd')}
-              </button>
-            </div>
-            {workflow.capacity.length === 0 && <p className="text-xs text-slate-400">{t('teampage.capacityEmpty')}</p>}
-            <ul className="divide-y divide-slate-100">
-              {workflow.capacity.map((row) => {
-                const summary = [
-                  row.seniority && translateSeniority(row.seniority, language),
-                  row.fase && translateWorkflowStage(row.fase, language),
-                ]
-                  .filter(Boolean)
-                  .join(' · ')
-                return (
-                  <li key={row.id}>
-                    <button
-                      type="button"
-                      onClick={() => setCapacityModalRow(row)}
-                      className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
-                    >
-                      {row.risico_bij_uitval === 'ja' && (
-                        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('teampage.capacityRisicoLabel')} />
-                      )}
-                      <span className="min-w-0 flex-1 truncate text-slate-700">{row.rol || '—'}</span>
-                      {summary && <span className="shrink-0 text-xs text-slate-400">{summary}</span>}
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{row.aantal}</span>
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-          )}
-
-          {capacityModalRow !== undefined && (
-            <CapacityRowModal
-              row={capacityModalRow}
-              t={t}
-              language={language}
-              onClose={() => setCapacityModalRow(undefined)}
-              onSave={(draft) => {
-                if (capacityModalRow) updateCapacityRow(draft.id, draft)
-                else addCapacityRow(draft)
-                setCapacityModalRow(undefined)
-              }}
-              onRemove={
-                capacityModalRow
-                  ? () => {
-                      removeCapacityRow(capacityModalRow.id)
-                      setCapacityModalRow(undefined)
-                    }
-                  : undefined
-              }
             />
           )}
 
@@ -3280,6 +3041,37 @@ export default function TeamPage({ teamId, onBack, adminSections }) {
               </div>
             )}
           </div>
+          )}
+
+          {adminSections.applicatieflow && (
+          <div ref={applicatieflowSectionRef} data-tour="applicatieflow-section" className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="mb-3">
+              <h3 className="text-sm font-semibold text-slate-800">{t('teampage.tabApplicatieflow')}</h3>
+            </div>
+            <ApplicatieflowTab workflow={workflow} patch={patch} onAddApplication={adminSections.applicaties ? addApplication : undefined} />
+          </div>
+          )}
+
+          {capacityModalRow !== undefined && (
+            <CapacityRowModal
+              row={capacityModalRow}
+              t={t}
+              language={language}
+              onClose={() => setCapacityModalRow(undefined)}
+              onSave={(draft) => {
+                if (capacityModalRow) updateCapacityRow(draft.id, draft)
+                else addCapacityRow(draft)
+                setCapacityModalRow(undefined)
+              }}
+              onRemove={
+                capacityModalRow
+                  ? () => {
+                      removeCapacityRow(capacityModalRow.id)
+                      setCapacityModalRow(undefined)
+                    }
+                  : undefined
+              }
+            />
           )}
         </>
       )}
