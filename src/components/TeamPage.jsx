@@ -2959,8 +2959,18 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             className={
               isFullscreen
                 ? 'fixed inset-0 top-0 left-0 z-[100] h-screen w-screen flex flex-col overflow-hidden bg-white p-4'
-                : 'rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
+                : 'flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
             }
+            // Vast berekend i.p.v. een losse vh-percentage op alleen het canvas:
+            // deze hoogte geldt voor de hele kaart (kop + toolbar + canvas
+            // samen), zodat de kaart nooit meer buiten de zichtbare hoofdvenster-
+            // hoogte kan uitsteken. 97px = vaste topbar (73px) + onderste
+            // pagina-marge (main's pb-6, 24px) — dezelfde ademruimte die
+            // boven/opzij al gebruikt wordt. De canvas-rij eronder is flex-1 en
+            // vult wat er, ná de eigen hoogte van kop/toolbar, overblijft: die
+            // hoeft dus niet los te worden bijgehouden als de toolbar ooit
+            // opnieuw van hoogte verandert.
+            style={isFullscreen ? undefined : { height: 'clamp(760px, calc(100vh - 97px), 960px)' }}
           >
             <div className="mb-2 grid grid-cols-[auto_1fr_auto] items-center gap-2">
               <button
@@ -3249,11 +3259,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             {/* Canvas + focuspaneel als flex-rij (zelfde dockingpatroon als
                 TeamFilterPanel naast GraphView) — het paneel is een vaste-
                 breedte zijkolom die alleen verschijnt zodra canvasFocus
-                gezet is, i.p.v. een overlay bovenop het canvas. */}
-            <div
-              className={isFullscreen ? 'flex min-h-0 flex-1 items-stretch gap-3' : 'flex items-stretch gap-3'}
-              style={isFullscreen ? undefined : { height: 'clamp(640px, 78vh, 920px)' }}
-            >
+                gezet is, i.p.v. een overlay bovenop het canvas. flex-1 laat
+                deze rij precies de ruimte vullen die de omsluitende kaart nog
+                over heeft ná de kop- en toolbar-rijen erboven — vast bepaald
+                door de kaarthoogte hierboven, niet los geschat. */}
+            <div className="flex min-h-0 flex-1 items-stretch gap-3">
               <div
                 data-tour="workflow-canvas"
                 className="relative min-w-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 shadow-sm"
