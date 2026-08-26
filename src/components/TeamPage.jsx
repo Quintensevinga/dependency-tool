@@ -524,8 +524,8 @@ function computeWorkflowLayout(
   // vast getal. Dat voorkomt dat lane-inhoud structureel buiten zijn eigen
   // zone kan vallen, ongeacht hoeveel content erin zit.
   // +176 (i.p.v. de kaartbreedte zelf, 176px = w-44) zodat de zone-rechterrand
-  // na de laatste stage-kaart exact zoveel ruimte overhoudt (LANE_PAD_X) als
-  // de zone-linkerrand vóór de eerste stage-kaart al had — anders staat de
+  // na de laatste stage-kaart exact zoveel ruimte overhoudt (ZONE_INNER_PAD_X)
+  // als de zone-linkerrand vóór de eerste stage-kaart al had — anders staat de
   // laatste kolom (Beheer/nazorg) vrijwel tegen de rand aan.
   const BANNER_WIDTH = (WORKFLOW_STAGES.length - 1) * STAGE_GAP + 176
   // Padding van elk lane-achtergrondkader — hier al gedeclareerd (i.p.v. pas
@@ -534,11 +534,19 @@ function computeWorkflowLayout(
   const LANE_PAD_X = 14
   const LANE_PAD_TOP = 10
   const LANE_PAD_BOTTOM = 14
+  // Los van LANE_PAD_X (de padding van een individuele lane t.o.v. zíjn
+  // eigen inhoud): dit is de ademruimte tussen de buitenste flow-achtergrond
+  // (het grote canvasvlak) en waar de content — stage-kaarten én lane-
+  // inhoud, want beide starten op STAGE_START_X — daadwerkelijk begint.
+  // Groter dan LANE_PAD_X zodat de lane-containers niet tegen de buitenrand
+  // geplakt ogen. Beide flows delen dezelfde ZONE_X/ZONE_WIDTH, dus
+  // Ontwikkelflow schuift automatisch evenveel op als Applicatieflow.
+  const ZONE_INNER_PAD_X = 32
   // Beide lagen delen dezelfde linker-/rechtergrens (ZONE_X/ZONE_WIDTH,
   // afgeleid van dezelfde STAGE_GAP-kolommen als de lanes/stage-rij), zodat
   // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
-  const ZONE_X = STAGE_START_X - LANE_PAD_X
-  const ZONE_WIDTH = BANNER_WIDTH + LANE_PAD_X * 2
+  const ZONE_X = STAGE_START_X - ZONE_INNER_PAD_X
+  const ZONE_WIDTH = BANNER_WIDTH + ZONE_INNER_PAD_X * 2
 
   // --- Applicatieflow-lane bouwstenen ---
   // Hier al gedeclareerd (i.p.v. pas in de Applicatieflow-lanesectie verderop)
@@ -1924,7 +1932,7 @@ function TeamDataBlock({ title, count, open, onToggle, action, children, blockRe
 // React Flow's eigen — nu verborgen — standaardknoppen): zoom, passend maken
 // en slim ordenen boven een streepje, volledig scherm apart eronder. Moet
 // binnen een ReactFlowProvider staan voor useReactFlow().
-function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t, paneRef, sidebarMode }) {
+function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t, paneRef, sidebarMode, fitKey }) {
   const instance = useReactFlow()
   const { zoomIn, zoomOut } = instance
   const toolbarRef = useRef(null)
@@ -1932,18 +1940,19 @@ function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t, paneRe
   const nodesInitialized = useNodesInitialized()
 
   // Fit die rekening houdt met de eigen footprint van deze toolbar (linksonder
-  // in het canvas), zodat nodes daar nooit onder verdwijnen — zie
-  // src/lib/flowFit.js. reserveLeft/-Bottom worden live gemeten i.p.v.
-  // hardcoded, zodat dit vanzelf klopt blijft als de toolbar ooit verandert.
+  // in het canvas) als een kléíne 'safe area', niet als marge over de hele
+  // breedte/hoogte — zie src/lib/flowFit.js voor waarom dat verschil
+  // uitmaakt. Live gemeten i.p.v. hardcoded, zodat dit vanzelf klopt blijft
+  // als de toolbar ooit verandert.
   const fitAvoidingToolbar = useCallback(
     (opts) => {
       const el = toolbarRef.current
-      const reserveLeft = el ? el.getBoundingClientRect().width + 24 : 0
-      const reserveBottom = el ? el.getBoundingClientRect().height + 24 : 0
+      const safeAreaWidth = el ? el.getBoundingClientRect().width + 24 : 0
+      const safeAreaHeight = el ? el.getBoundingClientRect().height + 24 : 0
       fitViewAvoidingCorner(instance, paneRef?.current, {
-        reserveLeft,
-        reserveBottom,
-        padding: 0.06,
+        safeAreaWidth,
+        safeAreaHeight,
+        padding: 0.08,
         minZoom: 0.4,
         maxZoom: 1.5,
         duration: 200,
@@ -1964,16 +1973,44 @@ function TeamCanvasToolbar({ onSmartOrder, onFullscreen, isFullscreen, t, paneRe
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nodesInitialized])
 
+  // Opnieuw fitten wanneer de zichtbare canvas-inhoud verandert: toevoegen/
+  // verwijderen van dependencies/applicaties/IO/notities, Split per
+  // applicatie ↔ Samengevoegd, of een Weergeven-toggle die nodes toont/
+  // verbergt (zie canvasFitKey hierboven, bij de aanroeper). Geen vertraging
+  // nodig — dit is geen CSS-transitie, de nieuwe layout staat er al.
+  useEffect(() => {
+    if (isFirstRender.current) return
+    fitAvoidingToolbar()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitKey])
+
   // Opnieuw fitten wanneer de zijbalk *definitief* wisselt (open/iconen/
-  // auto) — niet bij het tijdelijk uitklappen op hover, want dat is geen
-  // sidebarMode-wijziging. De vertraging wacht de CSS-transitie van <main>'s
-  // padding-left af zodat het canvas al zijn uiteindelijke breedte heeft.
+  // auto, niet het tijdelijk uitklappen op hover) of volledig
+  // scherm/presentatiemodus aan/uit gaat — de vertraging wacht de
+  // CSS-transitie van <main>'s padding-left resp. de fullscreen-overlay af
+  // zodat het canvas al zijn uiteindelijke afmeting heeft.
   useEffect(() => {
     if (isFirstRender.current) return
     const id = window.setTimeout(() => fitAvoidingToolbar(), 220)
     return () => window.clearTimeout(id)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sidebarMode])
+  }, [sidebarMode, isFullscreen])
+
+  // En bij het resizen van het browservenster zelf — gedebouncet, want
+  // 'resize' kan tientallen keren per seconde vuren.
+  useEffect(() => {
+    let id
+    function handleResize() {
+      window.clearTimeout(id)
+      id = window.setTimeout(() => fitAvoidingToolbar(), 150)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener('resize', handleResize)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const btnClass = 'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700'
   return (
@@ -2801,6 +2838,14 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     workflow.stageNotes,
   ])
 
+  // Signaal voor 'de zichtbare canvas-inhoud is veranderd, fit opnieuw' —
+  // canvasWidth/-Height zijn de eigen, berekende afmetingen van de layout
+  // (veranderen bij toevoegen/verwijderen van vrijwel alles: dependencies,
+  // applicaties, IO, notities, Weergeven-toggles), nodes.length vangt de
+  // rest. Bewust geen dependency op de nodes-array zelf: die verandert ook
+  // tijdens slepen, wat dan bij elke muisbeweging opnieuw zou fitten.
+  const canvasFitKey = `${nodes.length}:${canvasWidth}:${canvasHeight}:${splitApplicaties}`
+
   // Lijnen worden pas duidelijk als niet-gerelateerde relaties wegvallen
   // zodra je iets aanwijst — zelfde hover-dim-patroon als GraphView.jsx
   // (hoverNodeId + een lichte stijl-laag over de edges, los van de layout-
@@ -3497,6 +3542,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     t={t}
                     paneRef={canvasPaneRef}
                     sidebarMode={sidebarMode}
+                    fitKey={canvasFitKey}
                   />
                 </ReactFlowProvider>
                 {canvasHover && (
