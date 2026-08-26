@@ -3304,7 +3304,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
 
             <div
               data-tour="toolbar"
-              className="-mx-4 -mt-4 mb-3 space-y-2 rounded-t-xl border-b border-slate-200 bg-slate-50/70 px-4 py-2.5"
+              className="-mx-4 -mt-4 mb-3 space-y-2 rounded-t-xl border-b border-slate-200 bg-white px-4 py-2.5"
             >
               {/* Rij 1 — acties links (toevoegen/notitie), weergavetoggle rechts. */}
               <div className="flex flex-wrap items-center justify-between gap-2">
