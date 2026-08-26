@@ -33,10 +33,10 @@ export const MOCK_TEAMS = [
 //   applicatiekoppelingen (test de "teams zonder koppelingen"-situatie).
 // - Tiem: proces-/stakeholdergericht — vooral Ontwikkelflow, een paar
 //   simpele koppelingen.
-// - Casio: middelgroot, duidelijke Run flow-focus (betaalverwerkingsketen).
+// - Casio: middelgroot, duidelijke Applicatieflow-focus (betaalverwerkingsketen).
 // - Polis: groot en applicatierijk — 6 applicaties, echte applicatieketen,
-//   rijke mix Run flow/Ontwikkelflow. Twee applicaties (Documentservice,
-//   Archiefservice) hebben bewust geen Run flow-dependency-label, om te
+//   rijke mix Applicatieflow/Ontwikkelflow. Twee applicaties (Documentservice,
+//   Archiefservice) hebben bewust geen Applicatieflow-dependency-label, om te
 //   testen dat een lege lane niet storend getoond wordt.
 // - Freggels: veel Ontwikkelflow, zwaartepunt bij refinement/test/acceptatie.
 // - Sterke verhalen: rapportage-/data-/outputgericht.
@@ -654,7 +654,7 @@ export const RAW_MOCK_DEPENDENCIES = [
   },
 
   // ============================================================
-  // Team Casio — middelgroot, duidelijke Run flow-focus (betaalketen)
+  // Team Casio — middelgroot, duidelijke Applicatieflow-focus (betaalketen)
   // ============================================================
   {
     id: 'ca-dep-1',
@@ -852,7 +852,7 @@ export const RAW_MOCK_DEPENDENCIES = [
   },
 
   // ============================================================
-  // Team Polis — groot, applicatierijk, rijke mix Run flow/Ontwikkelflow
+  // Team Polis — groot, applicatierijk, rijke mix Applicatieflow/Ontwikkelflow
   // ============================================================
   {
     id: 'po-dep-1',

@@ -1,4 +1,5 @@
 import { MOCK_TEAMS, MOCK_DEPENDENCIES, MOCK_TEAM_WORKFLOWS } from '../data/mockData'
+import { WORKFLOW_STAGES } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
 const STORAGE_KEY = 'dependency-insight:v1'
@@ -30,7 +31,22 @@ export function emptyTeamWorkflow() {
     annotations: [],
     annotationEdges: [],
     applicatieflow: emptyApplicatieflow(),
+    // Optionele, team-specifieke toelichting per ontwikkelflowstap (sleutel =
+    // WORKFLOW_STAGES-waarde). Losse vrije tekst, geen systeem-uitleg — leeg
+    // laat niets zien op het canvas.
+    stageNotes: {},
   }
+}
+
+// Alleen bekende stage-sleutels met een echte, niet-lege tekst behouden —
+// beschermt tegen corrupte/handmatig aangepaste importdata zonder te crashen.
+function sanitizeStageNotes(raw) {
+  if (!raw || typeof raw !== 'object') return {}
+  const clean = {}
+  for (const stage of WORKFLOW_STAGES) {
+    if (typeof raw[stage] === 'string' && raw[stage].trim()) clean[stage] = raw[stage]
+  }
+  return clean
 }
 
 // --- admin: pagina's/secties aan- of uitzetten ---
@@ -158,20 +174,28 @@ const LEGACY_WORKFLOWSTAP_MIGRATION = {
 function migrateDependency(raw, teamsState) {
   const teamId = resolveTeamId(raw, teamsState)
   const { eigenaarFunctieIds, oplossingsniveau, ...rest } = raw
-  const workflowStap = raw.workflowStap
-    ? (LEGACY_WORKFLOWSTAP_MIGRATION[raw.workflowStap] ?? raw.workflowStap)
-    : null
+  // Bestaande data met een workflowstap wordt aangenomen Ontwikkelflow te
+  // zijn; zonder workflowstap blijft flowtype expliciet onbepaald (null) —
+  // nooit stilzwijgend als Applicatieflow geraden, dat toont de UI als
+  // "Flowtype nog te bepalen" totdat de gebruiker het bewerkt.
+  const flowtype = raw.flowtype ?? (raw.workflowStap ? 'ontwikkelflow' : null)
+  // Applicatieflow kent conceptueel géén workflowstap — dat hoort bij
+  // Ontwikkelflow. Een eventuele (legacy/vervuilde) waarde wordt hier, bij de
+  // bron, genegeerd i.p.v. per view apart genegeerd, zodat canvas, lijst,
+  // filters en detailpaneel nooit meer een andere indeling kunnen tonen.
+  const workflowStap =
+    flowtype === 'applicatieflow'
+      ? null
+      : raw.workflowStap
+        ? (LEGACY_WORKFLOWSTAP_MIGRATION[raw.workflowStap] ?? raw.workflowStap)
+        : null
   return {
     ...rest,
     teamId,
     workflowStap,
+    flowtype,
     effectOpFlow: raw.effectOpFlow ?? null,
     actieAfspraak: typeof raw.actieAfspraak === 'string' ? raw.actieAfspraak : '',
-    // Bestaande data met een workflowstap wordt aangenomen Ontwikkelflow te
-    // zijn; zonder workflowstap blijft flowtype expliciet onbepaald (null) —
-    // nooit stilzwijgend als Applicatieflow geraden, dat toont de UI als
-    // "Flowtype nog te bepalen" totdat de gebruiker het bewerkt.
-    flowtype: raw.flowtype ?? (raw.workflowStap ? 'ontwikkelflow' : null),
     applicatieIds: Array.isArray(raw.applicatieIds) ? raw.applicatieIds : [],
     geaccepteerd: raw.geaccepteerd === true,
   }
@@ -225,7 +249,11 @@ function migrateTeamWorkflows(rawWorkflows, teams) {
   for (const team of teams) {
     const workflow =
       source[team.id] && typeof source[team.id] === 'object' ? { ...emptyTeamWorkflow(), ...source[team.id] } : emptyTeamWorkflow()
-    result[team.id] = { ...workflow, capacity: (workflow.capacity ?? []).map(migrateCapacityRow) }
+    result[team.id] = {
+      ...workflow,
+      capacity: (workflow.capacity ?? []).map(migrateCapacityRow),
+      stageNotes: sanitizeStageNotes(workflow.stageNotes),
+    }
   }
   return result
 }

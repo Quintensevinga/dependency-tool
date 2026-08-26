@@ -158,6 +158,13 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
       if (field === 'scope') {
         return { ...f, scope: value, categorie: '' }
       }
+      // Applicatieflow kent geen workflowstap — bij het wisselen naar
+      // Applicatieflow meteen een eventueel al ingevulde stap wissen, zodat
+      // die nooit stilzwijgend mee opgeslagen wordt als de gebruiker toch op
+      // Applicatieflow laat staan.
+      if (field === 'flowtype' && value === 'applicatieflow') {
+        return { ...f, flowtype: value, workflowStap: '' }
+      }
       return { ...f, [field]: value }
     })
   }
@@ -177,6 +184,9 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     const [teamId, ...extraTeamIds] = teamIds
     const payload = { ...rest, teamId }
     if (form.scope === 'intern') delete payload.geraakte_team_extern
+    // Applicatieflow kent geen workflowstap — nooit opslaan, ook niet als het
+    // veld door een eerdere flowtype-keuze nog een waarde had.
+    if (form.flowtype === 'applicatieflow') payload.workflowStap = ''
     if (extraTeamIds.length > 0) payload.extraTeamIds = extraTeamIds
     onSave(payload)
   }
@@ -513,35 +523,40 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <div className="mb-1 flex items-center gap-1.5">
-                <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
-                  {t('form.workflowStap')}
-                </Label>
-                <InfoIcon tooltip={form.flowtype === 'ontwikkelflow' ? t('form.workflowStapRequiredHelper') : t('form.workflowStapOptionalHelper')} />
+          <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>
+            {/* Applicatieflow hoort bij een draaiende applicatie/keten, niet bij
+                een fase van het ontwikkelproces — het veld is daarom niet
+                optioneel-maar-verborgen, maar volledig weg, en wordt nooit
+                opgeslagen (zie update()/handleSubmit hierboven). */}
+            {form.flowtype !== 'applicatieflow' && (
+              <div>
+                <div className="mb-1 flex items-center gap-1.5">
+                  <Label required htmlFor="dep-workflowstap">
+                    {t('form.workflowStap')}
+                  </Label>
+                  <InfoIcon tooltip={t('form.workflowStapRequiredHelper')} />
+                </div>
+                <select
+                  id="dep-workflowstap"
+                  value={form.workflowStap}
+                  onChange={(e) => update('workflowStap', e.target.value)}
+                  onBlur={() => markTouched('workflowStap')}
+                  aria-describedby={touched.workflowStap && errors.workflowStap ? 'err-workflowstap' : undefined}
+                  className={inputClass}
+                >
+                  <option value="">—</option>
+                  {WORKFLOW_STAP_LEVELS.map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {translateWorkflowStap(lvl, language)}
+                    </option>
+                  ))}
+                </select>
+                {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
               </div>
-              {(
-                <>
-                  <select
-                    id="dep-workflowstap"
-                    value={form.workflowStap}
-                    onChange={(e) => update('workflowStap', e.target.value)}
-                    onBlur={() => markTouched('workflowStap')}
-                    aria-describedby={touched.workflowStap && errors.workflowStap ? 'err-workflowstap' : undefined}
-                    className={inputClass}
-                  >
-                    <option value="">—</option>
-                    {WORKFLOW_STAP_LEVELS.map((lvl) => (
-                      <option key={lvl} value={lvl}>
-                        {translateWorkflowStap(lvl, language)}
-                      </option>
-                    ))}
-                  </select>
-                  {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
-                </>
-              )}
-            </div>
+            )}
+            {form.flowtype === 'applicatieflow' && (
+              <p className="text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
+            )}
             <div>
               <div className="mb-1 flex items-center gap-1.5">
                 <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>

@@ -39,10 +39,9 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
   const style = riskStyle(risk.level)
   const riskLevel = translateRiskLevel(risk.level, language)
   const teamApplications = teamWorkflows[dependency.teamId]?.applications ?? []
-  const labeledApplicaties = (dependency.applicatieIds ?? [])
+  const labeledApplicatieNames = (dependency.applicatieIds ?? [])
     .map((id) => teamApplications.find((app) => app.id === id)?.naam)
     .filter(Boolean)
-    .join(', ')
 
   return (
     <div className="fixed inset-0 z-40 flex justify-end bg-slate-900/30" onClick={onClose}>
@@ -99,10 +98,14 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
             )}
             {dependency.flowtype === 'applicatieflow' && (
               <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
-                {t('detail.applicaties')}: {labeledApplicaties || t('teampage.appLabelNone')}
+                {t('detail.applicaties')}:{' '}
+                {labeledApplicatieNames.length > 0 ? labeledApplicatieNames.join(', ') : t('teampage.appOverstijgend')}
               </span>
             )}
-            {dependency.workflowStap && (
+            {/* Applicatieflow kent geen workflowstap — ook niet tonen als een
+                oud record er (per ongeluk) nog een heeft; de bron daarvan is
+                al opgeruimd bij het migreren/opslaan (zie storage.js). */}
+            {dependency.workflowStap && dependency.flowtype !== 'applicatieflow' && (
               <span className="rounded bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600">
                 {t('detail.workflowStap')}: {translateWorkflowStap(dependency.workflowStap, language)}
               </span>
