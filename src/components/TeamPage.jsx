@@ -3527,7 +3527,13 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             </div>
 
             {adminSections.filters && (
-            <div className="mb-3 flex flex-wrap items-center justify-end gap-2">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <input
+                value={depSearchQuery}
+                onChange={(e) => setDepSearchQuery(e.target.value)}
+                placeholder={t('teampage.canvasDepSearchPlaceholder')}
+                className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+              />
               <DepFiltersDropdown
                 open={depFiltersOpen}
                 onToggle={() => setDepFiltersOpen((v) => !v)}
