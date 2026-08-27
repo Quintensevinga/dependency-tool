@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>Dependency Insight — Gebruikshandleiding</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #241f1a;
+    font-size: 10.5pt;
+    line-height: 1.45;
+    margin: 0;
+  }
+  .cover {
+    height: 257mm;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
+    border-bottom: 6px solid #33493c;
+  }
+  .cover .tag {
+    display: inline-block;
+    background: #33493c;
+    color: white;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 9pt;
+    letter-spacing: 0.03em;
+    margin-bottom: 18px;
+  }
+  .cover h1 {
+    font-size: 30pt;
+    margin: 0 0 8px 0;
+    color: #241f1a;
+  }
+  .cover p.subtitle {
+    font-size: 13pt;
+    color: #6b5645;
+    max-width: 90%;
+    margin: 0 0 30px 0;
+  }
+  .cover .meta {
+    font-size: 9.5pt;
+    color: #8a8378;
+  }
+  .cover .principles {
+    margin-top: 40px;
+    display: flex;
+    gap: 14px;
+  }
+  .cover .principle {
+    border: 1px solid #d9cfc0;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 9pt;
+    color: #6b5645;
+    max-width: 150px;
+  }
+  .principle b { display: block; color: #33493c; font-size: 9.5pt; margin-bottom: 3px; }
+
+  .toc { page-break-before: always; }
+  .toc h2 { border: none; }
+  .toc ol { padding-left: 20px; }
+  .toc li { margin-bottom: 6px; }
+  .toc a { color: #241f1a; text-decoration: none; }
+
+  section.chapter { page-break-before: always; }
+  section.chapter:first-of-type { page-break-before: always; }
+
+  h2 {
+    font-size: 15pt;
+    color: #33493c;
+    border-bottom: 2px solid #33493c;
+    padding-bottom: 5px;
+    margin: 0 0 4px 0;
+  }
+  h2 .num {
+    display: inline-block;
+    background: #33493c;
+    color: white;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    text-align: center;
+    line-height: 22px;
+    font-size: 11pt;
+    margin-right: 8px;
+  }
+  h3 {
+    font-size: 11pt;
+    color: #6e2a1e;
+    margin: 14px 0 4px 0;
+  }
+  p.lead {
+    color: #6b5645;
+    margin: 6px 0 14px 0;
+  }
+  ul { margin: 4px 0 14px 0; padding-left: 18px; }
+  li { margin-bottom: 3px; }
+  .shot {
+    width: 100%;
+    border: 1px solid #d9cfc0;
+    border-radius: 8px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    margin: 8px 0 14px 0;
+    display: block;
+  }
+  .shot-caption {
+    font-size: 8.5pt;
+    color: #8a8378;
+    margin: -10px 0 14px 0;
+    font-style: italic;
+  }
+  .note {
+    background: #f6f1e7;
+    border-left: 3px solid #33493c;
+    padding: 8px 12px;
+    font-size: 9.5pt;
+    margin: 10px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .note b { color: #33493c; }
+  table.fieldtable {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 9.5pt;
+    margin: 8px 0 14px 0;
+  }
+  table.fieldtable th, table.fieldtable td {
+    border: 1px solid #e7ded0;
+    padding: 5px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  table.fieldtable th {
+    background: #f6f1e7;
+    color: #6b5645;
+    font-weight: 600;
+  }
+  footer.pagefoot {
+    font-size: 8pt;
+    color: #b8a08e;
+    text-align: right;
+    margin-top: 6px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ===================== COVER ===================== -->
+<div class="cover">
+  <span class="tag">GEBRUIKSHANDLEIDING</span>
+  <h1>Dependency Insight</h1>
+  <p class="subtitle">Overzicht per functionaliteit: dependencies in kaart brengen, teamworkflows visualiseren en de keten tussen teams doorzien.</p>
+  <div class="principles">
+    <div class="principle"><b>100% lokaal</b>Alle data blijft in je browser. Niets wordt naar een server verstuurd.</div>
+    <div class="principle"><b>Geen persoonsgegevens</b>Alleen rollen en teamniveau-informatie, nooit namen.</div>
+    <div class="principle"><b>Transparant</b>Elke risicoscore is uit te leggen — nooit een black box.</div>
+  </div>
+  <p class="meta">Versie juli 2026 &nbsp;·&nbsp; Nederlands / English</p>
+</div>
+
+<!-- ===================== TOC ===================== -->
+<div class="toc">
+<h2>Inhoud</h2>
+<ol>
+  <li><a href="#h1">Basisnavigatie</a></li>
+  <li><a href="#h2">Matrix-overzicht</a></li>
+  <li><a href="#h3">Netwerkweergave</a></li>
+  <li><a href="#h4">Ketenoverzicht</a></li>
+  <li><a href="#h5">Een dependency toevoegen of bewerken</a></li>
+  <li><a href="#h6">Team-navigatie</a></li>
+  <li><a href="#h7">Teampagina — workflow</a></li>
+  <li><a href="#h8">Teampagina — applicaties en input/output</a></li>
+  <li><a href="#h9">Teampagina — capaciteit</a></li>
+  <li><a href="#h10">Teampagina — aantekeningen (Miro-achtig)</a></li>
+  <li><a href="#h11">Instellingen &amp; privacy</a></li>
+</ol>
+</div>
+
+<!-- ===================== 1. NAVIGATIE ===================== -->
+<section class="chapter" id="h1">
+  <h2><span class="num">1</span>Basisnavigatie</h2>
+  <p class="lead">Elk scherm deelt dezelfde koptekst — dit is het startpunt voor alle functionaliteit.</p>
+  <img class="shot" src="img/01-netwerkweergave.png">
+  <ul>
+    <li><b>☰ Hamburgermenu</b> — open de teamlijst en navigeer naar een teampagina.</li>
+    <li><b>Teamniveau / Ketenniveau</b> — schakel de matrix en risico-badges tussen interne (team) en externe (keten) dependencies.</li>
+    <li><b>+ Nieuwe dependency</b> — open het formulier om een dependency toe te voegen.</li>
+    <li><b>NL / EN</b> — wissel de taal van de hele applicatie.</li>
+    <li><b>⚙ Instellingen</b> — export/import, mockdata, alles wissen (hoofdstuk 11).</li>
+    <li>Drie tabbladen: <b>Matrix-overzicht</b>, <b>Netwerkweergave</b>, <b>Ketenoverzicht</b> — elk hoofdstuk hieronder behandelt er één.</li>
+  </ul>
+</section>
+
+<!-- ===================== 2. MATRIX ===================== -->
+<section class="chapter" id="h2">
+  <h2><span class="num">2</span>Matrix-overzicht</h2>
+  <p class="lead">Een sorteerbare, filterbare lijst van alle dependencies — het startpunt voor een gedetailleerde blik.</p>
+  <img class="shot" src="img/02-matrix-overzicht.png">
+  <ul>
+    <li>Filter op <b>team</b> en <b>risiconiveau</b> via het paneel rechts.</li>
+    <li>Sorteer op risicoscore (hoog→laag / laag→hoog) of op laatst bijgewerkt.</li>
+    <li>Klik op een rij voor het volledige detailpaneel (hoofdstuk 5).</li>
+    <li>Onderaan: een <b>samenvatting</b> (kritieke dependencies, hoogste kennis-risico) en <b>belangrijkste observaties</b>, automatisch afgeleid uit de data.</li>
+  </ul>
+</section>
+
+<!-- ===================== 3. NETWERKWEERGAVE ===================== -->
+<section class="chapter" id="h3">
+  <h2><span class="num">3</span>Netwerkweergave</h2>
+  <p class="lead">Een visueel, sleepbaar netwerk van teams en categorieën — handig om clusters van risico te herkennen.</p>
+  <ul>
+    <li>Elk blokje is <b>sleepbaar</b> (Miro-achtig); posities worden onthouden.</li>
+    <li><b>Sleep vanaf een team</b> naar een categorieblokje om direct een nieuwe, voorgevulde dependency aan te maken.</li>
+    <li>Klik op een categorie in de legenda onderaan om alle bijbehorende verbindingen te markeren.</li>
+    <li>Klik op een team- of categorieblokje voor een lijst van onderliggende dependencies.</li>
+  </ul>
+</section>
+
+<!-- ===================== 4. KETENOVERZICHT ===================== -->
+<section class="chapter" id="h4">
+  <h2><span class="num">4</span>Ketenoverzicht</h2>
+  <p class="lead">Toont hoe teams elkaars werk als input/output doorgeven — de "keten" achter de dependencies.</p>
+  <img class="shot" src="img/03-ketenoverzicht.png">
+  <ul>
+    <li>Elke kolom is een team, met zijn input- en outputblokjes.</li>
+    <li>Een lijn tussen een output- en inputblokje is een <b>expliciete koppeling</b>, gelegd op de teampagina (hoofdstuk 8) — nooit automatisch geraden.</li>
+    <li>Losse (nog niet gekoppelde) blokjes zijn normaal — geen foutstatus.</li>
+    <li>Zelfde team- en risicofilters als de andere weergaven.</li>
+  </ul>
+</section>
+
+<!-- ===================== 5. DEPENDENCY FORM ===================== -->
+<section class="chapter" id="h5">
+  <h2><span class="num">5</span>Een dependency toevoegen of bewerken</h2>
+  <p class="lead">Hetzelfde formulier voor aanmaken en bewerken, bereikbaar via "+ Nieuwe dependency" of vanuit een detailpaneel.</p>
+  <img class="shot" src="img/05-nieuwe-dependency-formulier.png">
+  <table class="fieldtable">
+    <tr><th>Veld</th><th>Toelichting</th></tr>
+    <tr><td>Team, Scope, Categorie, Titel, Rol/betrokkene</td><td>Verplicht. Categorie heeft een "+ Nieuwe categorie toevoegen"-optie die meteen overal beschikbaar komt.</td></tr>
+    <tr><td>Impact / Frequentie / Status</td><td>Verplicht — bepalen samen de risicoscore (zie detailpaneel).</td></tr>
+    <tr><td>Waar in de workflow, Van wie/wat, Effect op de flow, Zelf oplosbaar</td><td>Optioneel. Vullen deze in? Dan verschijnt de dependency automatisch op de teampagina bij de juiste workflow-fase.</td></tr>
+    <tr><td>Toelichting / Mitigatie</td><td>Optionele vrije tekst.</td></tr>
+  </table>
+  <div class="note"><b>Detailpaneel:</b> elke dependency toont zijn risicoberekening in gewone taal (impact × frequentie + statuscorrectie) — nooit een black box.</div>
+  <img class="shot" src="img/06-dependency-detail.png">
+</section>
+
+<!-- ===================== 6. TEAM NAV ===================== -->
+<section class="chapter" id="h6">
+  <h2><span class="num">6</span>Team-navigatie</h2>
+  <p class="lead">Via het hamburgermenu (☰) bereik je de teampagina van elk team.</p>
+  <img class="shot" src="img/04-team-navigatie.png">
+  <ul>
+    <li>Klik een teamnaam om naar de bijbehorende teampagina te gaan.</li>
+    <li><b>+ Team</b> onderaan voegt een nieuw, leeg team toe.</li>
+    <li>Wisselen tussen teams ververst de teampagina volledig — geen restjes van het vorige team.</li>
+  </ul>
+</section>
+
+<!-- ===================== 7. TEAMPAGINA WORKFLOW ===================== -->
+<section class="chapter" id="h7">
+  <h2><span class="num">7</span>Teampagina — workflow</h2>
+  <p class="lead">Een vaste, kleurgecodeerde fasereeks (analyse/refinement t/m beheer/nazorg) met een sleepbaar Miro-achtig canvas.</p>
+  <img class="shot" src="img/07-teampagina-workflow.png">
+  <ul>
+    <li>Input komt binnen links, stroomt door de fases, en verlaat het team rechts als output.</li>
+    <li>Capaciteit (hoofdstuk 9) en dependencies met een ingevulde workflow-fase verschijnen automatisch als badges onder de betreffende fase.</li>
+    <li>Bovenaan: de aantekeningen-toolbar (hoofdstuk 10).</li>
+    <li><b>Wis teampagina</b> (rechtsboven) reset de hele workflow van dit team — dependencies blijven bestaan.</li>
+  </ul>
+</section>
+
+<!-- ===================== 8. APPLICATIES + IO ===================== -->
+<section class="chapter" id="h8">
+  <h2><span class="num">8</span>Teampagina — applicaties en input/output</h2>
+  <p class="lead">Drie lijsten die precies vastleggen wat het team beheert en hoe werk in- en uitstroomt.</p>
+  <img class="shot" src="img/08-teampagina-applicaties-io.png">
+  <ul>
+    <li><b>Applicaties in beheer/ontwikkeling</b> — welke systemen dit team draaiende houdt.</li>
+    <li><b>Input</b> — hoe werk binnenkomt; optioneel een <b>bron</b> (team/rol/persoon/systeem/omgeving/stakeholder), die het blokje op het canvas kleurt.</li>
+    <li><b>Output</b> — wat het team oplevert.</li>
+    <li>Een input kan <b>expliciet gekoppeld</b> worden aan de output van een ander team — dit vult automatisch het ketenoverzicht (hoofdstuk 4).</li>
+  </ul>
+</section>
+
+<!-- ===================== 9. CAPACITEIT ===================== -->
+<section class="chapter" id="h9">
+  <h2><span class="num">9</span>Teampagina — capaciteit</h2>
+  <p class="lead">Wie zit er in het team, en wat gebeurt er als deze persoon wegvalt?</p>
+  <img class="shot" src="img/09-teampagina-capaciteit.png">
+  <ul>
+    <li><b>Rol</b> — kies uit gebruikelijke agile-rollen, of voeg een eigen rol toe (blijft daarna overal beschikbaar).</li>
+    <li><b>Senioriteit</b> — junior / medior / senior.</li>
+    <li><b>Fase</b> (optioneel) — koppelt de rol aan een workflow-fase, zichtbaar als badge op het canvas.</li>
+    <li><b>Risico bij wegvallen</b> — ja/nee, met een toelichtingsveld voor de reden (bijv. enige kennishouder van een systeem).</li>
+    <li>Onderaan dezelfde pagina: de <b>dependencies van dit team</b>, met risicoscore — klik voor het detailpaneel.</li>
+  </ul>
+</section>
+
+<!-- ===================== 10. MIRO TOOLBAR ===================== -->
+<section class="chapter" id="h10">
+  <h2><span class="num">10</span>Teampagina — aantekeningen (Miro-achtig)</h2>
+  <p class="lead">Vrije aantekeningen bovenop de vaste workflow, voor context die niet in een veld past.</p>
+  <img class="shot" src="img/11-miro-toolbar.png">
+  <ul>
+    <li><b>+ Notitie</b> — een gekleurd tekstvak, direct te bewerken.</li>
+    <li><b>+ Rechthoek / + Cirkel / + Ruit</b> — vormen met korte labeltekst.</li>
+    <li><b>🖇 Lijn</b> — activeer, klik daarna twee elementen om ze te verbinden.</li>
+    <li>Kleurkeuze per element — dezelfde kleuren als de "bron"-codering bij input-items (hoofdstuk 8), zodat aantekeningen en input dezelfde beeldtaal spreken.</li>
+    <li>Verwijderen via het ✕-knopje dat verschijnt bij het aanwijzen van een element.</li>
+  </ul>
+</section>
+
+<!-- ===================== 11. INSTELLINGEN ===================== -->
+<section class="chapter" id="h11">
+  <h2><span class="num">11</span>Instellingen &amp; privacy</h2>
+  <p class="lead">Bereikbaar via het tandwiel-icoon rechtsboven.</p>
+  <img class="shot" src="img/12-instellingen.png">
+  <ul>
+    <li>Alle data blijft <b>lokaal in de browser</b> — er wordt niets naar een server verstuurd.</li>
+    <li><b>Exporteer als PNG</b> — slaat de huidige weergave op als afbeelding, handig voor presentaties.</li>
+    <li><b>Exporteer/importeer als JSON</b> — volledige back-up of overdracht naar een collega.</li>
+    <li><b>Terug naar mockdata</b> — herstelt de fictieve demo-data (alleen zichtbaar bij eigen data).</li>
+    <li><b>Wis alle data</b> — verwijdert alles definitief, met bevestigingsstap.</li>
+  </ul>
+</section>
+
+</body>
+</html>
