@@ -3,6 +3,25 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Maak de blokindeling af en toon wat oplosbaarheid betekent** (Quinten)
+
+  Het formulier stond nog in de oude volgorde: eerst de inschattingen, dan
+  pas de workflowstap, en de titel ergens halverwege. Nu vier blokken met
+  een verhaallijn — wat is het, waar in de flow, hoe erg en wat kost het,
+  wat doen we ermee — en de titel direct onder Team, want je hebt iets in
+  je hoofd en wilt dat kwijt voordat je gaat classificeren.
+
+  Onder oplosbaarheid staat nu wat de combinatie met flowverlies betekent
+  voor de vervolgstap: quick win, opschalen, opruimen of accepteren. Die
+  laatste hoek wordt zelden expliciet gemaakt, terwijl "dit is het
+  escaleren niet waard" een legitieme en bevrijdende uitkomst is.
+  bepaalKwadrant staat in analysis.js, naast het bestaande isQuickWin.
+
+  De blokkoppen verschijnen alleen bij uitgebreide analyse; zonder de
+  toggle blijft het formulier een platte lijst met dropdowns. De nieuwe
+  volgorde geldt wel in beide paden, want die is los van de toggle een
+  verbetering.
+
 - **Herontwerp het formulier bij uitgebreide analyse: knoppenrijen met ankers** (Quinten)
 
   Met de toggle aan stonden er zestien velden onder elkaar, waarvan de
