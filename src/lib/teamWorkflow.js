@@ -27,12 +27,15 @@ export function resolveChainEdges(teamWorkflows) {
   return edges
 }
 
-// Ordent teams op ketenvolgorde (topologische laag + barycenter-heuristiek) i.p.v. de
-// toevallige volgorde waarin ze uit de context komen — voorkomt dat verbindingslijnen
-// dwars over tussenliggende, niet-gerelateerde teamkolommen heen moeten lopen. Geen
-// externe graph-layout-bibliotheek nodig voor deze schaal (enkele teams); zelfde
-// principe als bekende tools (dagre e.d.), hier eenvoudig zelf geïmplementeerd.
-export function orderTeamsByChain(teams, chainEdges) {
+// Kernberekening achter zowel orderTeamsByChain als layerTeamsByChain hieronder:
+// topologische laag-toewijzing + barycenter-heuristiek i.p.v. de toevallige volgorde
+// waarin teams uit de context komen. Geen externe graph-layout-bibliotheek nodig voor
+// deze schaal (enkele teams); zelfde principe als bekende tools (dagre e.d.), hier
+// eenvoudig zelf geïmplementeerd. Geeft de lagen ongeflattened terug (Map<laag, Team[]>,
+// al barycenter-gesorteerd binnen elke laag) plus de teams zonder ketenkoppeling — de
+// aanroepers hieronder bepalen zelf of ze dit tot één rij samenvoegen (orderTeamsByChain)
+// of laag-voor-laag gebruiken voor een 2D-plaatsing (layerTeamsByChain).
+function computeLayerGroups(teams, chainEdges) {
   const teamIds = new Set(teams.map((t) => t.id))
   const outgoing = new Map(teams.map((t) => [t.id, []]))
   const incoming = new Map(teams.map((t) => [t.id, []]))
@@ -89,8 +92,12 @@ export function orderTeamsByChain(teams, chainEdges) {
     layerGroups.get(l).push(t)
   }
 
+  // columnIndex blijft een doorlopende teller over álle lagen heen (i.p.v. per laag
+  // opnieuw bij 0 beginnend) — puur als sorteersleutel voor de barycenter-heuristiek
+  // van de eerstvolgende laag; de output hieronder blijft keurig per laag gegroepeerd.
   const columnIndex = new Map()
-  const ordered = []
+  let runningIndex = 0
+  const sortedLayers = new Map()
   for (const l of [...layerGroups.keys()].sort((a, b) => a - b)) {
     const withBarycenter = layerGroups.get(l).map((t) => {
       const positions = incoming.get(t.id).map((id) => columnIndex.get(id)).filter((v) => v !== undefined)
@@ -98,17 +105,32 @@ export function orderTeamsByChain(teams, chainEdges) {
       return { team: t, barycenter }
     })
     withBarycenter.sort((a, b) => a.barycenter - b.barycenter)
-    withBarycenter.forEach(({ team }) => {
-      columnIndex.set(team.id, ordered.length)
-      ordered.push(team)
-    })
+    const sortedTeams = withBarycenter.map(({ team }) => team)
+    sortedTeams.forEach((team) => columnIndex.set(team.id, runningIndex++))
+    sortedLayers.set(l, sortedTeams)
   }
 
   // Teams zonder enige ketenverbinding horen niet tussen de geordende keten — die
   // blijven los, achteraan, in hun oorspronkelijke relatieve volgorde (zelfde "nooit
   // als foutstatus" patroon als de rest van de app voor ongekoppelde data).
   const isolated = teams.filter((t) => !hasAnyConnection.has(t.id))
-  return [...ordered, ...isolated]
+  return { layerGroups: sortedLayers, isolated }
+}
+
+// Ordent teams op ketenvolgorde (topologische laag + barycenter-heuristiek) i.p.v. de
+// toevallige volgorde waarin ze uit de context komen — voorkomt dat verbindingslijnen
+// dwars over tussenliggende, niet-gerelateerde teamkolommen heen moeten lopen.
+export function orderTeamsByChain(teams, chainEdges) {
+  const { layerGroups, isolated } = computeLayerGroups(teams, chainEdges)
+  return [...[...layerGroups.values()].flat(), ...isolated]
+}
+
+// Dezelfde laagindeling als orderTeamsByChain, maar ongeflattened — voor de gelaagde
+// 2D-plaatsing in de overview van Ketenoverzicht (kolom = laag, rij = positie binnen de
+// laag), i.p.v. alle teams op één vaste horizontale rij te dwingen.
+export function layerTeamsByChain(teams, chainEdges) {
+  const { layerGroups, isolated } = computeLayerGroups(teams, chainEdges)
+  return { layers: [...layerGroups.values()], isolated }
 }
 
 // Groepeert de item-niveau ketenkoppelingen (resolveChainEdges) tot één

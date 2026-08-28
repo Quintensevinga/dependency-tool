@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BaseEdge, Handle, MarkerType, Position, ReactFlowProvider, useReactFlow, useUpdateNodeInternals } from 'reactflow'
+import { Handle, MarkerType, Position, ReactFlowProvider, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
 import { calculateRisk, riskLevelRank } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import { translateRiskLevel } from '../i18n/labels'
-import { resolveChainEdges, orderTeamsByChain, aggregateChainLinks, resolveConnectedTeamIds } from '../lib/teamWorkflow'
+import { resolveChainEdges, orderTeamsByChain, layerTeamsByChain, aggregateChainLinks } from '../lib/teamWorkflow'
 import { emptyTeamWorkflow } from '../lib/storage'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -207,39 +207,6 @@ function ChainIoNode({ data }) {
 
 const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode, chainGroupLabel: ChainGroupLabelNode }
 
-// Aangepaste edge voor "overgeslagen kolommen" in de overview-modus: reactflow's
-// ingebouwde bezier-curvatuur biedt géén boog wanneer bron en doel op dezelfde
-// hoogte staan (de curvatuurformule voor Position.Top gaat uit van een doel dat
-// hoger ligt dan de bron — bij twee teamkaarten in dezelfde rij levert dat een
-// volkomen platte lijn op, exact ter hoogte van de bovenkant van elke
-// tussenliggende kolom, ontdekt tijdens browserverificatie). Deze edge tekent
-// daarom zelf een eenvoudige kwadratische boog met een apex die meeschaalt met
-// de overspanning, zodat de lijn altijd duidelijk boven de tussenliggende
-// teamkaarten uit komt.
-function ChainSkipEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd, label, labelStyle, labelBgStyle, labelBgPadding, labelBgBorderRadius }) {
-  const midX = (sourceX + targetX) / 2
-  const span = Math.abs(targetX - sourceX)
-  const apex = Math.min(Math.max(span * 0.35, 50), 160)
-  const topY = Math.min(sourceY, targetY) - apex
-  const path = `M ${sourceX},${sourceY} Q ${midX},${topY} ${targetX},${targetY}`
-  return (
-    <BaseEdge
-      path={path}
-      markerEnd={markerEnd}
-      style={style}
-      label={label}
-      labelX={midX}
-      labelY={topY + apex * 0.3}
-      labelStyle={labelStyle}
-      labelBgStyle={labelBgStyle}
-      labelBgPadding={labelBgPadding}
-      labelBgBorderRadius={labelBgBorderRadius}
-    />
-  )
-}
-
-const chainEdgeTypes = { chainSkip: ChainSkipEdge }
-
 function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, groupInfo = null, chainEdgesAll = []) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const nodes = []
@@ -399,42 +366,70 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
   return { nodes, edges: routedEdges, canvasWidth, canvasHeight }
 }
 
-const OV_COLUMN_WIDTH = 300
+const OV_COLUMN_GAP = 60
+const OV_ROW_GAP = 24
+const OV_CARD_WIDTH = 208 // w-52
+const OV_CARD_WIDTH_EXPANDED = 320 // w-80
+const OV_CARD_HEIGHT = 70
+const OV_ITEM_ROW_HEIGHT = 30
 const OV_ROW_Y = 120
-const OV_ROW_HEIGHT = 90
 const OV_TRAY_GAP = 70
-const OV_TRAY_LABEL_Y = OV_ROW_Y + OV_ROW_HEIGHT + OV_TRAY_GAP - 30
-const OV_TRAY_Y = OV_ROW_Y + OV_ROW_HEIGHT + OV_TRAY_GAP
 
-// Geaggregeerde ketenstroom-lay-out voor de overview-modus (niet gefocust op
-// één team): één kaart per team i.p.v. één kaart per los IN/OUT-item, en één
-// pijl per teampaar i.p.v. één lijn per itempaar. Lost het "lijnen lopen door
-// niet-gerelateerde tussenkolommen heen"-probleem structureel op — er zijn
-// per definitie nooit meer pijlen dan teamparen. Focusmodus blijft de losse
-// computeChainLayout hierboven gebruiken, ongewijzigd.
-// _groupInfo blijft ongebruikt maar staat wél op de 5e positie: useMergedLayout
-// geeft dezelfde deps-array door aan welke van de twee lay-outfuncties er ook
-// actief is (zie de useMergedLayout-aanroep in ChainOverview) — de array moet
-// bij elke render dezelfde lengte houden (React waarschuwt anders: "changed
-// size between renders"), dus computeChainLayout en computeChainOverviewLayout
-// delen exact dezelfde argumentvolgorde, ook al gebruikt deze functie
-// groupInfo niet.
-function computeChainOverviewLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, _groupInfo, chainEdgesAll = [], connectedTeamIds = new Set(), noConnectionLabel = '') {
+// Geaggregeerde, gelaagde ketenstroom-lay-out voor de overview-modus (niet gefocust
+// op één team): kolom = ketenstap (topologische laag, zie layerTeamsByChain), rij =
+// positie binnen die laag — i.p.v. álle teams op één vaste horizontale lijn te
+// dwingen. Dat laatste zorgde ervoor dat elke niet-opeenvolgende koppeling in
+// dezelfde smalle strook boven de rij moest passen (een "spaghetti" van elkaar
+// overlappende bogen); met teams verspreid over meerdere rijen wordt de
+// overgrote meerderheid van de koppelingen "naburig" (opeenvolgende lagen), dus
+// kort en direct. Positionering en kaartgrootte volgen volledig uit bekende data
+// (aantal IN/OUT-items, uitgeklapt of niet) — geen DOM-meting, dus geen
+// meet-terugkoppelingslus. Focusmodus blijft de losse computeChainLayout
+// hierboven gebruiken, ongewijzigd.
+// _visibleTeams/_groupInfo blijven ongebruikt maar staan wél op hun positie:
+// useMergedLayout geeft dezelfde deps-array door aan welke van de twee
+// lay-outfuncties er ook actief is — die array moet bij elke render dezelfde
+// lengte houden (React waarschuwt anders: "changed size between renders"),
+// dus computeChainLayout en computeChainOverviewLayout delen exact dezelfde
+// eerste zes argumenten, ook al gebruikt deze functie er maar een deel van.
+function computeChainOverviewLayout(
+  _visibleTeams,
+  teamWorkflows,
+  teamRisk,
+  teamLabels = {},
+  _groupInfo,
+  chainEdgesAll = [],
+  layeredTeams = { layers: [], isolated: [] },
+  noConnectionLabel = '',
+  expandedTeamIds = new Set(),
+  pinnedTeamIds = new Set(),
+) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const nodes = []
 
-  const connectedVisible = visibleTeams.filter((team) => connectedTeamIds.has(team.id))
-  const isolatedVisible = visibleTeams.filter((team) => !connectedTeamIds.has(team.id))
-  const rowColumnIndex = new Map(connectedVisible.map((team, i) => [team.id, i]))
+  function cardWidth(team) {
+    return expandedTeamIds.has(team.id) ? OV_CARD_WIDTH_EXPANDED : OV_CARD_WIDTH
+  }
+  function cardHeight(team) {
+    if (!expandedTeamIds.has(team.id)) return OV_CARD_HEIGHT
+    const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
+    return OV_CARD_HEIGHT + 20 + Math.max(wf.inputs.length, wf.outputs.length, 1) * OV_ITEM_ROW_HEIGHT
+  }
 
-  function pushTeamHeader(team, columnX, y) {
+  function pushTeamHeader(team, x, y) {
     const workflow = teamWorkflows[team.id] ?? emptyTeamWorkflow()
     const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
     const empty = workflow.inputs.length === 0 && workflow.outputs.length === 0
+    const expanded = expandedTeamIds.has(team.id)
     nodes.push({
       id: `team-header-ov:${team.id}`,
       type: 'chainHeader',
-      position: { x: columnX, y },
+      position: { x, y },
+      // Hogere zIndex zodra uitgeklapt: de kaart groeit dan en mag zichtbaar
+      // over een buur heen liggen i.p.v. eronder weg te vallen (de dynamische
+      // op-/uitschuiving hieronder maakt echte overlap al zeldzaam, dit is de
+      // vangnet-afwerking voor de rest).
+      zIndex: expanded ? 10 : 0,
       data: {
         teamId: team.id,
         label: naamVan(team),
@@ -443,57 +438,87 @@ function computeChainOverviewLayout(visibleTeams, teamWorkflows, teamRisk, teamL
         empty,
         dimmed: risk.dimmed ?? false,
         groupKind: null,
-        // Alleen gebruikt voor de hover/klik-uitklap in overview-modus (zie
-        // displayNodes in ChainOverview) — statische workflowdata, verandert
-        // niet bij elke muisbeweging.
         workflow: { inputs: workflow.inputs, outputs: workflow.outputs },
+        expandable: true,
+        expanded,
+        pinned: pinnedTeamIds.has(team.id),
       },
       draggable: true,
     })
   }
 
-  connectedVisible.forEach((team, ti) => pushTeamHeader(team, ti * OV_COLUMN_WIDTH, OV_ROW_Y))
+  // X: cumulatief per laag, op basis van de breedste kaart in élke vórige laag —
+  // een uitgeklapte kaart in laag N schuift laag N+1 en verder dus vanzelf naar
+  // rechts op (lost de "uitgeklapte kaart overlapt de buurkolom"-klacht op).
+  const layerX = []
+  let cumulativeX = 0
+  for (const layerTeams of layeredTeams.layers) {
+    layerX.push(cumulativeX)
+    cumulativeX += Math.max(OV_CARD_WIDTH, ...layerTeams.map(cardWidth)) + OV_COLUMN_GAP
+  }
 
-  if (isolatedVisible.length > 0) {
+  // Y: per laag, teams gestapeld op basis van hun eigen (evt. uitgeklapte)
+  // hoogte — een uitgeklapte kaart schuift teams eronder in dezelfde laag dus
+  // vanzelf naar beneden op.
+  const layerOf = new Map()
+  let maxYReached = OV_ROW_Y
+  layeredTeams.layers.forEach((layerTeams, li) => {
+    let y = OV_ROW_Y
+    layerTeams.forEach((team) => {
+      layerOf.set(team.id, li)
+      pushTeamHeader(team, layerX[li], y)
+      y += cardHeight(team) + OV_ROW_GAP
+    })
+    maxYReached = Math.max(maxYReached, y)
+  })
+
+  // Teams zonder ketenkoppeling: eigen, expliciet gelabeld vak ónder de gelaagde
+  // keten (nooit stilzwijgend weggelaten), positie afhankelijk van hoe hoog de
+  // gelaagde keten op dit moment reikt — nooit een vaste y die door een
+  // uitgeklapte kolom overlapt kan worden.
+  if (layeredTeams.isolated.length > 0) {
     nodes.push({
       id: 'group-label:no-connection',
       type: 'chainGroupLabel',
-      position: { x: 0, y: OV_TRAY_LABEL_Y },
+      position: { x: 0, y: maxYReached + OV_TRAY_GAP - 30 },
       data: { label: noConnectionLabel },
       draggable: false,
       selectable: false,
       focusable: false,
     })
-    isolatedVisible.forEach((team, ti) => pushTeamHeader(team, ti * OV_COLUMN_WIDTH, OV_TRAY_Y))
+    let x = 0
+    const trayY = maxYReached + OV_TRAY_GAP
+    for (const team of layeredTeams.isolated) {
+      pushTeamHeader(team, x, trayY)
+      x += cardWidth(team) + OV_COLUMN_GAP
+    }
   }
 
   // Aggregatie per teampaar (i.p.v. per los itempaar) — dikte/kleur/label
-  // worden hieronder afgeleid, geen custom edge-component nodig.
-  const teamIdSet = new Set(visibleTeams.map((team) => team.id))
-  const teamNaamById = Object.fromEntries(visibleTeams.map((team) => [team.id, naamVan(team)]))
+  // worden hieronder afgeleid. Zodra minstens één kant is uitgeklapt, wordt de
+  // aggregatie ter plekke weer "gesplitst" naar de onderliggende losse
+  // koppelingen, elk naar de specifieke item-handle i.p.v. het algemene
+  // teampunt — zo springt de lijn zichtbaar mee zodra je een kaart uitklapt.
+  const allTeams = [...layeredTeams.layers.flat(), ...layeredTeams.isolated]
+  const teamIdSet = new Set(allTeams.map((team) => team.id))
+  const teamNaamById = Object.fromEntries(allTeams.map((team) => [team.id, naamVan(team)]))
   const groups = aggregateChainLinks(chainEdgesAll).filter((g) => teamIdSet.has(g.sourceTeam) && teamIdSet.has(g.targetTeam))
 
-  const edges = groups.map((g) => {
-    const colA = rowColumnIndex.get(g.sourceTeam)
-    const colB = rowColumnIndex.get(g.targetTeam)
-    const dist = colB - colA
-    let sourceHandle
-    let targetHandle
-    let type
-    if (Math.abs(dist) === 1) {
-      // Naburige kolommen: korte rechtstreekse lijn, zelfde visuele taal als
-      // de huidige item-niveau lijnen.
-      sourceHandle = dist === 1 ? 'right-source' : 'left-source'
-      targetHandle = dist === 1 ? 'left-target' : 'right-target'
-      type = 'smoothstep'
-    } else {
-      // Eén of meer kolommen overgeslagen: via de bovenkant, zodat de
-      // bezier-curve óver de tussenliggende, niet-gerelateerde teamkolommen
-      // heen boogt i.p.v. er dwars doorheen te lopen — de kern van deze fix.
-      sourceHandle = 'top-source'
-      targetHandle = 'top-target'
-      type = 'chainSkip'
-    }
+  const edges = []
+  for (const g of groups) {
+    const layerA = layerOf.get(g.sourceTeam)
+    const layerB = layerOf.get(g.targetTeam)
+    const adjacent = layerA !== undefined && layerB !== undefined && Math.abs(layerB - layerA) === 1
+    const dist = (layerB ?? 0) - (layerA ?? 0)
+
+    // Naburige lagen: korte rechtstreekse lijn. Overgeslagen lagen: via de
+    // bovenkant, zodat de lijn óver tussenliggende lagen heen loopt i.p.v. er
+    // dwars doorheen — reactflow's smoothstep routeert zelf rechthoekig op
+    // basis van de daadwerkelijke bron-/doelrichting (in tegenstelling tot een
+    // eigen kwadratische boog, die de richting van een specifieke item-handle
+    // niet respecteerde — zie eerdere browserverificatie).
+    const baseSourceHandle = adjacent ? (dist === 1 ? 'right-source' : 'left-source') : 'top-source'
+    const baseTargetHandle = adjacent ? (dist === 1 ? 'left-target' : 'right-target') : 'top-target'
 
     // Er bestaat geen risicoscore per ketenkoppeling (dependencies hangen aan
     // een teamId, niet aan een specifieke partner) — zie CLAUDE.md
@@ -506,41 +531,59 @@ function computeChainOverviewLayout(visibleTeams, teamWorkflows, teamRisk, teamL
     const level = riskLevelRank(riskA) >= riskLevelRank(riskB) ? riskA : riskB
     const style = riskStyle(level)
     const count = g.links.length
+    const sourceExpanded = expandedTeamIds.has(g.sourceTeam)
+    const targetExpanded = expandedTeamIds.has(g.targetTeam)
 
-    return {
-      id: g.id,
-      source: `team-header-ov:${g.sourceTeam}`,
-      target: `team-header-ov:${g.targetTeam}`,
-      sourceHandle,
-      targetHandle,
-      type,
-      style: { stroke: style.hex, strokeWidth: Math.min(2 + count * 1.5, 8) },
-      markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
-      label: count > 1 ? String(count) : undefined,
-      labelStyle: { fill: style.hex, fontWeight: 700, fontSize: 11 },
-      labelBgStyle: { fill: 'white' },
-      labelBgPadding: [4, 2],
-      labelBgBorderRadius: 6,
-      data: {
-        // sourceTeam/targetTeam (rauwe id's, i.p.v. alleen de naam) en de
-        // volledige link-info (i.p.v. alleen labels) zijn nodig om edges
-        // dynamisch naar een specifieke item-handle te laten springen zodra
-        // een team wordt uitgeklapt — zie expandedTeamIds/resolvedEdges in
-        // ChainOverview.
-        sourceTeam: g.sourceTeam,
-        targetTeam: g.targetTeam,
-        sourceTeamNaam: teamNaamById[g.sourceTeam] ?? g.sourceTeam,
-        targetTeamNaam: teamNaamById[g.targetTeam] ?? g.targetTeam,
-        links: g.links.map((l) => ({
-          id: l.id,
-          sourceOutputId: l.sourceOutputId,
-          targetInputId: l.targetInputId,
-          sourceLabel: l.sourceLabel,
-          targetLabel: l.targetLabel,
-        })),
-      },
+    const sharedData = {
+      sourceTeam: g.sourceTeam,
+      targetTeam: g.targetTeam,
+      sourceTeamNaam: teamNaamById[g.sourceTeam] ?? g.sourceTeam,
+      targetTeamNaam: teamNaamById[g.targetTeam] ?? g.targetTeam,
     }
-  })
+
+    if (!sourceExpanded && !targetExpanded) {
+      edges.push({
+        id: g.id,
+        source: `team-header-ov:${g.sourceTeam}`,
+        target: `team-header-ov:${g.targetTeam}`,
+        sourceHandle: baseSourceHandle,
+        targetHandle: baseTargetHandle,
+        type: 'smoothstep',
+        style: { stroke: style.hex, strokeWidth: Math.min(2 + count * 1.5, 8) },
+        markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
+        label: count > 1 ? String(count) : undefined,
+        labelStyle: { fill: style.hex, fontWeight: 700, fontSize: 11 },
+        labelBgStyle: { fill: 'white' },
+        labelBgPadding: [4, 2],
+        labelBgBorderRadius: 6,
+        data: {
+          ...sharedData,
+          links: g.links.map((l) => ({
+            id: l.id,
+            sourceOutputId: l.sourceOutputId,
+            targetInputId: l.targetInputId,
+            sourceLabel: l.sourceLabel,
+            targetLabel: l.targetLabel,
+          })),
+        },
+      })
+      continue
+    }
+
+    for (const link of g.links) {
+      edges.push({
+        id: link.id,
+        source: `team-header-ov:${g.sourceTeam}`,
+        target: `team-header-ov:${g.targetTeam}`,
+        sourceHandle: sourceExpanded ? `item-out:${link.sourceOutputId}` : baseSourceHandle,
+        targetHandle: targetExpanded ? `item-in:${link.targetInputId}` : baseTargetHandle,
+        type: 'smoothstep',
+        style: { stroke: style.hex, strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
+        data: { ...sharedData, links: [{ sourceLabel: link.sourceLabel, targetLabel: link.targetLabel }] },
+      })
+    }
+  }
 
   return { nodes, edges }
 }
@@ -662,36 +705,20 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     }
   }, [chainPartners, dependencies, focusTeamId, scope])
 
-  // Alleen relevant in overview-modus (focusmodus heeft nooit een team zonder
-  // ketenkoppeling in beeld, die groepering gebeurt daar al anders).
-  const connectedTeamIds = useMemo(() => resolveConnectedTeamIds(visibleTeams, chainEdgesAll), [visibleTeams, chainEdgesAll])
+  // Gelaagde structuur (kolom = ketenstap, rij = positie binnen de stap) voor de
+  // 2D-plaatsing in overview-modus — zie layerTeamsByChain in lib/teamWorkflow.js.
+  // Alleen gebruikt door computeChainOverviewLayout; focusmodus blijft visibleTeams
+  // gebruiken. Kleine, geaccepteerde inefficiëntie: de laag-berekening loopt hierdoor
+  // twee keer (ook via orderTeamsByChain in visibleTeams) — verwaarloosbaar op deze
+  // schaal (tientallen teams, geen honderden).
+  const layeredTeams = useMemo(() => layerTeamsByChain(filteredTeams, chainEdgesAll), [filteredTeams, chainEdgesAll])
 
-  // Eén vaste deps-vorm voor beide lay-outfuncties (zie de toelichting bij
-  // computeChainOverviewLayout's _groupInfo-parameter): useEffect/useMergedLayout
-  // vereist een deps-array met een stabiele lengte over renders heen, ook al
-  // wisselt welke van de twee functies er daadwerkelijk gebruikt wordt.
-  const [{ nodes, edges }, onNodesChange] = useMergedLayout(focusActive ? computeChainLayout : computeChainOverviewLayout, [
-    visibleTeams,
-    teamWorkflows,
-    teamRisk,
-    teamLabels,
-    groupInfo,
-    chainEdgesAll,
-    connectedTeamIds,
-    t('chain.groupNoConnection'),
-  ])
-
-  // Hover toont de koppeling vluchtig, klik pint 'm vast — zodat je een lijn
-  // kunt vasthouden terwijl je in het canvas rondkijkt of scrollt.
-  const [hoverEdge, setHoverEdge] = useState(null)
-  const [selectedEdgeId, setSelectedEdgeId] = useState(null)
-
-  // Hover-uitklap + vastzetten van een teamkaart in overview-modus (alleen
-  // daar — focusmodus toont IN/OUT-items al permanent per swimlane). Bewust
-  // gescheiden van computeChainOverviewLayout: hover wijzigt veel vaker dan de
-  // layout zelf, dus dit overlayt alleen afgeleide status op de al berekende
-  // nodes/edges i.p.v. een volledige layout-hercalculatie te forceren bij
-  // elke muisbeweging.
+  // Hover-uitklap + vastzetten van een teamkaart in overview-modus (alleen daar —
+  // focusmodus toont IN/OUT-items al permanent per swimlane). Moet vóór de
+  // useMergedLayout-aanroep bestaan: de layoutfunctie gebruikt expandedTeamIds/
+  // pinnedTeamIds zelf om kaarten te vergroten én omliggende kaarten dynamisch te
+  // laten opschuiven (positionering + edge-routing horen bij elkaar, geen losse
+  // overlay-stap meer nodig zoals in de vorige iteratie).
   const [hoveredTeamId, setHoveredTeamId] = useState(null)
   const [pinnedTeamIds, setPinnedTeamIds] = useState(() => new Set())
 
@@ -702,44 +729,39 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     return set
   }, [focusActive, pinnedTeamIds, hoveredTeamId])
 
-  // Zodra een team is uitgeklapt, moet de pijl die het raakt niet langer naar
-  // het algemene teampunt wijzen maar naar de specifieke in/out-rij — dit
-  // "splitst" een geaggregeerde pijl (één per teampaar) terug naar zijn
-  // onderliggende losse koppelingen zodra minstens één kant is uitgeklapt.
-  // Puur afgeleid van expandedTeamIds; bij het weer sluiten van een team valt
-  // de pijl vanzelf terug op de geaggregeerde vorm, niets om op te ruimen.
-  const resolvedEdges = useMemo(() => {
-    if (expandedTeamIds.size === 0) return edges
-    const result = []
-    for (const e of edges) {
-      const sourceExpanded = expandedTeamIds.has(e.data?.sourceTeam)
-      const targetExpanded = expandedTeamIds.has(e.data?.targetTeam)
-      if (!sourceExpanded && !targetExpanded) {
-        result.push(e)
-        continue
-      }
-      for (const link of e.data.links) {
-        result.push({
-          ...e,
-          id: link.id,
-          sourceHandle: sourceExpanded ? `item-out:${link.sourceOutputId}` : e.sourceHandle,
-          targetHandle: targetExpanded ? `item-in:${link.targetInputId}` : e.targetHandle,
-          style: { ...e.style, strokeWidth: 2 },
-          label: undefined,
-          data: { ...e.data, links: [link] },
-        })
-      }
-    }
-    return result
-  }, [edges, expandedTeamIds])
+  // Eén vaste deps-vorm voor beide lay-outfuncties (zie de toelichting bij
+  // computeChainOverviewLayout's _visibleTeams/_groupInfo-parameters):
+  // useEffect/useMergedLayout vereist een deps-array met een stabiele lengte over
+  // renders heen, ook al wisselt welke van de twee functies er daadwerkelijk
+  // gebruikt wordt. computeChainOverviewLayout wordt bewust ook op elke hover/pin-
+  // wijziging opnieuw aangeroepen (i.p.v. dat apart te overlayen) — nodig om
+  // kaarten daadwerkelijk te laten op-/verschuiven; op deze schaal geen
+  // waarneembare performance-impact.
+  const [{ nodes, edges }, onNodesChange] = useMergedLayout(focusActive ? computeChainLayout : computeChainOverviewLayout, [
+    visibleTeams,
+    teamWorkflows,
+    teamRisk,
+    teamLabels,
+    groupInfo,
+    chainEdgesAll,
+    layeredTeams,
+    t('chain.groupNoConnection'),
+    expandedTeamIds,
+    pinnedTeamIds,
+  ])
 
-  const selectedEdge = useMemo(() => resolvedEdges.find((e) => e.id === selectedEdgeId) ?? null, [resolvedEdges, selectedEdgeId])
+  // Hover toont de koppeling vluchtig, klik pint 'm vast — zodat je een lijn
+  // kunt vasthouden terwijl je in het canvas rondkijkt of scrollt.
+  const [hoverEdge, setHoverEdge] = useState(null)
+  const [selectedEdgeId, setSelectedEdgeId] = useState(null)
+
+  const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) ?? null, [edges, selectedEdgeId])
 
   // Een vastgepinde lijn licht op, de rest zakt weg. Zonder die demping is een
   // enkele keten niet te volgen zodra er tientallen lijnen door elkaar lopen.
   const displayEdges = useMemo(
     () =>
-      resolvedEdges.map((e) => {
+      edges.map((e) => {
         if (!selectedEdgeId) return e
         const active = e.id === selectedEdgeId
         return {
@@ -748,21 +770,8 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           style: { ...e.style, strokeWidth: active ? 3.5 : 1.5, opacity: active ? 1 : 0.15 },
         }
       }),
-    [resolvedEdges, selectedEdgeId],
+    [edges, selectedEdgeId],
   )
-
-  const displayNodes = useMemo(() => {
-    if (focusActive) return nodes
-    return nodes.map((n) => {
-      if (n.type !== 'chainHeader') return n
-      const pinned = pinnedTeamIds.has(n.data.teamId)
-      const expanded = pinned || hoveredTeamId === n.data.teamId
-      // Hogere zIndex zodra uitgeklapt: de kaart groeit dan in hoogte en mag
-      // zichtbaar over een buur (bv. de "Geen ketenkoppeling"-tray eronder)
-      // heen liggen i.p.v. eronder weg te vallen.
-      return { ...n, zIndex: expanded ? 10 : n.zIndex, data: { ...n.data, expandable: true, expanded, pinned } }
-    })
-  }, [nodes, focusActive, hoveredTeamId, pinnedTeamIds])
 
   function toggleTeam(teamId) {
     setDeselectedTeamIds((prev) => {
@@ -918,10 +927,9 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
             >
               <PannableFlowCanvas
-                nodes={displayNodes}
+                nodes={nodes}
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
-                edgeTypes={chainEdgeTypes}
                 onNodesChange={onNodesChange}
                 onNodeClick={(_, node) => {
                   if (node.type !== 'chainHeader') return
