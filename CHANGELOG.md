@@ -3,6 +3,27 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Canvas-verbeteringen: lijnrouting, hover-tooltips, filters, input/output-uniformering** (Lars Hoogland)
+
+  Relatielijnen in Netwerkweergave, Ketenoverzicht en de teampagina gebruiken
+  nu smoothstep-routering i.p.v. de standaard bezier-lijn, minder kriskras op
+  drukke schermen. De subtiele input/output-verbindingslijnen op de teampagina
+  tonen nu bij hover welk element ermee verbonden is, zelfde patroon als
+  Netwerkweergave/Ketenoverzicht al hadden.
+
+  Output-items op de teampagina hebben nu dezelfde velden als input
+  (Bestemming i.p.v. Bron, koppeling naar een input-item bij een ander team),
+  inclusief kleurcodering en labels op de canvaskaart zelf — voorheen toonde
+  de output-kaart nooit een koppel-label, ook niet wanneer gekoppeld.
+
+  Nieuwe canvas-filters in de bestaande "Weergeven"-dropdown: Dependencies,
+  Applicaties, Capaciteit en Workflowfasen los aan/uit te zetten, puur
+  zichtbaarheid ná de layoutberekening zodat de rest niet herpositioneert.
+
+  Nieuw scripts/audit-relations.mjs: eenmalige controle van een JSON-export op
+  wees-referenties (verwijzingen naar verwijderde teams/applicaties/partijen/
+  input-output-items) — rapporteert alleen, repareert niets automatisch.
+
 - **Merge origin/main (bot-changelogcommit overbodig door regeneratie)** (Lars Hoogland)
 
   # Conflicts:
