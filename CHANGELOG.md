@@ -3,6 +3,7 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- Voeg automatisch bijgehouden CHANGELOG.md toe (Lars Hoogland)
 - Voeg externe-partijenlijst, aanmaakdatum en oplosbaarheid toe aan dependencies (Lars Hoogland)
 
 ## 2026-08-27
