@@ -29,7 +29,6 @@ import {
 } from '../i18n/labels'
 import PartyPicker from './PartyPicker'
 import SegmentedField from './form/SegmentedField'
-import OutcomeBar from './form/OutcomeBar'
 import { bepaalKwadrant } from '../lib/analysis'
 
 const EMPTY_FORM = {
@@ -355,47 +354,49 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             {touched.titel && <FieldError id="err-titel" message={errors.titel} />}
           </div>
 
-          <div>
-            <Label required>{t('form.scope')}</Label>
-            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
-              {['intern', 'extern'].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => update('scope', value)}
-                  aria-pressed={form.scope === value}
-                  className={`rounded px-3 py-1 capitalize transition-colors ${
-                    form.scope === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {value === 'intern' ? t('form.scopeIntern') : t('form.scopeExtern')}
-                </button>
-              ))}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <Label required>{t('form.scope')}</Label>
+              <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
+                {['intern', 'extern'].map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => update('scope', value)}
+                    aria-pressed={form.scope === value}
+                    className={`rounded px-3 py-1 capitalize transition-colors ${
+                      form.scope === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {value === 'intern' ? t('form.scopeIntern') : t('form.scopeExtern')}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          <div>
-            <div className="mb-1 flex items-center gap-1.5">
-              <Label required>{t('form.flowtype')}</Label>
-              <InfoIcon tooltip={t('form.flowtypeHelper')} />
+            <div>
+              <div className="mb-1 flex items-center gap-1.5">
+                <Label required>{t('form.flowtype')}</Label>
+                <InfoIcon tooltip={t('form.flowtypeHelper')} />
+              </div>
+              <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
+                {FLOWTYPE_LEVELS.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => update('flowtype', value)}
+                    onBlur={() => markTouched('flowtype')}
+                    aria-pressed={form.flowtype === value}
+                    className={`rounded px-3 py-1 transition-colors ${
+                      form.flowtype === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {value === 'ontwikkelflow' ? t('form.flowtypeOntwikkelflow') : t('form.flowtypeApplicatieflow')}
+                  </button>
+                ))}
+              </div>
+              {touched.flowtype && <FieldError id="err-flowtype" message={errors.flowtype} />}
             </div>
-            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
-              {FLOWTYPE_LEVELS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => update('flowtype', value)}
-                  onBlur={() => markTouched('flowtype')}
-                  aria-pressed={form.flowtype === value}
-                  className={`rounded px-3 py-1 transition-colors ${
-                    form.flowtype === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {value === 'ontwikkelflow' ? t('form.flowtypeOntwikkelflow') : t('form.flowtypeApplicatieflow')}
-                </button>
-              ))}
-            </div>
-            {touched.flowtype && <FieldError id="err-flowtype" message={errors.flowtype} />}
           </div>
 
           <div>
@@ -548,24 +549,15 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
               </div>
             )}
+            {adminSettings.uitgebreideAnalyse && form.workflowStap && form.flowtype !== 'applicatieflow' && (
+              <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
+                <div className="font-medium text-slate-700">{translateWorkflowStap(form.workflowStap, language)}</div>
+                <div className="mt-0.5 leading-relaxed">{t(`form.workflowStapUitleg.${form.workflowStap}`)}</div>
+              </div>
+            )}
             {form.flowtype === 'applicatieflow' && (
               <p className="text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
-            )}
-            <div>
-              <div className="mb-1 flex items-center gap-1.5">
-                <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
-                <InfoIcon tooltip={t('form.effectOpFlowHelper')} />
-              </div>
-              <select id="dep-effect" value={form.effectOpFlow} onChange={(e) => update('effectOpFlow', e.target.value)} className={inputClass}>
-                <option value="">—</option>
-                {EFFECT_OP_FLOW_LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {translateEffectOpFlow(lvl, language)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+            )}          </div>
 
           {/* Bij uitgebreide analyse worden de inschattingen knoppenrijen met
               ankertekst i.p.v. dropdowns: je ziet de hele schaal in één keer
@@ -615,6 +607,28 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 language={language}
               />
 
+              {/* Wat voor soort verlies het is, heeft alleen betekenis als er
+                  uberhaupt wachttijd is — wachten wijst op coordinatie,
+                  herwerk op kwaliteit, contextswitch op planning. */}
+              {form.wachttijd && form.wachttijd !== 'geen' && (
+                <div>
+                <div>
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
+                    <InfoIcon tooltip={t('form.effectOpFlowHelper')} />
+                  </div>
+                  <select id="dep-effect" value={form.effectOpFlow} onChange={(e) => update('effectOpFlow', e.target.value)} className={inputClass}>
+                    <option value="">—</option>
+                    {EFFECT_OP_FLOW_LEVELS.map((lvl) => (
+                      <option key={lvl} value={lvl}>
+                        {translateEffectOpFlow(lvl, language)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                </div>
+              )}
+
               <SegmentedField
                 id="dep-deadline"
                 label={t('form.deadline')}
@@ -652,8 +666,6 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 required
               />
               {touched.status && <FieldError id="err-status" message={errors.status} />}
-
-              <OutcomeBar dependency={form} t={t} language={language} />
 
               <div className="border-t border-slate-200 pt-4">
                 <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatNu')}</p>
@@ -769,18 +781,6 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
           )}
 
           <div>
-            <Label htmlFor="dep-mitigatie">{t('form.mitigatie')}</Label>
-            <textarea
-              id="dep-mitigatie"
-              value={form.mitigatie}
-              onChange={(e) => update('mitigatie', e.target.value)}
-              rows={2}
-              placeholder={t('form.mitigatiePlaceholder')}
-              className={inputClass}
-            />
-          </div>
-
-          <div>
             <Label htmlFor="dep-actie">{t('form.actieAfspraak')}</Label>
             <textarea
               id="dep-actie"
@@ -788,6 +788,18 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               onChange={(e) => update('actieAfspraak', e.target.value)}
               rows={2}
               placeholder={t('form.actieAfspraakPlaceholder')}
+              className={inputClass}
+            />
+          </div>
+
+          <div>
+            <Label htmlFor="dep-mitigatie">{t('form.mitigatie')}</Label>
+            <textarea
+              id="dep-mitigatie"
+              value={form.mitigatie}
+              onChange={(e) => update('mitigatie', e.target.value)}
+              rows={2}
+              placeholder={t('form.mitigatiePlaceholder')}
               className={inputClass}
             />
           </div>

@@ -80,28 +80,37 @@ export default function SegmentedField({
         })}
       </div>
 
-      {anchor && (
-        <p className={`mt-1.5 flex gap-1.5 text-xs leading-relaxed ${preview ? 'text-slate-600' : 'text-slate-500'}`}>
-          <span className={preview ? 'text-[#2a5f8a]' : 'text-slate-300'} aria-hidden="true">
-            →
-          </span>
-          <span>
-            {anchor.betekenis}
-            {voorbeelden.length > 0 && <em className="ml-1 not-italic text-slate-400">{voorbeelden[index]}</em>}
-            {voorbeelden.length > 1 && (
-              <button
-                type="button"
-                onClick={() => setVoorbeeldIndex((prev) => ({ ...prev, [getoond]: index + 1 }))}
-                title={`Ander voorbeeld (${index + 1} van ${voorbeelden.length})`}
-                aria-label="Ander voorbeeld"
-                className="ml-1 rounded text-slate-300 hover:text-[#2a5f8a] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2a5f8a]"
-              >
-                ↻
-              </button>
-            )}
-          </span>
-        </p>
-      )}
+      {/* De ankerregel staat er altijd, ook leeg: verscheen hij pas bij een
+          keuze, dan sprong alles eronder omlaag zodra je een optie aanwees.
+          Twee regels ruimte dekt vrijwel elke betekenis-plus-voorbeeld. */}
+      <p
+        className={`mt-1.5 flex min-h-[2.4rem] gap-1.5 text-xs leading-relaxed ${
+          preview ? 'text-slate-600' : 'text-slate-500'
+        }`}
+      >
+        {anchor && (
+          <>
+            <span className={preview ? 'text-[#2a5f8a]' : 'text-slate-300'} aria-hidden="true">
+              →
+            </span>
+            <span>
+              {anchor.betekenis}
+              {voorbeelden.length > 0 && <em className="ml-1 not-italic text-slate-400">{voorbeelden[index]}</em>}
+              {voorbeelden.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => setVoorbeeldIndex((prev) => ({ ...prev, [getoond]: index + 1 }))}
+                  title={`Ander voorbeeld (${index + 1} van ${voorbeelden.length})`}
+                  aria-label="Ander voorbeeld"
+                  className="ml-1 rounded text-slate-300 hover:text-[#2a5f8a] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2a5f8a]"
+                >
+                  ↻
+                </button>
+              )}
+            </span>
+          </>
+        )}
+      </p>
     </div>
   )
 }
