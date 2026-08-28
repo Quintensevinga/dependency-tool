@@ -3,6 +3,14 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Ketenoverzicht: gelaagde 2D-plaatsing i.p.v. één vaste rij** (Lars Hoogland)
+
+  Alle teams op één horizontale lijn dwong elke niet-opeenvolgende koppeling in
+  dezelfde smalle strook boven de rij, met een lijn dwars door een kaart en een
+  overlappende uitklap-kaart tot gevolg. Kolom = ketenstap (zoals nu), rij =
+  positie binnen die stap: de meeste koppelingen worden zo vanzelf kort en
+  naburig, kaartgrootte/positie zijn dynamisch (buren schuiven op bij uitklappen).
+
 - **Merge remote-tracking branch 'origin/main'** (Lars Hoogland)
 
 - **Ketenoverzicht: hover-uitklap met twee kolommen en meebewegende ketenlijnen** (Lars Hoogland)
