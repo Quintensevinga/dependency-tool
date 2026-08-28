@@ -3,6 +3,20 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Merge origin/main (bot-changelogcommit overbodig door regeneratie)** (Lars Hoogland)
+
+  # Conflicts:
+  #	CHANGELOG.md
+
+- **Vorm changelog om: subject + leesbare subtekst per entry** (Lars Hoogland)
+
+  Elke changelog-regel toonde tot nu toe alleen de kale commit-subject. Nieuwe
+  opzet in scripts/update-changelog.mjs: subject vetgedrukt, met de volledige
+  commit-body (het 'waarom'/de details, Co-Authored-By eruit gefilterd) als
+  ingesprongen subtekst eronder — de daadwerkelijke inhoud van een wijziging
+  wordt zo in één oogopslag leesbaar. CHANGELOG.md volledig geregenereerd
+  vanuit de bestaande geschiedenis in deze nieuwe structuur.
+
 - **Voeg admin-wijzigingenlog toe met cross-team dependency-deduplicatie** (Lars Hoogland)
 
   Elke nieuwe dependency komt terecht in een wijzigingenlog (nieuwe admin-
