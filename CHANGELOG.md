@@ -3,6 +3,17 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Maak de formulier-mockup daadwerkelijk interactief** (Quinten)
+
+  De categorie-dropdown deed niets terwijl de twee andere dropdowns wel
+  reageerden, waardoor de mockup half kapot oogde. Categorie vult nu zijn
+  eigen beschrijving (teksten uit labels.js) en de lijst wisselt mee met
+  Scope: acht interne categorieen op teamniveau, dertien externe op
+  ketenniveau — zoals de app het ook doet.
+
+  Opslaan, Annuleren en sluiten tonen nu een korte melding dat er niets
+  wordt opgeslagen, in plaats van stil niets te doen.
+
 - **Voeg klikbare mockup toe van het heringedeelde dependency-formulier** (Quinten)
 
   Statische mockup (public/form-mockup.html, bereikbaar op /form-mockup.html)
