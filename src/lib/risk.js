@@ -2,18 +2,22 @@
 // Object.prototype, dus een dependency.impact-waarde als 'constructor' of
 // 'toString' zou anders een functie opleveren i.p.v. undefined — met NaN en
 // een crash in LEVEL_THRESHOLDS.find() tot gevolg.
-const IMPACT_POINTS = Object.assign(Object.create(null), { laag: 1, midden: 2, hoog: 3 })
-const FREQUENCY_POINTS = Object.assign(Object.create(null), { incidenteel: 1, structureel: 2 })
+const IMPACT_POINTS = Object.assign(Object.create(null), { klein: 1, beperkt: 2, duidelijk: 3, zwaar: 4 })
+const FREQUENCY_POINTS = Object.assign(Object.create(null), { eenmalig: 1, soms: 2, regelmatig: 3, structureel: 4 })
 const STATUS_CORRECTION = Object.assign(Object.create(null), {
   'actief blokkerend': 2,
   'bekend risico': 0,
   'gemitigeerd': -2,
 })
 
+// Drempels horen bij de 4x4-schaal (basisscore 1..16, met statuscorrectie
+// 1..18). Gekozen door ze te toetsen op de bestaande dataset: hiermee houdt
+// 85% van de gemigreerde dependencies hetzelfde niveau, en blijft het aantal
+// Kritieke gelijk.
 const LEVEL_THRESHOLDS = [
-  { max: 2, level: 'Laag' },
-  { max: 4, level: 'Gemiddeld' },
-  { max: 6, level: 'Hoog' },
+  { max: 6, level: 'Laag' },
+  { max: 12, level: 'Gemiddeld' },
+  { max: 16, level: 'Hoog' },
   { max: Infinity, level: 'Kritiek' },
 ]
 
@@ -28,7 +32,7 @@ export const MAX_RISK_SCORE =
 
 /**
  * Transparante, uitlegbare risicoberekening:
- * basisscore = impact-punten x frequentie-punten (1-6)
+ * basisscore = impact-punten x frequentie-punten (1-16)
  * status-correctie: actief blokkerend +2, bekend risico +0, gemitigeerd -2 (nooit onder 1)
  * eindscore -> classificatie via vaste drempels
  */

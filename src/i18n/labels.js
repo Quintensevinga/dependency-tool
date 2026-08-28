@@ -110,14 +110,17 @@ export const CATEGORY_DESCRIPTIONS = {
 }
 
 export const IMPACT_LABELS = {
-  laag: { nl: 'laag', en: 'low' },
-  midden: { nl: 'midden', en: 'medium' },
-  hoog: { nl: 'hoog', en: 'high' },
+  klein: { nl: 'Klein', en: 'Minor' },
+  beperkt: { nl: 'Beperkt', en: 'Limited' },
+  duidelijk: { nl: 'Duidelijk', en: 'Clear' },
+  zwaar: { nl: 'Zwaar', en: 'Severe' },
 }
 
 export const FREQUENTIE_LABELS = {
-  incidenteel: { nl: 'incidenteel', en: 'occasional' },
-  structureel: { nl: 'structureel', en: 'structural' },
+  eenmalig: { nl: 'Eenmalig', en: 'One-off' },
+  soms: { nl: 'Soms', en: 'Sometimes' },
+  regelmatig: { nl: 'Regelmatig', en: 'Regularly' },
+  structureel: { nl: 'Structureel', en: 'Structural' },
 }
 
 export const STATUS_LABELS = {
@@ -198,7 +201,7 @@ export const RISICO_BIJ_UITVAL_LABELS = {
 
 export const OPLOSBAARHEID_LABELS = {
   teamlid: { nl: 'Eén teamlid', en: 'One team member' },
-  meerdere_teamleden: { nl: 'Meerdere teamleden', en: 'Multiple team members' },
+  meerdere_teamleden: { nl: 'Teamleden', en: 'Team members' },
   meerdere_teams: { nl: 'Meerdere teams', en: 'Multiple teams' },
   team_overstijgend: { nl: 'Team-overstijgend', en: 'Cross-team' },
   organisatorisch: { nl: 'Organisatorisch', en: 'Organizational' },
@@ -252,6 +255,128 @@ export const translateExternalPartyStatus = (key, lang) => (key ? lookup(EXTERNA
 export const translateWachttijd = (key, lang) => (key ? lookup(WACHTTIJD_LABELS, key, lang) : '')
 export const translateDeadline = (key, lang) => (key ? lookup(DEADLINE_LABELS, key, lang) : '')
 export const translateAnalyseLabel = (key, lang) => (key ? lookup(ANALYSE_LABEL_LABELS, key, lang) : '')
+
+// Betekenis + voorbeelden per keuzeoptie, getoond onder de knoppenrij in het
+// dependency-formulier (alleen bij uitgebreide analyse). Dit is de
+// belangrijkste rem op subjectief invullen: mensen kiezen betrouwbaarder
+// tussen situaties die ze herkennen dan tussen abstracte woorden. Meerdere
+// voorbeelden per optie omdat er altijd wel eentje niet past, en omdat je van
+// twee of drie beter leert waar de grens van een niveau ligt.
+// Zelfde vorm als CATEGORY_DESCRIPTIONS hierboven.
+export const DIMENSION_ANCHORS = {
+  impact: {
+    klein: {
+      nl: { betekenis: 'Nauwelijks effect; je merkt het amper.', voorbeelden: ['Een kleine omweg die niemand opvalt.', 'Iets is onhandig, maar kost geen tijd.'] },
+      en: { betekenis: 'Barely any effect; hardly noticeable.', voorbeelden: ['A small detour nobody notices.', 'Something is awkward but costs no time.'] },
+    },
+    beperkt: {
+      nl: { betekenis: 'Merkbaar, maar het werk gaat door.', voorbeelden: ['Iemand zoekt iets uit; niemand wacht erop.', 'Je neemt even een andere route.', 'Irritant, maar niet zichtbaar in de planning.'] },
+      en: { betekenis: 'Noticeable, but work continues.', voorbeelden: ['Someone looks something up; nobody is waiting.', 'You take a detour for a moment.', 'Annoying, but invisible in the planning.'] },
+    },
+    duidelijk: {
+      nl: { betekenis: 'Zichtbaar effect op planning of kwaliteit.', voorbeelden: ['Meerdere items schuiven naar de volgende sprint.', 'Je levert op met minder kwaliteit dan afgesproken.', 'De demo moet worden aangepast omdat een deel niet af is.'] },
+      en: { betekenis: 'Visible effect on planning or quality.', voorbeelden: ['Several items slip to the next sprint.', 'You deliver with less quality than agreed.', 'The demo has to be adjusted because part is unfinished.'] },
+    },
+    zwaar: {
+      nl: { betekenis: 'Blokkeert belangrijk werk of raakt de keten.', voorbeelden: ['Het sprintdoel wordt niet gehaald.', 'Een keten-oplevering komt in gevaar.', 'Er kan niet naar productie tot dit is opgelost.'] },
+      en: { betekenis: 'Blocks important work or affects the chain.', voorbeelden: ['The sprint goal is missed.', 'A chain delivery is at risk.', 'Nothing can go to production until this is resolved.'] },
+    },
+  },
+  frequentie: {
+    eenmalig: {
+      nl: { betekenis: 'Losse situatie, komt waarschijnlijk niet terug.', voorbeelden: ['Een eenmalige migratie of verhuizing.', 'Hoorde bij dit specifieke project.'] },
+      en: { betekenis: 'One-off situation, unlikely to return.', voorbeelden: ['A one-off migration or move.', 'Belonged to this specific project.'] },
+    },
+    soms: {
+      nl: { betekenis: 'Af en toe, zonder duidelijk patroon.', voorbeelden: ['Een paar keer per jaar bij een bepaald type wijziging.', 'Alleen als we aan dat ene systeem werken.'] },
+      en: { betekenis: 'Now and then, without a clear pattern.', voorbeelden: ['A few times a year with a certain type of change.', 'Only when we work on that one system.'] },
+    },
+    regelmatig: {
+      nl: { betekenis: 'Komt elke paar sprints terug.', voorbeelden: ['Bij elke release opnieuw afstemmen.', 'Steeds als er een nieuwe koppeling bijkomt.'] },
+      en: { betekenis: 'Returns every few sprints.', voorbeelden: ['Realigning with every release.', 'Every time a new integration is added.'] },
+    },
+    structureel: {
+      nl: { betekenis: 'Hoort bij hoe het werk loopt.', voorbeelden: ['Bij elke release opnieuw afstemmen.', 'Testdata moet standaard bij een ander team worden opgehaald.', 'Vrijwel elke sprint lopen we hier tegenaan.'] },
+      en: { betekenis: 'Part of how the work runs.', voorbeelden: ['Realigning with every release.', 'Test data must routinely be fetched from another team.', 'We run into this almost every sprint.'] },
+    },
+  },
+  status: {
+    'bekend risico': {
+      nl: { betekenis: 'Bekend, nog niet opgelost.', voorbeelden: ['We weten ervan, er ligt nog geen aanpak.', 'Besproken in de retro, nog geen actie.'] },
+      en: { betekenis: 'Known, not yet resolved.', voorbeelden: ['We know about it, no approach yet.', 'Discussed in the retro, no action yet.'] },
+    },
+    'actief blokkerend': {
+      nl: { betekenis: 'Houdt op dit moment werk tegen.', voorbeelden: ['Er staat nu iets stil door deze afhankelijkheid.', 'Het werk kan pas verder als dit is opgelost.'] },
+      en: { betekenis: 'Currently holding up work.', voorbeelden: ['Something is stalled right now because of this.', 'Work can only continue once this is resolved.'] },
+    },
+    gemitigeerd: {
+      nl: { betekenis: 'Er is een werkende oplossing of omweg.', voorbeelden: ['Vast refinement-ritme ingevoerd.', 'Er is een werkende workaround afgesproken.'] },
+      en: { betekenis: 'A working solution or workaround exists.', voorbeelden: ['A fixed refinement rhythm was introduced.', 'A working workaround has been agreed.'] },
+    },
+  },
+  wachttijd: {
+    geen: {
+      nl: { betekenis: 'Niet merkbaar in de planning.', voorbeelden: ['Er is een omweg die niemand tijd kost.', 'We plannen eromheen, verder geen effect.'] },
+      en: { betekenis: 'Not noticeable in the planning.', voorbeelden: ['There is a workaround that costs nobody time.', 'We plan around it, no further effect.'] },
+    },
+    kort: {
+      nl: { betekenis: 'Uren, binnen dezelfde dag opgelost.', voorbeelden: ['Wachten op een collega die dezelfde dag reageert.', 'Een paar uur stil, daarna weer door.'] },
+      en: { betekenis: 'Hours, resolved the same day.', voorbeelden: ['Waiting for a colleague who replies the same day.', 'Stalled a few hours, then moving again.'] },
+    },
+    dagen: {
+      nl: { betekenis: '1-3 dagen, past nog binnen de sprint.', voorbeelden: ['Wachten tot een testomgeving vrijkomt.', 'Een aanvraag die twee dagen door de lijn gaat.'] },
+      en: { betekenis: '1-3 days, still fits within the sprint.', voorbeelden: ['Waiting for a test environment to free up.', 'A request that takes two days through the line.'] },
+    },
+    sprint_of_meer: {
+      nl: { betekenis: 'Werk schuift door naar een volgende sprint.', voorbeelden: ['Wachten op een oplevering van een ander team.', 'Staat al meerdere sprints op de plank.'] },
+      en: { betekenis: 'Work slips to a following sprint.', voorbeelden: ['Waiting for a delivery from another team.', 'Has been on the shelf for several sprints.'] },
+    },
+  },
+  deadline: {
+    geen_datum: {
+      nl: { betekenis: 'Geen concreet moment dat in gevaar komt.', voorbeelden: ['Vervelend, maar er staat niets op de kalender.'] },
+      en: { betekenis: 'No concrete moment at risk.', voorbeelden: ['Annoying, but nothing on the calendar.'] },
+    },
+    interne_afspraak: {
+      nl: { betekenis: 'Raakt een sprintafspraak of intern moment.', voorbeelden: ['We wilden dit deze sprint afronden.', 'Beloofd binnen het team, geen externe druk.'] },
+      en: { betekenis: 'Affects a sprint agreement or internal moment.', voorbeelden: ['We wanted to finish this sprint.', 'Promised within the team, no external pressure.'] },
+    },
+    vaste_datum: {
+      nl: { betekenis: 'Raakt een release, PI-doel of toezegging.', voorbeelden: ['Release van 14 september.', 'Toegezegd voor het einde van deze PI.'] },
+      en: { betekenis: 'Affects a release, PI goal or commitment.', voorbeelden: ['Release of 14 September.', 'Committed for the end of this PI.'] },
+    },
+    harde_deadline: {
+      nl: { betekenis: 'Externe of wettelijke datum; uitstel is geen optie.', voorbeelden: ['Wettelijke ingangsdatum 1 januari.', 'Contractuele datum met een leverancier.'] },
+      en: { betekenis: 'External or statutory date; delay is not an option.', voorbeelden: ['Statutory start date of 1 January.', 'Contractual date with a vendor.'] },
+    },
+  },
+  oplosbaarheid: {
+    teamlid: {
+      nl: { betekenis: 'Een teamlid kan dit zelf oplossen.', voorbeelden: ['Iemand automatiseert een handmatige stap.', 'Een ontwikkelaar documenteert wat alleen zij weet.'] },
+      en: { betekenis: 'A single team member can resolve this.', voorbeelden: ['Someone automates a manual step.', 'A developer documents what only they know.'] },
+    },
+    meerdere_teamleden: {
+      nl: { betekenis: 'Vraagt meerdere mensen binnen het team.', voorbeelden: ['Het team spreekt samen een werkwijze af.', 'Twee mensen werken elkaar in op dezelfde kennis.'] },
+      en: { betekenis: 'Requires several people within the team.', voorbeelden: ['The team agrees on a way of working together.', 'Two people cross-train on the same knowledge.'] },
+    },
+    meerdere_teams: {
+      nl: { betekenis: 'Vraagt afstemming met een of meer andere teams.', voorbeelden: ['Een ander team moet iets opleveren.', 'Twee teams stemmen hun releasemoment af.'] },
+      en: { betekenis: 'Requires alignment with one or more other teams.', voorbeelden: ['Another team has to deliver something.', 'Two teams align their release moment.'] },
+    },
+    team_overstijgend: {
+      nl: { betekenis: 'Vraagt iets buiten de teams om.', voorbeelden: ['Afspraak met een leverancier over doorlooptijd.', 'Het change-proces zelf moet worden aangepast.'] },
+      en: { betekenis: 'Requires something beyond the teams.', voorbeelden: ['An agreement with a vendor about lead time.', 'The change process itself must be adjusted.'] },
+    },
+    organisatorisch: {
+      nl: { betekenis: 'Vraagt een organisatorische wijziging of besluit.', voorbeelden: ['Extra capaciteit vraagt een directiebesluit.', 'Er moet een rol of afdeling worden ingericht.'] },
+      en: { betekenis: 'Requires an organisational change or decision.', voorbeelden: ['Extra capacity requires a management decision.', 'A role or department has to be set up.'] },
+    },
+  },
+}
+
+export function getDimensionAnchor(dimensie, waarde, lang) {
+  return DIMENSION_ANCHORS[dimensie]?.[waarde]?.[lang] ?? null
+}
 
 export function getCategoryDescription(categorie, scope, lang) {
   return CATEGORY_DESCRIPTIONS[scope]?.[categorie]?.[lang] ?? ''

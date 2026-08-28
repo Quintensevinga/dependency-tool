@@ -11,14 +11,16 @@
 // Bewuste duplicatie van FREQUENCY_POINTS uit risk.js i.p.v. die te
 // exporteren en hier te hergebruiken: dit bestand moet onafhankelijk van
 // risk.js kunnen wijzigen zonder dat bestand aan te raken.
-const FREQUENCY_POINTS = { incidenteel: 1, structureel: 2 }
+const FREQUENCY_POINTS = { eenmalig: 1, soms: 2, regelmatig: 3, structureel: 4 }
 
 const WACHTTIJD_POINTS = { geen: 0, kort: 1, dagen: 2, sprint_of_meer: 3 }
 
+// Meegeschaald met de bredere frequentieschaal (was 1..2, nu 1..4), zodat
+// wachttijd x frequentie nog steeds over de vier niveaus verdeeld raakt.
 const FLOWVERLIES_THRESHOLDS = [
-  { max: 1, level: 'Laag' },
-  { max: 3, level: 'Gemiddeld' },
-  { max: 5, level: 'Hoog' },
+  { max: 2, level: 'Laag' },
+  { max: 5, level: 'Gemiddeld' },
+  { max: 8, level: 'Hoog' },
   { max: Infinity, level: 'Kritiek' },
 ]
 
@@ -82,6 +84,27 @@ export function isQuickWin(dependency) {
   if (!flow) return false
   const makkelijkOplosbaar = dependency.oplosbaarheid === 'teamlid' || dependency.oplosbaarheid === 'meerdere_teamleden'
   return makkelijkOplosbaar && flow.level !== 'Laag'
+}
+
+// Kosten van niets doen (flowverlies) afgezet tegen kosten van wel doen
+// (oplosbaarheid). Dat levert vier hoeken op die elk een ander gesprek zijn —
+// en met name de vierde wordt zelden expliciet gemaakt: sommige dingen zijn
+// het escaleren simpelweg niet waard, en dat hardop kunnen zeggen scheelt
+// teams veel frustratie.
+//
+// Geeft null zolang het profiel onvolledig is: zonder flowverlies of
+// oplosbaarheid valt er niets zinnigs over te zeggen.
+const BINNEN_TEAM = new Set(['teamlid', 'meerdere_teamleden'])
+
+export function bepaalKwadrant(dependency) {
+  const flow = berekenFlowverlies(dependency)
+  if (!flow || !dependency.oplosbaarheid) return null
+  const veelVerlies = flow.level !== 'Laag'
+  const zelfOplosbaar = BINNEN_TEAM.has(dependency.oplosbaarheid)
+  if (veelVerlies && zelfOplosbaar) return 'quick_win'
+  if (veelVerlies) return 'opschalen'
+  if (zelfOplosbaar) return 'opruimen'
+  return 'accepteren'
 }
 
 export function analyseLabels(dependency, riskLevel) {

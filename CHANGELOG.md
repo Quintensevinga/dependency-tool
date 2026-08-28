@@ -3,6 +3,122 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Haal de live uitkomst uit het formulier en corrigeer veldplaatsing** (Quinten)
+
+  De uitkomstbalk toonde risico, flowverlies en urgentie tijdens het
+  invullen. Dat stuurt het invulgedrag: wie ziet wat zijn antwoorden
+  opleveren, vult richting de gewenste uitkomst in. Dat is precies de
+  score-inflatie die als grootste valkuil was benoemd, en het detailpaneel
+  toont die drie na opslaan toch al — daar informeren ze zonder te sturen.
+  OutcomeBar en de bijbehorende teksten zijn verwijderd.
+
+  Veldplaatsing gelijkgetrokken met het ontwerp:
+  - Scope en Flowtype staan naast elkaar in plaats van onder elkaar.
+  - Effect op flow is verhuisd van blok 2 naar direct onder Wachttijd, en
+    verschijnt alleen als er wachttijd is. Wat voor soort verlies het is
+    heeft geen betekenis zolang er geen verlies is.
+  - Actie/afspraak staat voor Mitigatie: eerst wat er gaat gebeuren, dan
+    wat er al gebeurt.
+  - Onder de gekozen workflowstap staat wat die stap betekent, net als bij
+    categorie.
+
+  De ankerregel onder een knoppenrij houdt nu altijd zijn ruimte vast. Hij
+  verscheen pas bij een keuze, waardoor alles eronder omlaag sprong zodra
+  je een optie aanwees.
+
+- **Maak de blokindeling af en toon wat oplosbaarheid betekent** (Quinten)
+
+  Het formulier stond nog in de oude volgorde: eerst de inschattingen, dan
+  pas de workflowstap, en de titel ergens halverwege. Nu vier blokken met
+  een verhaallijn — wat is het, waar in de flow, hoe erg en wat kost het,
+  wat doen we ermee — en de titel direct onder Team, want je hebt iets in
+  je hoofd en wilt dat kwijt voordat je gaat classificeren.
+
+  Onder oplosbaarheid staat nu wat de combinatie met flowverlies betekent
+  voor de vervolgstap: quick win, opschalen, opruimen of accepteren. Die
+  laatste hoek wordt zelden expliciet gemaakt, terwijl "dit is het
+  escaleren niet waard" een legitieme en bevrijdende uitkomst is.
+  bepaalKwadrant staat in analysis.js, naast het bestaande isQuickWin.
+
+  De blokkoppen verschijnen alleen bij uitgebreide analyse; zonder de
+  toggle blijft het formulier een platte lijst met dropdowns. De nieuwe
+  volgorde geldt wel in beide paden, want die is los van de toggle een
+  verbetering.
+
+- **Herontwerp het formulier bij uitgebreide analyse: knoppenrijen met ankers** (Quinten)
+
+  Met de toggle aan stonden er zestien velden onder elkaar, waarvan de
+  inschattingen als dropdowns tussen de tekstvelden verdwenen. Het aantal
+  velden was niet het probleem — dat alles er hetzelfde uitzag wel.
+
+  De zes inschattingen (impact, frequentie, wachttijd, urgentie, status,
+  oplosbaarheid) zijn nu knoppenrijen in plaats van dropdowns. Bij een
+  inschatting wil je de hele schaal zien om je antwoord te kunnen plaatsen;
+  in een dropdown moet je eerst klikken om te ontdekken wat de opties zijn.
+
+  Onder elke rij staat wat de gekozen optie betekent, met een concreet
+  voorbeeld erbij. Hoveren of tabben langs een optie toont diens uitleg
+  zonder je keuze te wijzigen, want juist als je twijfelt wil je kunnen
+  vergelijken. Waar meerdere voorbeelden bestaan kun je doorklikken: een
+  enkel voorbeeld past nooit op elke dependency, en van twee of drie leer je
+  beter waar de grens van een niveau ligt.
+
+  Onderaan het blok lopen risico, flowverlies en urgentie live mee, met de
+  opbouw van de risicoscore eronder. Dat maakt van het blok iets dat
+  resultaat oplevert in plaats van invulwerk, en laat de invuller zijn eigen
+  inschatting toetsen.
+
+  De modal is 512 -> 672px bij uitgebreide analyse, anders passen de labels
+  niet. Zonder de toggle verandert er niets: dezelfde dropdowns, dezelfde
+  breedte.
+
+- **Leid de demo-verrijking af uit de inhoud i.p.v. mechanisch te roteren** (Quinten)
+
+  De demo-dependencies kregen wachttijd, deadline en oplosbaarheid via een
+  index-rotatie (wachttijdCycle[i % 4] enzovoort). Daardoor hadden die
+  waarden geen enkele relatie met de dependency zelf: "kennis zit bij een
+  persoon" kon 'geen wachttijd' en 'organisatorisch' krijgen, en drie van
+  de vier dependencies had een deadline.
+
+  Dat maakt de uitgebreide analyse onbruikbaar als demo, want juist de
+  verbanden zijn wat je wilt laten zien — en die waren er niet.
+
+  Nu afgeleid uit wat er al in de dependency staat: wachttijd volgt uit
+  effectOpFlow (blokkade kost een sprint, wachten kost dagen, herwerk kost
+  uren) met impact als terugval; oplosbaarheid uit scope plus categorie; en
+  deadlines zijn schaars, alleen waar een datum voor de hand ligt, en dan
+  altijd met bijbehorende tekst.
+
+  Resultaat op de 79 demo-dependencies: alle vier de niveaus komen voor bij
+  zowel flowverlies als urgentie, 46 dependencies hebben terecht geen
+  datum, en de tien met een vaste of harde deadline hebben allemaal een
+  ingevulde deadlinetekst. Elke vijfde blijft leeg zodat de
+  profiel-onvolledig-staat ook zichtbaar blijft.
+
+- **Verbreed impact naar vier en frequentie naar vier niveaus** (Quinten)
+
+  Impact kende drie niveaus (laag/midden/hoog) en frequentie er twee
+  (incidenteel/structureel). Dat was te grof: 'incidenteel' dekte zowel
+  eenmalig als elke-paar-sprints, terwijl dat voor flowverlies veel
+  uitmaakt, en aan de onderkant van impact viel niets te onderscheiden.
+
+  Nieuw: impact klein/beperkt/duidelijk/zwaar, frequentie
+  eenmalig/soms/regelmatig/structureel. Punten lopen nu 1..4 per as, dus
+  de basisscore loopt 1..16 in plaats van 1..6.
+
+  De drempels zijn opnieuw gekozen (<=6 / <=12 / <=16) door ze te toetsen
+  op de bestaande dataset: 85% van de dependencies houdt daarmee hetzelfde
+  risiconiveau en het aantal Kritieke blijft gelijk. De flowverlies-
+  drempels in analysis.js zijn meegeschaald met de bredere frequentieas.
+
+  Bestaande data migreert automatisch bij het laden: laag->beperkt,
+  midden->duidelijk, hoog->zwaar, incidenteel->soms. De mapping houdt de
+  relatieve positie aan, want 'laag' was niet het laagst denkbare — 'klein'
+  is een nieuw niveau eronder.
+
+  Voegt ook DIMENSION_ANCHORS toe aan labels.js: betekenis plus meerdere
+  voorbeelden per keuzeoptie, NL en EN, voor gebruik in het formulier.
+
 - **Merge remote-tracking branch 'origin/main'** (Lars Hoogland)
 
 - **Ketenoverzicht: geaggregeerde teamstroom-weergave i.p.v. lijnen per item** (Lars Hoogland)
