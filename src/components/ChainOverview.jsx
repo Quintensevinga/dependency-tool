@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BaseEdge, Handle, MarkerType, Position, ReactFlowProvider, useReactFlow } from 'reactflow'
+import { BaseEdge, Handle, MarkerType, Position, ReactFlowProvider, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
@@ -31,26 +31,46 @@ function highestRisk(deps) {
   return best
 }
 
-function TeamHeaderNode({ data }) {
+function TeamHeaderNode({ id, data }) {
   const { t, language } = useLanguage()
   const style = riskStyle(data.risk.level)
   const dimmed = data.dimmed || data.groupKind === 'context'
+
+  // De IN/OUT-rijhandles hieronder verschijnen/verdwijnen dynamisch met
+  // data.expanded — in tegenstelling tot de zes teamhandles hieronder (altijd
+  // aanwezig) moet reactflow hier expliciet verteld worden dat de handle-set
+  // van deze node is gewijzigd, anders blijven eerder gemeten handle-posities
+  // hangen en klopt de aanhechting van edges niet meer na het uit-/inklappen.
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => {
+    updateNodeInternals(id)
+  }, [data.expanded, id, updateNodeInternals])
+
   return (
     // Gedimd i.p.v. verborgen bij een actief risicofilter of "Toon context":
     // een team wegfilteren zou de keten zelf doorknippen, terwijl dat team er
     // nog steeds in zit — of, bij context, bewust even op de achtergrond staat.
     <div
-      className="relative w-52 cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity hover:shadow-lg"
+      className={`relative cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity hover:shadow-lg ${data.expanded ? 'w-80' : 'w-52'}`}
       style={{ borderColor: data.count > 0 ? style.hex : '#cbd5e1', opacity: dimmed ? 0.4 : 1 }}
-      title={data.dimmed ? t('chain.dimmedByRiskFilter') : t('chain.clickToFocusHint')}
+      title={
+        data.dimmed
+          ? t('chain.dimmedByRiskFilter')
+          : data.expandable
+            ? data.pinned
+              ? t('chain.clickToUnpinHint')
+              : t('chain.clickToPinHint')
+            : t('chain.clickToFocusHint')
+      }
     >
       {/* Zes met een expliciete id onderscheiden handles: nodig zodra een node
           meerdere handles van hetzelfde type heeft (reactflow-vereiste). Altijd
           aanwezig, ook in focusmodus — die zet nooit sourceHandle/targetHandle
           op zijn edges en blijft dus het eerst-gedeclareerde paar (right-source/
-          left-target) gebruiken. Alleen de geaggregeerde overview-edges (zie
+          left-target) gebruiken. De geaggregeerde overview-edges (zie
           computeChainOverviewLayout) kiezen bewust welke handle-id ze gebruiken,
-          afhankelijk van naburige vs. overgeslagen kolommen. */}
+          afhankelijk van naburige vs. overgeslagen kolommen — of, zodra dit team
+          is uitgeklapt, springen ze naar de specifieke item-handle hieronder. */}
       <Handle type="source" position={Position.Right} id="right-source" style={{ opacity: 0.4 }} />
       <Handle type="target" position={Position.Left} id="left-target" style={{ opacity: 0.4 }} />
       <Handle type="source" position={Position.Left} id="left-source" style={{ opacity: 0.4 }} />
@@ -67,6 +87,30 @@ function TeamHeaderNode({ data }) {
         <div className="mt-1 text-xs text-slate-400">{t('graph.noDeps')}</div>
       )}
       {data.empty && <div className="mt-1 text-[11px] italic text-slate-400">{t('chain.emptyTeam')}</div>}
+      {data.expanded && (
+        <div className="mt-2 flex gap-3 border-t border-slate-100 pt-2">
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">in</div>
+            {data.workflow.inputs.map((input) => (
+              <div key={input.id} className="relative rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+                <Handle type="target" position={Position.Left} id={`item-in:${input.id}`} style={{ opacity: 0.4 }} />
+                {input.label || '—'}
+              </div>
+            ))}
+            {data.workflow.inputs.length === 0 && <div className="text-[11px] text-slate-300">—</div>}
+          </div>
+          <div className="min-w-0 flex-1 space-y-1">
+            <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">out</div>
+            {data.workflow.outputs.map((output) => (
+              <div key={output.id} className="relative rounded border border-slate-200 bg-slate-50 px-2 py-1 text-[11px] text-slate-600">
+                {output.label || '—'}
+                <Handle type="source" position={Position.Right} id={`item-out:${output.id}`} style={{ opacity: 0.4 }} />
+              </div>
+            ))}
+            {data.workflow.outputs.length === 0 && <div className="text-[11px] text-slate-300">—</div>}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -391,7 +435,19 @@ function computeChainOverviewLayout(visibleTeams, teamWorkflows, teamRisk, teamL
       id: `team-header-ov:${team.id}`,
       type: 'chainHeader',
       position: { x: columnX, y },
-      data: { teamId: team.id, label: naamVan(team), risk, count: risk.count ?? 0, empty, dimmed: risk.dimmed ?? false, groupKind: null },
+      data: {
+        teamId: team.id,
+        label: naamVan(team),
+        risk,
+        count: risk.count ?? 0,
+        empty,
+        dimmed: risk.dimmed ?? false,
+        groupKind: null,
+        // Alleen gebruikt voor de hover/klik-uitklap in overview-modus (zie
+        // displayNodes in ChainOverview) — statische workflowdata, verandert
+        // niet bij elke muisbeweging.
+        workflow: { inputs: workflow.inputs, outputs: workflow.outputs },
+      },
       draggable: true,
     })
   }
@@ -466,9 +522,22 @@ function computeChainOverviewLayout(visibleTeams, teamWorkflows, teamRisk, teamL
       labelBgPadding: [4, 2],
       labelBgBorderRadius: 6,
       data: {
+        // sourceTeam/targetTeam (rauwe id's, i.p.v. alleen de naam) en de
+        // volledige link-info (i.p.v. alleen labels) zijn nodig om edges
+        // dynamisch naar een specifieke item-handle te laten springen zodra
+        // een team wordt uitgeklapt — zie expandedTeamIds/resolvedEdges in
+        // ChainOverview.
+        sourceTeam: g.sourceTeam,
+        targetTeam: g.targetTeam,
         sourceTeamNaam: teamNaamById[g.sourceTeam] ?? g.sourceTeam,
         targetTeamNaam: teamNaamById[g.targetTeam] ?? g.targetTeam,
-        links: g.links.map((l) => ({ sourceLabel: l.sourceLabel, targetLabel: l.targetLabel })),
+        links: g.links.map((l) => ({
+          id: l.id,
+          sourceOutputId: l.sourceOutputId,
+          targetInputId: l.targetInputId,
+          sourceLabel: l.sourceLabel,
+          targetLabel: l.targetLabel,
+        })),
       },
     }
   })
@@ -617,13 +686,60 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   const [hoverEdge, setHoverEdge] = useState(null)
   const [selectedEdgeId, setSelectedEdgeId] = useState(null)
 
-  const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) ?? null, [edges, selectedEdgeId])
+  // Hover-uitklap + vastzetten van een teamkaart in overview-modus (alleen
+  // daar — focusmodus toont IN/OUT-items al permanent per swimlane). Bewust
+  // gescheiden van computeChainOverviewLayout: hover wijzigt veel vaker dan de
+  // layout zelf, dus dit overlayt alleen afgeleide status op de al berekende
+  // nodes/edges i.p.v. een volledige layout-hercalculatie te forceren bij
+  // elke muisbeweging.
+  const [hoveredTeamId, setHoveredTeamId] = useState(null)
+  const [pinnedTeamIds, setPinnedTeamIds] = useState(() => new Set())
+
+  const expandedTeamIds = useMemo(() => {
+    if (focusActive) return new Set()
+    const set = new Set(pinnedTeamIds)
+    if (hoveredTeamId) set.add(hoveredTeamId)
+    return set
+  }, [focusActive, pinnedTeamIds, hoveredTeamId])
+
+  // Zodra een team is uitgeklapt, moet de pijl die het raakt niet langer naar
+  // het algemene teampunt wijzen maar naar de specifieke in/out-rij — dit
+  // "splitst" een geaggregeerde pijl (één per teampaar) terug naar zijn
+  // onderliggende losse koppelingen zodra minstens één kant is uitgeklapt.
+  // Puur afgeleid van expandedTeamIds; bij het weer sluiten van een team valt
+  // de pijl vanzelf terug op de geaggregeerde vorm, niets om op te ruimen.
+  const resolvedEdges = useMemo(() => {
+    if (expandedTeamIds.size === 0) return edges
+    const result = []
+    for (const e of edges) {
+      const sourceExpanded = expandedTeamIds.has(e.data?.sourceTeam)
+      const targetExpanded = expandedTeamIds.has(e.data?.targetTeam)
+      if (!sourceExpanded && !targetExpanded) {
+        result.push(e)
+        continue
+      }
+      for (const link of e.data.links) {
+        result.push({
+          ...e,
+          id: link.id,
+          sourceHandle: sourceExpanded ? `item-out:${link.sourceOutputId}` : e.sourceHandle,
+          targetHandle: targetExpanded ? `item-in:${link.targetInputId}` : e.targetHandle,
+          style: { ...e.style, strokeWidth: 2 },
+          label: undefined,
+          data: { ...e.data, links: [link] },
+        })
+      }
+    }
+    return result
+  }, [edges, expandedTeamIds])
+
+  const selectedEdge = useMemo(() => resolvedEdges.find((e) => e.id === selectedEdgeId) ?? null, [resolvedEdges, selectedEdgeId])
 
   // Een vastgepinde lijn licht op, de rest zakt weg. Zonder die demping is een
   // enkele keten niet te volgen zodra er tientallen lijnen door elkaar lopen.
   const displayEdges = useMemo(
     () =>
-      edges.map((e) => {
+      resolvedEdges.map((e) => {
         if (!selectedEdgeId) return e
         const active = e.id === selectedEdgeId
         return {
@@ -632,8 +748,21 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           style: { ...e.style, strokeWidth: active ? 3.5 : 1.5, opacity: active ? 1 : 0.15 },
         }
       }),
-    [edges, selectedEdgeId],
+    [resolvedEdges, selectedEdgeId],
   )
+
+  const displayNodes = useMemo(() => {
+    if (focusActive) return nodes
+    return nodes.map((n) => {
+      if (n.type !== 'chainHeader') return n
+      const pinned = pinnedTeamIds.has(n.data.teamId)
+      const expanded = pinned || hoveredTeamId === n.data.teamId
+      // Hogere zIndex zodra uitgeklapt: de kaart groeit dan in hoogte en mag
+      // zichtbaar over een buur (bv. de "Geen ketenkoppeling"-tray eronder)
+      // heen liggen i.p.v. eronder weg te vallen.
+      return { ...n, zIndex: expanded ? 10 : n.zIndex, data: { ...n.data, expandable: true, expanded, pinned } }
+    })
+  }, [nodes, focusActive, hoveredTeamId, pinnedTeamIds])
 
   function toggleTeam(teamId) {
     setDeselectedTeamIds((prev) => {
@@ -789,13 +918,35 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
             >
               <PannableFlowCanvas
-                nodes={nodes}
+                nodes={displayNodes}
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
                 edgeTypes={chainEdgeTypes}
                 onNodesChange={onNodesChange}
                 onNodeClick={(_, node) => {
-                  if (node.type === 'chainHeader') focusOnTeam(node.data.teamId)
+                  if (node.type !== 'chainHeader') return
+                  if (focusActive) {
+                    focusOnTeam(node.data.teamId)
+                    return
+                  }
+                  setPinnedTeamIds((prev) => {
+                    const next = new Set(prev)
+                    if (next.has(node.data.teamId)) next.delete(node.data.teamId)
+                    else next.add(node.data.teamId)
+                    return next
+                  })
+                  // Zonder dit blijft de kaart na het ontpinnen nog uitgeklapt
+                  // zolang de muis er toevallig nog op staat — wat bij een
+                  // klik per definitie zo is. Een klik overschrijft de
+                  // hover-status dus altijd expliciet, zodat sluiten meteen
+                  // zichtbaar is i.p.v. pas na het wegbewegen van de muis.
+                  setHoveredTeamId(null)
+                }}
+                onNodeMouseEnter={(_, node) => {
+                  if (!focusActive && node.type === 'chainHeader') setHoveredTeamId(node.data.teamId)
+                }}
+                onNodeMouseLeave={(_, node) => {
+                  if (node.type === 'chainHeader') setHoveredTeamId((prev) => (prev === node.data.teamId ? null : prev))
                 }}
                 onEdgeClick={(_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
                 onEdgeMouseEnter={(event, edge) => setHoverEdge({ x: event.clientX, y: event.clientY, data: edge.data })}
