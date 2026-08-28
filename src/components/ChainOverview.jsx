@@ -6,7 +6,7 @@ import { RISK_LEVELS } from '../data/constants'
 import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import { translateRiskLevel } from '../i18n/labels'
-import { resolveChainEdges } from '../lib/teamWorkflow'
+import { resolveChainEdges, orderTeamsByChain } from '../lib/teamWorkflow'
 import { emptyTeamWorkflow } from '../lib/storage'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -167,6 +167,21 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
   )
   const canvasHeight = Math.max(420, IO_Y_START + maxIoCount * IO_Y_GAP + 60)
 
+  // Kolomindex per team (vast, want visibleTeams' volgorde ligt al vast) en een
+  // omgekeerde opzoektabel van output naar de kolomindices van de teams die 'm via
+  // een input gebruiken — hiermee kunnen IN/OUT-kaartjes zó gesorteerd worden dat
+  // een lijn naar/van een naburige kolom recht(er) loopt i.p.v. zigzaggend, zie de
+  // sortering vlak vóór de input/output-node-loops hieronder.
+  const teamColumnIndex = new Map(visibleTeams.map((team, ti) => [team.id, ti]))
+  const outputTargetColumns = new Map()
+  for (const edge of chainEdgesAll) {
+    const key = `${edge.sourceTeam}:${edge.sourceOutputId}`
+    const targetColumn = teamColumnIndex.get(edge.targetTeam)
+    if (targetColumn === undefined) continue
+    if (!outputTargetColumns.has(key)) outputTargetColumns.set(key, [])
+    outputTargetColumns.get(key).push(targetColumn)
+  }
+
   // Focusmodus: label boven de eerste kolom van elke groep (Inkomend/
   // Geselecteerd team/Uitgaand/Overige teams) zodra die groep niet leeg is.
   if (groupInfo) {
@@ -219,7 +234,24 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
       draggable: true,
     })
 
-    workflow.inputs.forEach((input, i) => {
+    // Inputs sorteren op de kolomindex van hun gekoppelde team (ongekoppelde
+    // achteraan, stabiel) — outputs op het gemiddelde van de kolomindices van de
+    // teams die ze via een input gebruiken. Maakt de lijn naar/van een gekoppeld
+    // kaartje rechter i.p.v. dat de kaartjes toevallig in de opslagvolgorde staan.
+    const sortedInputs = [...workflow.inputs].sort((a, b) => {
+      const colA = a.linkedTeam ? (teamColumnIndex.get(a.linkedTeam) ?? Infinity) : Infinity
+      const colB = b.linkedTeam ? (teamColumnIndex.get(b.linkedTeam) ?? Infinity) : Infinity
+      return colA - colB
+    })
+    const sortedOutputs = [...workflow.outputs].sort((a, b) => {
+      const colsA = outputTargetColumns.get(`${team.id}:${a.id}`)
+      const colsB = outputTargetColumns.get(`${team.id}:${b.id}`)
+      const avgA = colsA ? colsA.reduce((x, y) => x + y, 0) / colsA.length : Infinity
+      const avgB = colsB ? colsB.reduce((x, y) => x + y, 0) / colsB.length : Infinity
+      return avgA - avgB
+    })
+
+    sortedInputs.forEach((input, i) => {
       nodes.push({
         id: `chain-input:${team.id}:${input.id}`,
         type: 'chainIo',
@@ -229,7 +261,7 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
       })
     })
 
-    workflow.outputs.forEach((output, i) => {
+    sortedOutputs.forEach((output, i) => {
       nodes.push({
         id: `chain-output:${team.id}:${output.id}`,
         type: 'chainIo',
@@ -327,7 +359,11 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   }, [focusActive, focusTeamId, teams, chainEdgesAll])
 
   const visibleTeams = useMemo(() => {
-    if (!chainPartners) return filteredTeams
+    // Overzichtsmodus: kolomvolgorde op ketenlogica i.p.v. de toevallige
+    // teams-volgorde uit de context — zie orderTeamsByChain in lib/teamWorkflow.js.
+    // Focusmodus (hieronder) heeft al een eigen, gerichte inkomend/uitgaand-
+    // groepering en blijft ongewijzigd.
+    if (!chainPartners) return orderTeamsByChain(filteredTeams, chainEdgesAll)
     const { focus, incoming, outgoing } = chainPartners
     const byId = (id) => teams.find((tm) => tm.id === id)
     const core = [...[...incoming].map(byId).filter(Boolean), focus, ...[...outgoing].map(byId).filter(Boolean)]
@@ -335,7 +371,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     const directIds = new Set(core.map((tm) => tm.id))
     const context = filteredTeams.filter((tm) => !directIds.has(tm.id))
     return [...core, ...context]
-  }, [chainPartners, filteredTeams, teams, showContext])
+  }, [chainPartners, filteredTeams, teams, showContext, chainEdgesAll])
 
   // groupKind per zichtbaar team — drijft zowel de dim-styling van de
   // teamkaart als de "Inkomend/Geselecteerd team/Uitgaand/Overige teams"-
