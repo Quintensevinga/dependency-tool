@@ -2,7 +2,7 @@ import { MOCK_TEAMS, MOCK_DEPENDENCIES, MOCK_TEAM_WORKFLOWS } from '../data/mock
 import { WORKFLOW_STAGES, BRON_TYPES, EXTERNAL_PARTY_STATUS } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
-const STORAGE_KEY = 'dependency-insight:v1'
+export const STORAGE_KEY = 'dependency-insight:v1'
 export const SCHEMA_VERSION = 4
 
 export const MAX_SNAPSHOTS_PER_TEAM = 10
@@ -177,9 +177,19 @@ const LEGACY_WORKFLOWSTAP_MIGRATION = {
   beheer: 'beheer_nazorg',
 }
 
+// 'Procesafhankelijkheid' en 'Governance/proces-afhankelijkheid' waren twee
+// bakken voor hetzelfde begrip (zie CATEGORIES_EXTERN in constants.js) —
+// bestaande data valt terug op de overgebleven waarde. Belangrijk dat dit
+// vóór elke score-/analysewerking gebeurt: categorie is de cluster-sleutel
+// in het meetmodel.
+const CATEGORIE_MIGRATIE = {
+  Procesafhankelijkheid: 'Governance/proces-afhankelijkheid',
+}
+
 function migrateDependency(raw, teamsState) {
   const teamId = resolveTeamId(raw, teamsState)
-  const { eigenaarFunctieIds, oplossingsniveau, ...rest } = raw
+  const { eigenaarFunctieIds: _eigenaarFunctieIds, oplossingsniveau: _oplossingsniveau, ...rest } = raw
+  rest.categorie = CATEGORIE_MIGRATIE[rest.categorie] ?? rest.categorie
   // Bestaande data met een workflowstap wordt aangenomen Ontwikkelflow te
   // zijn; zonder workflowstap blijft flowtype expliciet onbepaald (null) —
   // nooit stilzwijgend als Applicatieflow geraden, dat toont de UI als
@@ -204,6 +214,12 @@ function migrateDependency(raw, teamsState) {
     actieAfspraak: typeof raw.actieAfspraak === 'string' ? raw.actieAfspraak : '',
     applicatieIds: Array.isArray(raw.applicatieIds) ? raw.applicatieIds : [],
     geaccepteerd: raw.geaccepteerd === true,
+    // Ontbreekt dit veld (bv. handmatig samengestelde of erg oude importdata),
+    // dan crasht sorteren op "recent bijgewerkt" (.localeCompare op undefined).
+    // Terugval op vandaag i.p.v. een lege string: consistent met hoe elders al
+    // met vandaag-als-fallback wordt gewerkt, en sorteert 'm tussen de andere
+    // records i.p.v. altijd onderaan/bovenaan te dwingen.
+    laatst_bijgewerkt: typeof raw.laatst_bijgewerkt === 'string' ? raw.laatst_bijgewerkt : todayIso(),
     oplosbaarheid: typeof raw.oplosbaarheid === 'string' ? raw.oplosbaarheid : '',
     wachttijd: typeof raw.wachttijd === 'string' ? raw.wachttijd : '',
     deadline: typeof raw.deadline === 'string' ? raw.deadline : '',
@@ -255,7 +271,7 @@ export function migrateState(raw) {
 function migrateCapacityRow(row) {
   if (!row || typeof row !== 'object') return row
   if (row.rol !== undefined) {
-    const { functieId, ...rest } = row
+    const { functieId: _functieId, ...rest } = row
     return rest
   }
   const { functieId, ...rest } = row
@@ -416,27 +432,59 @@ function mockState() {
   return applyMockTeamWorkflows(base)
 }
 
+const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`
+
+// Retourneert { state, corrupted } i.p.v. alleen de state: een onleesbaar
+// localStorage-record valt terug op demodata (anders crasht de hele app op
+// het opstarten), maar dat mag niet stilzwijgend gebeuren — de aanroeper
+// (AppContext/App) toont bij corrupted:true een waarschuwing en biedt de
+// bewaarde ruwe tekst (zie getCorruptRawData) aan om te downloaden, zodat de
+// eigen data van de gebruiker niet spoorloos verdwijnt.
 export function loadState() {
+  const rawText = localStorage.getItem(STORAGE_KEY)
+  if (!rawText) {
+    const initial = mockState()
+    saveState(initial)
+    return { state: initial, corrupted: false }
+  }
   try {
-    const rawText = localStorage.getItem(STORAGE_KEY)
-    if (!rawText) {
-      const initial = mockState()
-      saveState(initial)
-      return initial
-    }
     const parsed = JSON.parse(rawText)
     const migrated = migrateState(parsed)
     // Schrijf gemigreerde data direct terug zodat oude localStorage-data
     // maar één keer gemigreerd hoeft te worden.
     if (parsed.schemaVersion !== SCHEMA_VERSION) saveState(migrated)
-    return migrated
+    return { state: migrated, corrupted: false }
   } catch {
-    return mockState()
+    try {
+      localStorage.setItem(CORRUPT_STORAGE_KEY, rawText)
+    } catch {
+      // Quotum vol o.i.d. — dan kan de ruwe tekst ook niet bewaard worden;
+      // de waarschuwing verschijnt evengoed, alleen zonder downloadoptie.
+    }
+    return { state: mockState(), corrupted: true }
   }
 }
 
+export function getCorruptRawData() {
+  return localStorage.getItem(CORRUPT_STORAGE_KEY)
+}
+
+export function clearCorruptRawData() {
+  localStorage.removeItem(CORRUPT_STORAGE_KEY)
+}
+
+// Retourneert of het opslaan echt gelukt is (bv. false bij een vol
+// localStorage-quotum) i.p.v. de fout ongevangen te laten doorschieten naar
+// de aanroepende event handler — de UI toont de wijziging dan anders wel,
+// maar bewaart hem niet, zonder dat iemand dat merkt.
 export function saveState(state) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION }))
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION }))
+    return true
+  } catch (err) {
+    console.error('Opslaan naar localStorage is mislukt:', err)
+    return false
+  }
 }
 
 export function resetToEmpty() {

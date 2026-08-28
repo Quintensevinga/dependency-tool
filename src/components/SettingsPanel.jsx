@@ -8,6 +8,13 @@ import { BRON_TYPES } from '../data/constants'
 import { translateBronType } from '../i18n/labels'
 import AdminLogPage from './AdminLogPage'
 
+// Nog altijd geen echte beveiliging (client-side, dus zichtbaar in de
+// gepubliceerde bundel voor wie er echt naar zoekt) — maar zo staat de waarde
+// zelf tenminste niet als kale tekst in de broncode/repository. Zie
+// .env.example en de README voor uitleg. 'ww' blijft de terugval zodat dit
+// blijft werken zonder dat iedereen een .env-bestand hoeft aan te maken.
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? 'ww'
+
 // Structuur voor de Admin-toggles: welke pagina's en secties zijn er, en hoe
 // heten ze. Bewust hier als platte config i.p.v. door het volledige i18n-
 // systeem (tientallen nieuwe sleutels voor wat een tijdelijk prototype-
@@ -451,7 +458,7 @@ export default function SettingsPanel({ onClose, onExportPng }) {
 
   function handleAdminUnlock(e) {
     e.preventDefault()
-    if (adminPasswordInput === 'ww') {
+    if (adminPasswordInput === ADMIN_PASSWORD) {
       setAdminUnlocked(true)
       setAdminPasswordError(false)
       setAdminPasswordInput('')

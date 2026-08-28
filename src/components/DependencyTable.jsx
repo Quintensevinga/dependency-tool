@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
-import { calculateRisk } from '../lib/risk'
+import { calculateRisk, MAX_RISK_SCORE } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import {
   translateCategorie,
@@ -98,7 +98,7 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
                     <div className="h-1.5 w-14 shrink-0 overflow-hidden rounded-full bg-slate-100">
                       <div
                         className="h-full rounded-full"
-                        style={{ width: `${Math.min(100, Math.round((risk.score / 11) * 100))}%`, backgroundColor: style.hex }}
+                        style={{ width: `${Math.min(100, Math.round((risk.score / MAX_RISK_SCORE) * 100))}%`, backgroundColor: style.hex }}
                       />
                     </div>
                     <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${style.badge}`}>

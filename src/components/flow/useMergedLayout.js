@@ -14,6 +14,12 @@ import { applyNodeChanges } from 'reactflow'
 export function useMergedLayout(computeLayout, deps) {
   const [layout, setLayout] = useState(() => computeLayout(...deps))
 
+  // `deps` is doorgegeven door de aanroeper en bepaalt zelf wanneer herberekend
+  // moet worden — de linter kan de inhoud van die dynamische array niet
+  // statisch controleren, vandaar de disable vlak vóór de hook-aanroep zelf
+  // (een disable ná de setState-call, zoals voorheen, onderdrukte de
+  // waarschuwing niet: die wordt aan de useEffect-aanroep zelf toegeschreven).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const fresh = computeLayout(...deps)
     setLayout((prev) => {
@@ -24,7 +30,6 @@ export function useMergedLayout(computeLayout, deps) {
       })
       return { ...fresh, nodes: mergedNodes }
     })
-    // `deps` is doorgegeven door de aanroeper en bepaalt zelf wanneer herberekend moet worden.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
 

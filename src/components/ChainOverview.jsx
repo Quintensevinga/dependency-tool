@@ -150,7 +150,7 @@ function ChainIoNode({ data }) {
 
 const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode, chainGroupLabel: ChainGroupLabelNode }
 
-function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, groupInfo = null) {
+function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, groupInfo = null, chainEdgesAll = []) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const nodes = []
   const edges = []
@@ -240,9 +240,13 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
     })
   })
 
+  // chainEdgesAll wordt één keer bovenin de component berekend (zie
+  // chainEdgesAll-useMemo) en hier hergebruikt — resolveChainEdges filtert
+  // zelf al niets weg op zichtbaarheid, dat gebeurt hieronder via teamIdSet,
+  // dus rekenen op de volledige set en pas daarna filteren geeft exact
+  // hetzelfde resultaat als eerst filteren en dan berekenen.
   const teamIdSet = new Set(visibleTeams.map((team) => team.id))
-  const filteredWorkflows = Object.fromEntries(visibleTeams.map((team) => [team.id, teamWorkflows[team.id] ?? emptyTeamWorkflow()]))
-  const chainEdges = resolveChainEdges(filteredWorkflows)
+  const chainEdges = chainEdgesAll
   const teamNaamById = Object.fromEntries(visibleTeams.map((team) => [team.id, naamVan(team)]))
   chainEdges.forEach((edge) => {
     if (!teamIdSet.has(edge.sourceTeam) || !teamIdSet.has(edge.targetTeam)) return
@@ -302,11 +306,16 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
 
   const focusActive = chainMode === 'focus' && Boolean(focusTeamId)
 
+  // Eén keer berekend, hergebruikt door zowel chainPartners hieronder als
+  // computeChainLayout (via useMergedLayout) — voorheen liep resolveChainEdges
+  // twee keer per render.
+  const chainEdgesAll = useMemo(() => resolveChainEdges(teamWorkflows), [teamWorkflows])
+
   const chainPartners = useMemo(() => {
     if (!focusActive) return null
     const focus = teams.find((tm) => tm.id === focusTeamId)
     if (!focus) return null
-    const edges = resolveChainEdges(teamWorkflows)
+    const edges = chainEdgesAll
     const incoming = new Set(edges.filter((e) => e.targetTeam === focusTeamId).map((e) => e.sourceTeam))
     const outgoing = new Set(edges.filter((e) => e.sourceTeam === focusTeamId).map((e) => e.targetTeam))
     incoming.delete(focusTeamId)
@@ -315,7 +324,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     // die houden we aan de inkomende kant, links van het focusteam.
     for (const id of incoming) outgoing.delete(id)
     return { focus, incoming, outgoing, incomingCount: edges.filter((e) => e.targetTeam === focusTeamId).length, outgoingCount: edges.filter((e) => e.sourceTeam === focusTeamId).length }
-  }, [focusActive, focusTeamId, teams, teamWorkflows])
+  }, [focusActive, focusTeamId, teams, chainEdgesAll])
 
   const visibleTeams = useMemo(() => {
     if (!chainPartners) return filteredTeams
@@ -387,6 +396,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     teamRisk,
     teamLabels,
     groupInfo,
+    chainEdgesAll,
   ])
 
   // Hover toont de koppeling vluchtig, klik pint 'm vast — zodat je een lijn

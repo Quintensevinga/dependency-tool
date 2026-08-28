@@ -14,13 +14,23 @@ export default function MatrixView({ onSelect, adminSections }) {
   const [sortBy, setSortBy] = useState('risk_desc')
   // Matrix is een organisatiebreed overzicht en start dus altijd bij alle
   // teams — teamnavigatie (sidebar) en view-filtering (hier) zijn losgekoppeld.
-  const [selectedTeams, setSelectedTeams] = useState(() => teams.map((tm) => tm.id))
+  // Uitgesloten-set i.p.v. een lijst van geselecteerde ids (zelfde patroon als
+  // GraphView.jsx) — een team dat later bijkomt (addTeam of JSON-import) staat
+  // zo automatisch al in de zichtbare stand, in plaats van nooit geselecteerd
+  // te zijn omdat de initiële state maar één keer werd bepaald.
+  const [deselectedTeamIds, setDeselectedTeamIds] = useState(() => new Set())
+  const selectedTeams = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
   const [selectedEffectOpFlow, setSelectedEffectOpFlow] = useState([...EFFECT_OP_FLOW_LEVELS, ''])
 
   function toggleTeam(id) {
-    setSelectedTeams((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+    setDeselectedTeamIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   }
 
   function toggleRiskLevel(level) {
@@ -53,7 +63,7 @@ export default function MatrixView({ onSelect, adminSections }) {
 
     withRisk.sort((a, b) => {
       if (sortBy === 'risk_asc') return a.risk.score - b.risk.score
-      if (sortBy === 'updated_desc') return b.dependency.laatst_bijgewerkt.localeCompare(a.dependency.laatst_bijgewerkt)
+      if (sortBy === 'updated_desc') return (b.dependency.laatst_bijgewerkt ?? '').localeCompare(a.dependency.laatst_bijgewerkt ?? '')
       return b.risk.score - a.risk.score
     })
 
@@ -111,8 +121,8 @@ export default function MatrixView({ onSelect, adminSections }) {
         teams={teams}
         selected={selectedTeams}
         onToggle={toggleTeam}
-        onSelectAll={() => setSelectedTeams(teams.map((tm) => tm.id))}
-        onSelectNone={() => setSelectedTeams([])}
+        onSelectAll={() => setDeselectedTeamIds(new Set())}
+        onSelectNone={() => setDeselectedTeamIds(new Set(teams.map((tm) => tm.id)))}
         riskLevels={selectedRiskLevels}
         onToggleRisk={toggleRiskLevel}
         onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}

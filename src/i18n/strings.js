@@ -1,6 +1,7 @@
 export const STRINGS = {
   nl: {
     'app.title': 'Dependency Insight',
+    'app.loading': 'Laden…',
     'app.subtitle': 'UWV — interne tool',
     'badge.privacy': 'Geen persoonsgegevens — alleen rollen en teamniveau-informatie',
 
@@ -203,6 +204,7 @@ export const STRINGS = {
     'settings.ownActiveDesc': 'Deze weergave toont zelf ingevoerde dependencies.',
     'settings.backToMock': 'Terug naar mock data',
     'settings.exportPng': 'Exporteer huidige weergave als afbeelding (PNG)',
+    'settings.exportPngFailed': 'PNG-export is mislukt: er was niets zichtbaars om te exporteren op dit scherm.',
     'settings.exportJson': 'Exporteer alle data als JSON',
     'settings.importJson': 'Importeer data uit JSON',
     'settings.dangerZoneTitle': 'Gevaarlijke acties',
@@ -213,11 +215,22 @@ export const STRINGS = {
     'settings.resetConfirmButton': 'Bevestig wissen',
     'settings.resetCancel': 'Annuleer',
     'settings.admin.title': 'Admin',
-    'settings.admin.disclaimer': 'Tijdelijke prototype-afscherming, geen echte beveiliging. Wachtwoord: ww',
+    'settings.admin.disclaimer': 'Tijdelijke prototype-afscherming, geen echte beveiliging — vraag het wachtwoord na bij wie de omgeving heeft ingericht.',
     'settings.admin.passwordLabel': 'Wachtwoord',
     'settings.admin.passwordError': 'Onjuist wachtwoord.',
     'settings.admin.unlock': 'Ontgrendelen',
     'admin.pageDisabled': 'Deze pagina is momenteel uitgezet via Admin.',
+
+    'errorBoundary.message': 'Er ging iets onverwacht mis bij het weergeven van deze pagina. Je data staat nog gewoon lokaal opgeslagen.',
+    'errorBoundary.retry': 'Opnieuw proberen',
+    'errorBoundary.exportAndReset': 'Data exporteren en opnieuw beginnen',
+
+    'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data of verwijder oude momentopnamen.',
+    'saveError.dismiss': 'Sluiten',
+
+    'corrupted.message': 'De opgeslagen data kon niet gelezen worden en is teruggevallen op demodata. De onleesbare data is bewaard — download die hieronder voordat je verdergaat, anders kan die alsnog verloren gaan.',
+    'corrupted.download': 'Onleesbare data downloaden',
+    'corrupted.dismiss': 'Begrepen, sluiten',
     'settings.admin.toggleHint': 'Zet pagina\'s of secties uit om ze uit de weergave te halen. Er wordt nooit data verwijderd — alleen zichtbaarheid.',
     'settings.admin.uitgebreideAnalyse': 'Uitgebreide analyse (flowverlies + urgentie)',
     'settings.admin.uitgebreideAnalyseHint': 'Voegt wachttijd/deadline-velden toe aan het dependency-formulier en toont flowverlies + urgentie náást de bestaande risicoscore. Uit = de app werkt zoals altijd.',
@@ -492,6 +505,7 @@ export const STRINGS = {
   },
   en: {
     'app.title': 'Dependency Insight',
+    'app.loading': 'Loading…',
     'app.subtitle': 'UWV — internal tool',
     'badge.privacy': 'No personal data — roles and team-level information only',
 
@@ -694,6 +708,7 @@ export const STRINGS = {
     'settings.ownActiveDesc': 'This view shows your own entered dependencies.',
     'settings.backToMock': 'Back to mock data',
     'settings.exportPng': 'Export current view as image (PNG)',
+    'settings.exportPngFailed': 'PNG export failed: there was nothing visible on this screen to export.',
     'settings.exportJson': 'Export all data as JSON',
     'settings.importJson': 'Import data from JSON',
     'settings.dangerZoneTitle': 'Dangerous actions',
@@ -704,11 +719,22 @@ export const STRINGS = {
     'settings.resetConfirmButton': 'Confirm clear',
     'settings.resetCancel': 'Cancel',
     'settings.admin.title': 'Admin',
-    'settings.admin.disclaimer': 'Temporary prototype gate, not real security. Password: ww',
+    'settings.admin.disclaimer': "Temporary prototype gate, not real security — ask whoever set up the environment for the password.",
     'settings.admin.passwordLabel': 'Password',
     'settings.admin.passwordError': 'Incorrect password.',
     'settings.admin.unlock': 'Unlock',
     'admin.pageDisabled': 'This page is currently turned off via Admin.',
+
+    'errorBoundary.message': 'Something unexpected went wrong while displaying this page. Your data is still stored locally.',
+    'errorBoundary.retry': 'Try again',
+    'errorBoundary.exportAndReset': 'Export data and start over',
+
+    'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data or delete old snapshots.',
+    'saveError.dismiss': 'Close',
+
+    'corrupted.message': 'The stored data could not be read and has fallen back to demo data. The unreadable data has been kept — download it below before continuing, otherwise it may be lost.',
+    'corrupted.download': 'Download unreadable data',
+    'corrupted.dismiss': 'Got it, close',
     'settings.admin.toggleHint': 'Turn pages or sections off to remove them from view. This never deletes data — visibility only.',
     'settings.admin.uitgebreideAnalyse': 'Extended analysis (flow loss + urgency)',
     'settings.admin.uitgebreideAnalyseHint': 'Adds wait-time/deadline fields to the dependency form and shows flow loss + urgency alongside the existing risk score. Off = the app works as it always has.',

@@ -14,7 +14,6 @@ export const CATEGORIE_LABELS = {
   'Kennis-afhankelijkheid extern': { nl: 'Kennis-afhankelijkheid extern', en: 'External knowledge dependency' },
   'Toegang/rechten-blokkade': { nl: 'Toegang/rechten-blokkade', en: 'Access/permissions blockage' },
   'Governance/proces-afhankelijkheid': { nl: 'Governance/proces-afhankelijkheid', en: 'Governance/process dependency' },
-  'Procesafhankelijkheid': { nl: 'Procesafhankelijkheid', en: 'Process dependency (chain)' },
   'Stakeholderafhankelijkheid': { nl: 'Stakeholderafhankelijkheid', en: 'Stakeholder dependency' },
   'Wetgevingsafhankelijkheid': { nl: 'Wetgevingsafhankelijkheid', en: 'Legislative dependency' },
   'Contract-/inkoopafhankelijkheid': { nl: 'Contract-/inkoopafhankelijkheid', en: 'Contract/procurement dependency' },
@@ -72,8 +71,8 @@ export const CATEGORY_DESCRIPTIONS = {
       en: 'Access or authorization is granted slowly, partially, or sometimes not at all by another team, causing processes to stagnate or grind to a complete halt.',
     },
     'Governance/proces-afhankelijkheid': {
-      nl: 'Een formeel change- of CAB-proces bepaalt het tempo van wijzigingen.',
-      en: 'A formal change or CAB process dictates the pace of changes.',
+      nl: 'Een formeel change- of CAB-proces, of overdracht-/intake-/releaseprocessen met andere teams, bepaalt het tempo of de doorlooptijd.',
+      en: 'A formal change or CAB process, or handover/intake/release processes with other teams, dictates the pace or lead time.',
     },
     'Besluitvormingsafhankelijkheid': {
       nl: 'Goedkeuring is vereist van een extern orgaan, bijvoorbeeld een architectuurboard, security-afdeling of management.',
@@ -82,10 +81,6 @@ export const CATEGORY_DESCRIPTIONS = {
     'Technische afhankelijkheid': {
       nl: 'Een API, database, koppelvlak of tool van een ander team of externe partij is randvoorwaardelijk.',
       en: 'An API, database, interface or tool owned by another team or external party is a hard prerequisite.',
-    },
-    'Procesafhankelijkheid': {
-      nl: 'Overdracht-, intake-, change- of releaseprocessen met andere teams bepalen de doorlooptijd.',
-      en: 'Handover, intake, change or release processes with other teams determine the lead time.',
     },
     'Data-afhankelijkheid': {
       nl: 'Productie-, rapportage- of testdata en autorisaties worden extern beheerd.',

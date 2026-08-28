@@ -134,7 +134,6 @@ function EdgeLabel({ categorie, count }) {
 // geschikt voor hover-gebaseerde focus (zie hoverTeamId state).
 function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
   const TEAM_NODE_WIDTH = 210
-  const CAT_NODE_WIDTH = 200
   const ROW_H = 96
   const COLUMN_GAP = 640
 

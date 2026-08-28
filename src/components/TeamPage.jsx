@@ -25,7 +25,7 @@ import {
   translateStatus,
 } from '../i18n/labels'
 import { stageColor, bronTypeColor, ANNOTATION_PALETTE } from '../lib/workflowStyles'
-import { calculateRisk, compareRiskDesc } from '../lib/risk'
+import { calculateRisk, sortByRiskDesc } from '../lib/risk'
 import { berekenFlowverlies } from '../lib/analysis'
 import { riskStyle } from '../lib/riskStyles'
 import { generateId, emptyTeamWorkflow, emptyApplicatieflow } from '../lib/storage'
@@ -1328,7 +1328,7 @@ function canvasHeightFor(inputs, outputs) {
 // alleen de betekenis van 'bron'/'link' spiegelt om: input komt ergens
 // vandaan (bron_type, linkedTeam+linkedOutputId), output gaat ergens naartoe
 // (zelfde bron_type-schaal als 'bestemmingstype', linkedTeam+linkedInputId).
-function emptyIoItem(kind) {
+function emptyIoItem(_kind) {
   return {
     id: generateId(),
     label: '',
@@ -2380,7 +2380,7 @@ function DepFiltersDropdown({
   )
 }
 
-export default function TeamPage({ teamId, onBack, adminSections, sidebarCollapsed, sidebarMode }) {
+export default function TeamPage({ teamId, onBack, adminSections, sidebarCollapsed, sidebarMode, containerRef }) {
   const {
     teams,
     dependencies,
@@ -2530,8 +2530,14 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
 
   const workflow = teamWorkflows[teamId] ?? emptyTeamWorkflow()
 
+  // Geeft alleen de partial door — updateTeamWorkflow in AppContext.jsx doet
+  // de merge zelf, tegen de op dát moment actuele workflow (via prev), niet
+  // tegen de workflow-variabele hierboven uit déze render. Die stond hier
+  // eerder al vooraf gespreid (`{ ...workflow, ...partial }`), waardoor twee
+  // patch()-aanroepen binnen dezelfde gebeurtenis elkaars niet-genoemde
+  // velden alsnog met een verouderde snapshot konden overschrijven — zie B-10.
   function patch(partial) {
-    updateTeamWorkflow(teamId, { ...workflow, ...partial })
+    updateTeamWorkflow(teamId, partial)
   }
 
   const resolveLinkLabel = useCallback(
@@ -2562,7 +2568,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   )
 
   const teamDependencies = useMemo(
-    () => dependencies.filter((d) => d.teamId === teamId).sort(compareRiskDesc),
+    () => sortByRiskDesc(dependencies.filter((d) => d.teamId === teamId)),
     [dependencies, teamId],
   )
 
@@ -3287,7 +3293,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   )
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" ref={containerRef}>
       {(
         <>
           <div
@@ -3785,9 +3791,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               onSave={(draft) => {
                 const isNew = !canvasIoTarget.item
                 if (canvasIoTarget.kind === 'input') {
-                  isNew ? addInput(draft) : updateInput(draft.id, draft)
+                  if (isNew) addInput(draft)
+                  else updateInput(draft.id, draft)
                 } else {
-                  isNew ? addOutput(draft) : updateOutput(draft.id, draft)
+                  if (isNew) addOutput(draft)
+                  else updateOutput(draft.id, draft)
                 }
                 setCanvasIoTarget(null)
               }}

@@ -15,10 +15,13 @@ export const CATEGORIES_EXTERN = [
   'Capaciteit specialistisch team',
   'Kennis-afhankelijkheid extern',
   'Toegang/rechten-blokkade',
+  // Governance/proces-afhankelijkheid en het voormalige 'Procesafhankelijkheid'
+  // waren twee bakken voor hetzelfde begrip (extern proces/tempo bepaalt de
+  // doorlooptijd) — samengevoegd, zie migrateDependency in lib/storage.js voor
+  // de omzetting van bestaande data.
   'Governance/proces-afhankelijkheid',
   'Besluitvormingsafhankelijkheid',
   'Technische afhankelijkheid',
-  'Procesafhankelijkheid',
   'Data-afhankelijkheid',
   'Omgevingsafhankelijkheid',
   'Stakeholderafhankelijkheid',

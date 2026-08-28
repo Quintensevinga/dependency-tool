@@ -1,12 +1,20 @@
-import html2canvas from 'html2canvas-pro'
-
+// Retourneert of de export echt is gelukt i.p.v. stil terug te keren bij een
+// leeg/ontbrekend element — de aanroeper (App.jsx) toont dan een duidelijke
+// melding in plaats van dat de knop merkbaar niets doet.
+//
+// html2canvas-pro wordt hier dynamisch geïmporteerd (i.p.v. statisch
+// bovenaan) — het is een fors pakket dat verder nergens in de app gebruikt
+// wordt, dus alleen laden op het moment dat iemand daadwerkelijk exporteert
+// i.p.v. altijd in de hoofdbundel (zie B-18).
 export async function exportElementAsPng(element, filename) {
-  if (!element) return
+  if (!element) return false
+  const { default: html2canvas } = await import('html2canvas-pro')
   const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 })
   const link = document.createElement('a')
   link.download = filename
   link.href = canvas.toDataURL('image/png')
   link.click()
+  return true
 }
 
 export function exportDataAsJson(state, filename) {

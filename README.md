@@ -25,6 +25,14 @@ Open daarna de URL die in de terminal verschijnt (meestal `http://localhost:5173
 - De app start met fictieve demo-data (7 teams). Via het tandwiel-icoon (Instellingen) kun je alle data wissen en desgewenst teruggaan naar de demo-data.
 - Het datamodel bevat bewust geen namen van personen, alleen rol-aanduidingen.
 
+## Admin-afscherming (geen echte beveiliging)
+
+Het Admin-gedeelte in Instellingen zit achter een wachtwoord (`VITE_ADMIN_PASSWORD`, zie
+`.env.example`, standaard `ww`). Dit is **geen beveiligingsmaatregel** — de app is 100%
+client-side, dus de waarde zit gewoon in de gepubliceerde bundel voor wie er echt naar zoekt.
+Het is puur bedoeld om per ongeluk klikken in het Admin-gedeelte te voorkomen, niet om data
+af te schermen tegen iemand die dat probeert.
+
 ## Belangrijkste functionaliteit
 
 - **Matrix-overzicht**: sorteerbare tabel per team/keten-niveau, met filters op team en risiconiveau.

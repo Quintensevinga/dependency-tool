@@ -95,7 +95,6 @@ const CATEGORY_ICON_KEY = {
   'Kennis-concentratie': 'knowledge',
   'Kennis-afhankelijkheid extern': 'knowledge',
   'Proces-/workflow-afhankelijkheid': 'process',
-  'Procesafhankelijkheid': 'process',
   'Rol-afhankelijkheid': 'role',
   'Besluitvormingsafhankelijkheid': 'decision',
   'Technische afhankelijkheid': 'technical',

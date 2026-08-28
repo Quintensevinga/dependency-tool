@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Lokale omgevingsvariabelen (bv. VITE_ADMIN_PASSWORD) — .env.example blijft
+# wel getrackt als documentatie van welke variabelen bestaan.
+.env
+.env.*
+!.env.example
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

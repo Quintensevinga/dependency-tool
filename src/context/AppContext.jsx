@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   loadState,
   saveState,
@@ -44,15 +44,63 @@ function buildCrossTeamCopy(dependency, teamId, dedupGroupId, today) {
   return { ...rest, id: generateId(), teamId, dedupGroupId, geaccepteerd: false, laatst_bijgewerkt: today, aangemaakt_op: today }
 }
 
-export function AppProvider({ children }) {
-  const [state, setState] = useState(() => loadState())
-  const [currentTeamId, setCurrentTeamId] = useState(() => firstActiveTeamId(loadState().teams))
-  const [scope, setScope] = useState('intern')
+// Vindt alle teams die via een input/output-koppeling (linkedTeam) nog naar
+// het gegeven team verwijzen — gebruikt door deleteTeam (zie B-09) om een
+// verweesde ketenkoppeling te voorkomen, net als de bestaande
+// dependency-check hieronder al deed voor dependencies.
+function teamsReferencingViaWorkflow(teamWorkflows, teamId) {
+  return Object.entries(teamWorkflows)
+    .filter(([otherTeamId]) => otherTeamId !== teamId)
+    .filter(
+      ([, workflow]) =>
+        (workflow.inputs ?? []).some((item) => item.linkedTeam === teamId) ||
+        (workflow.outputs ?? []).some((item) => item.linkedTeam === teamId),
+    )
+    .map(([otherTeamId]) => otherTeamId)
+}
 
-  const persist = useCallback((next) => {
-    setState(next)
-    saveState(next)
+export function AppProvider({ children }) {
+  // Eén keer geladen (niet meer twee keer, zie B-08) — het tweede stukje
+  // state (currentTeamId) wordt hieronder synchroon van hetzelfde resultaat
+  // afgeleid i.p.v. loadState() nogmaals aan te roepen.
+  const [{ state: initialState, corrupted: initiallyCorrupted }] = useState(() => loadState())
+  const [state, setState] = useState(initialState)
+  const [currentTeamId, setCurrentTeamId] = useState(() => firstActiveTeamId(initialState.teams))
+  const [scope, setScope] = useState('intern')
+  // Zie B-05: localStorage was onleesbaar bij het opstarten en is stilzwijgend
+  // vervangen door demodata — de UI (App.jsx) toont hierop een waarschuwing
+  // met een downloadoptie voor de bewaarde ruwe tekst (getCorruptRawData).
+  const [corruptedOnLoad, setCorruptedOnLoad] = useState(initiallyCorrupted)
+  // Zie B-04: laatste keer dat wegschrijven naar localStorage mislukte (bv.
+  // vol quotum) — de wijziging staat dan wel in de UI maar is niet bewaard.
+  const [saveError, setSaveError] = useState(false)
+  const lastSaveOkRef = useRef(true)
+
+  // persist accepteert voortaan een updater-functie (prev => next) i.p.v.
+  // een kant-en-klaar nieuw object — zie B-10. Alle acties hieronder lezen
+  // hun 'huidige' state daardoor altijd via prev, nooit via de state-variabele
+  // uit hun eigen closure. Dat voorkomt dat twee acties binnen dezelfde
+  // gebeurtenis (bv. addCustomRole gevolgd door updateTeamWorkflow) elkaar
+  // overschrijven doordat ze allebei van dezelfde, inmiddels verouderde
+  // snapshot uitgaan. persist zelf heeft daardoor ook geen dependency op
+  // state meer nodig — 'm stabiel over de hele levensduur van de provider.
+  const persist = useCallback((updater) => {
+    setState((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      lastSaveOkRef.current = saveState(next)
+      return next
+    })
   }, [])
+
+  // Ná elke state-wijziging (niet ín de setState-updater zelf, zie de noot
+  // hierboven) de laatst bekende opslag-uitkomst doorzetten naar UI-state.
+  useEffect(() => {
+    setSaveError(!lastSaveOkRef.current)
+  }, [state])
+
+  // Verbergt de melding zonder de onderliggende oorzaak op te lossen — een
+  // volgende mislukte opslagpoging (via persist) zet 'm vanzelf weer aan.
+  const dismissSaveError = useCallback(() => setSaveError(false), [])
 
   // --- lookup-helpers (naam <-> id) ---
 
@@ -72,21 +120,24 @@ export function AppProvider({ children }) {
     (naam) => {
       const trimmed = naam.trim()
       if (!trimmed) return null
-      const existingIds = new Set(state.teams.map((t) => t.id))
-      const id = uniqueSlug(trimmed, existingIds)
+      let newId = null
       const today = new Date().toISOString().slice(0, 10)
-      const team = { id, naam: trimmed, actief: true, createdAt: today, updatedAt: today }
-      const next = {
-        ...state,
-        teams: [...state.teams, team],
-        teamWorkflows: { ...state.teamWorkflows, [id]: emptyTeamWorkflow() },
-        teamSnapshots: { ...state.teamSnapshots, [id]: [] },
-      }
-      persist(next)
-      setCurrentTeamId(id)
-      return id
+      persist((prev) => {
+        const existingIds = new Set(prev.teams.map((t) => t.id))
+        const id = uniqueSlug(trimmed, existingIds)
+        newId = id
+        const team = { id, naam: trimmed, actief: true, createdAt: today, updatedAt: today }
+        return {
+          ...prev,
+          teams: [...prev.teams, team],
+          teamWorkflows: { ...prev.teamWorkflows, [id]: emptyTeamWorkflow() },
+          teamSnapshots: { ...prev.teamSnapshots, [id]: [] },
+        }
+      })
+      if (newId) setCurrentTeamId(newId)
+      return newId
     },
-    [state, persist],
+    [persist],
   )
 
   const renameTeam = useCallback(
@@ -94,69 +145,78 @@ export function AppProvider({ children }) {
       const trimmed = naam.trim()
       if (!trimmed) return
       const today = new Date().toISOString().slice(0, 10)
-      const next = {
-        ...state,
-        teams: state.teams.map((t) => (t.id === id ? { ...t, naam: trimmed, updatedAt: today } : t)),
-      }
-      persist(next)
+      persist((prev) => ({
+        ...prev,
+        teams: prev.teams.map((t) => (t.id === id ? { ...t, naam: trimmed, updatedAt: today } : t)),
+      }))
     },
-    [state, persist],
+    [persist],
   )
 
   const archiveTeam = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      const next = {
-        ...state,
-        teams: state.teams.map((t) => (t.id === id ? { ...t, actief: false, updatedAt: today } : t)),
-      }
-      persist(next)
-      if (currentTeamId === id) {
-        setCurrentTeamId(firstActiveTeamId(next.teams.filter((t) => t.id !== id)))
-      }
+      let nextTeams = null
+      persist((prev) => {
+        nextTeams = prev.teams.map((t) => (t.id === id ? { ...t, actief: false, updatedAt: today } : t))
+        return { ...prev, teams: nextTeams }
+      })
+      setCurrentTeamId((prevCurrent) => (prevCurrent === id ? firstActiveTeamId(nextTeams.filter((t) => t.id !== id)) : prevCurrent))
     },
-    [state, persist, currentTeamId],
+    [persist],
   )
 
   const unarchiveTeam = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      const next = {
-        ...state,
-        teams: state.teams.map((t) => (t.id === id ? { ...t, actief: true, updatedAt: today } : t)),
-      }
-      persist(next)
+      persist((prev) => ({
+        ...prev,
+        teams: prev.teams.map((t) => (t.id === id ? { ...t, actief: true, updatedAt: today } : t)),
+      }))
     },
-    [state, persist],
+    [persist],
   )
 
   // Retourneert true bij succes, false als het team nog dependencies heeft
-  // (dan moet de UI archiveren aanbieden i.p.v. verwijderen).
+  // óf als een ander team er via een input/output-koppeling (linkedTeam) nog
+  // naar verwijst (zie B-09 — die tweede check ontbrak eerder, waardoor
+  // resolveChainEdges een verweesde ketenkoppeling stilzwijgend liet vallen).
+  // In beide gevallen moet de UI archiveren aanbieden i.p.v. verwijderen.
   const deleteTeam = useCallback(
     (id) => {
-      const inUse = state.dependencies.some((d) => d.teamId === id)
-      if (inUse) return false
-      const teamWorkflows = { ...state.teamWorkflows }
-      delete teamWorkflows[id]
-      const teamSnapshots = { ...state.teamSnapshots }
-      delete teamSnapshots[id]
-      const next = { ...state, teams: state.teams.filter((t) => t.id !== id), teamWorkflows, teamSnapshots }
-      persist(next)
-      if (currentTeamId === id) setCurrentTeamId(firstActiveTeamId(next.teams))
+      let blocked = false
+      let nextTeams = null
+      persist((prev) => {
+        const depInUse = prev.dependencies.some((d) => d.teamId === id)
+        const referencedByWorkflow = teamsReferencingViaWorkflow(prev.teamWorkflows, id).length > 0
+        if (depInUse || referencedByWorkflow) {
+          blocked = true
+          return prev
+        }
+        const teamWorkflows = { ...prev.teamWorkflows }
+        delete teamWorkflows[id]
+        const teamSnapshots = { ...prev.teamSnapshots }
+        delete teamSnapshots[id]
+        nextTeams = prev.teams.filter((t) => t.id !== id)
+        return { ...prev, teams: nextTeams, teamWorkflows, teamSnapshots }
+      })
+      if (blocked) return false
+      setCurrentTeamId((prevCurrent) => (prevCurrent === id ? firstActiveTeamId(nextTeams) : prevCurrent))
       return true
     },
-    [state, persist, currentTeamId],
+    [persist],
   )
 
   // --- teamworkflow (teampagina: workflowbord, applicatieflow, momentopnamen) ---
 
   const updateTeamWorkflow = useCallback(
     (teamId, patch) => {
-      const current = state.teamWorkflows[teamId] ?? emptyTeamWorkflow()
-      const next = { ...state, teamWorkflows: { ...state.teamWorkflows, [teamId]: { ...current, ...patch } } }
-      persist(next)
+      persist((prev) => {
+        const current = prev.teamWorkflows[teamId] ?? emptyTeamWorkflow()
+        return { ...prev, teamWorkflows: { ...prev.teamWorkflows, [teamId]: { ...current, ...patch } } }
+      })
     },
-    [state, persist],
+    [persist],
   )
 
   // Verwijdert een applicatie én alle verwijzingen ernaar. Bewust één actie:
@@ -168,35 +228,36 @@ export function AppProvider({ children }) {
   // verdwenen ze volledig van de teampagina.
   const removeApplicationEverywhere = useCallback(
     (teamId, appId) => {
-      const workflow = state.teamWorkflows[teamId]
-      if (!workflow) return
-      const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
       const today = new Date().toISOString().slice(0, 10)
-      const next = {
-        ...state,
-        dependencies: state.dependencies.map((d) =>
-          (d.applicatieIds ?? []).includes(appId)
-            ? { ...d, applicatieIds: d.applicatieIds.filter((a) => a !== appId), laatst_bijgewerkt: today }
-            : d,
-        ),
-        teamWorkflows: {
-          ...state.teamWorkflows,
-          [teamId]: {
-            ...workflow,
-            applications: workflow.applications.filter((a) => a.id !== appId),
-            applicatieflow: {
-              ...applicatieflow,
-              connecties: (applicatieflow.connecties ?? []).filter((c) => c.van !== appId && c.naar !== appId),
+      persist((prev) => {
+        const workflow = prev.teamWorkflows[teamId]
+        if (!workflow) return prev
+        const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
+        return {
+          ...prev,
+          dependencies: prev.dependencies.map((d) =>
+            (d.applicatieIds ?? []).includes(appId)
+              ? { ...d, applicatieIds: d.applicatieIds.filter((a) => a !== appId), laatst_bijgewerkt: today }
+              : d,
+          ),
+          teamWorkflows: {
+            ...prev.teamWorkflows,
+            [teamId]: {
+              ...workflow,
+              applications: workflow.applications.filter((a) => a.id !== appId),
+              applicatieflow: {
+                ...applicatieflow,
+                connecties: (applicatieflow.connecties ?? []).filter((c) => c.van !== appId && c.naar !== appId),
+              },
+              inputs: workflow.inputs.map((i) => (i.applicatieId === appId ? { ...i, applicatieId: '' } : i)),
+              outputs: workflow.outputs.map((o) => (o.applicatieId === appId ? { ...o, applicatieId: '' } : o)),
             },
-            inputs: workflow.inputs.map((i) => (i.applicatieId === appId ? { ...i, applicatieId: '' } : i)),
-            outputs: workflow.outputs.map((o) => (o.applicatieId === appId ? { ...o, applicatieId: '' } : o)),
           },
-        },
-        usingMockData: false,
-      }
-      persist(next)
+          usingMockData: false,
+        }
+      })
     },
-    [state, persist],
+    [persist],
   )
 
   // Momentopnamen: een losstaande, volledige kopie van teamWorkflows[teamId]
@@ -205,53 +266,83 @@ export function AppProvider({ children }) {
   // MAX_SNAPSHOTS_PER_TEAM per team — de oudste rolt er automatisch uit.
   const saveSnapshot = useCallback(
     (teamId, naam) => {
-      const workflow = state.teamWorkflows[teamId] ?? emptyTeamWorkflow()
-      const existing = state.teamSnapshots[teamId] ?? []
-      const snapshot = {
-        id: generateId(),
-        naam: naam?.trim() || `Momentopname ${existing.length + 1}`,
-        timestamp: new Date().toISOString(),
-        data: deepClone(workflow),
-      }
-      const next = [...existing, snapshot].slice(-MAX_SNAPSHOTS_PER_TEAM)
-      persist({ ...state, teamSnapshots: { ...state.teamSnapshots, [teamId]: next } })
+      persist((prev) => {
+        const workflow = prev.teamWorkflows[teamId] ?? emptyTeamWorkflow()
+        const existing = prev.teamSnapshots[teamId] ?? []
+        const snapshot = {
+          id: generateId(),
+          // Datum+tijd i.p.v. 'Momentopname N': een oplopend nummer blijft
+          // hangen op het hoogste nummer zodra de limiet bereikt is (de
+          // oudste rolt eruit, maar 'length + 1' bleef daarna altijd
+          // hetzelfde getal opleveren) — zie B-11.
+          naam: naam?.trim() || `Momentopname ${new Date().toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'medium' })}`,
+          timestamp: new Date().toISOString(),
+          data: deepClone(workflow),
+        }
+        const next = [...existing, snapshot].slice(-MAX_SNAPSHOTS_PER_TEAM)
+        return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
+      })
     },
-    [state, persist],
+    [persist],
   )
 
   const renameSnapshot = useCallback(
     (teamId, snapshotId, naam) => {
       const trimmed = naam.trim()
       if (!trimmed) return
-      const existing = state.teamSnapshots[teamId] ?? []
-      const next = existing.map((s) => (s.id === snapshotId ? { ...s, naam: trimmed } : s))
-      persist({ ...state, teamSnapshots: { ...state.teamSnapshots, [teamId]: next } })
+      persist((prev) => {
+        const existing = prev.teamSnapshots[teamId] ?? []
+        const next = existing.map((s) => (s.id === snapshotId ? { ...s, naam: trimmed } : s))
+        return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
+      })
     },
-    [state, persist],
+    [persist],
   )
 
+  // Zie B-12: vóór het overschrijven van de live workflow wordt automatisch
+  // een momentopname van de HUIDIGE stand bewaard, zodat 'terugzetten' altijd
+  // omkeerbaar blijft (zelf ook weer terug te zetten).
   const restoreSnapshot = useCallback(
     (teamId, snapshotId) => {
-      const snapshot = (state.teamSnapshots[teamId] ?? []).find((s) => s.id === snapshotId)
-      if (!snapshot) return
-      persist({ ...state, teamWorkflows: { ...state.teamWorkflows, [teamId]: deepClone(snapshot.data) } })
+      persist((prev) => {
+        const existing = prev.teamSnapshots[teamId] ?? []
+        const snapshot = existing.find((s) => s.id === snapshotId)
+        if (!snapshot) return prev
+        const currentWorkflow = prev.teamWorkflows[teamId] ?? emptyTeamWorkflow()
+        const autoSnapshot = {
+          id: generateId(),
+          naam: 'Automatisch bewaard voor herstel',
+          timestamp: new Date().toISOString(),
+          data: deepClone(currentWorkflow),
+        }
+        const nextSnapshots = [...existing, autoSnapshot].slice(-MAX_SNAPSHOTS_PER_TEAM)
+        return {
+          ...prev,
+          teamWorkflows: { ...prev.teamWorkflows, [teamId]: deepClone(snapshot.data) },
+          teamSnapshots: { ...prev.teamSnapshots, [teamId]: nextSnapshots },
+        }
+      })
     },
-    [state, persist],
+    [persist],
   )
 
   const deleteSnapshot = useCallback(
     (teamId, snapshotId) => {
-      const next = (state.teamSnapshots[teamId] ?? []).filter((s) => s.id !== snapshotId)
-      persist({ ...state, teamSnapshots: { ...state.teamSnapshots, [teamId]: next } })
+      persist((prev) => {
+        const next = (prev.teamSnapshots[teamId] ?? []).filter((s) => s.id !== snapshotId)
+        return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
+      })
     },
-    [state, persist],
+    [persist],
   )
 
   // --- externe partijen (centrale, admin-beheerde lijst) ---
 
   // Retourneert direct het nieuwe id (niet pas na een re-render), zodat een
   // aanroeper (bv. PartyPicker) het net aangemaakte partij-id meteen in het
-  // omringende formulier kan zetten.
+  // omringende formulier kan zetten. Het id wordt vooraf gegenereerd (niet
+  // afhankelijk van prev) zodat dat betrouwbaar synchroon teruggegeven kan
+  // worden, ook al verwerkt persist de daadwerkelijke toevoeging via prev.
   const addExternalParty = useCallback(
     (naam, type, { pending = false, teamId = null } = {}) => {
       const trimmed = naam.trim()
@@ -267,10 +358,10 @@ export function AppProvider({ children }) {
         updatedAt: today,
         voorgesteldDoorTeamId: teamId,
       }
-      persist({ ...state, externalParties: [...state.externalParties, party] })
+      persist((prev) => ({ ...prev, externalParties: [...prev.externalParties, party] }))
       return id
     },
-    [state, persist],
+    [persist],
   )
 
   const renameExternalParty = useCallback(
@@ -278,23 +369,23 @@ export function AppProvider({ children }) {
       const trimmed = naam.trim()
       if (!trimmed) return
       const today = new Date().toISOString().slice(0, 10)
-      persist({
-        ...state,
-        externalParties: state.externalParties.map((p) => (p.id === id ? { ...p, naam: trimmed, updatedAt: today } : p)),
-      })
+      persist((prev) => ({
+        ...prev,
+        externalParties: prev.externalParties.map((p) => (p.id === id ? { ...p, naam: trimmed, updatedAt: today } : p)),
+      }))
     },
-    [state, persist],
+    [persist],
   )
 
   const approveExternalParty = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      persist({
-        ...state,
-        externalParties: state.externalParties.map((p) => (p.id === id ? { ...p, status: 'actief', updatedAt: today } : p)),
-      })
+      persist((prev) => ({
+        ...prev,
+        externalParties: prev.externalParties.map((p) => (p.id === id ? { ...p, status: 'actief', updatedAt: today } : p)),
+      }))
     },
-    [state, persist],
+    [persist],
   )
 
   // Weigeren verwijdert het record niet: verwijzingen vanuit dependencies of
@@ -304,12 +395,12 @@ export function AppProvider({ children }) {
   const rejectExternalParty = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      persist({
-        ...state,
-        externalParties: state.externalParties.map((p) => (p.id === id ? { ...p, status: 'geweigerd', updatedAt: today } : p)),
-      })
+      persist((prev) => ({
+        ...prev,
+        externalParties: prev.externalParties.map((p) => (p.id === id ? { ...p, status: 'geweigerd', updatedAt: today } : p)),
+      }))
     },
-    [state, persist],
+    [persist],
   )
 
   // Retourneert true bij succes, false als de partij nog ergens aan
@@ -317,16 +408,22 @@ export function AppProvider({ children }) {
   // verwijderen).
   const deleteExternalParty = useCallback(
     (id) => {
-      const inUse =
-        state.dependencies.some((d) => d.geraaktPartijId === id) ||
-        Object.values(state.teamWorkflows).some(
-          (w) => (w.inputs ?? []).some((i) => i.externalPartyId === id) || (w.outputs ?? []).some((o) => o.externalPartyId === id),
-        )
-      if (inUse) return false
-      persist({ ...state, externalParties: state.externalParties.filter((p) => p.id !== id) })
-      return true
+      let blocked = false
+      persist((prev) => {
+        const inUse =
+          prev.dependencies.some((d) => d.geraaktPartijId === id) ||
+          Object.values(prev.teamWorkflows).some(
+            (w) => (w.inputs ?? []).some((i) => i.externalPartyId === id) || (w.outputs ?? []).some((o) => o.externalPartyId === id),
+          )
+        if (inUse) {
+          blocked = true
+          return prev
+        }
+        return { ...prev, externalParties: prev.externalParties.filter((p) => p.id !== id) }
+      })
+      return !blocked
     },
-    [state, persist],
+    [persist],
   )
 
   // --- dependencies ---
@@ -335,65 +432,61 @@ export function AppProvider({ children }) {
     (dependency) => {
       const today = new Date().toISOString().slice(0, 10)
       const record = { ...dependency, id: generateId(), laatst_bijgewerkt: today, aangemaakt_op: today }
-      const duplicate = findPotentialDuplicate(record, state.dependencies)
-      const logEntry = {
-        id: generateId(),
-        timestamp: new Date().toISOString(),
-        teamId: record.teamId,
-        type: 'dependency_created',
-        dependencyId: record.id,
-        duplicateOfId: duplicate?.id ?? null,
-        status: 'pending',
-      }
-      const next = {
-        ...state,
-        dependencies: [...state.dependencies, record],
-        changeLog: [...state.changeLog, logEntry],
-        usingMockData: false,
-      }
-      persist(next)
+      persist((prev) => {
+        const duplicate = findPotentialDuplicate(record, prev.dependencies)
+        const logEntry = {
+          id: generateId(),
+          timestamp: new Date().toISOString(),
+          teamId: record.teamId,
+          type: 'dependency_created',
+          dependencyId: record.id,
+          duplicateOfId: duplicate?.id ?? null,
+          status: 'pending',
+        }
+        return {
+          ...prev,
+          dependencies: [...prev.dependencies, record],
+          changeLog: [...prev.changeLog, logEntry],
+          usingMockData: false,
+        }
+      })
       return record
     },
-    [state, persist],
+    [persist],
   )
 
   // Voor 'N dependencies tegelijk aanmaken' (bv. een ketenafhankelijkheid
-  // voor meerdere teams): meerdere addDependency-aanroepen ná elkaar zouden
-  // allemaal vanuit dezelfde (stale) state-snapshot bouwen — élke aanroep
-  // overschrijft dan de vorige in plaats van erop voort te bouwen, en alleen
-  // de laatste blijft over. Bouw de records daarom in één keer en persist ze
-  // in één state-update.
+  // voor meerdere teams): alle records in één keer bouwen en in één
+  // state-update persisten (dit was al zo, en blijft met de functionele
+  // persist hieronder correct ook als er nóg een actie in hetzelfde event
+  // volgt).
   const addDependencies = useCallback(
     (deps) => {
       const now = new Date().toISOString().slice(0, 10)
       const records = deps.map((dependency) => ({ ...dependency, id: generateId(), laatst_bijgewerkt: now, aangemaakt_op: now }))
-      const next = { ...state, dependencies: [...state.dependencies, ...records], usingMockData: false }
-      persist(next)
+      persist((prev) => ({ ...prev, dependencies: [...prev.dependencies, ...records], usingMockData: false }))
       return records
     },
-    [state, persist],
+    [persist],
   )
 
   const updateDependency = useCallback(
     (id, updates) => {
-      const next = {
-        ...state,
-        dependencies: state.dependencies.map((d) =>
-          d.id === id ? { ...d, ...updates, laatst_bijgewerkt: new Date().toISOString().slice(0, 10) } : d,
-        ),
+      const today = new Date().toISOString().slice(0, 10)
+      persist((prev) => ({
+        ...prev,
+        dependencies: prev.dependencies.map((d) => (d.id === id ? { ...d, ...updates, laatst_bijgewerkt: today } : d)),
         usingMockData: false,
-      }
-      persist(next)
+      }))
     },
-    [state, persist],
+    [persist],
   )
 
   const deleteDependency = useCallback(
     (id) => {
-      const next = { ...state, dependencies: state.dependencies.filter((d) => d.id !== id) }
-      persist(next)
+      persist((prev) => ({ ...prev, dependencies: prev.dependencies.filter((d) => d.id !== id) }))
     },
-    [state, persist],
+    [persist],
   )
 
   // --- admin-logpagina: review van teamwijzigingen + dependency-dedup ---
@@ -405,38 +498,37 @@ export function AppProvider({ children }) {
   // gekoppeld via dedupGroupId.
   const approveChange = useCallback(
     (logId) => {
-      const entry = state.changeLog.find((c) => c.id === logId)
-      if (!entry) return
-      let dependencies = state.dependencies
-      if (entry.duplicateOfId) {
-        const nieuw = dependencies.find((d) => d.id === entry.dependencyId)
-        const bestaand = dependencies.find((d) => d.id === entry.duplicateOfId)
-        if (nieuw && bestaand) {
-          const today = new Date().toISOString().slice(0, 10)
-          const dedupGroupId = nieuw.dedupGroupId ?? bestaand.dedupGroupId ?? generateId()
-          const kopieVoorNieuwTeam = buildCrossTeamCopy(bestaand, nieuw.teamId, dedupGroupId, today)
-          const kopieVoorBestaandTeam = buildCrossTeamCopy(nieuw, bestaand.teamId, dedupGroupId, today)
-          dependencies = [
-            ...dependencies.map((d) =>
-              d.id === nieuw.id || d.id === bestaand.id ? { ...d, dedupGroupId } : d,
-            ),
-            kopieVoorNieuwTeam,
-            kopieVoorBestaandTeam,
-          ]
+      persist((prev) => {
+        const entry = prev.changeLog.find((c) => c.id === logId)
+        if (!entry) return prev
+        let dependencies = prev.dependencies
+        if (entry.duplicateOfId) {
+          const nieuw = dependencies.find((d) => d.id === entry.dependencyId)
+          const bestaand = dependencies.find((d) => d.id === entry.duplicateOfId)
+          if (nieuw && bestaand) {
+            const today = new Date().toISOString().slice(0, 10)
+            const dedupGroupId = nieuw.dedupGroupId ?? bestaand.dedupGroupId ?? generateId()
+            const kopieVoorNieuwTeam = buildCrossTeamCopy(bestaand, nieuw.teamId, dedupGroupId, today)
+            const kopieVoorBestaandTeam = buildCrossTeamCopy(nieuw, bestaand.teamId, dedupGroupId, today)
+            dependencies = [
+              ...dependencies.map((d) => (d.id === nieuw.id || d.id === bestaand.id ? { ...d, dedupGroupId } : d)),
+              kopieVoorNieuwTeam,
+              kopieVoorBestaandTeam,
+            ]
+          }
         }
-      }
-      const changeLog = state.changeLog.map((c) => (c.id === logId ? { ...c, status: 'approved' } : c))
-      persist({ ...state, dependencies, changeLog })
+        const changeLog = prev.changeLog.map((c) => (c.id === logId ? { ...c, status: 'approved' } : c))
+        return { ...prev, dependencies, changeLog }
+      })
     },
-    [state, persist],
+    [persist],
   )
 
   const rejectChange = useCallback(
     (logId) => {
-      const changeLog = state.changeLog.map((c) => (c.id === logId ? { ...c, status: 'rejected' } : c))
-      persist({ ...state, changeLog })
+      persist((prev) => ({ ...prev, changeLog: prev.changeLog.map((c) => (c.id === logId ? { ...c, status: 'rejected' } : c)) }))
     },
-    [state, persist],
+    [persist],
   )
 
   // Wordt aangeroepen nadat de admin de dependency zelf heeft aangepast via
@@ -444,10 +536,9 @@ export function AppProvider({ children }) {
   // de status van de log-entry, verandert geen data.
   const markChangeEdited = useCallback(
     (logId) => {
-      const changeLog = state.changeLog.map((c) => (c.id === logId ? { ...c, status: 'edited' } : c))
-      persist({ ...state, changeLog })
+      persist((prev) => ({ ...prev, changeLog: prev.changeLog.map((c) => (c.id === logId ? { ...c, status: 'edited' } : c)) }))
     },
-    [state, persist],
+    [persist],
   )
 
   // --- data-beheer ---
@@ -469,18 +560,21 @@ export function AppProvider({ children }) {
   const importState = useCallback((imported) => {
     validateImportShape(imported)
     const next = migrateState(imported)
-    saveState(next)
+    const ok = saveState(next)
     setState(next)
     setCurrentTeamId(firstActiveTeamId(next.teams))
+    setSaveError(!ok)
   }, [])
+
+  const dismissCorruptedNotice = useCallback(() => setCorruptedOnLoad(false), [])
 
   // Admin: pagina's/secties tonen of verbergen. Puur UI, geen datawijziging —
   // zie DEFAULT_ADMIN_SETTINGS in lib/storage.js voor de volledige structuur.
   const updateAdminSettings = useCallback(
     (next) => {
-      persist({ ...state, adminSettings: next })
+      persist((prev) => ({ ...prev, adminSettings: next }))
     },
-    [state, persist],
+    [persist],
   )
 
   const value = useMemo(
@@ -528,6 +622,10 @@ export function AppProvider({ children }) {
       renameSnapshot,
       restoreSnapshot,
       deleteSnapshot,
+      saveError,
+      dismissSaveError,
+      corruptedOnLoad,
+      dismissCorruptedNotice,
     }),
     [
       state,
@@ -563,6 +661,10 @@ export function AppProvider({ children }) {
       approveChange,
       rejectChange,
       markChangeEdited,
+      saveError,
+      dismissSaveError,
+      corruptedOnLoad,
+      dismissCorruptedNotice,
     ],
   )
 
