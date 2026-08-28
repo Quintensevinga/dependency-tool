@@ -3,6 +3,44 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Verwerk audit: 21 bevindingen (correctheid, robuustheid, performance)** (Lars Hoogland)
+
+  Correctheid: Matrix-overzicht bleef niet meer leeg na een teamwijziging of
+  import (excluded-set patroon, zoals GraphView al deed); sorteren op
+  'laatst bijgewerkt' crasht niet meer op data zonder dat veld; risicobalk
+  schaalt nu op een afgeleide MAX_RISK_SCORE i.p.v. een hardcoded 11; twee
+  overlappende externe categorieën samengevoegd met migratie voor bestaande
+  data; risicoberekening gebruikt nu veilige lookup-tabellen (Object.create
+  (null)) met een fallback, i.p.v. te kunnen crashen op een waarde als
+  'constructor'.
+
+  Robuustheid: een React ErrorBoundary rond de hoofd-app i.p.v. een wit
+  scherm bij een renderfout; mislukt wegschrijven naar localStorage (bv. vol
+  quotum) geeft nu een duidelijke melding i.p.v. stil te falen; onleesbare
+  opgeslagen data wordt bewaard en aangeboden om te downloaden i.p.v.
+  stilzwijgend vervangen door demodata; PNG-export op de teampagina werkt nu
+  echt (had voorheen een lege ref); state wordt nog maar één keer geladen bij
+  opstarten; een team verwijderen wordt nu ook geblokkeerd als een ander team
+  er via een input/output-koppeling nog naar verwijst; alle acties in
+  AppContext.jsx (en TeamPage's patch()) zijn omgezet naar functionele
+  state-updates, wat het risico wegneemt dat twee wijzigingen binnen
+  dezelfde gebeurtenis elkaar overschrijven; momentopname-namen botsen niet
+  meer zodra de limiet van tien bereikt is, en een moment terugzetten
+  bewaart eerst automatisch de huidige stand; Escape sluit niet meer alle
+  openstaande vensters tegelijk, en modals hebben nu een echte focus-trap.
+
+  Overig: het adminwachtwoord komt uit een omgevingsvariabele i.p.v.
+  hardcoded in de broncode; alle lint-waarschuwingen zijn opgelost; de
+  productiebundel is met code-splitting (reactflow/html2canvas-pro/
+  teampagina-schermen) van ~940 kB naar ~236 kB initieel bundel gebracht;
+  twee "high"-kwetsbaarheden in de afhankelijkheden verholpen; de
+  ketenberekening in Ketenoverzicht en de risicoberekening tijdens sorteren
+  lopen niet meer onnodig dubbel.
+
+  Build, lint en npm audit zijn schoon; een brede browsertest (alle
+  hoofdschermen, dependency aanmaken, PNG-export, admin-toegang) bevestigt
+  geen regressies.
+
 - **Canvas-verbeteringen: lijnrouting, hover-tooltips, filters, input/output-uniformering** (Lars Hoogland)
 
   Relatielijnen in Netwerkweergave, Ketenoverzicht en de teampagina gebruiken
