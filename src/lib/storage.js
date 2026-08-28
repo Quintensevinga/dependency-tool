@@ -1,5 +1,5 @@
 import { MOCK_TEAMS, MOCK_DEPENDENCIES, MOCK_TEAM_WORKFLOWS } from '../data/mockData'
-import { WORKFLOW_STAGES } from '../data/constants'
+import { WORKFLOW_STAGES, BRON_TYPES, EXTERNAL_PARTY_STATUS } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
 const STORAGE_KEY = 'dependency-insight:v1'
@@ -198,6 +198,12 @@ function migrateDependency(raw, teamsState) {
     actieAfspraak: typeof raw.actieAfspraak === 'string' ? raw.actieAfspraak : '',
     applicatieIds: Array.isArray(raw.applicatieIds) ? raw.applicatieIds : [],
     geaccepteerd: raw.geaccepteerd === true,
+    oplosbaarheid: typeof raw.oplosbaarheid === 'string' ? raw.oplosbaarheid : '',
+    // Bestaande dependencies kennen geen aanmaakmoment — geen datum verzinnen
+    // (onvolledig ≠ nul), de UI toont dit expliciet als "onbekend". Alleen
+    // nieuw aangemaakte records (via AppContext.addDependency) krijgen dit
+    // vanaf nu automatisch gezet.
+    aangemaakt_op: typeof raw.aangemaakt_op === 'string' ? raw.aangemaakt_op : null,
   }
 }
 
@@ -213,6 +219,7 @@ export function migrateState(raw) {
   )
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
   const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
+  const externalParties = migrateExternalParties(source.externalParties)
 
   const adminSettings = migrateAdminSettings(source.adminSettings)
 
@@ -222,6 +229,7 @@ export function migrateState(raw) {
     dependencies,
     teamWorkflows,
     teamSnapshots,
+    externalParties,
     usingMockData: Boolean(source.usingMockData),
     adminSettings,
   }
@@ -256,6 +264,25 @@ function migrateTeamWorkflows(rawWorkflows, teams) {
     }
   }
   return result
+}
+
+// Externe partijen: centrale, admin-beheerde lijst (team/rol/persoon/systeem/
+// omgeving/stakeholder) met een goedkeuring/weigering-workflow. Onbekend
+// type/status vallen terug op een veilige default i.p.v. de import te
+// blokkeren — zelfde filosofie als de rest van deze migratielaag.
+function migrateExternalParties(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((p) => p && typeof p === 'object' && typeof p.naam === 'string' && p.naam.trim())
+    .map((p) => ({
+      id: p.id ? String(p.id) : generateId(),
+      naam: p.naam.trim(),
+      type: BRON_TYPES.includes(p.type) ? p.type : 'stakeholder',
+      status: EXTERNAL_PARTY_STATUS.includes(p.status) ? p.status : 'actief',
+      createdAt: p.createdAt ?? todayIso(),
+      updatedAt: p.updatedAt ?? todayIso(),
+      voorgesteldDoorTeamId: p.voorgesteldDoorTeamId ?? null,
+    }))
 }
 
 function migrateTeamSnapshots(rawSnapshots, teams) {
@@ -303,6 +330,7 @@ function emptyState() {
     dependencies: [],
     teamWorkflows: {},
     teamSnapshots: {},
+    externalParties: [],
     usingMockData: false,
     adminSettings: migrateAdminSettings(),
   }

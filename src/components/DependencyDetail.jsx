@@ -14,6 +14,7 @@ import {
   translateWorkflowStap,
   translateEffectOpFlow,
   translateFlowtype,
+  translateOplosbaarheid,
   getCategoryDescription,
 } from '../i18n/labels'
 import { CategoryIcon } from '../data/categoryIcons'
@@ -30,7 +31,7 @@ function Field({ label, value }) {
 
 export default function DependencyDetail({ dependency, onClose, onEdit, onDelete, onDuplicate }) {
   const { t, language } = useLanguage()
-  const { teamName, teamWorkflows, updateDependency } = useAppContext()
+  const { teamName, teamWorkflows, updateDependency, externalParties } = useAppContext()
   const panelRef = useRef(null)
   useModalA11y({ open: Boolean(dependency), onClose, containerRef: panelRef })
 
@@ -39,6 +40,7 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
   const style = riskStyle(risk.level)
   const riskLevel = translateRiskLevel(risk.level, language)
   const teamApplications = teamWorkflows[dependency.teamId]?.applications ?? []
+  const geraaktPartij = dependency.geraaktPartijId ? externalParties.find((p) => p.id === dependency.geraaktPartijId) : null
   const labeledApplicatieNames = (dependency.applicatieIds ?? [])
     .map((id) => teamApplications.find((app) => app.id === id)?.naam)
     .filter(Boolean)
@@ -144,11 +146,29 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
 
           <Field label={t('detail.toelichting')} value={dependency.toelichting} />
           <Field label={t('detail.legacyRol')} value={dependency.rol_betrokkene} />
-          {dependency.scope === 'extern' && (
+          {dependency.scope === 'extern' && dependency.geraakte_team_extern && !geraaktPartij && (
             <Field label={t('detail.geraaktTeam')} value={dependency.geraakte_team_extern} />
           )}
+          {dependency.scope === 'extern' && geraaktPartij && (
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('detail.geraaktPartij')}</div>
+              <div className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-700">
+                {geraaktPartij.naam}
+                {geraaktPartij.status === 'geweigerd' && (
+                  <span className="rounded bg-[#9a3b2e]/10 px-1.5 py-0.5 text-xs font-medium text-[#9a3b2e]">
+                    ▲ {t('party.rejected')}
+                  </span>
+                )}
+                {geraaktPartij.status === 'in_afwachting' && (
+                  <span className="rounded bg-[#2a5f8a]/10 px-1.5 py-0.5 text-xs font-medium text-[#2a5f8a]">{t('party.pending')}</span>
+                )}
+              </div>
+            </div>
+          )}
+          <Field label={t('detail.oplosbaarheid')} value={translateOplosbaarheid(dependency.oplosbaarheid, language)} />
           <Field label={t('detail.actieAfspraak')} value={dependency.actieAfspraak} />
           <Field label={t('detail.mitigatie')} value={dependency.mitigatie} />
+          <Field label={t('detail.aangemaaktOp')} value={dependency.aangemaakt_op ?? t('detail.aangemaaktOpOnbekend')} />
           <Field label={t('detail.updated')} value={dependency.laatst_bijgewerkt} />
         </div>
 

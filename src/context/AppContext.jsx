@@ -224,11 +224,94 @@ export function AppProvider({ children }) {
     [state, persist],
   )
 
+  // --- externe partijen (centrale, admin-beheerde lijst) ---
+
+  // Retourneert direct het nieuwe id (niet pas na een re-render), zodat een
+  // aanroeper (bv. PartyPicker) het net aangemaakte partij-id meteen in het
+  // omringende formulier kan zetten.
+  const addExternalParty = useCallback(
+    (naam, type, { pending = false, teamId = null } = {}) => {
+      const trimmed = naam.trim()
+      if (!trimmed) return null
+      const today = new Date().toISOString().slice(0, 10)
+      const id = generateId()
+      const party = {
+        id,
+        naam: trimmed,
+        type: type || 'stakeholder',
+        status: pending ? 'in_afwachting' : 'actief',
+        createdAt: today,
+        updatedAt: today,
+        voorgesteldDoorTeamId: teamId,
+      }
+      persist({ ...state, externalParties: [...state.externalParties, party] })
+      return id
+    },
+    [state, persist],
+  )
+
+  const renameExternalParty = useCallback(
+    (id, naam) => {
+      const trimmed = naam.trim()
+      if (!trimmed) return
+      const today = new Date().toISOString().slice(0, 10)
+      persist({
+        ...state,
+        externalParties: state.externalParties.map((p) => (p.id === id ? { ...p, naam: trimmed, updatedAt: today } : p)),
+      })
+    },
+    [state, persist],
+  )
+
+  const approveExternalParty = useCallback(
+    (id) => {
+      const today = new Date().toISOString().slice(0, 10)
+      persist({
+        ...state,
+        externalParties: state.externalParties.map((p) => (p.id === id ? { ...p, status: 'actief', updatedAt: today } : p)),
+      })
+    },
+    [state, persist],
+  )
+
+  // Weigeren verwijdert het record niet: verwijzingen vanuit dependencies of
+  // input/output-items blijven bestaan en tonen een waarschuwing i.p.v. de
+  // partij (en daarmee de context van die verwijzing) stilzwijgend te laten
+  // verdwijnen.
+  const rejectExternalParty = useCallback(
+    (id) => {
+      const today = new Date().toISOString().slice(0, 10)
+      persist({
+        ...state,
+        externalParties: state.externalParties.map((p) => (p.id === id ? { ...p, status: 'geweigerd', updatedAt: today } : p)),
+      })
+    },
+    [state, persist],
+  )
+
+  // Retourneert true bij succes, false als de partij nog ergens aan
+  // gekoppeld is (dan moet de UI weigeren/archiveren aanbieden i.p.v.
+  // verwijderen).
+  const deleteExternalParty = useCallback(
+    (id) => {
+      const inUse =
+        state.dependencies.some((d) => d.geraaktPartijId === id) ||
+        Object.values(state.teamWorkflows).some(
+          (w) => (w.inputs ?? []).some((i) => i.externalPartyId === id) || (w.outputs ?? []).some((o) => o.externalPartyId === id),
+        )
+      if (inUse) return false
+      persist({ ...state, externalParties: state.externalParties.filter((p) => p.id !== id) })
+      return true
+    },
+    [state, persist],
+  )
+
   // --- dependencies ---
 
   const addDependency = useCallback(
     (dependency) => {
-      const record = { ...dependency, id: generateId(), laatst_bijgewerkt: new Date().toISOString().slice(0, 10) }
+      const today = new Date().toISOString().slice(0, 10)
+      const record = { ...dependency, id: generateId(), laatst_bijgewerkt: today, aangemaakt_op: today }
       const next = { ...state, dependencies: [...state.dependencies, record], usingMockData: false }
       persist(next)
       return record
@@ -245,7 +328,7 @@ export function AppProvider({ children }) {
   const addDependencies = useCallback(
     (deps) => {
       const now = new Date().toISOString().slice(0, 10)
-      const records = deps.map((dependency) => ({ ...dependency, id: generateId(), laatst_bijgewerkt: now }))
+      const records = deps.map((dependency) => ({ ...dependency, id: generateId(), laatst_bijgewerkt: now, aangemaakt_op: now }))
       const next = { ...state, dependencies: [...state.dependencies, ...records], usingMockData: false }
       persist(next)
       return records
@@ -316,6 +399,12 @@ export function AppProvider({ children }) {
       dependencies: state.dependencies,
       teamWorkflows: state.teamWorkflows,
       teamSnapshots: state.teamSnapshots,
+      externalParties: state.externalParties,
+      addExternalParty,
+      renameExternalParty,
+      approveExternalParty,
+      rejectExternalParty,
+      deleteExternalParty,
       usingMockData: state.usingMockData,
       adminSettings: state.adminSettings,
       updateAdminSettings,
@@ -370,6 +459,11 @@ export function AppProvider({ children }) {
       restoreSnapshot,
       deleteSnapshot,
       updateAdminSettings,
+      addExternalParty,
+      renameExternalParty,
+      approveExternalParty,
+      rejectExternalParty,
+      deleteExternalParty,
     ],
   )
 

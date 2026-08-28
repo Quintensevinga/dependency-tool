@@ -100,3 +100,15 @@ export const SENIORITY_LEVELS = ['junior', 'medior', 'senior']
 // "Vormt het wegvallen van deze persoon/rol een risico voor de workflow?"
 export const RISICO_BIJ_UITVAL = ['ja', 'nee']
 
+// "Op welk niveau is deze dependency op te lossen?" — vrij invulbaar door de
+// aanmaker, geen afgeleide waarde. Vervangt het eerder overwogen afgeleide
+// 'oplossingsniveau' (uit scope+categorie) — dit expliciete veld geeft de
+// invuller meer controle en is minder grof.
+export const OPLOSBAARHEID_LEVELS = ['teamlid', 'meerdere_teamleden', 'meerdere_teams', 'team_overstijgend', 'organisatorisch']
+
+// --- Externe partijen (admin-beheerde centrale lijst) ---
+// Hergebruikt BRON_TYPES als partij-type (team/rol/persoon/systeem/omgeving/
+// stakeholder) — zelfde soort "van wie/wat" als bij een input-item, nu alleen
+// als beheerde, herbruikbare entiteit i.p.v. losse vrije tekst per keer.
+export const EXTERNAL_PARTY_STATUS = ['actief', 'in_afwachting', 'geweigerd']
+

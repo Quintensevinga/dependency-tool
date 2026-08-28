@@ -37,6 +37,7 @@ import DependencyForm from './DependencyForm'
 import DependencyDetail from './DependencyDetail'
 import SpotlightTour from './SpotlightTour'
 import FloatingTooltip from './FloatingTooltip'
+import PartyPicker from './PartyPicker'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
 
@@ -1300,8 +1301,8 @@ function canvasHeightFor(inputs, outputs) {
 
 function emptyIoItem(kind) {
   return kind === 'input'
-    ? { id: generateId(), label: '', flowtype: '', bron_type: '', linkedTeam: '', linkedOutputId: '', applicatieId: '', externalTeam: '' }
-    : { id: generateId(), label: '', flowtype: '', applicatieId: '', externalTeam: '' }
+    ? { id: generateId(), label: '', flowtype: '', bron_type: '', linkedTeam: '', linkedOutputId: '', applicatieId: '', externalTeam: '', externalPartyId: '' }
+    : { id: generateId(), label: '', flowtype: '', applicatieId: '', externalTeam: '', externalPartyId: '' }
 }
 
 // Compacte beschrijving van een input/output-item voor de Teamgegevens-lijst
@@ -1326,7 +1327,7 @@ function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName,
 // Klein modal-formulier voor één input-/output-item — vervangt de eerder
 // altijd-open inline velden per rij, zodat de lijst daarboven een rustig,
 // leesbaar overzicht blijft en je alleen bij bewerken de details ziet.
-function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeamId, teamWorkflows, applications, t, language }) {
+function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeamId, teamWorkflows, applications, externalParties, addExternalParty, t, language }) {
   const [draft, setDraft] = useState(() => ({ ...emptyIoItem(kind), ...item }))
   const isEditing = Boolean(item)
   const showBron = kind === 'input'
@@ -1461,11 +1462,14 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioExternalTeamLabel')}</label>
-            <input
-              value={draft.externalTeam ?? ''}
-              onChange={(e) => update({ externalTeam: e.target.value })}
-              placeholder={t('teampage.ioExternalTeamPlaceholder')}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+            <PartyPicker
+              value={draft.externalPartyId}
+              onChange={(id, naam) => update({ externalPartyId: id, externalTeam: naam })}
+              externalParties={externalParties}
+              addExternalParty={addExternalParty}
+              currentTeamId={currentTeamId}
+              t={t}
+              language={language}
             />
           </div>
 
@@ -2350,6 +2354,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     updateDependency,
     deleteDependency,
     teamName,
+    externalParties,
+    addExternalParty,
   } = useAppContext()
   const { t, language } = useLanguage()
   const teamNaam = teamName(teamId)
@@ -3691,6 +3697,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               currentTeamId={teamId}
               teamWorkflows={teamWorkflows}
               applications={workflow.applications}
+              externalParties={externalParties}
+              addExternalParty={addExternalParty}
               t={t}
               language={language}
             />

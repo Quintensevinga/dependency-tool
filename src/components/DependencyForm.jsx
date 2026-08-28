@@ -7,6 +7,7 @@ import {
   WORKFLOW_STAP_LEVELS,
   EFFECT_OP_FLOW_LEVELS,
   FLOWTYPE_LEVELS,
+  OPLOSBAARHEID_LEVELS,
 } from '../data/constants'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -18,8 +19,10 @@ import {
   translateStatus,
   translateWorkflowStap,
   translateEffectOpFlow,
+  translateOplosbaarheid,
   getCategoryDescription,
 } from '../i18n/labels'
+import PartyPicker from './PartyPicker'
 
 const EMPTY_FORM = {
   teamIds: [],
@@ -29,9 +32,11 @@ const EMPTY_FORM = {
   titel: '',
   toelichting: '',
   geraakte_team_extern: '',
+  geraaktPartijId: '',
   impact: '',
   frequentie: '',
   status: '',
+  oplosbaarheid: '',
   workflowStap: '',
   effectOpFlow: '',
   mitigatie: '',
@@ -78,7 +83,7 @@ const inputClass =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none'
 
 export default function DependencyForm({ defaultTeamId, initialData, prefill, onSave, onCancel }) {
-  const { teams, activeTeams, teamLabels } = useAppContext()
+  const { teams, activeTeams, teamLabels, externalParties, addExternalParty } = useAppContext()
   const { t, language } = useLanguage()
   const dialogRef = useRef(null)
 
@@ -104,6 +109,8 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
       workflowStap: initialData?.workflowStap ?? prefill?.workflowStap ?? '',
       effectOpFlow: initialData?.effectOpFlow ?? prefill?.effectOpFlow ?? '',
       actieAfspraak: initialData?.actieAfspraak ?? prefill?.actieAfspraak ?? '',
+      oplosbaarheid: initialData?.oplosbaarheid ?? prefill?.oplosbaarheid ?? '',
+      geraaktPartijId: initialData?.geraaktPartijId ?? prefill?.geraaktPartijId ?? '',
     }
   }
   const [form, setForm] = useState(() => initialFormRef.current)
@@ -142,8 +149,13 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     if (!form[field]?.trim?.()) errors[field] = t('form.required')
   }
   if (form.teamIds.length === 0) errors.teamIds = t('form.required')
-  if (form.scope === 'extern' && !form.geraakte_team_extern?.trim()) {
-    errors.geraakte_team_extern = t('form.required')
+  if (form.scope === 'extern') {
+    if (geraaktMode === 'team' && !form.geraakte_team_extern?.trim()) {
+      errors.geraakte_team_extern = t('form.required')
+    }
+    if (geraaktMode === 'extern' && !form.geraaktPartijId) {
+      errors.geraaktPartijId = t('form.required')
+    }
   }
   if (form.flowtype === 'ontwikkelflow' && !form.workflowStap?.trim()) {
     errors.workflowStap = t('form.required')
@@ -178,12 +190,21 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
 
   function handleSubmit(e) {
     e.preventDefault()
-    setTouched(Object.fromEntries([...requiredFields, 'teamIds', 'workflowStap'].map((f) => [f, true])))
+    setTouched(Object.fromEntries([...requiredFields, 'teamIds', 'workflowStap', 'geraakte_team_extern', 'geraaktPartijId'].map((f) => [f, true])))
     if (Object.keys(errors).length > 0) return
     const { teamIds, ...rest } = form
     const [teamId, ...extraTeamIds] = teamIds
     const payload = { ...rest, teamId }
-    if (form.scope === 'intern') delete payload.geraakte_team_extern
+    if (form.scope === 'intern') {
+      delete payload.geraakte_team_extern
+      delete payload.geraaktPartijId
+    } else if (geraaktMode === 'team') {
+      payload.geraaktPartijId = ''
+    }
+    // Bij geraaktMode 'extern' blijft geraakte_team_extern gevuld met de
+    // partijnaam (zie handlePartijChange) — dat houdt de bestaande "Externe
+    // teams tonen"-canvasvisualisatie in TeamPage.jsx werkend, die nog op dit
+    // vrije-tekstveld matcht i.p.v. op geraaktPartijId.
     // Applicatieflow kent geen workflowstap — nooit opslaan, ook niet als het
     // veld door een eerdere flowtype-keuze nog een waarde had.
     if (form.flowtype === 'applicatieflow') payload.workflowStap = ''
@@ -449,17 +470,20 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                   ))}
                 </select>
               ) : (
-                <input
-                  id="dep-geraakt"
-                  value={form.geraakte_team_extern}
-                  onChange={(e) => update('geraakte_team_extern', e.target.value)}
-                  onBlur={() => markTouched('geraakte_team_extern')}
-                  placeholder={t('form.geraaktTeamPlaceholder')}
-                  aria-describedby={touched.geraakte_team_extern && errors.geraakte_team_extern ? 'err-geraakt' : undefined}
-                  className={inputClass}
-                />
+                <div onBlur={() => markTouched('geraaktPartijId')}>
+                  <PartyPicker
+                    value={form.geraaktPartijId}
+                    onChange={(id, naam) => setForm((f) => ({ ...f, geraaktPartijId: id, geraakte_team_extern: naam }))}
+                    externalParties={externalParties}
+                    addExternalParty={addExternalParty}
+                    currentTeamId={form.teamIds[0] ?? defaultTeamId ?? null}
+                    t={t}
+                    language={language}
+                  />
+                </div>
               )}
               {touched.geraakte_team_extern && <FieldError id="err-geraakt" message={errors.geraakte_team_extern} />}
+              {touched.geraaktPartijId && <FieldError id="err-geraakt-partij" message={errors.geraaktPartijId} />}
             </div>
           )}
 
@@ -521,6 +545,26 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               </select>
               {touched.status && <FieldError id="err-status" message={errors.status} />}
             </div>
+          </div>
+
+          <div>
+            <div className="mb-1 flex items-center gap-1.5">
+              <Label htmlFor="dep-oplosbaarheid">{t('form.oplosbaarheid')}</Label>
+              <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
+            </div>
+            <select
+              id="dep-oplosbaarheid"
+              value={form.oplosbaarheid}
+              onChange={(e) => update('oplosbaarheid', e.target.value)}
+              className={inputClass}
+            >
+              <option value="">—</option>
+              {OPLOSBAARHEID_LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {translateOplosbaarheid(lvl, language)}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>

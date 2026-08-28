@@ -201,6 +201,20 @@ export const RISICO_BIJ_UITVAL_LABELS = {
   nee: { nl: 'Nee', en: 'No' },
 }
 
+export const OPLOSBAARHEID_LABELS = {
+  teamlid: { nl: 'Eén teamlid', en: 'One team member' },
+  meerdere_teamleden: { nl: 'Meerdere teamleden', en: 'Multiple team members' },
+  meerdere_teams: { nl: 'Meerdere teams', en: 'Multiple teams' },
+  team_overstijgend: { nl: 'Team-overstijgend', en: 'Cross-team' },
+  organisatorisch: { nl: 'Organisatorisch', en: 'Organizational' },
+}
+
+export const EXTERNAL_PARTY_STATUS_LABELS = {
+  actief: { nl: 'Actief', en: 'Active' },
+  in_afwachting: { nl: 'In afwachting', en: 'Pending' },
+  geweigerd: { nl: 'Geweigerd', en: 'Rejected' },
+}
+
 function lookup(map, key, lang) {
   return map[key]?.[lang] ?? key
 }
@@ -218,6 +232,8 @@ export const translateWorkflowStage = (key, lang) => (key ? lookup(WORKFLOW_STAG
 export const translateBronType = (key, lang) => (key ? lookup(BRON_TYPE_LABELS, key, lang) : '')
 export const translateSeniority = (key, lang) => (key ? lookup(SENIORITY_LABELS, key, lang) : '')
 export const translateRisicoBijUitval = (key, lang) => (key ? lookup(RISICO_BIJ_UITVAL_LABELS, key, lang) : '')
+export const translateOplosbaarheid = (key, lang) => (key ? lookup(OPLOSBAARHEID_LABELS, key, lang) : '')
+export const translateExternalPartyStatus = (key, lang) => (key ? lookup(EXTERNAL_PARTY_STATUS_LABELS, key, lang) : '')
 
 export function getCategoryDescription(categorie, scope, lang) {
   return CATEGORY_DESCRIPTIONS[scope]?.[categorie]?.[lang] ?? ''

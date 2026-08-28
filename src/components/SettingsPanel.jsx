@@ -4,6 +4,8 @@ import { useLanguage } from '../context/LanguageContext'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
 import { emptyTeamWorkflow } from '../lib/storage'
 import { useModalA11y } from '../lib/a11y'
+import { BRON_TYPES } from '../data/constants'
+import { translateBronType } from '../i18n/labels'
 
 // Structuur voor de Admin-toggles: welke pagina's en secties zijn er, en hoe
 // heten ze. Bewust hier als platte config i.p.v. door het volledige i18n-
@@ -239,6 +241,171 @@ function ManageSection({ title, items, addPlaceholder, onAdd, onRename, onArchiv
   )
 }
 
+// Rij voor één externe partij — zelfde iconen/opmaak als ManageRow, maar met
+// een derde status (in_afwachting) en accepteren/weigeren i.p.v. alleen
+// archiveren. Weigeren verwijdert het record bewust niet (zie
+// rejectExternalParty in AppContext.jsx) — referenties elders in de app
+// blijven zo zichtbaar met een waarschuwing i.p.v. spoorloos te verdwijnen.
+function PartyRow({ item, onRename, onApprove, onReject, onDelete, blockedMessage }) {
+  const { t, language } = useLanguage()
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(item.naam)
+  const [blocked, setBlocked] = useState(false)
+
+  function submitRename(e) {
+    e.preventDefault()
+    if (value.trim()) onRename(item.id, value.trim())
+    setEditing(false)
+  }
+
+  function handleDelete() {
+    const ok = onDelete(item.id)
+    if (!ok) {
+      setBlocked(true)
+      window.setTimeout(() => setBlocked(false), 4000)
+    }
+  }
+
+  if (editing) {
+    return (
+      <form onSubmit={submitRename} className="flex items-center gap-1.5 py-1">
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={submitRename}
+          className="w-full rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+        />
+        <button type="submit" className="shrink-0 text-xs font-medium text-[#2a5f8a] hover:underline">
+          {t('settings.save')}
+        </button>
+      </form>
+    )
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-2 py-1">
+      <span className={`truncate text-xs ${item.status === 'geweigerd' ? 'text-slate-400 line-through' : 'text-slate-700'}`} title={item.naam}>
+        {item.naam}
+        <span className="ml-1.5 text-[10px] font-medium normal-case text-slate-400">({translateBronType(item.type, language)})</span>
+        {item.status === 'in_afwachting' && (
+          <span className="ml-1.5 rounded bg-[#2a5f8a]/10 px-1 py-0.5 text-[10px] font-medium normal-case text-[#2a5f8a] no-underline">
+            {t('party.pending')}
+          </span>
+        )}
+        {item.status === 'geweigerd' && (
+          <span className="ml-1.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium normal-case text-slate-500 no-underline">
+            {t('party.rejected')}
+          </span>
+        )}
+      </span>
+      <span className="flex shrink-0 items-center gap-0.5">
+        {item.status === 'in_afwachting' && (
+          <>
+            <button
+              type="button"
+              onClick={() => onApprove(item.id)}
+              className="rounded p-1.5 text-[#2a5f8a] hover:bg-[#2a5f8a]/10"
+              aria-label={t('party.approve')}
+              title={t('party.approve')}
+            >
+              ✓
+            </button>
+            <button
+              type="button"
+              onClick={() => onReject(item.id)}
+              className="rounded p-1.5 text-[#9a3b2e] hover:bg-[#9a3b2e]/10"
+              aria-label={t('party.reject')}
+              title={t('party.reject')}
+            >
+              ✕
+            </button>
+          </>
+        )}
+        <IconButton label={t('settings.rename')} onClick={() => setEditing(true)}>
+          <EditIcon />
+        </IconButton>
+        <IconButton label={t('settings.delete')} onClick={handleDelete} danger>
+          <DeleteIcon />
+        </IconButton>
+      </span>
+      {blocked && <p className="w-full text-[11px] text-[#9a3b2e]">{blockedMessage}</p>}
+    </div>
+  )
+}
+
+function PartySection({ items, onAdd, onRename, onApprove, onReject, onDelete }) {
+  const { t, language } = useLanguage()
+  const [open, setOpen] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newType, setNewType] = useState('stakeholder')
+
+  function submitAdd(e) {
+    e.preventDefault()
+    if (!newName.trim()) return
+    onAdd(newName, newType)
+    setNewName('')
+  }
+
+  // In afwachting eerst — dat is precies waar een admin actie op moet nemen.
+  const sorted = [...items].sort((a, b) => {
+    const rank = { in_afwachting: 0, actief: 1, geweigerd: 2 }
+    return rank[a.status] - rank[b.status] || a.naam.localeCompare(b.naam)
+  })
+
+  return (
+    <div className="rounded-md border border-slate-200">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="flex w-full items-center justify-between px-3 py-2 text-left">
+        <span className="text-xs font-semibold text-slate-700">{t('settings.parties.title')}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className={`shrink-0 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}>
+          <path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-slate-100 px-3 py-2">
+          <p className="mb-2 text-[11px] leading-relaxed text-slate-400">{t('settings.parties.helper')}</p>
+          <div className="max-h-48 divide-y divide-slate-50 overflow-y-auto">
+            {sorted.length === 0 && <p className="py-1.5 text-xs text-slate-400">{t('settings.empty')}</p>}
+            {sorted.map((item) => (
+              <PartyRow
+                key={item.id}
+                item={item}
+                onRename={onRename}
+                onApprove={onApprove}
+                onReject={onReject}
+                onDelete={onDelete}
+                blockedMessage={t('settings.parties.deleteBlocked')}
+              />
+            ))}
+          </div>
+          <form onSubmit={submitAdd} className="mt-2 flex items-center gap-1.5 border-t border-slate-100 pt-2">
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder={t('settings.parties.addPlaceholder')}
+              className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+            />
+            <select
+              value={newType}
+              onChange={(e) => setNewType(e.target.value)}
+              className="shrink-0 rounded-md border border-slate-300 bg-white px-1.5 py-1.5 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              {BRON_TYPES.map((bt) => (
+                <option key={bt} value={bt}>
+                  {translateBronType(bt, language)}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="shrink-0 rounded-md bg-[#2a5f8a] px-2.5 py-1.5 text-xs text-white hover:bg-[#1f4a6c]">
+              {t('settings.add')}
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPanel({ onClose, onExportPng }) {
   const {
     dependencies,
@@ -258,6 +425,12 @@ export default function SettingsPanel({ onClose, onExportPng }) {
     deleteTeam,
     adminSettings,
     updateAdminSettings,
+    externalParties,
+    addExternalParty,
+    renameExternalParty,
+    approveExternalParty,
+    rejectExternalParty,
+    deleteExternalParty,
   } = useAppContext()
   const { t, language } = useLanguage()
   const [confirmingReset, setConfirmingReset] = useState(false)
@@ -543,6 +716,14 @@ export default function SettingsPanel({ onClose, onExportPng }) {
                 </form>
               ) : (
                 <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <PartySection
+                    items={externalParties}
+                    onAdd={(naam, type) => addExternalParty(naam, type, { pending: false })}
+                    onRename={renameExternalParty}
+                    onApprove={approveExternalParty}
+                    onReject={rejectExternalParty}
+                    onDelete={deleteExternalParty}
+                  />
                   <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.admin.toggleHint')}</p>
                   {ADMIN_PAGE_CONFIG.map((page) => (
                     <div key={page.key} className="rounded-md border border-slate-200 bg-white p-2.5">
