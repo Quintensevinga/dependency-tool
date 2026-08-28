@@ -6,6 +6,7 @@ import { emptyTeamWorkflow } from '../lib/storage'
 import { useModalA11y } from '../lib/a11y'
 import { BRON_TYPES } from '../data/constants'
 import { translateBronType } from '../i18n/labels'
+import AdminLogPage from './AdminLogPage'
 
 // Structuur voor de Admin-toggles: welke pagina's en secties zijn er, en hoe
 // heten ze. Bewust hier als platte config i.p.v. door het volledige i18n-
@@ -726,6 +727,7 @@ export default function SettingsPanel({ onClose, onExportPng }) {
                     {t('settings.admin.uitgebreideAnalyse')}
                   </label>
                   <p className="text-[11px] leading-relaxed text-slate-400">{t('settings.admin.uitgebreideAnalyseHint')}</p>
+                  <AdminLogPage />
                   <PartySection
                     items={externalParties}
                     onAdd={(naam, type) => addExternalParty(naam, type, { pending: false })}

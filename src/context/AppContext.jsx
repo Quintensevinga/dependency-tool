@@ -21,6 +21,29 @@ function firstActiveTeamId(teams) {
   return teams.find((t) => t.actief)?.id ?? null
 }
 
+// Zoekt een bestaande dependency op een ánder team die dezelfde categorie
+// deelt én een overlappende partij- of applicatiereferentie heeft — het
+// signaal dat twee teams onafhankelijk van elkaar (waarschijnlijk) dezelfde
+// onderliggende afhankelijkheid hebben vastgelegd.
+function findPotentialDuplicate(newDep, existingDependencies) {
+  return existingDependencies.find((d) => {
+    if (d.teamId === newDep.teamId || d.categorie !== newDep.categorie) return false
+    const samePartij = newDep.geraaktPartijId && d.geraaktPartijId === newDep.geraaktPartijId
+    const overlapApp = (newDep.applicatieIds ?? []).some((id) => (d.applicatieIds ?? []).includes(id))
+    return samePartij || overlapApp
+  })
+}
+
+// Bouwt een onafhankelijke kopie van een dependency voor een ander team —
+// zelfde patroon als de bestaande 'meerdere teams'-aanmaakflow in
+// DependencyForm/TeamPage (elk team krijgt zijn eigen record, geen gedeeld
+// record met een team-lijst erop). dedupGroupId koppelt de betrokken records
+// achteraf herkenbaar aan elkaar.
+function buildCrossTeamCopy(dependency, teamId, dedupGroupId, today) {
+  const { id: _id, extraTeamIds: _extra, geaccepteerd: _geaccepteerd, ...rest } = dependency
+  return { ...rest, id: generateId(), teamId, dedupGroupId, geaccepteerd: false, laatst_bijgewerkt: today, aangemaakt_op: today }
+}
+
 export function AppProvider({ children }) {
   const [state, setState] = useState(() => loadState())
   const [currentTeamId, setCurrentTeamId] = useState(() => firstActiveTeamId(loadState().teams))
@@ -312,7 +335,22 @@ export function AppProvider({ children }) {
     (dependency) => {
       const today = new Date().toISOString().slice(0, 10)
       const record = { ...dependency, id: generateId(), laatst_bijgewerkt: today, aangemaakt_op: today }
-      const next = { ...state, dependencies: [...state.dependencies, record], usingMockData: false }
+      const duplicate = findPotentialDuplicate(record, state.dependencies)
+      const logEntry = {
+        id: generateId(),
+        timestamp: new Date().toISOString(),
+        teamId: record.teamId,
+        type: 'dependency_created',
+        dependencyId: record.id,
+        duplicateOfId: duplicate?.id ?? null,
+        status: 'pending',
+      }
+      const next = {
+        ...state,
+        dependencies: [...state.dependencies, record],
+        changeLog: [...state.changeLog, logEntry],
+        usingMockData: false,
+      }
       persist(next)
       return record
     },
@@ -354,6 +392,60 @@ export function AppProvider({ children }) {
     (id) => {
       const next = { ...state, dependencies: state.dependencies.filter((d) => d.id !== id) }
       persist(next)
+    },
+    [state, persist],
+  )
+
+  // --- admin-logpagina: review van teamwijzigingen + dependency-dedup ---
+
+  // Bevestigt een gelogde wijziging. Bij een gemarkeerd duplicaat maakt dit
+  // de dependency voor béíde teams zichtbaar door voor elk team een eigen
+  // kopie van de ander te materialiseren (zelfde aanpak als de bestaande
+  // 'meerdere teams'-aanmaakflow) — geen gedeeld record, wel herkenbaar
+  // gekoppeld via dedupGroupId.
+  const approveChange = useCallback(
+    (logId) => {
+      const entry = state.changeLog.find((c) => c.id === logId)
+      if (!entry) return
+      let dependencies = state.dependencies
+      if (entry.duplicateOfId) {
+        const nieuw = dependencies.find((d) => d.id === entry.dependencyId)
+        const bestaand = dependencies.find((d) => d.id === entry.duplicateOfId)
+        if (nieuw && bestaand) {
+          const today = new Date().toISOString().slice(0, 10)
+          const dedupGroupId = nieuw.dedupGroupId ?? bestaand.dedupGroupId ?? generateId()
+          const kopieVoorNieuwTeam = buildCrossTeamCopy(bestaand, nieuw.teamId, dedupGroupId, today)
+          const kopieVoorBestaandTeam = buildCrossTeamCopy(nieuw, bestaand.teamId, dedupGroupId, today)
+          dependencies = [
+            ...dependencies.map((d) =>
+              d.id === nieuw.id || d.id === bestaand.id ? { ...d, dedupGroupId } : d,
+            ),
+            kopieVoorNieuwTeam,
+            kopieVoorBestaandTeam,
+          ]
+        }
+      }
+      const changeLog = state.changeLog.map((c) => (c.id === logId ? { ...c, status: 'approved' } : c))
+      persist({ ...state, dependencies, changeLog })
+    },
+    [state, persist],
+  )
+
+  const rejectChange = useCallback(
+    (logId) => {
+      const changeLog = state.changeLog.map((c) => (c.id === logId ? { ...c, status: 'rejected' } : c))
+      persist({ ...state, changeLog })
+    },
+    [state, persist],
+  )
+
+  // Wordt aangeroepen nadat de admin de dependency zelf heeft aangepast via
+  // het gewone bewerk-formulier (updateDependency) — deze actie zet alleen
+  // de status van de log-entry, verandert geen data.
+  const markChangeEdited = useCallback(
+    (logId) => {
+      const changeLog = state.changeLog.map((c) => (c.id === logId ? { ...c, status: 'edited' } : c))
+      persist({ ...state, changeLog })
     },
     [state, persist],
   )
@@ -405,6 +497,10 @@ export function AppProvider({ children }) {
       approveExternalParty,
       rejectExternalParty,
       deleteExternalParty,
+      changeLog: state.changeLog,
+      approveChange,
+      rejectChange,
+      markChangeEdited,
       usingMockData: state.usingMockData,
       adminSettings: state.adminSettings,
       updateAdminSettings,
@@ -464,6 +560,9 @@ export function AppProvider({ children }) {
       approveExternalParty,
       rejectExternalParty,
       deleteExternalParty,
+      approveChange,
+      rejectChange,
+      markChangeEdited,
     ],
   )
 

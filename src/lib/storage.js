@@ -229,6 +229,7 @@ export function migrateState(raw) {
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
   const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
   const externalParties = migrateExternalParties(source.externalParties)
+  const changeLog = migrateChangeLog(source.changeLog)
 
   const adminSettings = migrateAdminSettings(source.adminSettings)
 
@@ -239,6 +240,7 @@ export function migrateState(raw) {
     teamWorkflows,
     teamSnapshots,
     externalParties,
+    changeLog,
     usingMockData: Boolean(source.usingMockData),
     adminSettings,
   }
@@ -303,6 +305,26 @@ function migrateTeamSnapshots(rawSnapshots, teams) {
   return result
 }
 
+// Wijzigingenlog voor de admin-logpagina: één entry per aangemaakte
+// dependency, met een eventuele markering als mogelijk duplicaat van een
+// dependency op een ander team (zie AppContext.jsx addDependency/
+// findPotentialDuplicate). Onbekende/corrupte entries vallen weg i.p.v. de
+// hele import te blokkeren.
+function migrateChangeLog(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((c) => c && typeof c === 'object' && c.id && c.dependencyId)
+    .map((c) => ({
+      id: String(c.id),
+      timestamp: c.timestamp ?? new Date().toISOString(),
+      teamId: c.teamId ?? null,
+      type: c.type ?? 'dependency_created',
+      dependencyId: c.dependencyId,
+      duplicateOfId: c.duplicateOfId ?? null,
+      status: ['pending', 'approved', 'edited', 'rejected'].includes(c.status) ? c.status : 'pending',
+    }))
+}
+
 // Structurele validatie van een geïmporteerd JSON-bestand. Gooit een
 // duidelijke, Nederlandstalige foutmelding i.p.v. stil te falen of de
 // bestaande data te overschrijven met onbruikbare data. Veldniveau-waarden
@@ -340,6 +362,7 @@ function emptyState() {
     teamWorkflows: {},
     teamSnapshots: {},
     externalParties: [],
+    changeLog: [],
     usingMockData: false,
     adminSettings: migrateAdminSettings(),
   }
