@@ -3,6 +3,22 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Voeg klikbare mockup toe van het heringedeelde dependency-formulier** (Quinten)
+
+  Statische mockup (public/form-mockup.html, bereikbaar op /form-mockup.html)
+  van hoe het dependency-formulier eruitziet met de toggle "Uitgebreide
+  analyse" aan. Nog geen implementatie — bedoeld om af te stemmen.
+
+  Vier blokken met een verhaallijn: wat is het, waar in de flow, hoe erg en
+  wat kost het, wat doen we ermee. Inschattingen zijn knoppenrijen in plaats
+  van dropdowns, met per optie meerdere voorbeelden die je kunt doorklikken
+  en die ook bij hover te lezen zijn zonder je keuze te wijzigen. Onderaan
+  blok 3 een live uitkomst met de opbouw van de risicoscore erbij.
+
+  Gebruikt de canonieke waarden uit de codebase: workflowstap en effect op
+  flow uit labels.js, oplosbaarheid met de vier waarden van het eerder
+  verwijderde oplossingsniveau (team, samenwerking, opschaling, monitoren).
+
 - **Ketenoverzicht: kolom- en itemvolgorde op ketenlogica baseren** (Lars Hoogland)
 
   Teams stonden in een vaste, willekeurige volgorde (context-aanmaakvolgorde),
