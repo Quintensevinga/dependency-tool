@@ -30,6 +30,7 @@ import {
 import PartyPicker from './PartyPicker'
 import SegmentedField from './form/SegmentedField'
 import OutcomeBar from './form/OutcomeBar'
+import { bepaalKwadrant } from '../lib/analysis'
 
 const EMPTY_FORM = {
   teamIds: [],
@@ -275,6 +276,9 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             beeld liet vallen. */}
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {adminSettings.uitgebreideAnalyse && (
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatIsHet')}</p>
+          )}
           <div>
             <div className="mb-1 flex items-center justify-between gap-2">
               <Label required htmlFor="dep-team">{isEditing || !multiTeamMode ? t('form.team') : t('form.teams')}</Label>
@@ -335,6 +339,20 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               </div>
             )}
             {touched.teamIds && <FieldError id="err-team" message={errors.teamIds} />}
+          </div>
+
+          <div>
+            <Label required htmlFor="dep-titel">{t('form.titel')}</Label>
+            <input
+              id="dep-titel"
+              value={form.titel}
+              onChange={(e) => update('titel', e.target.value)}
+              onBlur={() => markTouched('titel')}
+              placeholder={t('form.titelPlaceholder')}
+              aria-describedby={touched.titel && errors.titel ? 'err-titel' : undefined}
+              className={inputClass}
+            />
+            {touched.titel && <FieldError id="err-titel" message={errors.titel} />}
           </div>
 
           <div>
@@ -415,20 +433,6 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
           </div>
 
           <div>
-            <Label required htmlFor="dep-titel">{t('form.titel')}</Label>
-            <input
-              id="dep-titel"
-              value={form.titel}
-              onChange={(e) => update('titel', e.target.value)}
-              onBlur={() => markTouched('titel')}
-              placeholder={t('form.titelPlaceholder')}
-              aria-describedby={touched.titel && errors.titel ? 'err-titel' : undefined}
-              className={inputClass}
-            />
-            {touched.titel && <FieldError id="err-titel" message={errors.titel} />}
-          </div>
-
-          <div>
             <Label htmlFor="dep-toelichting">{t('form.toelichting')}</Label>
             <textarea
               id="dep-toelichting"
@@ -506,6 +510,62 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               {touched.geraaktPartijId && <FieldError id="err-geraakt-partij" message={errors.geraaktPartijId} />}
             </div>
           )}
+
+          {adminSettings.uitgebreideAnalyse && form.flowtype !== 'applicatieflow' && (
+            <p className="border-t border-slate-200 pt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              {t('form.blokWaarInFlow')}
+            </p>
+          )}
+
+          <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>
+            {/* Applicatieflow hoort bij een draaiende applicatie/keten, niet bij
+                een fase van het ontwikkelproces — het veld is daarom niet
+                optioneel-maar-verborgen, maar volledig weg, en wordt nooit
+                opgeslagen (zie update()/handleSubmit hierboven). */}
+            {form.flowtype !== 'applicatieflow' && (
+              <div>
+                <div className="mb-1 flex items-center gap-1.5">
+                  <Label required htmlFor="dep-workflowstap">
+                    {t('form.workflowStap')}
+                  </Label>
+                  <InfoIcon tooltip={t('form.workflowStapRequiredHelper')} />
+                </div>
+                <select
+                  id="dep-workflowstap"
+                  value={form.workflowStap}
+                  onChange={(e) => update('workflowStap', e.target.value)}
+                  onBlur={() => markTouched('workflowStap')}
+                  aria-describedby={touched.workflowStap && errors.workflowStap ? 'err-workflowstap' : undefined}
+                  className={inputClass}
+                >
+                  <option value="">—</option>
+                  {WORKFLOW_STAP_LEVELS.map((lvl) => (
+                    <option key={lvl} value={lvl}>
+                      {translateWorkflowStap(lvl, language)}
+                    </option>
+                  ))}
+                </select>
+                {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
+              </div>
+            )}
+            {form.flowtype === 'applicatieflow' && (
+              <p className="text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
+            )}
+            <div>
+              <div className="mb-1 flex items-center gap-1.5">
+                <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
+                <InfoIcon tooltip={t('form.effectOpFlowHelper')} />
+              </div>
+              <select id="dep-effect" value={form.effectOpFlow} onChange={(e) => update('effectOpFlow', e.target.value)} className={inputClass}>
+                <option value="">—</option>
+                {EFFECT_OP_FLOW_LEVELS.map((lvl) => (
+                  <option key={lvl} value={lvl}>
+                    {translateEffectOpFlow(lvl, language)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
           {/* Bij uitgebreide analyse worden de inschattingen knoppenrijen met
               ankertekst i.p.v. dropdowns: je ziet de hele schaal in één keer
@@ -609,6 +669,18 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 >
                   <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
                 </SegmentedField>
+                {/* Wat de combinatie flowverlies x oplosbaarheid betekent voor
+                    de vervolgstap — zo doet het veld meteen iets zichtbaars
+                    i.p.v. alleen geregistreerd te worden. */}
+                {bepaalKwadrant(form) && (
+                  <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                    <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      {t('kwadrant.titel')}
+                    </span>
+                    <span className="font-semibold text-slate-700">{t(`kwadrant.${bepaalKwadrant(form)}`)}</span>
+                    <span className="text-slate-500"> — {t(`kwadrant.${bepaalKwadrant(form)}Uitleg`)}</span>
+                  </p>
+                )}
               </div>
             </div>
           ) : (
@@ -696,58 +768,6 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             </>
           )}
 
-
-
-          <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>
-            {/* Applicatieflow hoort bij een draaiende applicatie/keten, niet bij
-                een fase van het ontwikkelproces — het veld is daarom niet
-                optioneel-maar-verborgen, maar volledig weg, en wordt nooit
-                opgeslagen (zie update()/handleSubmit hierboven). */}
-            {form.flowtype !== 'applicatieflow' && (
-              <div>
-                <div className="mb-1 flex items-center gap-1.5">
-                  <Label required htmlFor="dep-workflowstap">
-                    {t('form.workflowStap')}
-                  </Label>
-                  <InfoIcon tooltip={t('form.workflowStapRequiredHelper')} />
-                </div>
-                <select
-                  id="dep-workflowstap"
-                  value={form.workflowStap}
-                  onChange={(e) => update('workflowStap', e.target.value)}
-                  onBlur={() => markTouched('workflowStap')}
-                  aria-describedby={touched.workflowStap && errors.workflowStap ? 'err-workflowstap' : undefined}
-                  className={inputClass}
-                >
-                  <option value="">—</option>
-                  {WORKFLOW_STAP_LEVELS.map((lvl) => (
-                    <option key={lvl} value={lvl}>
-                      {translateWorkflowStap(lvl, language)}
-                    </option>
-                  ))}
-                </select>
-                {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
-              </div>
-            )}
-            {form.flowtype === 'applicatieflow' && (
-              <p className="text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
-            )}
-            <div>
-              <div className="mb-1 flex items-center gap-1.5">
-                <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
-                <InfoIcon tooltip={t('form.effectOpFlowHelper')} />
-              </div>
-              <select id="dep-effect" value={form.effectOpFlow} onChange={(e) => update('effectOpFlow', e.target.value)} className={inputClass}>
-                <option value="">—</option>
-                {EFFECT_OP_FLOW_LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {translateEffectOpFlow(lvl, language)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
           <div>
             <Label htmlFor="dep-mitigatie">{t('form.mitigatie')}</Label>
             <textarea
@@ -771,6 +791,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               className={inputClass}
             />
           </div>
+
+
+
+
 
         </div>
 

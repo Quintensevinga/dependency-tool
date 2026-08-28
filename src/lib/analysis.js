@@ -86,6 +86,27 @@ export function isQuickWin(dependency) {
   return makkelijkOplosbaar && flow.level !== 'Laag'
 }
 
+// Kosten van niets doen (flowverlies) afgezet tegen kosten van wel doen
+// (oplosbaarheid). Dat levert vier hoeken op die elk een ander gesprek zijn —
+// en met name de vierde wordt zelden expliciet gemaakt: sommige dingen zijn
+// het escaleren simpelweg niet waard, en dat hardop kunnen zeggen scheelt
+// teams veel frustratie.
+//
+// Geeft null zolang het profiel onvolledig is: zonder flowverlies of
+// oplosbaarheid valt er niets zinnigs over te zeggen.
+const BINNEN_TEAM = new Set(['teamlid', 'meerdere_teamleden'])
+
+export function bepaalKwadrant(dependency) {
+  const flow = berekenFlowverlies(dependency)
+  if (!flow || !dependency.oplosbaarheid) return null
+  const veelVerlies = flow.level !== 'Laag'
+  const zelfOplosbaar = BINNEN_TEAM.has(dependency.oplosbaarheid)
+  if (veelVerlies && zelfOplosbaar) return 'quick_win'
+  if (veelVerlies) return 'opschalen'
+  if (zelfOplosbaar) return 'opruimen'
+  return 'accepteren'
+}
+
 export function analyseLabels(dependency, riskLevel) {
   const labels = []
   if (isStilRisico(dependency, riskLevel)) labels.push('stil_risico')
