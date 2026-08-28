@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Handle, Position, ReactFlowProvider, useReactFlow } from 'reactflow'
+import { BaseEdge, Handle, MarkerType, Position, ReactFlowProvider, useReactFlow } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
-import { calculateRisk } from '../lib/risk'
+import { calculateRisk, riskLevelRank } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import { translateRiskLevel } from '../i18n/labels'
-import { resolveChainEdges, orderTeamsByChain } from '../lib/teamWorkflow'
+import { resolveChainEdges, orderTeamsByChain, aggregateChainLinks, resolveConnectedTeamIds } from '../lib/teamWorkflow'
 import { emptyTeamWorkflow } from '../lib/storage'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -40,10 +40,23 @@ function TeamHeaderNode({ data }) {
     // een team wegfilteren zou de keten zelf doorknippen, terwijl dat team er
     // nog steeds in zit — of, bij context, bewust even op de achtergrond staat.
     <div
-      className="w-52 cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity hover:shadow-lg"
+      className="relative w-52 cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity hover:shadow-lg"
       style={{ borderColor: data.count > 0 ? style.hex : '#cbd5e1', opacity: dimmed ? 0.4 : 1 }}
       title={data.dimmed ? t('chain.dimmedByRiskFilter') : t('chain.clickToFocusHint')}
     >
+      {/* Zes met een expliciete id onderscheiden handles: nodig zodra een node
+          meerdere handles van hetzelfde type heeft (reactflow-vereiste). Altijd
+          aanwezig, ook in focusmodus — die zet nooit sourceHandle/targetHandle
+          op zijn edges en blijft dus het eerst-gedeclareerde paar (right-source/
+          left-target) gebruiken. Alleen de geaggregeerde overview-edges (zie
+          computeChainOverviewLayout) kiezen bewust welke handle-id ze gebruiken,
+          afhankelijk van naburige vs. overgeslagen kolommen. */}
+      <Handle type="source" position={Position.Right} id="right-source" style={{ opacity: 0.4 }} />
+      <Handle type="target" position={Position.Left} id="left-target" style={{ opacity: 0.4 }} />
+      <Handle type="source" position={Position.Left} id="left-source" style={{ opacity: 0.4 }} />
+      <Handle type="target" position={Position.Right} id="right-target" style={{ opacity: 0.4 }} />
+      <Handle type="source" position={Position.Top} id="top-source" style={{ opacity: 0.4 }} />
+      <Handle type="target" position={Position.Top} id="top-target" style={{ opacity: 0.4 }} />
       <div className="text-sm font-semibold text-slate-800">{data.label}</div>
       {data.count > 0 ? (
         <div className={`mt-1 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>
@@ -149,6 +162,39 @@ function ChainIoNode({ data }) {
 }
 
 const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode, chainGroupLabel: ChainGroupLabelNode }
+
+// Aangepaste edge voor "overgeslagen kolommen" in de overview-modus: reactflow's
+// ingebouwde bezier-curvatuur biedt géén boog wanneer bron en doel op dezelfde
+// hoogte staan (de curvatuurformule voor Position.Top gaat uit van een doel dat
+// hoger ligt dan de bron — bij twee teamkaarten in dezelfde rij levert dat een
+// volkomen platte lijn op, exact ter hoogte van de bovenkant van elke
+// tussenliggende kolom, ontdekt tijdens browserverificatie). Deze edge tekent
+// daarom zelf een eenvoudige kwadratische boog met een apex die meeschaalt met
+// de overspanning, zodat de lijn altijd duidelijk boven de tussenliggende
+// teamkaarten uit komt.
+function ChainSkipEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd, label, labelStyle, labelBgStyle, labelBgPadding, labelBgBorderRadius }) {
+  const midX = (sourceX + targetX) / 2
+  const span = Math.abs(targetX - sourceX)
+  const apex = Math.min(Math.max(span * 0.35, 50), 160)
+  const topY = Math.min(sourceY, targetY) - apex
+  const path = `M ${sourceX},${sourceY} Q ${midX},${topY} ${targetX},${targetY}`
+  return (
+    <BaseEdge
+      path={path}
+      markerEnd={markerEnd}
+      style={style}
+      label={label}
+      labelX={midX}
+      labelY={topY + apex * 0.3}
+      labelStyle={labelStyle}
+      labelBgStyle={labelBgStyle}
+      labelBgPadding={labelBgPadding}
+      labelBgBorderRadius={labelBgBorderRadius}
+    />
+  )
+}
+
+const chainEdgeTypes = { chainSkip: ChainSkipEdge }
 
 function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, groupInfo = null, chainEdgesAll = []) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
@@ -309,6 +355,127 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
   return { nodes, edges: routedEdges, canvasWidth, canvasHeight }
 }
 
+const OV_COLUMN_WIDTH = 300
+const OV_ROW_Y = 120
+const OV_ROW_HEIGHT = 90
+const OV_TRAY_GAP = 70
+const OV_TRAY_LABEL_Y = OV_ROW_Y + OV_ROW_HEIGHT + OV_TRAY_GAP - 30
+const OV_TRAY_Y = OV_ROW_Y + OV_ROW_HEIGHT + OV_TRAY_GAP
+
+// Geaggregeerde ketenstroom-lay-out voor de overview-modus (niet gefocust op
+// één team): één kaart per team i.p.v. één kaart per los IN/OUT-item, en één
+// pijl per teampaar i.p.v. één lijn per itempaar. Lost het "lijnen lopen door
+// niet-gerelateerde tussenkolommen heen"-probleem structureel op — er zijn
+// per definitie nooit meer pijlen dan teamparen. Focusmodus blijft de losse
+// computeChainLayout hierboven gebruiken, ongewijzigd.
+// _groupInfo blijft ongebruikt maar staat wél op de 5e positie: useMergedLayout
+// geeft dezelfde deps-array door aan welke van de twee lay-outfuncties er ook
+// actief is (zie de useMergedLayout-aanroep in ChainOverview) — de array moet
+// bij elke render dezelfde lengte houden (React waarschuwt anders: "changed
+// size between renders"), dus computeChainLayout en computeChainOverviewLayout
+// delen exact dezelfde argumentvolgorde, ook al gebruikt deze functie
+// groupInfo niet.
+function computeChainOverviewLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, _groupInfo, chainEdgesAll = [], connectedTeamIds = new Set(), noConnectionLabel = '') {
+  const naamVan = (team) => teamLabels[team.id] ?? team.naam
+  const nodes = []
+
+  const connectedVisible = visibleTeams.filter((team) => connectedTeamIds.has(team.id))
+  const isolatedVisible = visibleTeams.filter((team) => !connectedTeamIds.has(team.id))
+  const rowColumnIndex = new Map(connectedVisible.map((team, i) => [team.id, i]))
+
+  function pushTeamHeader(team, columnX, y) {
+    const workflow = teamWorkflows[team.id] ?? emptyTeamWorkflow()
+    const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
+    const empty = workflow.inputs.length === 0 && workflow.outputs.length === 0
+    nodes.push({
+      id: `team-header-ov:${team.id}`,
+      type: 'chainHeader',
+      position: { x: columnX, y },
+      data: { teamId: team.id, label: naamVan(team), risk, count: risk.count ?? 0, empty, dimmed: risk.dimmed ?? false, groupKind: null },
+      draggable: true,
+    })
+  }
+
+  connectedVisible.forEach((team, ti) => pushTeamHeader(team, ti * OV_COLUMN_WIDTH, OV_ROW_Y))
+
+  if (isolatedVisible.length > 0) {
+    nodes.push({
+      id: 'group-label:no-connection',
+      type: 'chainGroupLabel',
+      position: { x: 0, y: OV_TRAY_LABEL_Y },
+      data: { label: noConnectionLabel },
+      draggable: false,
+      selectable: false,
+      focusable: false,
+    })
+    isolatedVisible.forEach((team, ti) => pushTeamHeader(team, ti * OV_COLUMN_WIDTH, OV_TRAY_Y))
+  }
+
+  // Aggregatie per teampaar (i.p.v. per los itempaar) — dikte/kleur/label
+  // worden hieronder afgeleid, geen custom edge-component nodig.
+  const teamIdSet = new Set(visibleTeams.map((team) => team.id))
+  const teamNaamById = Object.fromEntries(visibleTeams.map((team) => [team.id, naamVan(team)]))
+  const groups = aggregateChainLinks(chainEdgesAll).filter((g) => teamIdSet.has(g.sourceTeam) && teamIdSet.has(g.targetTeam))
+
+  const edges = groups.map((g) => {
+    const colA = rowColumnIndex.get(g.sourceTeam)
+    const colB = rowColumnIndex.get(g.targetTeam)
+    const dist = colB - colA
+    let sourceHandle
+    let targetHandle
+    let type
+    if (Math.abs(dist) === 1) {
+      // Naburige kolommen: korte rechtstreekse lijn, zelfde visuele taal als
+      // de huidige item-niveau lijnen.
+      sourceHandle = dist === 1 ? 'right-source' : 'left-source'
+      targetHandle = dist === 1 ? 'left-target' : 'right-target'
+      type = 'smoothstep'
+    } else {
+      // Eén of meer kolommen overgeslagen: via de bovenkant, zodat de
+      // bezier-curve óver de tussenliggende, niet-gerelateerde teamkolommen
+      // heen boogt i.p.v. er dwars doorheen te lopen — de kern van deze fix.
+      sourceHandle = 'top-source'
+      targetHandle = 'top-target'
+      type = 'chainSkip'
+    }
+
+    // Er bestaat geen risicoscore per ketenkoppeling (dependencies hangen aan
+    // een teamId, niet aan een specifieke partner) — zie CLAUDE.md
+    // ("risicoscores zijn altijd uitlegbaar, nooit een black box"). De kleur
+    // toont daarom bewust een benadering: het hoogste van de twee gekoppelde
+    // teams' eigen, al bestaande risiconiveau (dezelfde badge als op de
+    // teamkaart) — geen nieuwe, verzonnen metriek per lijn.
+    const riskA = teamRisk[g.sourceTeam]?.level ?? 'Laag'
+    const riskB = teamRisk[g.targetTeam]?.level ?? 'Laag'
+    const level = riskLevelRank(riskA) >= riskLevelRank(riskB) ? riskA : riskB
+    const style = riskStyle(level)
+    const count = g.links.length
+
+    return {
+      id: g.id,
+      source: `team-header-ov:${g.sourceTeam}`,
+      target: `team-header-ov:${g.targetTeam}`,
+      sourceHandle,
+      targetHandle,
+      type,
+      style: { stroke: style.hex, strokeWidth: Math.min(2 + count * 1.5, 8) },
+      markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
+      label: count > 1 ? String(count) : undefined,
+      labelStyle: { fill: style.hex, fontWeight: 700, fontSize: 11 },
+      labelBgStyle: { fill: 'white' },
+      labelBgPadding: [4, 2],
+      labelBgBorderRadius: 6,
+      data: {
+        sourceTeamNaam: teamNaamById[g.sourceTeam] ?? g.sourceTeam,
+        targetTeamNaam: teamNaamById[g.targetTeam] ?? g.targetTeam,
+        links: g.links.map((l) => ({ sourceLabel: l.sourceLabel, targetLabel: l.targetLabel })),
+      },
+    }
+  })
+
+  return { nodes, edges }
+}
+
 export default function ChainOverview({ adminSections, sidebarMode }) {
   const { teams, dependencies, teamWorkflows, teamLabels } = useAppContext()
   const { t, language } = useLanguage()
@@ -426,13 +593,23 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     }
   }, [chainPartners, dependencies, focusTeamId, scope])
 
-  const [{ nodes, edges }, onNodesChange] = useMergedLayout(computeChainLayout, [
+  // Alleen relevant in overview-modus (focusmodus heeft nooit een team zonder
+  // ketenkoppeling in beeld, die groepering gebeurt daar al anders).
+  const connectedTeamIds = useMemo(() => resolveConnectedTeamIds(visibleTeams, chainEdgesAll), [visibleTeams, chainEdgesAll])
+
+  // Eén vaste deps-vorm voor beide lay-outfuncties (zie de toelichting bij
+  // computeChainOverviewLayout's _groupInfo-parameter): useEffect/useMergedLayout
+  // vereist een deps-array met een stabiele lengte over renders heen, ook al
+  // wisselt welke van de twee functies er daadwerkelijk gebruikt wordt.
+  const [{ nodes, edges }, onNodesChange] = useMergedLayout(focusActive ? computeChainLayout : computeChainOverviewLayout, [
     visibleTeams,
     teamWorkflows,
     teamRisk,
     teamLabels,
     groupInfo,
     chainEdgesAll,
+    connectedTeamIds,
+    t('chain.groupNoConnection'),
   ])
 
   // Hover toont de koppeling vluchtig, klik pint 'm vast — zodat je een lijn
@@ -519,8 +696,11 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
             )}
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="hidden text-xs text-slate-400 sm:inline" title={t('chain.edgeHint')}>
-              {t('chain.edgeHint')}
+            <span
+              className="hidden text-xs text-slate-400 sm:inline"
+              title={focusActive ? t('chain.edgeHint') : t('chain.overviewLegend')}
+            >
+              {focusActive ? t('chain.edgeHint') : t('chain.overviewLegend')}
             </span>
             <ScopeToggle scope={scope} onChange={setScope} />
           </div>
@@ -612,6 +792,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 nodes={nodes}
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
+                edgeTypes={chainEdgeTypes}
                 onNodesChange={onNodesChange}
                 onNodeClick={(_, node) => {
                   if (node.type === 'chainHeader') focusOnTeam(node.data.teamId)
@@ -624,16 +805,36 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               />
               {hoverEdge?.data && (
                 <FloatingTooltip x={hoverEdge.x} y={hoverEdge.y}>
-                  <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                    {t('chain.edgeTooltipTitle')}
-                  </div>
-                  <div className="text-slate-300">
-                    <span className="text-slate-50">{hoverEdge.data.sourceTeamNaam}</span> · {hoverEdge.data.sourceLabel || '—'}
-                  </div>
-                  <div className="text-slate-400">↓</div>
-                  <div className="text-slate-300">
-                    <span className="text-slate-50">{hoverEdge.data.targetTeamNaam}</span> · {hoverEdge.data.targetLabel || '—'}
-                  </div>
+                  {Array.isArray(hoverEdge.data.links) ? (
+                    <>
+                      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                        {hoverEdge.data.links.length === 1
+                          ? t('chain.edgeTooltipCountOne')
+                          : t('chain.edgeTooltipCount', { count: hoverEdge.data.links.length })}
+                      </div>
+                      {hoverEdge.data.links.slice(0, 6).map((link, i) => (
+                        <div key={i} className="text-slate-300">
+                          <span className="text-slate-50">{link.sourceLabel || '—'}</span> → {link.targetLabel || '—'}
+                        </div>
+                      ))}
+                      {hoverEdge.data.links.length > 6 && (
+                        <div className="mt-1 text-slate-400">{t('chain.edgeTooltipMore', { count: hoverEdge.data.links.length - 6 })}</div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                        {t('chain.edgeTooltipTitle')}
+                      </div>
+                      <div className="text-slate-300">
+                        <span className="text-slate-50">{hoverEdge.data.sourceTeamNaam}</span> · {hoverEdge.data.sourceLabel || '—'}
+                      </div>
+                      <div className="text-slate-400">↓</div>
+                      <div className="text-slate-300">
+                        <span className="text-slate-50">{hoverEdge.data.targetTeamNaam}</span> · {hoverEdge.data.targetLabel || '—'}
+                      </div>
+                    </>
+                  )}
                 </FloatingTooltip>
               )}
             </div>
@@ -642,18 +843,41 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
 
         {selectedEdge?.data && (
           <div className="flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
-            <div className="min-w-0 text-xs">
-              <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">{t('chain.edgeSelectedTitle')}</div>
-              <div className="text-slate-700">
-                <span className="font-medium">{selectedEdge.data.sourceTeamNaam}</span>
-                <span className="text-slate-400"> · {t('chain.edgeOutput')}: </span>
-                {selectedEdge.data.sourceLabel || '—'}
-              </div>
-              <div className="text-slate-700">
-                <span className="font-medium">{selectedEdge.data.targetTeamNaam}</span>
-                <span className="text-slate-400"> · {t('chain.edgeInput')}: </span>
-                {selectedEdge.data.targetLabel || '—'}
-              </div>
+            <div className="min-w-0 flex-1 text-xs">
+              {Array.isArray(selectedEdge.data.links) ? (
+                <>
+                  <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">
+                    {selectedEdge.data.sourceTeamNaam} → {selectedEdge.data.targetTeamNaam} ·{' '}
+                    {selectedEdge.data.links.length === 1
+                      ? t('chain.edgeSelectedCountOne')
+                      : t('chain.edgeSelectedCount', { count: selectedEdge.data.links.length })}
+                  </div>
+                  <div className="space-y-1">
+                    {selectedEdge.data.links.map((link, i) => (
+                      <div key={i} className="text-slate-700">
+                        <span className="text-slate-400">{t('chain.edgeOutput')}: </span>
+                        {link.sourceLabel || '—'}
+                        <span className="text-slate-400"> · {t('chain.edgeInput')}: </span>
+                        {link.targetLabel || '—'}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">{t('chain.edgeSelectedTitle')}</div>
+                  <div className="text-slate-700">
+                    <span className="font-medium">{selectedEdge.data.sourceTeamNaam}</span>
+                    <span className="text-slate-400"> · {t('chain.edgeOutput')}: </span>
+                    {selectedEdge.data.sourceLabel || '—'}
+                  </div>
+                  <div className="text-slate-700">
+                    <span className="font-medium">{selectedEdge.data.targetTeamNaam}</span>
+                    <span className="text-slate-400"> · {t('chain.edgeInput')}: </span>
+                    {selectedEdge.data.targetLabel || '—'}
+                  </div>
+                </>
+              )}
             </div>
             <button
               type="button"

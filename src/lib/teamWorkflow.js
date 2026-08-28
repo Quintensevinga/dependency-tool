@@ -110,3 +110,37 @@ export function orderTeamsByChain(teams, chainEdges) {
   const isolated = teams.filter((t) => !hasAnyConnection.has(t.id))
   return [...ordered, ...isolated]
 }
+
+// Groepeert de item-niveau ketenkoppelingen (resolveChainEdges) tot één
+// koppeling per teampaar, voor de geaggregeerde ketenstroom-weergave
+// (Ketenoverzicht, overview-modus). Zelfkoppelingen worden uitgesloten —
+// orderTeamsByChain behandelt zo'n team ook al niet als "verbonden".
+export function aggregateChainLinks(chainEdges) {
+  const groups = new Map()
+  for (const edge of chainEdges) {
+    if (edge.sourceTeam === edge.targetTeam) continue
+    const key = `${edge.sourceTeam}->${edge.targetTeam}`
+    if (!groups.has(key)) {
+      groups.set(key, { id: `chain-agg:${key}`, sourceTeam: edge.sourceTeam, targetTeam: edge.targetTeam, links: [] })
+    }
+    groups.get(key).links.push(edge)
+  }
+  return [...groups.values()]
+}
+
+// Team-id's met minstens één ketenkoppeling met een ánder zichtbaar team —
+// dezelfde regel als hasAnyConnection hierboven (beide kanten zichtbaar,
+// zelfkoppelingen tellen niet mee), los geëxporteerd zodat orderTeamsByChain
+// zelf niet aangeraakt hoeft te worden. Hou deze twee definities in sync als
+// één van beide ooit wijzigt.
+export function resolveConnectedTeamIds(teams, chainEdges) {
+  const teamIds = new Set(teams.map((t) => t.id))
+  const connected = new Set()
+  for (const edge of chainEdges) {
+    if (edge.sourceTeam === edge.targetTeam) continue
+    if (!teamIds.has(edge.sourceTeam) || !teamIds.has(edge.targetTeam)) continue
+    connected.add(edge.sourceTeam)
+    connected.add(edge.targetTeam)
+  }
+  return connected
+}

@@ -10,6 +10,7 @@ export default function PannableFlowCanvas({
   nodes,
   edges,
   nodeTypes,
+  edgeTypes,
   onNodesChange,
   onConnect,
   isValidConnection,
@@ -41,6 +42,7 @@ export default function PannableFlowCanvas({
       nodes={nodes}
       edges={edges}
       nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
       onNodesChange={onNodesChange}
       onConnect={onConnect}
       isValidConnection={isValidConnection}
