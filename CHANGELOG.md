@@ -3,6 +3,29 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Haal de live uitkomst uit het formulier en corrigeer veldplaatsing** (Quinten)
+
+  De uitkomstbalk toonde risico, flowverlies en urgentie tijdens het
+  invullen. Dat stuurt het invulgedrag: wie ziet wat zijn antwoorden
+  opleveren, vult richting de gewenste uitkomst in. Dat is precies de
+  score-inflatie die als grootste valkuil was benoemd, en het detailpaneel
+  toont die drie na opslaan toch al — daar informeren ze zonder te sturen.
+  OutcomeBar en de bijbehorende teksten zijn verwijderd.
+
+  Veldplaatsing gelijkgetrokken met het ontwerp:
+  - Scope en Flowtype staan naast elkaar in plaats van onder elkaar.
+  - Effect op flow is verhuisd van blok 2 naar direct onder Wachttijd, en
+    verschijnt alleen als er wachttijd is. Wat voor soort verlies het is
+    heeft geen betekenis zolang er geen verlies is.
+  - Actie/afspraak staat voor Mitigatie: eerst wat er gaat gebeuren, dan
+    wat er al gebeurt.
+  - Onder de gekozen workflowstap staat wat die stap betekent, net als bij
+    categorie.
+
+  De ankerregel onder een knoppenrij houdt nu altijd zijn ruimte vast. Hij
+  verscheen pas bij een keuze, waardoor alles eronder omlaag sprong zodra
+  je een optie aanwees.
+
 - **Maak de blokindeling af en toon wat oplosbaarheid betekent** (Quinten)
 
   Het formulier stond nog in de oude volgorde: eerst de inschattingen, dan
