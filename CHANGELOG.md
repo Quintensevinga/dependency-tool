@@ -3,6 +3,15 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Merge remote-tracking branch 'origin/main'** (Lars Hoogland)
+
+- **Ketenoverzicht: geaggregeerde teamstroom-weergave i.p.v. lijnen per item** (Lars Hoogland)
+
+  Vervangt de per-item IN/OUT-lijnen in de overview-modus door één kaart per
+  team en één pijl per teampaar (dikte = aantal koppelingen, kleur = hoogste
+  risiconiveau van de twee teams), met detail op klik. Lost structureel op dat
+  lijnen door niet-gerelateerde tussenkolommen liepen. Focusmodus ongewijzigd.
+
 - **Maak de formulier-mockup daadwerkelijk interactief** (Quinten)
 
   De categorie-dropdown deed niets terwijl de twee andere dropdowns wel
