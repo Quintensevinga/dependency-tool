@@ -1159,6 +1159,7 @@ function computeWorkflowLayout(
       source: id,
       target: applicatieflowInEdgeTarget,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
+      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
     })
   })
   stackCenteredInZone(applicatieflowOutputs, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
@@ -1167,7 +1168,15 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
-      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
+      data: {
+        kind: 'output',
+        itemId: item.id,
+        label: item.label,
+        linkLabel: resolveLinkLabel(item, 'output'),
+        bronColor: bronTypeColor(item.bron_type),
+        externalTeam: item.externalTeam,
+        meta: ioMetaLabel(item),
+      },
       draggable: true,
     })
     edges.push({
@@ -1175,6 +1184,7 @@ function computeWorkflowLayout(
       source: applicatieflowOutEdgeTarget,
       target: id,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
+      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
     })
   })
   stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -1191,6 +1201,7 @@ function computeWorkflowLayout(
       source: id,
       target: `stage:${WORKFLOW_STAGES[0]}`,
       style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.04 },
+      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
     })
   })
   stackCenteredInZone(devOutputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -1199,7 +1210,15 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
-      data: { kind: 'output', itemId: item.id, label: item.label, externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
+      data: {
+        kind: 'output',
+        itemId: item.id,
+        label: item.label,
+        linkLabel: resolveLinkLabel(item, 'output'),
+        bronColor: bronTypeColor(item.bron_type),
+        externalTeam: item.externalTeam,
+        meta: ioMetaLabel(item),
+      },
       draggable: true,
     })
     edges.push({
@@ -1207,6 +1226,7 @@ function computeWorkflowLayout(
       source: `stage:${lastStage}`,
       target: id,
       style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.04 },
+      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
     })
   })
 
@@ -1293,17 +1313,34 @@ function computeWorkflowLayout(
   // krap oogt met meerdere gesplitste applicatie-lanes.
   const canvasHeight = Math.max(420, annotationBaseY + annotationRows * 190 + 100, STAGE_Y - applicatieflowTop + 300)
 
-  return { nodes, edges, canvasWidth, canvasHeight }
+  // smoothstep i.p.v. de standaard bezier-lijn: minder kriskras op een druk
+  // teamcanvas met veel gelijktijdige input/output/dependency-verbindingen.
+  const routedEdges = edges.map((e) => ({ type: 'smoothstep', ...e }))
+
+  return { nodes, edges: routedEdges, canvasWidth, canvasHeight }
 }
 
 function canvasHeightFor(inputs, outputs) {
   return IO_Y_START + Math.max(inputs.length, outputs.length) * IO_Y_GAP
 }
 
+// Input en output delen nu hetzelfde veldenschema en dezelfde modal-opzet —
+// alleen de betekenis van 'bron'/'link' spiegelt om: input komt ergens
+// vandaan (bron_type, linkedTeam+linkedOutputId), output gaat ergens naartoe
+// (zelfde bron_type-schaal als 'bestemmingstype', linkedTeam+linkedInputId).
 function emptyIoItem(kind) {
-  return kind === 'input'
-    ? { id: generateId(), label: '', flowtype: '', bron_type: '', linkedTeam: '', linkedOutputId: '', applicatieId: '', externalTeam: '', externalPartyId: '' }
-    : { id: generateId(), label: '', flowtype: '', applicatieId: '', externalTeam: '', externalPartyId: '' }
+  return {
+    id: generateId(),
+    label: '',
+    flowtype: '',
+    bron_type: '',
+    linkedTeam: '',
+    linkedOutputId: '',
+    linkedInputId: '',
+    applicatieId: '',
+    externalTeam: '',
+    externalPartyId: '',
+  }
 }
 
 // Compacte beschrijving van een input/output-item voor de Teamgegevens-lijst
@@ -1312,10 +1349,12 @@ function emptyIoItem(kind) {
 function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName, language) {
   const parts = []
   if (item.flowtype) parts.push(translateFlowtype(item.flowtype, language))
-  if (kind === 'input' && item.bron_type) parts.push(translateBronType(item.bron_type, language))
-  if (kind === 'input' && item.linkedTeam) {
-    const linkedOutput = (teamWorkflows[item.linkedTeam]?.outputs ?? []).find((o) => o.id === item.linkedOutputId)
-    parts.push(`${teamName(item.linkedTeam)}${linkedOutput ? ` → ${linkedOutput.label || '—'}` : ''}`)
+  if (item.bron_type) parts.push(translateBronType(item.bron_type, language))
+  if (item.linkedTeam) {
+    const lijst = kind === 'input' ? (teamWorkflows[item.linkedTeam]?.outputs ?? []) : (teamWorkflows[item.linkedTeam]?.inputs ?? [])
+    const linkedId = kind === 'input' ? item.linkedOutputId : item.linkedInputId
+    const linked = lijst.find((x) => x.id === linkedId)
+    parts.push(`${teamName(item.linkedTeam)}${linked ? ` → ${linked.label || '—'}` : ''}`)
   }
   if (item.applicatieId) {
     const app = applications.find((a) => a.id === item.applicatieId)
@@ -1331,8 +1370,8 @@ function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName,
 function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeamId, teamWorkflows, applications, externalParties, addExternalParty, t, language }) {
   const [draft, setDraft] = useState(() => ({ ...emptyIoItem(kind), ...item }))
   const isEditing = Boolean(item)
-  const showBron = kind === 'input'
-  const showLink = kind === 'input'
+  const linkedItems = kind === 'input' ? (teamWorkflows[draft.linkedTeam]?.outputs ?? []) : (teamWorkflows[draft.linkedTeam]?.inputs ?? [])
+  const linkedIdField = kind === 'input' ? 'linkedOutputId' : 'linkedInputId'
 
   function update(fields) {
     setDraft((d) => ({ ...d, ...fields }))
@@ -1384,64 +1423,62 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
             </div>
           </div>
 
-          {showBron && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioBronLabel')}</label>
-              <div className="flex items-center gap-1.5">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              {kind === 'input' ? t('teampage.ioBronLabel') : t('teampage.ioBestemmingLabel')}
+            </label>
+            <div className="flex items-center gap-1.5">
+              <select
+                value={draft.bron_type ?? ''}
+                onChange={(e) => update({ bron_type: e.target.value })}
+                className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="">{kind === 'input' ? t('teampage.ioBronNone') : t('teampage.ioBestemmingNone')}</option>
+                {BRON_TYPES.map((bron) => (
+                  <option key={bron} value={bron}>
+                    {translateBronType(bron, language)}
+                  </option>
+                ))}
+              </select>
+              {draft.bron_type && (
+                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(draft.bron_type) }} />
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioLinkLabel')}</label>
+            <div className="flex flex-col gap-1.5">
+              <select
+                value={draft.linkedTeam ?? ''}
+                onChange={(e) => update({ linkedTeam: e.target.value, linkedOutputId: '', linkedInputId: '' })}
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+              >
+                <option value="">{t('teampage.ioLinkNone')}</option>
+                {teams
+                  .filter((tm) => tm.id !== currentTeamId)
+                  .map((tm) => (
+                    <option key={tm.id} value={tm.id}>
+                      {tm.naam}
+                    </option>
+                  ))}
+              </select>
+              {draft.linkedTeam && (
                 <select
-                  value={draft.bron_type ?? ''}
-                  onChange={(e) => update({ bron_type: e.target.value })}
-                  className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                  value={draft[linkedIdField] ?? ''}
+                  onChange={(e) => update({ [linkedIdField]: e.target.value })}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
                 >
-                  <option value="">{t('teampage.ioBronNone')}</option>
-                  {BRON_TYPES.map((bron) => (
-                    <option key={bron} value={bron}>
-                      {translateBronType(bron, language)}
+                  <option value="">{kind === 'input' ? t('teampage.ioLinkItemPlaceholder') : t('teampage.ioLinkInputPlaceholder')}</option>
+                  {linkedItems.map((linkedItem) => (
+                    <option key={linkedItem.id} value={linkedItem.id}>
+                      {linkedItem.label || '—'}
                     </option>
                   ))}
                 </select>
-                {draft.bron_type && (
-                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(draft.bron_type) }} />
-                )}
-              </div>
+              )}
             </div>
-          )}
-
-          {showLink && (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioLinkLabel')}</label>
-              <div className="flex flex-col gap-1.5">
-                <select
-                  value={draft.linkedTeam ?? ''}
-                  onChange={(e) => update({ linkedTeam: e.target.value, linkedOutputId: '' })}
-                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                >
-                  <option value="">{t('teampage.ioLinkNone')}</option>
-                  {teams
-                    .filter((tm) => tm.id !== currentTeamId)
-                    .map((tm) => (
-                      <option key={tm.id} value={tm.id}>
-                        {tm.naam}
-                      </option>
-                    ))}
-                </select>
-                {draft.linkedTeam && (
-                  <select
-                    value={draft.linkedOutputId ?? ''}
-                    onChange={(e) => update({ linkedOutputId: e.target.value })}
-                    className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-                  >
-                    <option value="">{t('teampage.ioLinkItemPlaceholder')}</option>
-                    {(teamWorkflows[draft.linkedTeam]?.outputs ?? []).map((out) => (
-                      <option key={out.id} value={out.id}>
-                        {out.label || '—'}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-            </div>
-          )}
+          </div>
 
           {applications.length > 0 && (
             <div>
@@ -2396,6 +2433,14 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [showGeaccepteerd, setShowGeaccepteerd] = useState(true)
   const [riskFilterOn, setRiskFilterOn] = useState(false)
   const [showExternalTeams, setShowExternalTeams] = useState(false)
+  // Losstaand van de bovenstaande showIO (die de onderliggende layoutdata al
+  // leegt): deze vier verbergen alleen ná de layoutberekening welke
+  // canvas-elementtypes zichtbaar zijn, zodat je gericht op een deelverzameling
+  // kunt focussen zonder dat de rest van het canvas herpositioneert.
+  const [showDependencies, setShowDependencies] = useState(true)
+  const [showApplicaties, setShowApplicaties] = useState(true)
+  const [showCapaciteit, setShowCapaciteit] = useState(true)
+  const [showWorkflowfasen, setShowWorkflowfasen] = useState(true)
   const [legendOpen, setLegendOpen] = useState(false)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const legendRef = useRef(null)
@@ -2490,10 +2535,13 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   }
 
   const resolveLinkLabel = useCallback(
-    (input) => {
-      if (!input.linkedTeam || !input.linkedOutputId) return null
-      const linkedOutput = (teamWorkflows[input.linkedTeam]?.outputs ?? []).find((o) => o.id === input.linkedOutputId)
-      return linkedOutput ? `${teamName(input.linkedTeam)} → ${linkedOutput.label || '—'}` : null
+    (item, kind = 'input') => {
+      if (!item.linkedTeam) return null
+      const lijst = kind === 'input' ? (teamWorkflows[item.linkedTeam]?.outputs ?? []) : (teamWorkflows[item.linkedTeam]?.inputs ?? [])
+      const linkedId = kind === 'input' ? item.linkedOutputId : item.linkedInputId
+      const linked = lijst.find((x) => x.id === linkedId)
+      if (!linkedId) return null
+      return linked ? `${teamName(item.linkedTeam)} → ${linked.label || '—'}` : null
     },
     [teamWorkflows, teamName],
   )
@@ -2555,7 +2603,16 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // De canvas-toolbar combineert dependency-filters met de losse
   // canvas-weergaveschakelaars (showIO e.d.) onder één "Weergave"-knop —
   // "actief" en "wissen" tellen daarom ook die schakelaars mee.
-  const viewTogglesActive = !showIO || !showOverstijgend || !showGeaccepteerd || riskFilterOn || showExternalTeams
+  const viewTogglesActive =
+    !showIO ||
+    !showOverstijgend ||
+    !showGeaccepteerd ||
+    riskFilterOn ||
+    showExternalTeams ||
+    !showDependencies ||
+    !showApplicaties ||
+    !showCapaciteit ||
+    !showWorkflowfasen
   const weergaveActive = depFiltersActive || viewTogglesActive
   function clearWeergave() {
     clearDepFilters()
@@ -2564,6 +2621,10 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     setShowGeaccepteerd(true)
     setRiskFilterOn(false)
     setShowExternalTeams(false)
+    setShowDependencies(true)
+    setShowApplicaties(true)
+    setShowCapaciteit(true)
+    setShowWorkflowfasen(true)
   }
 
   function depMatchesSearch(dep, query) {
@@ -2905,6 +2966,29 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
       return { ...n, style: { ...n.style, opacity: relatedIds.has(n.id) ? 1 : 0.3 } }
     })
   }, [nodes, edges, focusNodeId])
+
+  // Canvas-filters: verbergt hele elementtypes ná de layoutberekening, zodat
+  // je gericht op een deelverzameling kunt focussen (bv. voor een gesprek)
+  // zonder dat de rest van het canvas herpositioneert — puur zichtbaarheid,
+  // geen nieuwe layout.
+  const canvasTypeFilters = useMemo(
+    () => ({
+      dependencyMarker: showDependencies,
+      applicatieflowBanner: showApplicaties,
+      capacityBadge: showCapaciteit,
+      stage: showWorkflowfasen,
+    }),
+    [showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen],
+  )
+  const filteredNodes = useMemo(() => {
+    if (Object.values(canvasTypeFilters).every(Boolean)) return displayNodes
+    return displayNodes.filter((n) => canvasTypeFilters[n.type] !== false)
+  }, [displayNodes, canvasTypeFilters])
+  const filteredEdges = useMemo(() => {
+    if (filteredNodes === displayNodes) return displayEdges
+    const visibleIds = new Set(filteredNodes.map((n) => n.id))
+    return displayEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
+  }, [displayEdges, filteredNodes, displayNodes])
 
   function handleNodesChange(changes) {
     onNodesChange(changes)
@@ -3483,6 +3567,10 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                         { key: 'showGeaccepteerd', label: t('teampage.viewFilterShowGeaccepteerd'), value: showGeaccepteerd, onChange: setShowGeaccepteerd },
                         { key: 'riskFilterOn', label: t('teampage.viewFilterRiskOnly'), value: riskFilterOn, onChange: setRiskFilterOn },
                         { key: 'showExternalTeams', label: t('teampage.viewFilterShowExternalTeams'), value: showExternalTeams, onChange: setShowExternalTeams },
+                        { key: 'showDependencies', label: t('teampage.viewFilterShowDependencies'), value: showDependencies, onChange: setShowDependencies },
+                        { key: 'showApplicaties', label: t('teampage.viewFilterShowApplicaties'), value: showApplicaties, onChange: setShowApplicaties },
+                        { key: 'showCapaciteit', label: t('teampage.viewFilterShowCapaciteit'), value: showCapaciteit, onChange: setShowCapaciteit },
+                        { key: 'showWorkflowfasen', label: t('teampage.viewFilterShowWorkflowfasen'), value: showWorkflowfasen, onChange: setShowWorkflowfasen },
                       ]}
                       flowtypeFilter={flowtypeFilter}
                       setFlowtypeFilter={setFlowtypeFilter}
@@ -3523,8 +3611,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 <ReactFlowProvider>
                   <PannableFlowCanvas
                     className="teamcanvas-flow"
-                    nodes={displayNodes}
-                    edges={displayEdges}
+                    nodes={filteredNodes}
+                    edges={filteredEdges}
                     nodeTypes={nodeTypes}
                     onNodesChange={handleNodesChange}
                     onNodeClick={handleNodeClick}
@@ -3539,6 +3627,15 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                       setHoverNodeId(null)
                       setCanvasHover(null)
                     }}
+                    // Relatielijnen zelf blijven bewust bijna onzichtbaar
+                    // (lage opacity) totdat je erover hovert — dan pas zie je
+                    // welk input/output-item bij welke fase/zone hoort.
+                    onEdgeMouseEnter={(event, edge) => {
+                      if (!edge.data?.tooltipTitle) return
+                      setCanvasHover({ x: event.clientX, y: event.clientY, title: edge.data.tooltipTitle, sub: edge.data.tooltipSub })
+                    }}
+                    onEdgeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
+                    onEdgeMouseLeave={() => setCanvasHover(null)}
                     // Bewust géén minZoom in fitViewOptions: die klemde de
                     // automatische fit af terwijl de volledige inhoud verder moet
                     // uitzoomen, waardoor precies de buitenste kolommen — de

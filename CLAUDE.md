@@ -30,6 +30,20 @@ op het moment dat het zinvol voelt:
 4. Publiceren. Dit is puur een overzichtelijke "mijlpaal-samenvatting" bovenop wat al in
    `CHANGELOG.md` staat, geen technische stap die iets aan de app verandert.
 
+## Relatie-consistentie controleren
+
+`scripts/audit-relations.mjs` controleert een JSON-export (Instellingen → Exporteren JSON) op
+wezen-referenties (teamId, applicatie-ids, gekoppelde partijen, gekoppelde input/output-items,
+changeLog-verwijzingen) die naar een inmiddels verwijderd record wijzen. Rapporteert alleen,
+repareert niets automatisch — dat vereist een keuze per geval. Draaien:
+
+```
+node scripts/audit-relations.mjs pad/naar/export.json
+```
+
+Geen vaste cadans hiervoor afgesproken — draai het als je twijfelt of data na een reeks wijzigingen
+nog intern consistent is.
+
 ## Kernprincipes (niet zomaar wijzigen zonder het expliciet te bespreken)
 
 - Alles blijft lokaal — geen server, geen persoonsgegevens, alleen rollen/teamniveau-informatie.

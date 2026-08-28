@@ -183,7 +183,11 @@ function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
 
   const graphHeight = Math.max(460, 60 + rowCount * ROW_H)
 
-  return { nodes: nodeList, edges: edgeList, categoriesPresent, graphHeight }
+  // smoothstep i.p.v. de standaard bezier-lijn: minder kriskras bij veel
+  // gelijktijdige verbindingen, met name zichtbaar bij drukke schermen.
+  const routedEdges = edgeList.map((e) => ({ type: 'smoothstep', ...e }))
+
+  return { nodes: nodeList, edges: routedEdges, categoriesPresent, graphHeight }
 }
 
 export default function GraphView({

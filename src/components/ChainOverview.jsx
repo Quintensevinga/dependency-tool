@@ -266,7 +266,11 @@ function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = 
 
   const canvasWidth = Math.max(visibleTeams.length * COLUMN_WIDTH + 260, 600)
 
-  return { nodes, edges, canvasWidth, canvasHeight }
+  // smoothstep i.p.v. de standaard bezier-lijn: minder kriskras bij meerdere
+  // teams met overlappende in/output-koppelingen.
+  const routedEdges = edges.map((e) => ({ type: 'smoothstep', ...e }))
+
+  return { nodes, edges: routedEdges, canvasWidth, canvasHeight }
 }
 
 export default function ChainOverview({ adminSections, sidebarMode }) {
