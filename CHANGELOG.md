@@ -3,6 +3,17 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Ketenoverzicht: tooltip weg, kaarten kunnen nooit meer overlappen, rustigere lijnen** (Lars Hoogland)
+
+  De zwevende hover-tooltip op ketenlijnen was buggy en zat de leesbaarheid in de
+  weg — vervangen door lichte oplicht/dim-feedback op de lijn zelf; het
+  klik-paneel blijft de plek voor detail. Kaarthoogte bij uitklappen hield geen
+  rekening met tekst die in de smalle kolom terugloopt naar meerdere regels,
+  met overlap tot gevolg bij meerdere gelijktijdig uitgeklapte kaarten —
+  verificatie bevestigt nu 0 overlap, ook met alle teams tegelijk open.
+  Overgeslagen-laag-lijnen krijgen iets meer aanloopruimte zodat ze niet vlak
+  langs een tussenliggende kaart scheren.
+
 - **Ketenoverzicht: gelaagde 2D-plaatsing i.p.v. één vaste rij** (Lars Hoogland)
 
   Alle teams op één horizontale lijn dwong elke niet-opeenvolgende koppeling in
