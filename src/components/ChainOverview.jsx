@@ -12,7 +12,6 @@ import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
 import TeamFilterPanel from './TeamFilterPanel'
 import ScopeToggle from './ScopeToggle'
-import FloatingTooltip from './FloatingTooltip'
 
 const COLUMN_WIDTH = 480
 const INPUT_X = 0
@@ -371,9 +370,22 @@ const OV_ROW_GAP = 24
 const OV_CARD_WIDTH = 208 // w-52
 const OV_CARD_WIDTH_EXPANDED = 320 // w-80
 const OV_CARD_HEIGHT = 70
-const OV_ITEM_ROW_HEIGHT = 30
+const OV_ITEM_ROW_BASE_HEIGHT = 30 // één regel + padding + tussenruimte
+const OV_ITEM_ROW_EXTRA_LINE = 14 // extra hoogte per regel die terugloopt
+const OV_ITEM_CHARS_PER_LINE = 16 // ruwe, bewust voorzichtige schatting voor een kolom van ~130px op 11px tekst
 const OV_ROW_Y = 120
 const OV_TRAY_GAP = 70
+
+// Schatting van de gerenderde hoogte van één IN/OUT-rijtje op basis van de
+// labellengte — puur uit data, geen DOM-meting (die zou een meet-
+// terugkoppelingslus introduceren, bewust vermeden in dit bestand). Zonder dit
+// ging elk rijtje voor een vaste hoogte door, ook als de tekst in de
+// werkelijke, smalle kolom over meerdere regels terugloopt — met een te lage
+// geschatte kaarthoogte en dus overlap met de kaart/tray eronder tot gevolg.
+function estimateItemRowHeight(label) {
+  const lines = Math.max(1, Math.ceil((label?.length || 1) / OV_ITEM_CHARS_PER_LINE))
+  return OV_ITEM_ROW_BASE_HEIGHT + (lines - 1) * OV_ITEM_ROW_EXTRA_LINE
+}
 
 // Geaggregeerde, gelaagde ketenstroom-lay-out voor de overview-modus (niet gefocust
 // op één team): kolom = ketenstap (topologische laag, zie layerTeamsByChain), rij =
@@ -413,7 +425,13 @@ function computeChainOverviewLayout(
   function cardHeight(team) {
     if (!expandedTeamIds.has(team.id)) return OV_CARD_HEIGHT
     const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
-    return OV_CARD_HEIGHT + 20 + Math.max(wf.inputs.length, wf.outputs.length, 1) * OV_ITEM_ROW_HEIGHT
+    // Som van de geschatte regelhoogtes per kolom (IN/OUT staan onder elkaar
+    // ín hun eigen kolom, niet naast elkaar) — de langste kolom bepaalt de
+    // kaarthoogte, net als de kaart zelf (flex, twee kolommen naast elkaar).
+    const inputsHeight = wf.inputs.reduce((sum, item) => sum + estimateItemRowHeight(item.label), 0)
+    const outputsHeight = wf.outputs.reduce((sum, item) => sum + estimateItemRowHeight(item.label), 0)
+    const contentHeight = Math.max(inputsHeight, outputsHeight, OV_ITEM_ROW_BASE_HEIGHT)
+    return OV_CARD_HEIGHT + 20 + contentHeight
   }
 
   function pushTeamHeader(team, x, y) {
@@ -520,6 +538,17 @@ function computeChainOverviewLayout(
     const baseSourceHandle = adjacent ? (dist === 1 ? 'right-source' : 'left-source') : 'top-source'
     const baseTargetHandle = adjacent ? (dist === 1 ? 'left-target' : 'right-target') : 'top-target'
 
+    // Overgeslagen lagen krijgen iets meer "aanloopruimte" vóór de eerste
+    // bocht dan reactflow's standaard smoothstep-offset (20px), zodat de lijn
+    // niet vlak langs een tussenliggende kaart scheert. Bewust een bescheiden
+    // vaste waarde i.p.v. geschaald op de diepte van het eindpunt — een eerste
+    // poging die de offset liet meeschalen met de absolute y-positie van de
+    // kaart bleek in de praktijk het pad honderden pixels omhoog te schieten
+    // (reactflow's smoothstep-offset werkt niet als "afstand tot een vaste
+    // hoogte", zie browserverificatie), met een nutteloos ver uitgezoomde
+    // fitView tot gevolg.
+    const pathOptions = adjacent ? undefined : { offset: 50 }
+
     // Er bestaat geen risicoscore per ketenkoppeling (dependencies hangen aan
     // een teamId, niet aan een specifieke partner) — zie CLAUDE.md
     // ("risicoscores zijn altijd uitlegbaar, nooit een black box"). De kleur
@@ -549,6 +578,7 @@ function computeChainOverviewLayout(
         sourceHandle: baseSourceHandle,
         targetHandle: baseTargetHandle,
         type: 'smoothstep',
+        pathOptions,
         style: { stroke: style.hex, strokeWidth: Math.min(2 + count * 1.5, 8) },
         markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
         label: count > 1 ? String(count) : undefined,
@@ -578,6 +608,7 @@ function computeChainOverviewLayout(
         sourceHandle: sourceExpanded ? `item-out:${link.sourceOutputId}` : baseSourceHandle,
         targetHandle: targetExpanded ? `item-in:${link.targetInputId}` : baseTargetHandle,
         type: 'smoothstep',
+        pathOptions,
         style: { stroke: style.hex, strokeWidth: 2 },
         markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
         data: { ...sharedData, links: [{ sourceLabel: link.sourceLabel, targetLabel: link.targetLabel }] },
@@ -750,27 +781,32 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     pinnedTeamIds,
   ])
 
-  // Hover toont de koppeling vluchtig, klik pint 'm vast — zodat je een lijn
-  // kunt vasthouden terwijl je in het canvas rondkijkt of scrollt.
-  const [hoverEdge, setHoverEdge] = useState(null)
+  // Klik pint een lijn vast (blijft staan terwijl je rondkijkt/scrollt) — dit
+  // vervangt een eerdere zwevende hover-tooltip volledig (die bleek buggy en
+  // stond de leesbaarheid in de weg). Hover geeft nu alleen nog lichte
+  // visuele feedback ín de lijn zelf (lichtjes oplichten, de rest kort dimmen)
+  // zonder los infoveld; het klik-paneel hieronder blijft de plek voor detail.
   const [selectedEdgeId, setSelectedEdgeId] = useState(null)
+  const [hoveredEdgeId, setHoveredEdgeId] = useState(null)
 
   const selectedEdge = useMemo(() => edges.find((e) => e.id === selectedEdgeId) ?? null, [edges, selectedEdgeId])
 
-  // Een vastgepinde lijn licht op, de rest zakt weg. Zonder die demping is een
-  // enkele keten niet te volgen zodra er tientallen lijnen door elkaar lopen.
+  // Selectie wint van hover: een vastgezette lijn moet niet weer wegzakken
+  // omdat de muis toevallig over een andere lijn beweegt.
+  const activeEdgeId = selectedEdgeId ?? hoveredEdgeId
+
   const displayEdges = useMemo(
     () =>
       edges.map((e) => {
-        if (!selectedEdgeId) return e
-        const active = e.id === selectedEdgeId
+        if (!activeEdgeId) return e
+        const active = e.id === activeEdgeId
         return {
           ...e,
-          animated: active,
+          animated: active && Boolean(selectedEdgeId),
           style: { ...e.style, strokeWidth: active ? 3.5 : 1.5, opacity: active ? 1 : 0.15 },
         }
       }),
-    [edges, selectedEdgeId],
+    [edges, activeEdgeId, selectedEdgeId],
   )
 
   function toggleTeam(teamId) {
@@ -957,45 +993,10 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                   if (node.type === 'chainHeader') setHoveredTeamId((prev) => (prev === node.data.teamId ? null : prev))
                 }}
                 onEdgeClick={(_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
-                onEdgeMouseEnter={(event, edge) => setHoverEdge({ x: event.clientX, y: event.clientY, data: edge.data })}
-                onEdgeMouseMove={(event) => setHoverEdge((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
-                onEdgeMouseLeave={() => setHoverEdge(null)}
+                onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
+                onEdgeMouseLeave={() => setHoveredEdgeId(null)}
                 onPaneClick={() => setSelectedEdgeId(null)}
               />
-              {hoverEdge?.data && (
-                <FloatingTooltip x={hoverEdge.x} y={hoverEdge.y}>
-                  {Array.isArray(hoverEdge.data.links) ? (
-                    <>
-                      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                        {hoverEdge.data.links.length === 1
-                          ? t('chain.edgeTooltipCountOne')
-                          : t('chain.edgeTooltipCount', { count: hoverEdge.data.links.length })}
-                      </div>
-                      {hoverEdge.data.links.slice(0, 6).map((link, i) => (
-                        <div key={i} className="text-slate-300">
-                          <span className="text-slate-50">{link.sourceLabel || '—'}</span> → {link.targetLabel || '—'}
-                        </div>
-                      ))}
-                      {hoverEdge.data.links.length > 6 && (
-                        <div className="mt-1 text-slate-400">{t('chain.edgeTooltipMore', { count: hoverEdge.data.links.length - 6 })}</div>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-                        {t('chain.edgeTooltipTitle')}
-                      </div>
-                      <div className="text-slate-300">
-                        <span className="text-slate-50">{hoverEdge.data.sourceTeamNaam}</span> · {hoverEdge.data.sourceLabel || '—'}
-                      </div>
-                      <div className="text-slate-400">↓</div>
-                      <div className="text-slate-300">
-                        <span className="text-slate-50">{hoverEdge.data.targetTeamNaam}</span> · {hoverEdge.data.targetLabel || '—'}
-                      </div>
-                    </>
-                  )}
-                </FloatingTooltip>
-              )}
             </div>
           </ReactFlowProvider>
         )}
