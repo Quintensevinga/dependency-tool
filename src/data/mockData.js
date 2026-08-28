@@ -1793,6 +1793,27 @@ export const RAW_MOCK_DEPENDENCIES = [
   },
 ]
 
+// Een aanmaakdatum hoort bij elke dependency (zie AppContext), maar de
+// demo-data is met de hand geschreven en had 'm niet — waardoor elk record
+// "Onbekend" toonde en het onderscheid chronisch/acuut in de demo wegviel.
+// Hier deterministisch afgeleid: structurele en zware afhankelijkheden
+// slepen doorgaans al langer, eenmalige zijn recenter. Altijd vóór
+// laatst_bijgewerkt, want je kunt niets bijwerken dat nog niet bestond.
+const OUDERDOM_DAGEN = { structureel: 420, regelmatig: 240, soms: 120, eenmalig: 45 }
+
+function metAanmaakdatum(dep, i) {
+  if (!dep.laatst_bijgewerkt) return dep
+  const basis = OUDERDOM_DAGEN[dep.frequentie] ?? 90
+  const extra = dep.impact === 'zwaar' ? 120 : dep.impact === 'duidelijk' ? 45 : 0
+  // Spreiding zodat niet elke dependency met dezelfde profielwaarden op
+  // exact dezelfde dag is aangemaakt.
+  const dagen = basis + extra + ((i * 37) % 90)
+  const d = new Date(dep.laatst_bijgewerkt)
+  if (Number.isNaN(d.getTime())) return dep
+  d.setDate(d.getDate() - dagen)
+  return { ...dep, aangemaakt_op: d.toISOString().slice(0, 10) }
+}
+
 // Vult de demo-dependencies aan met wachttijd/deadline/oplosbaarheid voor de
 // uitgebreide analyse. Bewust afgeleid uit de inhoud van elke dependency en
 // niet mechanisch rondgedraaid: een demo waarin "kennis zit bij één persoon"
@@ -1883,4 +1904,4 @@ function enrichForUitgebreideAnalyse(deps) {
   })
 }
 
-export const MOCK_DEPENDENCIES = enrichForUitgebreideAnalyse(RAW_MOCK_DEPENDENCIES)
+export const MOCK_DEPENDENCIES = enrichForUitgebreideAnalyse(RAW_MOCK_DEPENDENCIES.map(metAanmaakdatum))

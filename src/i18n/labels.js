@@ -201,7 +201,7 @@ export const RISICO_BIJ_UITVAL_LABELS = {
 
 export const OPLOSBAARHEID_LABELS = {
   teamlid: { nl: 'Eén teamlid', en: 'One team member' },
-  meerdere_teamleden: { nl: 'Meerdere teamleden', en: 'Multiple team members' },
+  meerdere_teamleden: { nl: 'Teamleden', en: 'Team members' },
   meerdere_teams: { nl: 'Meerdere teams', en: 'Multiple teams' },
   team_overstijgend: { nl: 'Team-overstijgend', en: 'Cross-team' },
   organisatorisch: { nl: 'Organisatorisch', en: 'Organizational' },

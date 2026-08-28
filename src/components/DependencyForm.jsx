@@ -28,6 +28,8 @@ import {
   getCategoryDescription,
 } from '../i18n/labels'
 import PartyPicker from './PartyPicker'
+import SegmentedField from './form/SegmentedField'
+import OutcomeBar from './form/OutcomeBar'
 
 const EMPTY_FORM = {
   teamIds: [],
@@ -246,7 +248,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
         role="dialog"
         aria-modal="true"
         aria-labelledby="dependency-form-title"
-        className="flex max-h-[90vh] w-full max-w-lg flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl ${adminSettings.uitgebreideAnalyse ? 'max-w-2xl' : 'max-w-lg'}`}
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
@@ -505,6 +507,112 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             </div>
           )}
 
+          {/* Bij uitgebreide analyse worden de inschattingen knoppenrijen met
+              ankertekst i.p.v. dropdowns: je ziet de hele schaal in één keer
+              en per optie staat er wat hij betekent, met een voorbeeld.
+              Zonder de toggle blijft het compacte drie-koloms dropdownblok. */}
+          {adminSettings.uitgebreideAnalyse ? (
+            <div className="space-y-3 border-t border-slate-200 pt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokHoeErg')}</p>
+              <p className="-mt-1.5 text-xs text-slate-400">{t('form.blokHoeErgNote')}</p>
+
+              <SegmentedField
+                id="dep-impact"
+                label={t('form.impact')}
+                dimension="impact"
+                options={IMPACT_LEVELS}
+                value={form.impact}
+                onChange={(v) => update('impact', v)}
+                onBlur={() => markTouched('impact')}
+                translate={translateImpact}
+                language={language}
+                required
+              />
+              {touched.impact && <FieldError id="err-impact" message={errors.impact} />}
+
+              <SegmentedField
+                id="dep-frequentie"
+                label={t('form.frequentie')}
+                dimension="frequentie"
+                options={FREQUENCY_LEVELS}
+                value={form.frequentie}
+                onChange={(v) => update('frequentie', v)}
+                onBlur={() => markTouched('frequentie')}
+                translate={translateFrequentie}
+                language={language}
+                required
+              />
+              {touched.frequentie && <FieldError id="err-frequentie" message={errors.frequentie} />}
+
+              <SegmentedField
+                id="dep-wachttijd"
+                label={t('form.wachttijd')}
+                dimension="wachttijd"
+                options={WACHTTIJD_LEVELS}
+                value={form.wachttijd}
+                onChange={(v) => update('wachttijd', v)}
+                translate={translateWachttijd}
+                language={language}
+              />
+
+              <SegmentedField
+                id="dep-deadline"
+                label={t('form.deadline')}
+                dimension="deadline"
+                options={DEADLINE_LEVELS}
+                value={form.deadline}
+                onChange={(v) => update('deadline', v)}
+                translate={translateDeadline}
+                language={language}
+              />
+              {DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && (
+                <div>
+                  <input
+                    id="dep-deadline-tekst"
+                    value={form.deadlineTekst}
+                    onChange={(e) => update('deadlineTekst', e.target.value)}
+                    onBlur={() => markTouched('deadlineTekst')}
+                    placeholder={t('form.deadlineTekstPlaceholder')}
+                    className={inputClass}
+                  />
+                  {touched.deadlineTekst && <FieldError id="err-deadline-tekst" message={errors.deadlineTekst} />}
+                </div>
+              )}
+
+              <SegmentedField
+                id="dep-status"
+                label={t('form.status')}
+                dimension="status"
+                options={STATUS_LEVELS}
+                value={form.status}
+                onChange={(v) => update('status', v)}
+                onBlur={() => markTouched('status')}
+                translate={translateStatus}
+                language={language}
+                required
+              />
+              {touched.status && <FieldError id="err-status" message={errors.status} />}
+
+              <OutcomeBar dependency={form} t={t} language={language} />
+
+              <div className="border-t border-slate-200 pt-4">
+                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatNu')}</p>
+                <SegmentedField
+                  id="dep-oplosbaarheid"
+                  label={t('form.oplosbaarheid')}
+                  dimension="oplosbaarheid"
+                  options={OPLOSBAARHEID_LEVELS}
+                  value={form.oplosbaarheid}
+                  onChange={(v) => update('oplosbaarheid', v)}
+                  translate={translateOplosbaarheid}
+                  language={language}
+                >
+                  <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
+                </SegmentedField>
+              </div>
+            </div>
+          ) : (
+            <>
           <div className="grid grid-cols-3 gap-3">
             <div>
               <Label required htmlFor="dep-impact">{t('form.impact')}</Label>
@@ -585,58 +693,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             </select>
           </div>
 
-          {adminSettings.uitgebreideAnalyse && (
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
-              <p className="mb-2 text-xs font-semibold text-slate-600">{t('form.uitgebreideAnalyseTitle')}</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="dep-wachttijd">{t('form.wachttijd')}</Label>
-                  <select id="dep-wachttijd" value={form.wachttijd} onChange={(e) => update('wachttijd', e.target.value)} className={inputClass}>
-                    <option value="">—</option>
-                    {WACHTTIJD_LEVELS.map((lvl) => (
-                      <option key={lvl} value={lvl}>
-                        {translateWachttijd(lvl, language)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="dep-deadline">{t('form.deadline')}</Label>
-                  <select
-                    id="dep-deadline"
-                    value={form.deadline}
-                    onChange={(e) => update('deadline', e.target.value)}
-                    onBlur={() => markTouched('deadlineTekst')}
-                    className={inputClass}
-                  >
-                    <option value="">—</option>
-                    {DEADLINE_LEVELS.map((lvl) => (
-                      <option key={lvl} value={lvl}>
-                        {translateDeadline(lvl, language)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              {DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && (
-                <div className="mt-3">
-                  <Label required htmlFor="dep-deadline-tekst">
-                    {t('form.deadlineTekst')}
-                  </Label>
-                  <input
-                    id="dep-deadline-tekst"
-                    value={form.deadlineTekst}
-                    onChange={(e) => update('deadlineTekst', e.target.value)}
-                    onBlur={() => markTouched('deadlineTekst')}
-                    placeholder={t('form.deadlineTekstPlaceholder')}
-                    aria-describedby={touched.deadlineTekst && errors.deadlineTekst ? 'err-deadline-tekst' : undefined}
-                    className={inputClass}
-                  />
-                  {touched.deadlineTekst && <FieldError id="err-deadline-tekst" message={errors.deadlineTekst} />}
-                </div>
-              )}
-            </div>
+            </>
           )}
+
+
 
           <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>
             {/* Applicatieflow hoort bij een draaiende applicatie/keten, niet bij
