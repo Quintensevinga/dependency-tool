@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
+import { berekenFlowverlies, berekenUrgentie, analyseLabels } from '../lib/analysis'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { useModalA11y } from '../lib/a11y'
@@ -15,6 +16,7 @@ import {
   translateEffectOpFlow,
   translateFlowtype,
   translateOplosbaarheid,
+  translateAnalyseLabel,
   getCategoryDescription,
 } from '../i18n/labels'
 import { CategoryIcon } from '../data/categoryIcons'
@@ -31,7 +33,7 @@ function Field({ label, value }) {
 
 export default function DependencyDetail({ dependency, onClose, onEdit, onDelete, onDuplicate }) {
   const { t, language } = useLanguage()
-  const { teamName, teamWorkflows, updateDependency, externalParties } = useAppContext()
+  const { teamName, teamWorkflows, updateDependency, externalParties, adminSettings } = useAppContext()
   const panelRef = useRef(null)
   useModalA11y({ open: Boolean(dependency), onClose, containerRef: panelRef })
 
@@ -41,6 +43,9 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
   const riskLevel = translateRiskLevel(risk.level, language)
   const teamApplications = teamWorkflows[dependency.teamId]?.applications ?? []
   const geraaktPartij = dependency.geraaktPartijId ? externalParties.find((p) => p.id === dependency.geraaktPartijId) : null
+  const flowverlies = adminSettings.uitgebreideAnalyse ? berekenFlowverlies(dependency) : null
+  const urgentie = adminSettings.uitgebreideAnalyse ? berekenUrgentie(dependency) : null
+  const labels = adminSettings.uitgebreideAnalyse ? analyseLabels(dependency, risk.level) : []
   const labeledApplicatieNames = (dependency.applicatieIds ?? [])
     .map((id) => teamApplications.find((app) => app.id === id)?.naam)
     .filter(Boolean)
@@ -143,6 +148,40 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
               </div>
             </div>
           </div>
+
+          {adminSettings.uitgebreideAnalyse && (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('detail.uitgebreideAnalyse')}</div>
+              <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                {flowverlies ? (
+                  <span className={`rounded px-2 py-1 text-xs font-medium ${riskStyle(flowverlies.level).badge}`}>
+                    {t('detail.flowverlies')}: {translateRiskLevel(flowverlies.level, language)}
+                  </span>
+                ) : (
+                  <span className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-400">{t('detail.profielOnvolledig')}</span>
+                )}
+                {urgentie ? (
+                  <span className={`rounded px-2 py-1 text-xs font-medium ${riskStyle(urgentie.level).badge}`}>
+                    {t('detail.urgentie')}: {translateRiskLevel(urgentie.level, language)}
+                  </span>
+                ) : (
+                  <span className="rounded bg-slate-100 px-2 py-1 text-xs text-slate-400">{t('detail.profielOnvolledig')}</span>
+                )}
+              </div>
+              {dependency.deadline && dependency.deadlineTekst && (
+                <p className="mt-1.5 text-xs text-slate-500">{dependency.deadlineTekst}</p>
+              )}
+              {labels.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {labels.map((lbl) => (
+                    <span key={lbl} className="rounded-full bg-[#2a5f8a]/10 px-2 py-0.5 text-[11px] font-medium text-[#2a5f8a]">
+                      {translateAnalyseLabel(lbl, language)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <Field label={t('detail.toelichting')} value={dependency.toelichting} />
           <Field label={t('detail.legacyRol')} value={dependency.rol_betrokkene} />

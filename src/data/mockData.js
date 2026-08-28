@@ -1793,4 +1793,30 @@ export const RAW_MOCK_DEPENDENCIES = [
   },
 ]
 
-export const MOCK_DEPENDENCIES = RAW_MOCK_DEPENDENCIES
+// Vult de demo-dependencies aan met wachttijd/deadline/oplosbaarheid voor de
+// uitgebreide analyse (flowverlies/urgentie) — deterministisch geroteerd
+// over alle mogelijke waarden, zodat elk niveau in de demo voorkomt. Elke
+// vijfde dependency blijft bewust leeg: "onvolledig ≠ nul" moet ook in de
+// demo zichtbaar zijn (profiel-onvolledig-staat), niet alleen in de code.
+function enrichForUitgebreideAnalyse(deps) {
+  const wachttijdCycle = ['geen', 'kort', 'dagen', 'sprint_of_meer']
+  const deadlineCycle = ['geen_datum', 'interne_afspraak', 'vaste_datum', 'harde_deadline']
+  const oplosbaarheidCycle = ['teamlid', 'meerdere_teamleden', 'meerdere_teams', 'team_overstijgend', 'organisatorisch']
+  const deadlineTekstFor = {
+    vaste_datum: 'Release Q4 dit jaar',
+    harde_deadline: 'Wettelijke ingangsdatum 1 januari',
+  }
+  return deps.map((dep, i) => {
+    if (i % 5 === 0) return dep
+    const deadline = deadlineCycle[(i + 1) % deadlineCycle.length]
+    return {
+      ...dep,
+      wachttijd: wachttijdCycle[i % wachttijdCycle.length],
+      deadline,
+      deadlineTekst: deadlineTekstFor[deadline] ?? '',
+      oplosbaarheid: oplosbaarheidCycle[i % oplosbaarheidCycle.length],
+    }
+  })
+}
+
+export const MOCK_DEPENDENCIES = enrichForUitgebreideAnalyse(RAW_MOCK_DEPENDENCIES)

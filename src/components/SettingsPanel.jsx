@@ -716,6 +716,16 @@ export default function SettingsPanel({ onClose, onExportPng }) {
                 </form>
               ) : (
                 <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
+                  <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={adminSettings.uitgebreideAnalyse}
+                      onChange={() => updateAdminSettings({ ...adminSettings, uitgebreideAnalyse: !adminSettings.uitgebreideAnalyse })}
+                      className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                    />
+                    {t('settings.admin.uitgebreideAnalyse')}
+                  </label>
+                  <p className="text-[11px] leading-relaxed text-slate-400">{t('settings.admin.uitgebreideAnalyseHint')}</p>
                   <PartySection
                     items={externalParties}
                     onAdd={(naam, type) => addExternalParty(naam, type, { pending: false })}

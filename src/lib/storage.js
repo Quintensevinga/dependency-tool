@@ -55,6 +55,11 @@ function sanitizeStageNotes(raw) {
 // standaard aan. Instellingen zelf zit hier bewust niet in — die pagina (en
 // daarmee Admin) moet altijd bereikbaar blijven, dus is niet uit te zetten.
 export const DEFAULT_ADMIN_SETTINGS = {
+  // Aparte feature-toggle, geen pagina/sectie-zichtbaarheid: schakelt het
+  // uitgebreide analysemodel (flowverlies/urgentie naast de risicoscore) aan
+  // of uit. Uit = de app gedraagt zich exact zoals vandaag, geen fallback-
+  // code nodig — zie src/lib/analysis.js.
+  uitgebreideAnalyse: false,
   pages: {
     matrix: true,
     netwerk: true,
@@ -90,7 +95,8 @@ export function migrateAdminSettings(raw) {
     const savedPage = source.sections?.[pageKey]
     sections[pageKey] = { ...defaults, ...(savedPage && typeof savedPage === 'object' ? savedPage : {}) }
   }
-  return { pages, sections }
+  const uitgebreideAnalyse = typeof source.uitgebreideAnalyse === 'boolean' ? source.uitgebreideAnalyse : DEFAULT_ADMIN_SETTINGS.uitgebreideAnalyse
+  return { pages, sections, uitgebreideAnalyse }
 }
 
 // --- migratie ---
@@ -199,6 +205,9 @@ function migrateDependency(raw, teamsState) {
     applicatieIds: Array.isArray(raw.applicatieIds) ? raw.applicatieIds : [],
     geaccepteerd: raw.geaccepteerd === true,
     oplosbaarheid: typeof raw.oplosbaarheid === 'string' ? raw.oplosbaarheid : '',
+    wachttijd: typeof raw.wachttijd === 'string' ? raw.wachttijd : '',
+    deadline: typeof raw.deadline === 'string' ? raw.deadline : '',
+    deadlineTekst: typeof raw.deadlineTekst === 'string' ? raw.deadlineTekst : '',
     // Bestaande dependencies kennen geen aanmaakmoment — geen datum verzinnen
     // (onvolledig ≠ nul), de UI toont dit expliciet als "onbekend". Alleen
     // nieuw aangemaakte records (via AppContext.addDependency) krijgen dit

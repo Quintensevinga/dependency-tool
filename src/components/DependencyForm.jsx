@@ -8,6 +8,9 @@ import {
   EFFECT_OP_FLOW_LEVELS,
   FLOWTYPE_LEVELS,
   OPLOSBAARHEID_LEVELS,
+  WACHTTIJD_LEVELS,
+  DEADLINE_LEVELS,
+  DEADLINE_TEKST_VERPLICHT,
 } from '../data/constants'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -20,6 +23,8 @@ import {
   translateWorkflowStap,
   translateEffectOpFlow,
   translateOplosbaarheid,
+  translateWachttijd,
+  translateDeadline,
   getCategoryDescription,
 } from '../i18n/labels'
 import PartyPicker from './PartyPicker'
@@ -37,6 +42,9 @@ const EMPTY_FORM = {
   frequentie: '',
   status: '',
   oplosbaarheid: '',
+  wachttijd: '',
+  deadline: '',
+  deadlineTekst: '',
   workflowStap: '',
   effectOpFlow: '',
   mitigatie: '',
@@ -83,7 +91,7 @@ const inputClass =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none'
 
 export default function DependencyForm({ defaultTeamId, initialData, prefill, onSave, onCancel }) {
-  const { teams, activeTeams, teamLabels, externalParties, addExternalParty } = useAppContext()
+  const { teams, activeTeams, teamLabels, externalParties, addExternalParty, adminSettings } = useAppContext()
   const { t, language } = useLanguage()
   const dialogRef = useRef(null)
 
@@ -111,6 +119,9 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
       actieAfspraak: initialData?.actieAfspraak ?? prefill?.actieAfspraak ?? '',
       oplosbaarheid: initialData?.oplosbaarheid ?? prefill?.oplosbaarheid ?? '',
       geraaktPartijId: initialData?.geraaktPartijId ?? prefill?.geraaktPartijId ?? '',
+      wachttijd: initialData?.wachttijd ?? prefill?.wachttijd ?? '',
+      deadline: initialData?.deadline ?? prefill?.deadline ?? '',
+      deadlineTekst: initialData?.deadlineTekst ?? prefill?.deadlineTekst ?? '',
     }
   }
   const [form, setForm] = useState(() => initialFormRef.current)
@@ -160,6 +171,9 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   if (form.flowtype === 'ontwikkelflow' && !form.workflowStap?.trim()) {
     errors.workflowStap = t('form.required')
   }
+  if (adminSettings.uitgebreideAnalyse && DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && !form.deadlineTekst?.trim()) {
+    errors.deadlineTekst = t('form.required')
+  }
 
   function markTouched(field) {
     setTouched((prev) => ({ ...prev, [field]: true }))
@@ -190,7 +204,11 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
 
   function handleSubmit(e) {
     e.preventDefault()
-    setTouched(Object.fromEntries([...requiredFields, 'teamIds', 'workflowStap', 'geraakte_team_extern', 'geraaktPartijId'].map((f) => [f, true])))
+    setTouched(
+      Object.fromEntries(
+        [...requiredFields, 'teamIds', 'workflowStap', 'geraakte_team_extern', 'geraaktPartijId', 'deadlineTekst'].map((f) => [f, true]),
+      ),
+    )
     if (Object.keys(errors).length > 0) return
     const { teamIds, ...rest } = form
     const [teamId, ...extraTeamIds] = teamIds
@@ -566,6 +584,59 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               ))}
             </select>
           </div>
+
+          {adminSettings.uitgebreideAnalyse && (
+            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+              <p className="mb-2 text-xs font-semibold text-slate-600">{t('form.uitgebreideAnalyseTitle')}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="dep-wachttijd">{t('form.wachttijd')}</Label>
+                  <select id="dep-wachttijd" value={form.wachttijd} onChange={(e) => update('wachttijd', e.target.value)} className={inputClass}>
+                    <option value="">—</option>
+                    {WACHTTIJD_LEVELS.map((lvl) => (
+                      <option key={lvl} value={lvl}>
+                        {translateWachttijd(lvl, language)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="dep-deadline">{t('form.deadline')}</Label>
+                  <select
+                    id="dep-deadline"
+                    value={form.deadline}
+                    onChange={(e) => update('deadline', e.target.value)}
+                    onBlur={() => markTouched('deadlineTekst')}
+                    className={inputClass}
+                  >
+                    <option value="">—</option>
+                    {DEADLINE_LEVELS.map((lvl) => (
+                      <option key={lvl} value={lvl}>
+                        {translateDeadline(lvl, language)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && (
+                <div className="mt-3">
+                  <Label required htmlFor="dep-deadline-tekst">
+                    {t('form.deadlineTekst')}
+                  </Label>
+                  <input
+                    id="dep-deadline-tekst"
+                    value={form.deadlineTekst}
+                    onChange={(e) => update('deadlineTekst', e.target.value)}
+                    onBlur={() => markTouched('deadlineTekst')}
+                    placeholder={t('form.deadlineTekstPlaceholder')}
+                    aria-describedby={touched.deadlineTekst && errors.deadlineTekst ? 'err-deadline-tekst' : undefined}
+                    className={inputClass}
+                  />
+                  {touched.deadlineTekst && <FieldError id="err-deadline-tekst" message={errors.deadlineTekst} />}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>
             {/* Applicatieflow hoort bij een draaiende applicatie/keten, niet bij

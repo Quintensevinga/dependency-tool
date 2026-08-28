@@ -112,3 +112,11 @@ export const OPLOSBAARHEID_LEVELS = ['teamlid', 'meerdere_teamleden', 'meerdere_
 // als beheerde, herbruikbare entiteit i.p.v. losse vrije tekst per keer.
 export const EXTERNAL_PARTY_STATUS = ['actief', 'in_afwachting', 'geweigerd']
 
+// --- Uitgebreide analyse: flowverlies + urgentie (naast, niet i.p.v. de
+// bestaande risicoscore — zie src/lib/analysis.js) ---
+export const WACHTTIJD_LEVELS = ['geen', 'kort', 'dagen', 'sprint_of_meer']
+export const DEADLINE_LEVELS = ['geen_datum', 'interne_afspraak', 'vaste_datum', 'harde_deadline']
+// "Anti-inflatie": bij deze twee opties is een toelichting (welke datum/
+// release?) verplicht — wie de datum niet kan noemen, kan de optie niet kiezen.
+export const DEADLINE_TEKST_VERPLICHT = ['vaste_datum', 'harde_deadline']
+

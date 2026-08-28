@@ -26,6 +26,7 @@ import {
 } from '../i18n/labels'
 import { stageColor, bronTypeColor, ANNOTATION_PALETTE } from '../lib/workflowStyles'
 import { calculateRisk, compareRiskDesc } from '../lib/risk'
+import { berekenFlowverlies } from '../lib/analysis'
 import { riskStyle } from '../lib/riskStyles'
 import { generateId, emptyTeamWorkflow, emptyApplicatieflow } from '../lib/storage'
 import { buildDuplicatePrefill } from '../lib/duplicateDependency'
@@ -2356,6 +2357,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     teamName,
     externalParties,
     addExternalParty,
+    adminSettings,
   } = useAppContext()
   const { t, language } = useLanguage()
   const teamNaam = teamName(teamId)
@@ -2652,6 +2654,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   function DependencyRow({ dep, showAppPicker }) {
     const risk = calculateRisk(dep)
     const style = riskStyle(risk.level)
+    const flowverlies = adminSettings.uitgebreideAnalyse ? berekenFlowverlies(dep) : null
     return (
       <li className="py-2">
         <button
@@ -2663,6 +2666,14 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
           <span className="flex-1 truncate text-slate-700">{dep.titel}</span>
           <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
           <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
+          {flowverlies && (
+            <span
+              className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${riskStyle(flowverlies.level).badge}`}
+              title={t('teampage.flowverliesHint')}
+            >
+              {t('teampage.flowverliesShort')}: {translateRiskLevel(flowverlies.level, language)}
+            </span>
+          )}
         </button>
         {(dep.status || dep.actieAfspraak) && (
           <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-[11px] text-slate-400">

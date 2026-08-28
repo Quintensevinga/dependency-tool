@@ -215,6 +215,26 @@ export const EXTERNAL_PARTY_STATUS_LABELS = {
   geweigerd: { nl: 'Geweigerd', en: 'Rejected' },
 }
 
+export const WACHTTIJD_LABELS = {
+  geen: { nl: 'Geen', en: 'None' },
+  kort: { nl: 'Kort (uren, zelfde dag)', en: 'Short (hours, same day)' },
+  dagen: { nl: 'Dagen (1-3 dagen)', en: 'Days (1-3 days)' },
+  sprint_of_meer: { nl: 'Sprint of meer', en: 'Sprint or more' },
+}
+
+export const DEADLINE_LABELS = {
+  geen_datum: { nl: 'Geen datum', en: 'No date' },
+  interne_afspraak: { nl: 'Interne afspraak', en: 'Internal agreement' },
+  vaste_datum: { nl: 'Vaste datum', en: 'Fixed date' },
+  harde_deadline: { nl: 'Harde deadline', en: 'Hard deadline' },
+}
+
+export const ANALYSE_LABEL_LABELS = {
+  stil_risico: { nl: 'Stil risico', en: 'Silent risk' },
+  verouderd: { nl: 'Verouderd', en: 'Stale' },
+  quick_win: { nl: 'Quick win', en: 'Quick win' },
+}
+
 function lookup(map, key, lang) {
   return map[key]?.[lang] ?? key
 }
@@ -234,6 +254,9 @@ export const translateSeniority = (key, lang) => (key ? lookup(SENIORITY_LABELS,
 export const translateRisicoBijUitval = (key, lang) => (key ? lookup(RISICO_BIJ_UITVAL_LABELS, key, lang) : '')
 export const translateOplosbaarheid = (key, lang) => (key ? lookup(OPLOSBAARHEID_LABELS, key, lang) : '')
 export const translateExternalPartyStatus = (key, lang) => (key ? lookup(EXTERNAL_PARTY_STATUS_LABELS, key, lang) : '')
+export const translateWachttijd = (key, lang) => (key ? lookup(WACHTTIJD_LABELS, key, lang) : '')
+export const translateDeadline = (key, lang) => (key ? lookup(DEADLINE_LABELS, key, lang) : '')
+export const translateAnalyseLabel = (key, lang) => (key ? lookup(ANALYSE_LABEL_LABELS, key, lang) : '')
 
 export function getCategoryDescription(categorie, scope, lang) {
   return CATEGORY_DESCRIPTIONS[scope]?.[categorie]?.[lang] ?? ''
