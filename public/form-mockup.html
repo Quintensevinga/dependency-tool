@@ -1,0 +1,743 @@
+<title>Dependency Form — Nieuwe indeling</title>
+<style>
+  :root{
+    --s50:#f8fafc; --s100:#f1f5f9; --s200:#e2e8f0; --s300:#cbd5e1; --s400:#94a3b8;
+    --s500:#64748b; --s600:#475569; --s700:#334155; --s800:#1e293b; --s900:#0f172a;
+    --blue:#2a5f8a; --blue-dark:#1f4a6c; --red:#9a3b2e; --app-bg:#f3f6f9;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--app-bg); color:var(--s800);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font-size:16px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .page{max-width:78rem;margin:0 auto;padding:2rem 1.25rem 4rem}
+
+  .intro{max-width:44rem;margin:0 auto 2rem}
+  .intro .eyebrow{font-size:.7rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--blue);margin:0 0 .5rem}
+  .intro h1{margin:0 0 .5rem;font-size:1.6rem;font-weight:700;letter-spacing:-.02em;color:var(--s900)}
+  .intro p{margin:0;color:var(--s600);font-size:.95rem}
+
+  /* ---------- modal, exact als de app ---------- */
+  .stage{background:rgba(15,23,42,.40);border-radius:14px;padding:2.5rem 1rem;display:flex;justify-content:center}
+  .modal{
+    width:100%;max-width:42rem;               /* was max-w-lg (32rem) → verbreed */
+    background:#fff;border-radius:.75rem;
+    box-shadow:0 25px 50px -12px rgba(0,0,0,.25);
+    display:flex;flex-direction:column;overflow:hidden;max-height:82vh;
+  }
+  .m-head{
+    display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;
+    border-bottom:1px solid var(--s200);padding:1rem 1.25rem;flex-shrink:0;
+  }
+  .m-head h3{margin:0;font-size:1rem;font-weight:600;color:var(--s900)}
+  .m-close{background:none;border:0;padding:.25rem;border-radius:.375rem;color:var(--s400);cursor:pointer;line-height:0}
+  .m-close:hover{background:var(--s100);color:var(--s600)}
+  .m-body{flex:1;min-height:0;overflow-y:auto;padding:1rem 1.25rem}
+  .m-foot{
+    display:flex;justify-content:flex-end;gap:.5rem;flex-shrink:0;
+    border-top:1px solid var(--s200);padding:1rem 1.25rem;
+  }
+  .btn{border-radius:.375rem;padding:.5rem .875rem;font-size:.875rem;font-weight:500;cursor:pointer}
+  .btn-sec{border:1px solid var(--s300);background:#fff;color:var(--s600)}
+  .btn-sec:hover{background:var(--s50)}
+  .btn-pri{border:0;background:var(--blue);color:#fff}
+  .btn-pri:hover{background:var(--blue-dark)}
+
+  /* ---------- secties ---------- */
+  .sect{margin-bottom:1.25rem}
+  .sect + .sect{border-top:1px solid var(--s200);padding-top:1.25rem}
+  .sect-h{
+    display:flex;align-items:center;gap:.5rem;margin-bottom:.85rem;
+    font-size:.6875rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--s400);
+  }
+  .sect-h .n{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:1.1rem;height:1.1rem;border-radius:50%;background:var(--s100);color:var(--s500);
+    font-size:.625rem;font-weight:700;letter-spacing:0;
+  }
+  .sect-h .rule{flex:1;height:1px;background:var(--s200)}
+
+  .field{margin-bottom:.9rem}
+  .field:last-child{margin-bottom:0}
+  label.lb{display:block;margin-bottom:.25rem;font-size:.75rem;font-weight:500;color:var(--s600)}
+  label.lb .req{margin-left:.125rem;color:var(--s400)}
+  .lb-row{display:flex;align-items:center;gap:.375rem;margin-bottom:.25rem}
+  .lb-row label.lb{margin-bottom:0}
+  .inp{
+    width:100%;border:1px solid var(--s300);border-radius:.375rem;background:#fff;
+    padding:.5rem .75rem;font-size:.875rem;color:var(--s800);font-family:inherit;
+  }
+  .inp::placeholder{color:var(--s400)}
+  .inp:focus{outline:none;border-color:var(--blue)}
+  textarea.inp{resize:vertical;min-height:4.5rem}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+  .hint{margin:.25rem 0 .4rem;font-size:.75rem;color:var(--s400)}
+
+  /* info-icoon met tooltip, als in de app */
+  .info{position:relative;display:inline-flex;align-items:center;cursor:help}
+  .info svg{color:var(--s400)}
+  .info .tip{
+    position:absolute;left:0;top:100%;margin-top:.375rem;z-index:20;display:none;width:16rem;
+    background:#1e293b;color:#f1f5f9;border-radius:.5rem;padding:.625rem .75rem;
+    font-size:.75rem;line-height:1.55;font-weight:400;text-transform:none;letter-spacing:0;
+    box-shadow:0 20px 25px -5px rgba(0,0,0,.2);
+  }
+  .info:hover .tip{display:block}
+
+  /* ---------- segmented control ---------- */
+  .seg{display:flex;border:1px solid var(--s300);border-radius:.375rem;background:#fff;padding:.125rem;gap:.125rem}
+  .seg button{
+    flex:1;border:0;background:none;border-radius:.25rem;padding:.3rem .4rem;
+    font-size:.8125rem;color:var(--s600);cursor:pointer;font-family:inherit;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .seg button:hover{color:var(--s900)}
+  .seg button[aria-pressed="true"]{background:var(--blue);color:#fff;font-weight:500}
+  /* Rij met 5 opties: krappere padding zodat de langste labels heel blijven. */
+  .seg:has(button:nth-child(5)) button{padding-left:.2rem;padding-right:.2rem;font-size:.78rem}
+  .seg.compact{display:inline-flex}
+  .seg.compact button{flex:0 0 auto;padding:.25rem .75rem}
+
+  /* ankerregel onder een keuze */
+  .anchor{
+    margin-top:.4rem;font-size:.75rem;color:var(--s500);line-height:1.5;
+    display:flex;gap:.4rem;align-items:flex-start;
+  }
+  .anchor .arrow{color:var(--s300);flex-shrink:0}
+  .anchor em{color:var(--s400);font-style:italic}
+
+  /* categorie-beschrijving, als in de app */
+  .catbox{
+    margin-top:.375rem;border:1px solid var(--s200);background:var(--s50);
+    border-radius:.375rem;padding:.5rem .625rem;font-size:.75rem;color:var(--s600);
+  }
+  .catbox b{display:block;color:var(--s700);font-weight:500;margin-bottom:.125rem}
+
+  /* ---------- live uitkomst ---------- */
+  .outcome{
+    margin-top:1rem;border:1px solid var(--s200);border-radius:.5rem;
+    background:var(--s50);padding:.7rem .85rem;
+  }
+  .outcome .ttl{font-size:.6875rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--s400);margin-bottom:.5rem}
+  .outcome .vals{display:flex;flex-wrap:wrap;gap:.5rem}
+  .pill{
+    display:inline-flex;align-items:baseline;gap:.35rem;border-radius:.375rem;
+    padding:.25rem .55rem;font-size:.8125rem;background:#fff;border:1px solid var(--s200);
+  }
+  .pill .k{font-size:.6875rem;color:var(--s400)}
+  .pill .v{font-weight:600}
+  .v-laag{color:#3f7d5f} .v-gem{color:#8a6620} .v-hoog{color:#b4622c} .v-krit{color:var(--red)}
+
+    .anchor.preview{color:var(--s600)}
+  .anchor.preview .arrow{color:var(--blue)}
+  .breakdown{
+    margin-top:.5rem;padding-top:.5rem;border-top:1px solid var(--s200);
+    font-size:.6875rem;color:var(--s400);font-variant-numeric:tabular-nums;
+  }
+  .sect-note{margin:-.4rem 0 .85rem;font-size:.75rem;color:var(--s400);line-height:1.5}
+  .verdict{
+    margin-top:.75rem;border:1px solid var(--s200);border-radius:.5rem;
+    background:var(--s50);padding:.6rem .8rem;display:flex;gap:.5rem;align-items:baseline;
+  }
+  .verdict .k{font-size:.6875rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--s400)}
+  .verdict .v{font-size:.8125rem;font-weight:600}
+  .verdict .d{font-size:.75rem;color:var(--s500)}
+
+  .exnext{
+    border:0;background:none;padding:0 0 0 .3rem;cursor:pointer;color:var(--s300);
+    font-size:.7rem;line-height:1;vertical-align:baseline;
+  }
+  .exnext:hover{color:var(--blue)}
+  .exnext:focus-visible{outline:1px solid var(--blue);outline-offset:2px;border-radius:2px}
+  .lb-between{display:flex;align-items:center;justify-content:space-between;gap:.5rem;margin-bottom:.25rem}
+  .lb-between label.lb{margin-bottom:0}
+  .linkbtn{
+    border:0;background:none;padding:0;cursor:pointer;font-family:inherit;
+    font-size:.6875rem;font-weight:500;color:var(--blue);
+  }
+  .linkbtn:hover{text-decoration:underline}
+
+  .checklist{
+    border:1px solid var(--s300);border-radius:.375rem;background:#fff;padding:.375rem;
+    display:flex;flex-direction:column;gap:.125rem;max-height:11rem;overflow-y:auto;
+  }
+  .checklist label{
+    display:flex;align-items:center;gap:.5rem;padding:.25rem .375rem;border-radius:.25rem;
+    font-size:.875rem;color:var(--s700);cursor:pointer;
+  }
+  .checklist label:hover{background:var(--s50)}
+  .checklist input{width:.875rem;height:.875rem;accent-color:var(--blue);margin:0}
+  .count{margin-top:.375rem;font-size:.6875rem;color:var(--blue)}
+
+  .chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-bottom:.4rem}
+  .chip{
+    display:inline-flex;align-items:center;gap:.35rem;background:var(--s100);
+    border:1px solid var(--s200);border-radius:1rem;padding:.15rem .3rem .15rem .6rem;
+    font-size:.8125rem;color:var(--s700);
+  }
+  .chip button{
+    border:0;background:none;cursor:pointer;color:var(--s400);line-height:1;
+    padding:0 .15rem;font-size:.9rem;border-radius:50%;
+  }
+  .chip button:hover{color:var(--red)}
+  .chips-empty{font-size:.75rem;color:var(--s400);margin-bottom:.4rem}
+
+  .cond{display:none}
+  .cond.on{display:block}
+
+  /* ---------- annotaties ---------- */
+  .notes{max-width:44rem;margin:2.25rem auto 0}
+  .notes h2{font-size:1.05rem;font-weight:700;color:var(--s900);margin:0 0 .8rem;letter-spacing:-.01em}
+  .notes ol{margin:0;padding-left:0;list-style:none;counter-reset:na;display:grid;gap:.6rem}
+  .notes li{
+    counter-increment:na;background:#fff;border:1px solid var(--s200);border-left:3px solid var(--blue);
+    border-radius:.5rem;padding:.8rem 1rem;font-size:.9rem;color:var(--s600);
+    box-shadow:0 1px 2px rgba(15,23,42,.04);
+  }
+  .notes li b{color:var(--s800);font-weight:600}
+  .notes li::before{
+    content:counter(na);font-size:.6875rem;font-weight:700;color:var(--blue);
+    margin-right:.5rem;
+  }
+  @media(max-width:720px){
+    .stage{padding:1rem .5rem}
+    .grid2{grid-template-columns:1fr}
+    .seg{flex-wrap:wrap}
+    .seg button{flex:1 1 45%}
+  }
+</style>
+
+<div class="page">
+
+  <div class="intro">
+    <p class="eyebrow">Dependency Insight · Mockup</p>
+    <h1>Dependency-formulier, nieuwe indeling</h1>
+    <p>
+      Vier blokken met een verhaallijn, inschattingen als knoppenrij in plaats van dropdowns,
+      en een live uitkomst. Klikbaar — probeer de opties, de uitkomst loopt mee.
+    </p>
+    <p style="margin-top:.75rem;padding:.6rem .8rem;background:#fff;border:1px solid var(--s200);border-left:3px solid var(--blue);border-radius:.375rem;font-size:.85rem;color:var(--s600)">
+      <b style="color:var(--s800)">Dit is de variant met “Uitgebreide analyse” aan.</b>
+      Staat die toggle in Instellingen uit, dan vervallen wachttijd, urgentie, oplosbaarheid en
+      de uitkomstbalk, en blijft het formulier zoals het nu is — met impact, frequentie en status.
+      Bestaande dependencies veranderen niet van risiconiveau door de toggle.
+    </p>
+  </div>
+
+  <div class="stage">
+    <div class="modal" role="dialog" aria-label="Nieuwe dependency">
+      <div class="m-head">
+        <h3>Nieuwe dependency</h3>
+        <button class="m-close" aria-label="Sluiten">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <div class="m-body">
+
+        <!-- ① WAT IS HET -->
+        <div class="sect">
+          <div class="sect-h"><span class="n">1</span> Wat is het <span class="rule"></span></div>
+
+          <div class="field">
+            <div class="lb-between">
+              <label class="lb" id="team-lb">Team <span class="req">*</span></label>
+              <button type="button" class="linkbtn" id="team-toggle">Selecteer meerdere teams</button>
+            </div>
+            <select class="inp" id="team-single">
+              <option>Team Polis</option><option>Team Casio</option><option>Team Equinox</option>
+              <option>Team Tiem</option><option>Team Freggels</option><option>Team Smurfen</option>
+            </select>
+            <div class="cond" id="team-multi">
+              <p class="hint" style="margin-top:0">Voor welke teams wil je deze dependency aanmaken?</p>
+              <div class="checklist" id="team-list"></div>
+              <p class="count" id="team-count"></p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Titel <span class="req">*</span></label>
+            <input class="inp" value="Kennis polisverwerkingsproces zit bij één persoon">
+          </div>
+
+          <div class="grid2">
+            <div class="field">
+              <label class="lb">Scope <span class="req">*</span></label>
+              <div class="seg" data-group="scope">
+                <button aria-pressed="true">Teamniveau</button>
+                <button aria-pressed="false">Ketenniveau</button>
+              </div>
+            </div>
+            <div class="field">
+              <div class="lb-row">
+                <label class="lb">Flowtype <span class="req">*</span></label>
+                <span class="info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="tip">Ontwikkelflow: hoort bij het ontwikkelproces, kies daarna een workflowstap. Applicatieflow: gaat over draaiende applicaties — labelen doe je op de teampagina.</span></span>
+              </div>
+              <div class="seg" data-group="flowtype">
+                <button aria-pressed="true">Ontwikkelflow</button>
+                <button aria-pressed="false">Applicatieflow</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="field cond" id="f-geraakt">
+            <div class="lb-row">
+              <label class="lb">Afhankelijk van / geraakt team <span class="req">*</span></label>
+              <span class="info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="tip">Vaste lijst, beheerd via Instellingen. Staat jouw partij er niet bij? Kies "Anders" en typ hem — een beheerder bepaalt later of hij in de centrale lijst wordt opgenomen.</span></span>
+            </div>
+            <div class="chips" id="bron-chips"></div>
+            <p class="chips-empty" id="bron-leeg">Nog geen partij gekozen.</p>
+            <select class="inp" id="bron">
+              <option value="">+ Partij toevoegen…</option>
+              <option>Change Advisory Board</option>
+              <option>Extern specialistenteam Security</option>
+              <option>Extern specialistenteam Infra</option>
+              <option>Inkoop &amp; Contractmanagement</option>
+              <option>Business opdrachtgever Klantcontact</option>
+              <option>Team Smurfen</option>
+              <option value="__anders">Anders, namelijk…</option>
+            </select>
+            <div class="cond" id="f-bron-anders" style="margin-top:.4rem">
+              <input class="inp" placeholder="Naam van team, afdeling of externe partij">
+              <p class="hint">Wordt als voorstel opgeslagen; een beheerder bepaalt of hij in de centrale lijst komt.</p>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Categorie <span class="req">*</span></label>
+            <select class="inp" id="cat">
+              <option>Kennis-concentratie</option>
+              <option>Technische afhankelijkheid</option>
+              <option>Rol-afhankelijkheid</option>
+            </select>
+            <div class="catbox">
+              <b>Kennis-concentratie</b>
+              Kennis over een systeem of proces zit bij één of enkele personen, waardoor het werk stilvalt als zij er niet zijn.
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Toelichting</label>
+            <textarea class="inp" placeholder="Korte context bij deze dependency"></textarea>
+          </div>
+
+        </div>
+
+        <!-- ② WAAR IN DE FLOW -->
+        <div class="sect cond on" id="s-flow">
+          <div class="sect-h"><span class="n">2</span> Waar in de flow <span class="rule"></span></div>
+          <div class="field">
+            <label class="lb">Workflowstap <span class="req">*</span></label>
+            <select class="inp" id="wf">
+              <option value="analyse_refinement">Analyse/refinement</option>
+              <option value="ontwikkeling_configuratie" selected>Ontwikkeling/configuratie</option>
+              <option value="testen">Testen</option>
+              <option value="acceptatie">Acceptatie</option>
+              <option value="release_overdracht">Release/overdracht</option>
+              <option value="beheer_nazorg">Beheer/nazorg</option>
+            </select>
+            <div class="catbox" id="wf-desc"></div>
+          </div>
+        </div>
+
+        <!-- ③ HOE ERG -->
+        <div class="sect">
+          <div class="sect-h"><span class="n">3</span> Hoe erg &amp; wat kost het <span class="rule"></span></div>
+          <p class="sect-note">Wachttijd en urgentie zijn optioneel — maar hoe vollediger dit blok, hoe bruikbaarder de analyse.</p>
+
+          <div class="field">
+            <div class="lb-row">
+              <label class="lb">Impact <span class="req">*</span></label>
+              <span class="info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="tip">Hoe erg is het als deze afhankelijkheid zich voordoet? Kijk naar het effect op het werk, niet naar hoe vaak het gebeurt.</span></span>
+            </div>
+            <div class="seg" data-dim="impact">
+              <button data-v="1" data-a="Werk gaat door.|Iemand zoekt iets uit; niemand wacht.">Klein</button>
+              <button data-v="2" data-a="Eén stuk werk gaat trager.|Eén story is lastiger dan gepland.">Beperkt</button>
+              <button data-v="3" data-a="Zichtbaar effect op planning of kwaliteit.|Meerdere items schuiven." aria-pressed="true">Duidelijk</button>
+              <button data-v="4" data-a="Blokkeert belangrijk werk of raakt de keten.|Sprintdoel of ketenoplevering in gevaar.">Zwaar</button>
+            </div>
+            <div class="anchor" data-anchor="impact"></div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Frequentie <span class="req">*</span></label>
+            <div class="seg" data-dim="frequentie">
+              <button data-v="1" data-a="Losse situatie.|Een eenmalige migratie.">Eenmalig</button>
+              <button data-v="2" data-a="Af en toe, geen patroon.|Paar keer per jaar.">Soms</button>
+              <button data-v="3" data-a="Elke paar sprints.|Bij elke release opnieuw afstemmen." aria-pressed="true">Regelmatig</button>
+              <button data-v="4" data-a="Vrijwel elke sprint.|Testdata standaard elders ophalen.">Structureel</button>
+            </div>
+            <div class="anchor" data-anchor="frequentie"></div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Wachttijd</label>
+            <div class="seg" data-dim="wachttijd">
+              <button data-v="0" data-a="Niet merkbaar in de planning.|Werkende omweg die niets kost.">Geen</button>
+              <button data-v="1" data-a="Uren, zelfde dag.|Collega reageert dezelfde dag.">Kort</button>
+              <button data-v="2" data-a="1–3 dagen, past in de sprint.|Wachten op een testomgeving." aria-pressed="true">Dagen</button>
+              <button data-v="3" data-a="Werk schuift door.|Wachten op oplevering ander team.">Sprint of meer</button>
+            </div>
+            <div class="anchor" data-anchor="wachttijd"></div>
+          </div>
+
+          <div class="field cond on" id="f-soort">
+            <div class="lb-row">
+              <label class="lb">Soort flowverlies</label>
+              <span class="info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="tip">Wat voor soort verlies is het? Wachten wijst op coördinatie, herwerk op kwaliteit, contextswitch op planning, onduidelijkheid op refinement.</span></span>
+            </div>
+            <select class="inp" id="eff">
+              <option value="wachten" selected>Wachten</option>
+              <option value="herwerk">Herwerk</option>
+              <option value="contextswitch">Contextswitch</option>
+              <option value="vertraging">Vertraging</option>
+              <option value="onduidelijkheid">Onduidelijkheid</option>
+              <option value="blokkade">Blokkade</option>
+              <option value="extra_afstemming">Extra afstemming nodig</option>
+              <option value="niet_startklaar">Niet startklaar</option>
+              <option value="anders">Anders</option>
+            </select>
+            <div class="catbox" id="eff-desc"></div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Urgentie</label>
+            <div class="seg" data-dim="urgentie">
+              <button data-v="0" data-a="Niets op de kalender.|Vervelend, maar geen moment in gevaar." aria-pressed="true">Geen datum</button>
+              <button data-v="1" data-a="Sprintafspraak of intern moment.|Wilden dit deze sprint afronden.">Interne afspraak</button>
+              <button data-v="2" data-a="Release, PI-doel of toezegging.|Release van 14 september.">Vaste datum</button>
+              <button data-v="3" data-a="Extern of wettelijk; uitstel geen optie.|Wettelijke ingangsdatum 1 januari.">Harde deadline</button>
+            </div>
+            <div class="anchor" data-anchor="urgentie"></div>
+            <div class="cond" id="f-datum" style="margin-top:.5rem">
+              <input class="inp" placeholder="Welke datum of release? — verplicht bij deze keuze">
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Status <span class="req">*</span></label>
+            <div class="seg" data-dim="status">
+              <button data-v="-2" data-a="Er is een werkende oplossing of omweg.|Vast refinement-ritme ingevoerd.">Gemitigeerd</button>
+              <button data-v="0" data-a="Bekend, nog niet opgelost.|We weten ervan, er ligt geen aanpak." aria-pressed="true">Bekend risico</button>
+              <button data-v="2" data-a="Houdt nu werk tegen.|Er staat iets stil door deze afhankelijkheid.">Actief blokkerend</button>
+            </div>
+            <div class="anchor" data-anchor="status"></div>
+          </div>
+
+          <div class="outcome">
+            <div class="ttl">Uitkomst</div>
+            <div class="vals">
+              <span class="pill"><span class="k">Risico</span><span class="v" id="o-risk">—</span></span>
+              <span class="pill"><span class="k">Flowverlies</span><span class="v" id="o-flow">—</span></span>
+              <span class="pill"><span class="k">Urgentie</span><span class="v" id="o-urg">—</span></span>
+            </div>
+            <div class="breakdown" id="o-calc"></div>
+          </div>
+        </div>
+
+        <!-- ④ WAT NU -->
+        <div class="sect">
+          <div class="sect-h"><span class="n">4</span> Wat doen we ermee <span class="rule"></span></div>
+
+          <div class="field">
+            <div class="lb-row">
+              <label class="lb">Oplosbaarheid</label>
+              <span class="info"><svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 11v5.5M12 8v.01" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="tip">Op welk niveau is deze dependency op te lossen? Kies het laagste niveau waarop het echt kan.</span></span>
+            </div>
+            <div class="seg" data-dim="oplos">
+              <button data-v="1" data-a="Eén teamlid kan dit zelf oplossen." aria-pressed="true">Eén teamlid</button>
+              <button data-v="2" data-a="Vraagt meerdere mensen binnen het team.">Teamleden</button>
+              <button data-v="3" data-a="Vraagt afstemming met een of meer andere teams.">Meerdere teams</button>
+              <button data-v="4" data-a="Vraagt iets buiten de teams om.">Team-overstijgend</button>
+              <button data-v="5" data-a="Vraagt een organisatorische wijziging of besluit.">Organisatorisch</button>
+            </div>
+            <div class="anchor" data-anchor="oplos"></div>
+            <div class="verdict">
+              <span class="k">Betekent</span>
+              <span><span class="v" id="o-kwad">—</span> <span class="d" id="o-kwad-d"></span></span>
+            </div>
+          </div>
+
+          <div class="field">
+            <label class="lb">Actie / afspraak</label>
+            <input class="inp" placeholder="Wat is de vervolgstap?">
+          </div>
+
+          <div class="field">
+            <label class="lb">Mitigatie</label>
+            <textarea class="inp" placeholder="Wat wordt er al aan gedaan?"></textarea>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="m-foot">
+        <button class="btn btn-sec">Annuleren</button>
+        <button class="btn btn-pri">Opslaan</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h2>Wat er verandert</h2>
+    <ol>
+      <li><b>Titel staat bovenaan.</b> Direct onder Team — je hebt iets in je hoofd en wilt dat kwijt, niet eerst vier classificatiekeuzes maken.</li>
+      <li><b>Meerdere voorbeelden per optie.</b> Eén voorbeeld past nooit op elke dependency — klik het ↻-tje achter het voorbeeld voor een volgende. Twee of drie zien leert je beter waar de grens van een niveau ligt dan één.</li>
+      <li><b>Ankers zijn te lezen zonder te kiezen.</b> Hover of tab langs een optie en de betekenis verschijnt, zonder je antwoord te wijzigen. Juist als je twijfelt wil je kunnen vergelijken.</li>
+      <li><b>De uitkomst laat zijn opbouw zien.</b> Onder de pillen staat de som — impact × frequentie + status. Dat was de belofte van een transparant model.</li>
+      <li><b>Oplosbaarheid heeft een eigen gevolg.</b> Geen vierde pil in de uitkomst (hij hoort niet in de score), maar een kwadrantlabel: quick win, opschalen, opruimen of accepteren.</li>
+      <li><b>Vier blokken met een verhaallijn.</b> Wat is het → waar in de flow → hoe erg → wat doen we ermee. Nu staan impact, frequentie en status ergens halverwege tussen titel en mitigatie in.</li>
+      <li><b>Inschattingen zijn knoppen, geen dropdowns.</b> Alle opties meteen zichtbaar, één klik in plaats van twee, en het anker past eronder. Hergebruikt het patroon dat Scope en Flowtype al hebben.</li>
+      <li><b>Ankertekst onder elke keuze.</b> De betekenis plus een voorbeeld — dit is wat de subjectiviteit terugdringt. Hover het <span style="color:var(--s400)">ⓘ</span> voor de uitgebreide uitleg.</li>
+      <li><b>Live uitkomst.</b> Risico, flowverlies en urgentie lopen mee tijdens het invullen. Maakt van het blok iets dat resultaat oplevert, en laat mensen hun eigen inschatting toetsen.</li>
+      <li><b>Optionele velden zijn als zodanig gemarkeerd.</b> Eén regel bij blok 3 legt uit waarom sommige velden geen sterretje hebben — en dat vollediger invullen de analyse bruikbaarder maakt.</li>
+      <li><b>Velden die niet van toepassing zijn, verdwijnen.</b> Soort flowverlies verschijnt pas bij wachttijd &gt; Geen; het datumveld pas bij een echte deadline; workflowstap verdwijnt bij Applicatieflow.</li>
+      <li><b>Modal van 512 naar 672 pixels breed.</b> Vier knoppen met leesbare labels passen niet in de huidige breedte.</li>
+      <li><b>Meerdere teams tegelijk.</b> De knop rechts van het label wisselt naar een aanvinklijst, met daaronder hoeveel kopieën er worden aangemaakt. Zo werkt het nu al in de app.</li>
+      <li><b>Meerdere geraakte partijen.</b> Als chips, want je kiest er een paar uit een lange lijst. Een dependency hangt zelden aan precies één partij — CAB én Security kan prima.</li>
+      <li><b>Geraakt team is een beheerde lijst.</b> Vaste keuzes uit Instellingen, met "Anders, namelijk…" om er zelf een toe te voegen. Die wordt als voorstel opgeslagen; een beheerder bepaalt of hij in de centrale lijst komt. Dat lost meteen het spelvariant-probleem op: nu is het vrije tekst, en elke typfout splitst je telling.</li>
+      <li><b>Canonieke waarden uit de codebase.</b> Workflowstap (6), Soort flowverlies (9), Wachttijd (4), Urgentie (4) en Oplosbaarheid (5) komen exact uit <code style="font-size:.85em;background:var(--s100);padding:.05em .3em;border-radius:3px">constants.js</code> en <code style="font-size:.85em;background:var(--s100);padding:.05em .3em;border-radius:3px">labels.js</code>.</li>
+      <li><b>Alleen de indeling is nieuw.</b> De velden en de rekenlogica staan al in de app; dit voorstel gaat puur over hoe ze worden gepresenteerd.</li>
+    </ol>
+  </div>
+
+</div>
+
+<script>
+
+  // Meerdere voorbeelden per optie: een enkel voorbeeld dekt nooit elk geval,
+  // en wie er twee of drie ziet leert beter waar de grens van een niveau ligt.
+  const EX = {
+    impact: {
+      1:['Iemand zoekt iets uit; niemand wacht erop.','Je neemt even een andere route, het werk gaat door.','Irritant, maar niet zichtbaar in de planning.'],
+      2:['Een story is lastiger te bouwen dan gepland.','Een taak duurt langer, de rest loopt door.','Je levert op, maar met een tijdelijke oplossing.'],
+      3:['Meerdere items schuiven naar de volgende sprint.','Je levert op met minder kwaliteit dan afgesproken.','De demo moet worden aangepast omdat een deel niet af is.'],
+      4:['Het sprintdoel wordt niet gehaald.','Een keten-oplevering komt in gevaar.','Er kan niet naar productie tot dit is opgelost.'],
+    },
+    frequentie: {
+      1:['Een eenmalige migratie of verhuizing.','Dit hoorde bij dit specifieke project.','Speelde een keer, verwachten we niet terug.'],
+      2:['Een paar keer per jaar, bij een bepaald type wijziging.','Alleen als we aan dat ene systeem werken.','Zo nu en dan, geen vast patroon.'],
+      3:['Bij elke release opnieuw afstemmen.','Elke paar sprints komt dit terug.','Steeds als er een nieuwe koppeling bijkomt.'],
+      4:['Testdata moet standaard bij een ander team worden opgehaald.','Vrijwel elke sprint lopen we hier tegenaan.','Het hoort inmiddels bij hoe het werk loopt.'],
+    },
+    wachttijd: {
+      0:['Er is een werkende omweg die niemand tijd kost.','We plannen eromheen, verder geen effect.'],
+      1:['Wachten op een collega die dezelfde dag reageert.','Een paar uur stil, daarna weer door.','Even een seintje geven en het is geregeld.'],
+      2:['Wachten tot een testomgeving vrijkomt.','Een aanvraag die twee dagen door de lijn gaat.','Je pakt ander werk op en komt er later op terug.'],
+      3:['Wachten op een oplevering van een ander team.','Het item schuift naar de volgende sprint.','Staat al meerdere sprints op de plank.'],
+    },
+    urgentie: {
+      0:['Vervelend, maar er staat niets op de kalender.','We willen het oplossen, geen moment dat knelt.'],
+      1:['We wilden dit deze sprint afronden.','Beloofd binnen het team, verder geen externe druk.'],
+      2:['Release van 14 september.','Toegezegd voor het einde van deze PI.','Staat in de releasekalender.'],
+      3:['Wettelijke ingangsdatum 1 januari.','Externe partij heeft een contractuele datum.','Uitstel betekent een no-go.'],
+    },
+    status: {
+      '-2':['Vast refinement-ritme ingevoerd.','Er is een werkende workaround afgesproken.'],
+      '0':['We weten ervan, er ligt nog geen aanpak.','Besproken in de retro, nog geen actie.'],
+      '2':['Er staat nu iets stil door deze afhankelijkheid.','Het werk kan pas verder als dit is opgelost.'],
+    },
+    oplos: {
+      1:['Iemand automatiseert een handmatige stap.','Eén ontwikkelaar documenteert wat alleen zij weet.','Een teamlid legt de afspraak vast.'],
+      2:['Het team spreekt samen een werkwijze af.','Twee mensen werken elkaar in op dezelfde kennis.','Het team past zijn definition of done aan.'],
+      3:['Ander team moet iets opleveren of een afspraak nakomen.','Samen met beheer een proces afstemmen.','Twee teams stemmen hun releasemoment af.'],
+      4:['Afspraak maken met een leverancier over doorlooptijd.','Een gedeeld platformteam moet capaciteit vrijmaken.','Het change-proces zelf moet worden aangepast.'],
+      5:['Extra capaciteit vraagt een besluit van de directie.','Er moet een rol of afdeling worden ingericht.','Prioritering moet organisatiebreed opnieuw belegd.'],
+    },
+  }
+  const exIdx = {}
+
+  const st = { impact:3, frequentie:3, wachttijd:2, urgentie:0, status:0, oplos:1 }
+
+  function renderAnchor(box, dim, val, mean){
+    const lijst = (EX[dim] || {})[val] || []
+    const n = lijst.length
+    const i = n ? (exIdx[dim + ':' + val] || 0) % n : 0
+    const ex = n ? lijst[i] : ''
+    const meer = n > 1
+      ? ` <button type="button" class="exnext" data-dim="${dim}" data-val="${val}" title="Ander voorbeeld (${i + 1} van ${n})" aria-label="Ander voorbeeld">\u21bb</button>`
+      : ''
+    box.innerHTML = `<span class="arrow">\u2192</span><span>${mean}${ex ? ` <em>${ex}</em>${meer}` : ''}</span>`
+  }
+
+  function setAnchor(dim){
+    const btn = document.querySelector(`[data-dim="${dim}"] [aria-pressed="true"]`)
+    const box = document.querySelector(`[data-anchor="${dim}"]`)
+    if(!btn || !box) return
+    const mean = (btn.dataset.a || '|').split('|')[0]
+    renderAnchor(box, dim, btn.dataset.v, mean)
+  }
+
+  document.addEventListener('click', e => {
+    const b = e.target.closest('.exnext'); if(!b) return
+    e.preventDefault(); e.stopPropagation()
+    const k = b.dataset.dim + ':' + b.dataset.val
+    exIdx[k] = (exIdx[k] || 0) + 1
+    setAnchor(b.dataset.dim)
+    const nb = document.querySelector(`[data-anchor="${b.dataset.dim}"] .exnext`)
+    if (nb) nb.focus()
+  })
+
+  function band(s){
+    return s<=4  ? ['Laag','v-laag']
+         : s<=9  ? ['Gemiddeld','v-gem']
+         : s<=14 ? ['Hoog','v-hoog']
+                 : ['Kritiek','v-krit']
+  }
+
+  function render(){
+    // Risico = impact x frequentie + status
+    const [lvl, cls] = band(Math.max(1, st.impact * st.frequentie + st.status))
+    const r = document.getElementById('o-risk')
+    r.textContent = lvl; r.className = 'v ' + cls
+
+    // Flowverlies = wachttijd x frequentie, indicatief in dagen per sprint
+    const dagen = [0,.25,2,5][st.wachttijd] * [0,.1,.25,.5,1][st.frequentie]
+    const f = document.getElementById('o-flow')
+    f.textContent = dagen === 0 ? 'geen' : `~${dagen < 1 ? dagen.toFixed(1) : Math.round(dagen)} dgn/sprint`
+    f.className = 'v ' + (dagen === 0 ? '' : dagen < 1 ? 'v-gem' : 'v-hoog')
+
+    const u = document.getElementById('o-urg')
+    const ul = ['Geen','Intern','Vaste datum','Hard']
+    u.textContent = ul[st.urgentie]
+    u.className = 'v ' + ['','','v-hoog','v-krit'][st.urgentie]
+
+    // opbouw van de risicoscore zichtbaar maken
+    const ruw = st.impact * st.frequentie + st.status
+    const stl = {'-2':'gemitigeerd','0':'bekend risico','2':'actief blokkerend'}[String(st.status)]
+    document.getElementById('o-calc').textContent =
+      `impact ${st.impact} \u00d7 frequentie ${st.frequentie} ${st.status < 0 ? '\u2212' : '+'} ${Math.abs(st.status)} (${stl}) = ${Math.max(1, ruw)}`
+
+    // kwadrant: kosten van niets doen \u00d7 kosten van wel doen
+    const veel = dagen >= .5
+    const kv = document.getElementById('o-kwad'), kd = document.getElementById('o-kwad-d')
+    let lbl, uit, kcls
+    if (veel && st.oplos <= 2) { lbl = 'Quick win'; uit = 'veel verlies, binnen het team op te lossen \u2014 deze sprint doen'; kcls = 'v-laag' }
+    else if (veel)           { lbl = 'Opschalen';  uit = 'veel verlies, gaat niet vanzelf weg'; kcls = 'v-krit' }
+    else if (st.oplos <= 2)  { lbl = 'Opruimen';   uit = 'weinig verlies, binnen het team op te lossen \u2014 als er tijd is'; kcls = 'v-gem' }
+    else                     { lbl = 'Accepteren'; uit = 'weinig verlies, kost veel om op te lossen'; kcls = '' }
+    kv.textContent = lbl; kv.className = 'v ' + kcls; kd.textContent = '\u2014 ' + uit
+
+    document.getElementById('f-soort').classList.toggle('on', st.wachttijd > 0)
+    document.getElementById('f-datum').classList.toggle('on', st.urgentie >= 2)
+  }
+
+  // Anker van een optie tonen bij hover/focus, zonder te selecteren — zodat je
+  // kunt vergelijken voordat je kiest.
+  document.querySelectorAll('.seg[data-dim]').forEach(seg => {
+    const dim = seg.dataset.dim
+    const box = document.querySelector(`[data-anchor="${dim}"]`)
+    seg.querySelectorAll('button').forEach(b => {
+      const show = () => {
+        const mean = (b.dataset.a || '|').split('|')[0]
+        renderAnchor(box, dim, b.dataset.v, mean)
+        box.classList.add('preview')
+      }
+      const restore = () => { box.classList.remove('preview'); setAnchor(dim) }
+      b.addEventListener('mouseenter', show)
+      b.addEventListener('focus', show)
+      b.addEventListener('mouseleave', restore)
+      b.addEventListener('blur', restore)
+    })
+  })
+
+  document.querySelectorAll('.seg').forEach(seg => {
+    seg.addEventListener('click', e => {
+      const b = e.target.closest('button'); if(!b) return
+      seg.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed','false'))
+      b.setAttribute('aria-pressed','true')
+      const dim = seg.dataset.dim
+      if(dim){ st[dim] = Number(b.dataset.v); setAnchor(dim); render() }
+      if(seg.dataset.group === 'scope')
+        document.getElementById('f-geraakt').classList.toggle('on', b.textContent.trim() === 'Ketenniveau')
+      if(seg.dataset.group === 'flowtype')
+        document.getElementById('s-flow').classList.toggle('on', b.textContent.trim() === 'Ontwikkelflow')
+    })
+  })
+
+
+  const WF = {
+    analyse_refinement:['Analyse/refinement','Speelt bij het verkennen, uitwerken of verfijnen van het werk.'],
+    ontwikkeling_configuratie:['Ontwikkeling/configuratie','Speelt tijdens het bouwen, configureren of inrichten.'],
+    testen:['Testen','Speelt bij het testen of valideren van het werk.'],
+    acceptatie:['Acceptatie','Speelt bij afname, review of goedkeuring door PO of stakeholder.'],
+    release_overdracht:['Release/overdracht','Speelt bij het uitrollen of overdragen naar productie of beheer.'],
+    beheer_nazorg:['Beheer/nazorg','Speelt na oplevering, tijdens beheer of nazorg.'],
+  }
+  const EFF = {
+    wachten:['Wachten','Het werk ligt stil tot iemand anders iets doet. Wijst meestal op een coordinatieprobleem.'],
+    herwerk:['Herwerk','Werk moet opnieuw of aangepast worden. Wijst meestal op een kwaliteits- of definitieprobleem.'],
+    contextswitch:['Contextswitch','Mensen moeten schakelen naar ander werk en later terug. Wijst meestal op een planningsprobleem.'],
+    vertraging:['Vertraging','Het werk gaat door, maar langzamer dan bedoeld.'],
+    onduidelijkheid:['Onduidelijkheid','Niet helder wat er precies moet gebeuren. Wijst meestal op een refinementprobleem.'],
+    blokkade:['Blokkade','Het werk kan helemaal niet verder tot dit is opgelost.'],
+    extra_afstemming:['Extra afstemming nodig','Er is overleg nodig dat niet gepland stond.'],
+    niet_startklaar:['Niet startklaar','Het werk kan niet beginnen omdat randvoorwaarden ontbreken.'],
+    anders:['Anders','Een ander effect op de flow dan de opties hierboven.'],
+  }
+  function desc(sel, box, map){
+    const [t, d] = map[document.getElementById(sel).value]
+    document.getElementById(box).innerHTML = `<b>${t}</b>${d}`
+  }
+  document.getElementById('wf').addEventListener('change', () => desc('wf','wf-desc',WF))
+  document.getElementById('eff').addEventListener('change', () => desc('eff','eff-desc',EFF))
+  desc('wf','wf-desc',WF); desc('eff','eff-desc',EFF)
+
+
+  // ---- meerdere teams ----
+  const TEAMS = ['Team Polis','Team Casio','Team Equinox','Team Tiem','Team Freggels','Team Sterke verhalen','Team Smurfen']
+  let multi = false
+  const gekozenTeams = new Set(['Team Polis'])
+
+  function tekenTeams(){
+    document.getElementById('team-list').innerHTML = TEAMS.map(t =>
+      `<label><input type="checkbox" value="${t}"${gekozenTeams.has(t) ? ' checked' : ''}>${t}</label>`
+    ).join('')
+    telTeams()
+  }
+
+  function telTeams(){
+    const n = gekozenTeams.size
+    document.getElementById('team-count').textContent = n > 1
+      ? `Wordt aangemaakt als ${n} losse dependency-kopieën, één per team, elk apart te beheren.` : ''
+  }
+  document.getElementById('team-toggle').addEventListener('click', () => {
+    multi = !multi
+    document.getElementById('team-single').classList.toggle('cond', multi)
+    document.getElementById('team-single').style.display = multi ? 'none' : ''
+    document.getElementById('team-multi').classList.toggle('on', multi)
+    document.getElementById('team-lb').innerHTML = (multi ? 'Team(s)' : 'Team') + ' <span class="req">*</span>'
+    document.getElementById('team-toggle').textContent = multi ? 'Selecteer één team' : 'Selecteer meerdere teams'
+    if (multi) tekenTeams()
+  })
+  document.getElementById('team-list').addEventListener('change', e => {
+    if (e.target.checked) gekozenTeams.add(e.target.value); else gekozenTeams.delete(e.target.value)
+    telTeams()   // niet de hele lijst hertekenen: dat vervangt de checkboxes
+  })
+
+  // ---- meerdere geraakte partijen als chips ----
+  const bronnen = new Set()
+  function tekenBronnen(){
+    const box = document.getElementById('bron-chips')
+    box.innerHTML = [...bronnen].map(b =>
+      `<span class="chip">${b}<button type="button" data-b="${b}" aria-label="Verwijder ${b}">×</button></span>`
+    ).join('')
+    document.getElementById('bron-leeg').style.display = bronnen.size ? 'none' : ''
+  }
+  document.getElementById('bron-chips').addEventListener('click', e => {
+    const b = e.target.closest('button'); if(!b) return
+    bronnen.delete(b.dataset.b); tekenBronnen()
+  })
+  tekenBronnen()
+
+  document.getElementById('bron').addEventListener('change', e => {
+    const v = e.target.value
+    document.getElementById('f-bron-anders').classList.toggle('on', v === '__anders')
+    if (v && v !== '__anders') { bronnen.add(v); tekenBronnen() }
+    if (v !== '__anders') e.target.value = ''
+  })
+
+  ;['impact','frequentie','wachttijd','urgentie','status','oplos'].forEach(setAnchor)
+  render()
+</script>
