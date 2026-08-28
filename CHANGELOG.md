@@ -3,6 +3,15 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Onthoud huidige pagina bij browserherlaad** (Lars Hoogland)
+
+  Een herlaad viel altijd terug op de standaard Heatmap, ook als je op een
+  ander tabblad of een teampagina zat — vervelend tijdens ontwikkelen, waar een
+  codewijziging regelmatig een herlaad vereist. Tabblad, Heatmap/Relatiekaart-
+  substand en een geopende teampagina worden nu bewaard in een eigen
+  localStorage-sleutel; een teruggehaald team-id dat niet meer bestaat valt
+  netjes terug op het algemene tabblad i.p.v. een kapotte pagina te tonen.
+
 
 > **Samenvatting van vandaag — Ketenoverzicht-redesign.** Het Ketenoverzicht
 > (overview-modus) is in vier stappen herzien: van één druk raster met alle
