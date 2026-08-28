@@ -3,6 +3,28 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Ketenoverzicht: kolom- en itemvolgorde op ketenlogica baseren** (Lars Hoogland)
+
+  Teams stonden in een vaste, willekeurige volgorde (context-aanmaakvolgorde),
+  los van hun daadwerkelijke ketenrelaties — verbindingslijnen tussen een
+  OUT-kaartje en een ver weg gelegen IN-kaartje liepen daardoor dwars over
+  tussenliggende, ongerelateerde teamkolommen heen.
+
+  Nieuwe orderTeamsByChain in lib/teamWorkflow.js berekent een topologische
+  laagindeling + barycenter-heuristiek uit de bestaande ketenkoppelingen
+  (zelfde principe als tools als dagre, hier zonder externe dependency zelf
+  geïmplementeerd) — direct-verbonden teams komen zo naast/dicht bij elkaar
+  te staan. Teams zonder enige koppeling vallen los, achteraan; een cyclus
+  tussen twee teams kan niet vasthangen (valt terug op de volgende laag).
+  Binnen een kolom zijn IN/OUT-kaartjes ook herordend op de kolom van hun
+  gekoppelde tegenhanger, voor rechtere lijnen tussen naburige kolommen.
+
+  Focusmodus (eigen, gerichte inkomend/uitgaand-groepering) blijft
+  ongewijzigd. Lost kolom- en itemvolgorde op; garandeert nog geen 100%
+  crossing-vrije lay-out bij een niet-lineaire keten — dat vereist een eigen
+  lijnroutering, bewust nog niet gebouwd zolang het uiteindelijke ontwerp
+  niet vaststaat.
+
 - **Verwerk audit: 21 bevindingen (correctheid, robuustheid, performance)** (Lars Hoogland)
 
   Correctheid: Matrix-overzicht bleef niet meer leeg na een teamwijziging of
