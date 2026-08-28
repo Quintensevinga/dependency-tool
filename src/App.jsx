@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { AppProvider, useAppContext } from './context/AppContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Header from './components/Header'
@@ -43,8 +43,26 @@ function PageDisabledNotice({ onBack }) {
   )
 }
 
+// Onthoudt welke pagina open stond (tabblad, Heatmap/Relatiekaart-substand,
+// evt. geopende teampagina) zodat een browserherlaad — iets wat tijdens
+// ontwikkeling regelmatig gebeurt na een code-wijziging — niet steeds
+// terugvalt op de standaard Heatmap. Bewust een eigen, kleine localStorage-
+// sleutel i.p.v. onderdeel van de hoofdstate (STORAGE_KEY in lib/storage.js):
+// dit is navigatiestatus, geen inhoudelijke data, en hoeft niet mee in
+// exports/imports of de schema-migratie daarvan.
+const NAV_STORAGE_KEY = 'dependency-insight:nav'
+
+function loadNavState() {
+  try {
+    return JSON.parse(localStorage.getItem(NAV_STORAGE_KEY)) ?? {}
+  } catch {
+    return {}
+  }
+}
+
 function AppContent() {
   const {
+    teams,
     setCurrentTeamId,
     addDependency,
     updateDependency,
@@ -56,12 +74,18 @@ function AppContent() {
     dismissCorruptedNotice,
   } = useAppContext()
   const { t } = useLanguage()
-  const [activeTab, setActiveTab] = useState('graph')
+  const [activeTab, setActiveTab] = useState(() => {
+    const restored = loadNavState().activeTab
+    return ['graph', 'matrix', 'chain'].includes(restored) ? restored : 'graph'
+  })
   // Weergavemodus van Netwerkweergave (Heatmap/Relatiekaart) leeft hier i.p.v.
   // lokaal in GraphView, zodat de Sidebar 'm ook kan tonen/wijzigen. Heatmap
   // is het startpunt (overzicht eerst); Relatiekaart is de verdiepende
   // doorklik-view, al blijft hij ook los kiesbaar via de sidebar-subtab.
-  const [graphViewMode, setGraphViewMode] = useState('heatmap')
+  const [graphViewMode, setGraphViewMode] = useState(() => {
+    const restored = loadNavState().graphViewMode
+    return ['heatmap', 'bipartite'].includes(restored) ? restored : 'heatmap'
+  })
   // Doorklikstatus vanuit een Heatmap-cel: pint een team+categorie-paar op de
   // Relatiekaart totdat de gebruiker 'm zelf wist (niet enkel hover-gedreven).
   const [graphHighlight, setGraphHighlight] = useState(null)
@@ -85,7 +109,14 @@ function AppContent() {
   // bij hover/focus op de handle — zie Sidebar.jsx). Niet gepersisteerd,
   // zelfde gedrag als de vorige boolean.
   const [sidebarMode, setSidebarMode] = useState('open')
-  const [teamPageTeamId, setTeamPageTeamId] = useState(null)
+  const [teamPageTeamId, setTeamPageTeamId] = useState(() => {
+    const restored = loadNavState().teamPageTeamId
+    // Het bewaarde team-id moet nog wel bestaan — een team dat in een andere
+    // sessie verwijderd is, mag nooit naar een kapotte teampagina navigeren
+    // (zelfde "nooit een foutstatus voor onvolledige/rommelige data"-
+    // principe als elders in de app).
+    return restored && teams.some((tm) => tm.id === restored) ? restored : null
+  })
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
@@ -93,6 +124,13 @@ function AppContent() {
   // bestaat als er géén teampagina open is, dus PNG-export op de teampagina
   // exportte voorheen stilzwijgend niets (zie handleExportPng) — B-07.
   const teamPageRef = useRef(null)
+
+  // Bewaart de huidige pagina bij elke navigatiewijziging, zodat een
+  // browserherlaad (bv. na een codewijziging tijdens ontwikkelen) op dezelfde
+  // pagina uitkomt i.p.v. terug te vallen op de standaard Heatmap.
+  useEffect(() => {
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, graphViewMode, teamPageTeamId }))
+  }, [activeTab, graphViewMode, teamPageTeamId])
 
   function handleTabChange(tab) {
     setTeamPageTeamId(null)
