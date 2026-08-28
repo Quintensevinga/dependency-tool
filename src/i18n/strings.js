@@ -276,9 +276,6 @@ export const STRINGS = {
     'party.reject': 'Weigeren',
     'party.rejectedWarning': "Partij '{{naam}}' is geweigerd door de admin. Deze koppeling blijft zichtbaar totdat je een andere partij kiest.",
 
-    'impact.laag': 'laag',
-    'impact.midden': 'midden',
-    'impact.hoog': 'hoog',
 
     'tab.chain': 'Ketenoverzicht',
 
@@ -787,9 +784,6 @@ export const STRINGS = {
     'party.reject': 'Reject',
     'party.rejectedWarning': "Party '{{naam}}' was rejected by the admin. This link stays visible until you pick a different party.",
 
-    'impact.laag': 'low',
-    'impact.midden': 'medium',
-    'impact.hoog': 'high',
 
     'tab.chain': 'Chain overview',
 

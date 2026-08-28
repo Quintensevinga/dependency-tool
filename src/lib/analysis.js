@@ -11,14 +11,16 @@
 // Bewuste duplicatie van FREQUENCY_POINTS uit risk.js i.p.v. die te
 // exporteren en hier te hergebruiken: dit bestand moet onafhankelijk van
 // risk.js kunnen wijzigen zonder dat bestand aan te raken.
-const FREQUENCY_POINTS = { incidenteel: 1, structureel: 2 }
+const FREQUENCY_POINTS = { eenmalig: 1, soms: 2, regelmatig: 3, structureel: 4 }
 
 const WACHTTIJD_POINTS = { geen: 0, kort: 1, dagen: 2, sprint_of_meer: 3 }
 
+// Meegeschaald met de bredere frequentieschaal (was 1..2, nu 1..4), zodat
+// wachttijd x frequentie nog steeds over de vier niveaus verdeeld raakt.
 const FLOWVERLIES_THRESHOLDS = [
-  { max: 1, level: 'Laag' },
-  { max: 3, level: 'Gemiddeld' },
-  { max: 5, level: 'Hoog' },
+  { max: 2, level: 'Laag' },
+  { max: 5, level: 'Gemiddeld' },
+  { max: 8, level: 'Hoog' },
   { max: Infinity, level: 'Kritiek' },
 ]
 

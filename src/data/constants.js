@@ -30,9 +30,14 @@ export const CATEGORIES_EXTERN = [
   'Overig extern',
 ]
 
-export const IMPACT_LEVELS = ['laag', 'midden', 'hoog']
+// Vier niveaus i.p.v. drie: fijner onderscheid aan de onderkant, waar de
+// meeste dependencies zitten. Oude waarden (laag/midden/hoog) worden bij het
+// laden gemigreerd — zie migrateDependency in storage.js.
+export const IMPACT_LEVELS = ['klein', 'beperkt', 'duidelijk', 'zwaar']
 
-export const FREQUENCY_LEVELS = ['incidenteel', 'structureel']
+// Vier niveaus i.p.v. twee: 'incidenteel' dekte zowel eenmalig als
+// regelmatig terugkerend, terwijl dat voor flowverlies veel uitmaakt.
+export const FREQUENCY_LEVELS = ['eenmalig', 'soms', 'regelmatig', 'structureel']
 
 export const STATUS_LEVELS = ['bekend risico', 'actief blokkerend', 'gemitigeerd']
 

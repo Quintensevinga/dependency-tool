@@ -87,6 +87,14 @@ export const DEFAULT_ADMIN_SETTINGS = {
 // Merget opgeslagen instellingen diep met de defaults: een nieuw toegevoegde
 // toggle in een latere versie staat zo altijd aan, en een onbekende/oude
 // sleutel in geïmporteerde data valt gewoon weg i.p.v. de UI te breken.
+// Impact en frequentie zijn van 3 resp. 2 niveaus naar 4 gegaan. Oude waarden
+// blijven geldig in bestaande localStorage- en exportbestanden, dus vertalen
+// we ze hier eenmalig naar de nieuwe sleutels. De mapping houdt de relatieve
+// positie aan: 'laag' was niet het laagst denkbare, dus die wordt 'beperkt'
+// en niet 'klein' — 'klein' is een nieuw niveau eronder.
+const IMPACT_MIGRATIE = { laag: 'beperkt', midden: 'duidelijk', hoog: 'zwaar' }
+const FREQUENTIE_MIGRATIE = { incidenteel: 'soms' }
+
 export function migrateAdminSettings(raw) {
   const source = raw && typeof raw === 'object' ? raw : {}
   const pages = { ...DEFAULT_ADMIN_SETTINGS.pages, ...(source.pages && typeof source.pages === 'object' ? source.pages : {}) }
@@ -210,6 +218,8 @@ function migrateDependency(raw, teamsState) {
     teamId,
     workflowStap,
     flowtype,
+    impact: IMPACT_MIGRATIE[rest.impact] ?? rest.impact,
+    frequentie: FREQUENTIE_MIGRATIE[rest.frequentie] ?? rest.frequentie,
     effectOpFlow: raw.effectOpFlow ?? null,
     actieAfspraak: typeof raw.actieAfspraak === 'string' ? raw.actieAfspraak : '',
     applicatieIds: Array.isArray(raw.applicatieIds) ? raw.applicatieIds : [],
