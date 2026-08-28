@@ -3,6 +3,24 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+
+> **Samenvatting van vandaag — Ketenoverzicht-redesign.** Het Ketenoverzicht
+> (overview-modus) is in vier stappen herzien: van één druk raster met alle
+> IN/OUT-items steeds zichtbaar, naar een rustig overzicht dat op aanvraag
+> detail toont.
+> - **Geaggregeerd**: teams tonen standaard alleen naam + risicobadge; pijlen
+>   tonen het aantal koppelingen en het hoogste risiconiveau van de twee teams.
+> - **Uitklapbaar**: hover/klik op een team toont zijn input/output-items in
+>   twee kolommen; ketenlijnen springen mee naar de specifieke rij.
+> - **Gelaagde plaatsing**: kolom = stap in de keten, rij = positie binnen die
+>   stap (i.p.v. alles op één vaste rij) — voorkomt dat lijnen dwars door
+>   kaarten lopen en dat uitgeklapte kaarten overlappen.
+> - **Opgeruimd**: de buggy hover-tooltip is vervangen door lichte
+>   oplicht/dim-feedback op de lijn zelf; het klik-paneel blijft de plek voor
+>   detail.
+>
+> Details per stap in de commits hieronder.
+
 - **Ketenoverzicht: tooltip weg, kaarten kunnen nooit meer overlappen, rustigere lijnen** (Lars Hoogland)
 
   De zwevende hover-tooltip op ketenlijnen was buggy en zat de leesbaarheid in de
