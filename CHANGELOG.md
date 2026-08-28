@@ -3,6 +3,15 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Merge remote-tracking branch 'origin/main'** (Lars Hoogland)
+
+- **Ketenoverzicht: hover-uitklap met twee kolommen en meebewegende ketenlijnen** (Lars Hoogland)
+
+  Klikken op een teamkaart schakelde nog automatisch naar Focusmodus i.p.v. de
+  gevraagde inline uitklap; klik-om-te-sluiten werkte niet zichtbaar zolang de
+  muis op de kaart bleef staan. Nu klapt een team bij hover/klik uit in eigen
+  input/output-kolommen, en springen de ketenlijnen naar de specifieke rij.
+
 - **Haal de live uitkomst uit het formulier en corrigeer veldplaatsing** (Quinten)
 
   De uitkomstbalk toonde risico, flowverlies en urgentie tijdens het
