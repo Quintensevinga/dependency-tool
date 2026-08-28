@@ -13,10 +13,10 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
   netjes terug op het algemene tabblad i.p.v. een kapotte pagina te tonen.
 
 
-> **Samenvatting van vandaag — Ketenoverzicht-redesign.** Het Ketenoverzicht
-> (overview-modus) is in vier stappen herzien: van één druk raster met alle
-> IN/OUT-items steeds zichtbaar, naar een rustig overzicht dat op aanvraag
-> detail toont.
+> **Samenvatting van vandaag.** Het Ketenoverzicht (overview-modus) is in
+> vier stappen herzien: van één druk raster met alle IN/OUT-items steeds
+> zichtbaar, naar een rustig overzicht dat op aanvraag detail toont. Daarnaast
+> een kleine, los staande verbetering voor het ontwikkelgemak.
 > - **Geaggregeerd**: teams tonen standaard alleen naam + risicobadge; pijlen
 >   tonen het aantal koppelingen en het hoogste risiconiveau van de twee teams.
 > - **Uitklapbaar**: hover/klik op een team toont zijn input/output-items in
@@ -27,6 +27,9 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 > - **Opgeruimd**: de buggy hover-tooltip is vervangen door lichte
 >   oplicht/dim-feedback op de lijn zelf; het klik-paneel blijft de plek voor
 >   detail.
+> - **Pagina onthouden bij herlaad**: een browserherlaad viel altijd terug op
+>   de standaard Heatmap — nu blijft de app op de pagina (incl. een geopende
+>   teampagina) waar je op dat moment was.
 >
 > Details per stap in de commits hieronder.
 
