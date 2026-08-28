@@ -1,0 +1,40 @@
+name: Update changelog
+
+# Houdt CHANGELOG.md automatisch bij: elke push naar main voegt de commits van
+# die push toe (nieuwste bovenaan, gegroepeerd per datum). De 'if' hieronder
+# en de '[skip changelog]'-marker in de commit-message van deze workflow zelf
+# voorkomen dat de terug-push van dit commit de workflow opnieuw triggert.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    if: >
+      github.event.head_commit.author.name != 'github-actions[bot]' &&
+      !contains(github.event.head_commit.message, '[skip changelog]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Update CHANGELOG.md
+        env:
+          COMMITS_JSON: ${{ toJson(github.event.commits) }}
+        run: node scripts/update-changelog.mjs
+
+      - name: Commit en push changelog
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md
+          git diff --cached --quiet || git commit -m "Update changelog [skip changelog]"
+          git push
