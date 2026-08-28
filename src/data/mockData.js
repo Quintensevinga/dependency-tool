@@ -1794,27 +1794,91 @@ export const RAW_MOCK_DEPENDENCIES = [
 ]
 
 // Vult de demo-dependencies aan met wachttijd/deadline/oplosbaarheid voor de
-// uitgebreide analyse (flowverlies/urgentie) — deterministisch geroteerd
-// over alle mogelijke waarden, zodat elk niveau in de demo voorkomt. Elke
-// vijfde dependency blijft bewust leeg: "onvolledig ≠ nul" moet ook in de
-// demo zichtbaar zijn (profiel-onvolledig-staat), niet alleen in de code.
-function enrichForUitgebreideAnalyse(deps) {
-  const wachttijdCycle = ['geen', 'kort', 'dagen', 'sprint_of_meer']
-  const deadlineCycle = ['geen_datum', 'interne_afspraak', 'vaste_datum', 'harde_deadline']
-  const oplosbaarheidCycle = ['teamlid', 'meerdere_teamleden', 'meerdere_teams', 'team_overstijgend', 'organisatorisch']
-  const deadlineTekstFor = {
-    vaste_datum: 'Release Q4 dit jaar',
-    harde_deadline: 'Wettelijke ingangsdatum 1 januari',
+// uitgebreide analyse. Bewust afgeleid uit de inhoud van elke dependency en
+// niet mechanisch rondgedraaid: een demo waarin "kennis zit bij één persoon"
+// toevallig 'geen wachttijd' en 'organisatorisch' krijgt, laat verbanden zien
+// die er niet zijn — en juist die verbanden wil de analyse tonen.
+// Elke vijfde dependency blijft leeg: "onvolledig is niet nul" moet ook in de
+// demo zichtbaar zijn, niet alleen in de code.
+
+// Het effect op de flow bepaalt hoeveel tijd er verloren gaat: een blokkade
+// kost een sprint, wachten kost dagen, herwerk kost uren.
+const WACHTTIJD_PER_EFFECT = {
+  blokkade: 'sprint_of_meer',
+  niet_startklaar: 'sprint_of_meer',
+  wachten: 'dagen',
+  vertraging: 'dagen',
+  herwerk: 'kort',
+  contextswitch: 'kort',
+  extra_afstemming: 'kort',
+  onduidelijkheid: 'kort',
+  anders: 'geen',
+}
+
+// Zonder effect-op-flow valt de wachttijd terug op de impact: zwaar werk dat
+// misgaat kost doorgaans meer tijd dan een klein ongemak.
+const WACHTTIJD_PER_IMPACT = { zwaar: 'dagen', duidelijk: 'kort', beperkt: 'geen', klein: 'geen' }
+
+// Hoe ver reikt de oplossing? Intern is het teamwerk; extern hangt het af van
+// of er een besluit/mandaat nodig is of alleen afstemming.
+const ORGANISATORISCHE_CATEGORIEEN = new Set([
+  'Besluitvormingsafhankelijkheid',
+  'Governance/proces-afhankelijkheid',
+  'Wetgevingsafhankelijkheid',
+  'Contract-/inkoopafhankelijkheid',
+  'Stakeholderafhankelijkheid',
+])
+const TEAMOVERSTIJGENDE_CATEGORIEEN = new Set([
+  'Capaciteit specialistisch team',
+  'Kennis-afhankelijkheid extern',
+  'Toegang/rechten-blokkade',
+])
+const SOLO_CATEGORIEEN = new Set(['Kennis-concentratie', 'Technische afhankelijkheid', 'Data-afhankelijkheid'])
+
+function bepaalWachttijd(dep) {
+  // Zwaar werk dat nu daadwerkelijk stilstaat kost per definitie meer dan een
+  // paar dagen, ongeacht hoe het effect op de flow is getypeerd.
+  if (dep.impact === 'zwaar' && dep.status === 'actief blokkerend') return 'sprint_of_meer'
+  return WACHTTIJD_PER_EFFECT[dep.effectOpFlow] ?? WACHTTIJD_PER_IMPACT[dep.impact] ?? 'geen'
+}
+
+function bepaalOplosbaarheid(dep) {
+  if (dep.scope === 'extern') {
+    if (ORGANISATORISCHE_CATEGORIEEN.has(dep.categorie)) return 'organisatorisch'
+    if (TEAMOVERSTIJGENDE_CATEGORIEEN.has(dep.categorie)) return 'team_overstijgend'
+    return 'meerdere_teams'
   }
+  return SOLO_CATEGORIEEN.has(dep.categorie) ? 'teamlid' : 'meerdere_teamleden'
+}
+
+// Deadlines zijn bewust schaars: de meeste afhankelijkheden raken geen datum.
+// Alleen waar een datum echt voor de hand ligt krijgt hij er een, en dan ook
+// meteen de bijbehorende tekst — een deadline zonder naam telt niet mee.
+function bepaalDeadline(dep) {
+  // Let op: de ruwe demo-data gebruikt nog de oude workflowstap-sleutels
+  // ('release', 'acceptatie'); die worden pas bij het laden gemigreerd naar
+  // release_overdracht. Beide vormen worden hier daarom herkend.
+  const stap = dep.workflowStap
+  if (dep.categorie === 'Wetgevingsafhankelijkheid') return ['harde_deadline', 'Wettelijke ingangsdatum 1 januari']
+  if (dep.categorie === 'Contract-/inkoopafhankelijkheid') return ['vaste_datum', 'Contractverlenging Q4']
+  if (stap === 'release' || stap === 'release_overdracht') return ['vaste_datum', 'Release Q4 dit jaar']
+  // Een CAB- of change-proces hangt in de praktijk aan het releasevenster.
+  if (dep.categorie === 'Governance/proces-afhankelijkheid') return ['vaste_datum', 'Eerstvolgend CAB-venster']
+  if (stap === 'acceptatie') return ['interne_afspraak', '']
+  if (dep.status === 'actief blokkerend' && dep.impact === 'zwaar') return ['interne_afspraak', '']
+  return ['geen_datum', '']
+}
+
+function enrichForUitgebreideAnalyse(deps) {
   return deps.map((dep, i) => {
     if (i % 5 === 0) return dep
-    const deadline = deadlineCycle[(i + 1) % deadlineCycle.length]
+    const [deadline, deadlineTekst] = bepaalDeadline(dep)
     return {
       ...dep,
-      wachttijd: wachttijdCycle[i % wachttijdCycle.length],
+      wachttijd: bepaalWachttijd(dep),
       deadline,
-      deadlineTekst: deadlineTekstFor[deadline] ?? '',
-      oplosbaarheid: oplosbaarheidCycle[i % oplosbaarheidCycle.length],
+      deadlineTekst,
+      oplosbaarheid: bepaalOplosbaarheid(dep),
     }
   })
 }
