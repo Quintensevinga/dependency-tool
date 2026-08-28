@@ -3,6 +3,55 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-08-28
+- **Maak de formulier-mockup daadwerkelijk interactief** (Quinten)
+
+  De categorie-dropdown deed niets terwijl de twee andere dropdowns wel
+  reageerden, waardoor de mockup half kapot oogde. Categorie vult nu zijn
+  eigen beschrijving (teksten uit labels.js) en de lijst wisselt mee met
+  Scope: acht interne categorieen op teamniveau, dertien externe op
+  ketenniveau — zoals de app het ook doet.
+
+  Opslaan, Annuleren en sluiten tonen nu een korte melding dat er niets
+  wordt opgeslagen, in plaats van stil niets te doen.
+
+- **Voeg klikbare mockup toe van het heringedeelde dependency-formulier** (Quinten)
+
+  Statische mockup (public/form-mockup.html, bereikbaar op /form-mockup.html)
+  van hoe het dependency-formulier eruitziet met de toggle "Uitgebreide
+  analyse" aan. Nog geen implementatie — bedoeld om af te stemmen.
+
+  Vier blokken met een verhaallijn: wat is het, waar in de flow, hoe erg en
+  wat kost het, wat doen we ermee. Inschattingen zijn knoppenrijen in plaats
+  van dropdowns, met per optie meerdere voorbeelden die je kunt doorklikken
+  en die ook bij hover te lezen zijn zonder je keuze te wijzigen. Onderaan
+  blok 3 een live uitkomst met de opbouw van de risicoscore erbij.
+
+  Gebruikt de canonieke waarden uit de codebase: workflowstap en effect op
+  flow uit labels.js, oplosbaarheid met de vier waarden van het eerder
+  verwijderde oplossingsniveau (team, samenwerking, opschaling, monitoren).
+
+- **Ketenoverzicht: kolom- en itemvolgorde op ketenlogica baseren** (Lars Hoogland)
+
+  Teams stonden in een vaste, willekeurige volgorde (context-aanmaakvolgorde),
+  los van hun daadwerkelijke ketenrelaties — verbindingslijnen tussen een
+  OUT-kaartje en een ver weg gelegen IN-kaartje liepen daardoor dwars over
+  tussenliggende, ongerelateerde teamkolommen heen.
+
+  Nieuwe orderTeamsByChain in lib/teamWorkflow.js berekent een topologische
+  laagindeling + barycenter-heuristiek uit de bestaande ketenkoppelingen
+  (zelfde principe als tools als dagre, hier zonder externe dependency zelf
+  geïmplementeerd) — direct-verbonden teams komen zo naast/dicht bij elkaar
+  te staan. Teams zonder enige koppeling vallen los, achteraan; een cyclus
+  tussen twee teams kan niet vasthangen (valt terug op de volgende laag).
+  Binnen een kolom zijn IN/OUT-kaartjes ook herordend op de kolom van hun
+  gekoppelde tegenhanger, voor rechtere lijnen tussen naburige kolommen.
+
+  Focusmodus (eigen, gerichte inkomend/uitgaand-groepering) blijft
+  ongewijzigd. Lost kolom- en itemvolgorde op; garandeert nog geen 100%
+  crossing-vrije lay-out bij een niet-lineaire keten — dat vereist een eigen
+  lijnroutering, bewust nog niet gebouwd zolang het uiteindelijke ontwerp
+  niet vaststaat.
+
 - **Verwerk audit: 21 bevindingen (correctheid, robuustheid, performance)** (Lars Hoogland)
 
   Correctheid: Matrix-overzicht bleef niet meer leeg na een teamwijziging of
