@@ -306,15 +306,8 @@
 
           <div class="field">
             <label class="lb">Categorie <span class="req">*</span></label>
-            <select class="inp" id="cat">
-              <option>Kennis-concentratie</option>
-              <option>Technische afhankelijkheid</option>
-              <option>Rol-afhankelijkheid</option>
-            </select>
-            <div class="catbox">
-              <b>Kennis-concentratie</b>
-              Kennis over een systeem of proces zit bij één of enkele personen, waardoor het werk stilvalt als zij er niet zijn.
-            </div>
+            <select class="inp" id="cat"></select>
+            <div class="catbox" id="cat-desc"></div>
           </div>
 
           <div class="field">
@@ -649,8 +642,12 @@
       b.setAttribute('aria-pressed','true')
       const dim = seg.dataset.dim
       if(dim){ st[dim] = Number(b.dataset.v); setAnchor(dim); render() }
-      if(seg.dataset.group === 'scope')
-        document.getElementById('f-geraakt').classList.toggle('on', b.textContent.trim() === 'Ketenniveau')
+      if(seg.dataset.group === 'scope'){
+        const keten = b.textContent.trim() === 'Ketenniveau'
+        document.getElementById('f-geraakt').classList.toggle('on', keten)
+        scope = keten ? 'extern' : 'intern'
+        vulCategorieen()
+      }
       if(seg.dataset.group === 'flowtype')
         document.getElementById('s-flow').classList.toggle('on', b.textContent.trim() === 'Ontwikkelflow')
     })
@@ -684,6 +681,70 @@
   document.getElementById('eff').addEventListener('change', () => desc('eff','eff-desc',EFF))
   desc('wf','wf-desc',WF); desc('eff','eff-desc',EFF)
 
+
+
+  // ---- categorieen per scope, met de beschrijvingen uit labels.js ----
+  const CATS = {
+    intern: {
+      'Kennis-concentratie':'Kennis is geconcentreerd bij een persoon binnen het team, bijvoorbeeld een senior developer of functioneel beheerder.',
+      'Proces-/workflow-afhankelijkheid':'Een interne werkstap of overdracht binnen het team hangt af van een specifieke aanpak of persoon.',
+      'Rol-afhankelijkheid':'Besluitvorming of goedkeuring binnen het team ligt bij een rol met de enige bevoegdheid of het enige mandaat.',
+      'Besluitvormingsafhankelijkheid':'Voortgang hangt af van akkoord van een specifieke rol binnen het team, bijvoorbeeld de product owner.',
+      'Technische afhankelijkheid':'Eigen tooling, scripts of koppelvlakken die slechts door een persoon worden begrepen of onderhouden.',
+      'Data-afhankelijkheid':'Eigen testdata, rapportagedata of autorisatiebeheer is kwetsbaar of onvoldoende geborgd.',
+      'Omgevingsafhankelijkheid':'De eigen ontwikkel- of testomgeving is instabiel of onvoldoende beschikbaar.',
+      'Overig intern':'Andere interne afhankelijkheid die niet in de bovenstaande categorieen past.',
+    },
+    extern: {
+      'Capaciteit specialistisch team':'Beperkte capaciteit bij een extern team of leverancier leidt tot wachttijd, bijvoorbeeld bij infra- of platformteams.',
+      'Kennis-afhankelijkheid extern':'Domeinkennis of expertise ligt bij een ander team of externe partij.',
+      'Toegang/rechten-blokkade':'Toegang of autorisatie wordt traag, gedeeltelijk of soms helemaal niet toegekend door een ander team.',
+      'Governance/proces-afhankelijkheid':'Een formeel change- of CAB-proces bepaalt het tempo van wijzigingen.',
+      'Besluitvormingsafhankelijkheid':'Goedkeuring is vereist van een extern orgaan, bijvoorbeeld een architectuurboard, security-afdeling of management.',
+      'Technische afhankelijkheid':'Een API, database, koppelvlak of tool van een ander team of externe partij is randvoorwaardelijk.',
+      'Procesafhankelijkheid':'Overdracht-, intake-, change- of releaseprocessen met andere teams bepalen de doorlooptijd.',
+      'Data-afhankelijkheid':'Productie-, rapportage- of testdata en autorisaties worden extern beheerd.',
+      'Omgevingsafhankelijkheid':'Een gedeelde test-, acceptatie- of productieomgeving wordt door een ander team beheerd.',
+      'Stakeholderafhankelijkheid':'Afhankelijk van input, akkoord of beschikbaarheid van een gebruikersgroep, opdrachtgever of externe partij.',
+      'Wetgevingsafhankelijkheid':'Een wetswijziging koppelt het werkproces dwingend aan externe instanties of specifieke technologie.',
+      'Contract-/inkoopafhankelijkheid':'Leverancierscontract, aanbesteding of SLA bepaalt wat mogelijk is en op welke termijn.',
+      'Overig extern':'Andere externe afhankelijkheid die niet in de bovenstaande categorieen past.',
+    },
+  }
+  let scope = 'intern'
+
+  function vulCategorieen(){
+    const sel = document.getElementById('cat')
+    const namen = Object.keys(CATS[scope])
+    const huidig = sel.value
+    sel.innerHTML = namen.map(n => `<option${n === huidig ? ' selected' : ''}>${n}</option>`).join('')
+    toonCategorie()
+  }
+  function toonCategorie(){
+    const n = document.getElementById('cat').value
+    document.getElementById('cat-desc').innerHTML = `<b>${n}</b>${CATS[scope][n] || ''}`
+  }
+  document.getElementById('cat').addEventListener('change', toonCategorie)
+  vulCategorieen()
+
+  // ---- mockup-melding op de knoppen die niets opslaan ----
+  document.querySelectorAll('.m-foot button, .m-close').forEach(b => {
+    b.addEventListener('click', () => {
+      let n = document.getElementById('mockup-melding')
+      if (!n) {
+        n = document.createElement('div')
+        n.id = 'mockup-melding'
+        n.style.cssText = 'position:fixed;left:50%;bottom:1.5rem;transform:translateX(-50%);z-index:99;'
+          + 'background:#1e293b;color:#f1f5f9;font-size:.8125rem;padding:.5rem .9rem;border-radius:.5rem;'
+          + 'box-shadow:0 10px 20px -6px rgba(0,0,0,.35)'
+        document.body.appendChild(n)
+      }
+      n.textContent = 'Dit is een mockup — er wordt niets opgeslagen.'
+      n.style.opacity = '1'
+      clearTimeout(n._t)
+      n._t = setTimeout(() => { n.style.opacity = '0'; n.style.transition = 'opacity .4s' }, 1600)
+    })
+  })
 
   // ---- meerdere teams ----
   const TEAMS = ['Team Polis','Team Casio','Team Equinox','Team Tiem','Team Freggels','Team Sterke verhalen','Team Smurfen']
