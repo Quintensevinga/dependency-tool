@@ -5,7 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
 import { calculateRisk, riskLevelRank } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
-import { translateRiskLevel } from '../i18n/labels'
+import { translateRiskLevel, translateBronType } from '../i18n/labels'
 import { resolveChainEdges, orderTeamsByChain, layerTeamsByChain, aggregateChainLinks, traceForwardChain } from '../lib/teamWorkflow'
 import { emptyTeamWorkflow } from '../lib/storage'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
@@ -228,27 +228,54 @@ function FocusChainCardNode({ id, data }) {
         <div className="mt-1 text-xs text-slate-400">{t('graph.noDeps')}</div>
       )}
       <div className="mt-2 flex flex-col gap-1.5 border-t border-slate-100 pt-2">
-        {data.items.map((item) => (
-          <div
-            key={item.id}
-            className="relative rounded border bg-slate-50 px-2 py-1 text-[11px] text-slate-600"
-            style={{ borderLeftWidth: 3, borderLeftColor: item.color ?? '#cbd5e1', borderColor: '#e2e8f0' }}
-          >
-            {item.kind === 'in' && <Handle type="target" position={Position.Left} id={`item-in:${item.id}`} style={{ opacity: 0.4 }} />}
-            <span className="block text-[8px] font-medium uppercase tracking-wide text-slate-400">{item.kind === 'in' ? 'in' : 'out'}</span>
-            {item.label || '—'}
-            {item.linkedTeamNaam && (
-              <span className="block text-[9px] text-slate-400">
-                {item.kind === 'in' ? t('chain.itemFromTeam', { team: item.linkedTeamNaam }) : t('chain.itemToTeam', { team: item.linkedTeamNaam })}
-              </span>
-            )}
-            {item.kind === 'out' && <Handle type="source" position={Position.Right} id={`item-out:${item.id}`} style={{ opacity: 0.4 }} />}
-          </div>
-        ))}
+        {data.items.map((item) => {
+          const active = data.activeItemIds?.has(item.id) ?? false
+          return (
+            <div
+              key={item.id}
+              className={`relative rounded border px-2 py-1 text-[11px] text-slate-600 transition-colors ${active ? 'bg-amber-50 ring-2 ring-amber-400' : 'bg-slate-50'}`}
+              style={{ borderLeftWidth: 3, borderLeftColor: item.color ?? '#cbd5e1', borderColor: active ? undefined : '#e2e8f0' }}
+            >
+              {item.kind === 'in' && (
+                <Handle
+                  type="target"
+                  position={Position.Left}
+                  id={`item-in:${item.id}`}
+                  style={active ? { opacity: 1, width: 9, height: 9, background: '#d97706' } : { opacity: 0.4 }}
+                />
+              )}
+              <span className="block text-[8px] font-medium uppercase tracking-wide text-slate-400">{item.kind === 'in' ? 'in' : 'out'}</span>
+              {item.label || '—'}
+              {itemOriginCaption(item, t, language) && <span className="block text-[9px] text-slate-400">{itemOriginCaption(item, t, language)}</span>}
+              {item.kind === 'out' && (
+                <Handle
+                  type="source"
+                  position={Position.Right}
+                  id={`item-out:${item.id}`}
+                  style={active ? { opacity: 1, width: 9, height: 9, background: '#d97706' } : { opacity: 0.4 }}
+                />
+              )}
+            </div>
+          )
+        })}
         {data.items.length === 0 && <div className="text-[11px] italic text-slate-300">—</div>}
       </div>
     </div>
   )
+}
+
+// Elk item toont altijd waar het vandaan komt / naartoe gaat — niet alleen
+// bij een team-koppeling (bestond al), maar ook wanneer het door een eigen
+// applicatie/systeem gegenereerd wordt, of van een rol/persoon/stakeholder/
+// omgeving komt, of naar een externe partij gaat. Zonder dit oogde het
+// willekeurig welke kaartjes wél en welke geen herkomst toonden.
+function itemOriginCaption(item, t, language) {
+  const origin = item.origin
+  if (!origin) return null
+  if (origin.kind === 'team') return item.kind === 'in' ? t('chain.itemFromTeam', { team: origin.naam }) : t('chain.itemToTeam', { team: origin.naam })
+  if (origin.kind === 'systeem') return item.kind === 'in' ? t('chain.itemFromSystem', { naam: origin.naam }) : t('chain.itemViaSystem', { naam: origin.naam })
+  if (origin.kind === 'bronType') return t('chain.itemFromBronType', { type: translateBronType(origin.bronType, language) })
+  return t('chain.itemExternal', { naam: origin.naam })
 }
 
 const nodeTypes = { chainHeader: TeamHeaderNode, focusCard: FocusChainCardNode, chainGroupLabel: ChainGroupLabelNode }
@@ -344,24 +371,49 @@ function computeFocusChainLayout(
     edgesToRender.push({ edge, color, forward })
   }
 
+  // Herkomst/bestemming van een item: eerst een daadwerkelijke team-koppeling
+  // (itemLinkedTeam hierboven, de meest concrete info), dan een externe partij
+  // (voor een ketenoverzicht het belangrijkste om te tonen — een item kan
+  // zowel via een eigen applicatie lopen als uiteindelijk van een externe
+  // partij komen, bv. klantgegevens via het eigen klantportaal maar
+  // oorspronkelijk uit de BRP; de externe herkomst weegt dan zwaarder dan
+  // welke eigen app het ophaalt), dan de eigen applicatie, dan het generieke
+  // bron_type (rol, persoon, stakeholder, omgeving). Zo toont elk item altijd
+  // waar het vandaan komt of naartoe gaat, niet alleen de items die toevallig
+  // aan een andere (zichtbare of onzichtbare) team hangen.
+  function resolveOrigin(rawItem, appsById) {
+    const linkedTeamId = itemLinkedTeam.get(rawItem.id)
+    if (linkedTeamId) return { kind: 'team', naam: teamNaamById[linkedTeamId] ?? linkedTeamId }
+    if (rawItem.externalTeam) return { kind: 'extern', naam: rawItem.externalTeam }
+    if (rawItem.applicatieId && appsById.has(rawItem.applicatieId)) {
+      return { kind: 'systeem', naam: appsById.get(rawItem.applicatieId).naam || '—' }
+    }
+    if (rawItem.kind === 'in' && rawItem.bronType && rawItem.bronType !== 'team' && rawItem.bronType !== 'systeem') {
+      return { kind: 'bronType', bronType: rawItem.bronType }
+    }
+    return null
+  }
   function buildItems(team) {
     const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
+    const appsById = new Map((wf.applications ?? []).map((a) => [a.id, a]))
     return [
-      ...wf.inputs.map((input) => ({ id: input.id, label: input.label, kind: 'in' })),
-      ...wf.outputs.map((output) => ({ id: output.id, label: output.label, kind: 'out' })),
+      ...wf.inputs.map((input) => ({ id: input.id, label: input.label, kind: 'in', bronType: input.bron_type, applicatieId: input.applicatieId, externalTeam: input.externalTeam })),
+      ...wf.outputs.map((output) => ({ id: output.id, label: output.label, kind: 'out', applicatieId: output.applicatieId, externalTeam: output.externalTeam })),
     ].map((item) => ({
-      ...item,
+      id: item.id,
+      label: item.label,
+      kind: item.kind,
       color: itemColor.get(item.id) ?? null,
-      linkedTeamNaam: itemLinkedTeam.has(item.id) ? (teamNaamById[itemLinkedTeam.get(item.id)] ?? itemLinkedTeam.get(item.id)) : null,
+      origin: resolveOrigin(item, appsById),
     }))
   }
   function cardHeight(items) {
-    // +12 per item met een "van/naar {team}"-onderschrift: estimateItemRowHeight
+    // +12 per item met een herkomst/bestemmings-onderschrift: estimateItemRowHeight
     // is gedeeld met de overview-kaart, die geen onderschrift kent en dus geen
     // idee heeft van deze extra regel — zonder deze correctie werd de kaart
     // stelselmatig te laag ingeschat zodra items gekoppeld zijn (het gangbare
     // geval), met overlap met de kolom eronder tot gevolg.
-    const content = items.reduce((sum, item) => sum + estimateItemRowHeight(item.label) + (item.linkedTeamNaam ? 12 : 0), 0)
+    const content = items.reduce((sum, item) => sum + estimateItemRowHeight(item.label) + (item.origin ? 12 : 0), 0)
     return FC_CARD_HEADER_HEIGHT + 16 + Math.max(content, OV_ITEM_ROW_BASE_HEIGHT)
   }
 
@@ -796,16 +848,37 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   const displayEdges = useMemo(
     () =>
       edges.map((e) => {
-        if (!activeEdgeId) return e
+        const selected = e.id === selectedEdgeId
+        if (!activeEdgeId) return { ...e, selected }
         const active = e.id === activeEdgeId
         return {
           ...e,
+          selected,
           animated: active && Boolean(selectedEdgeId),
           style: { ...e.style, strokeWidth: active ? 3.5 : 1.5, opacity: active ? 1 : 0.15 },
         }
       }),
     [edges, activeEdgeId, selectedEdgeId],
   )
+
+  // Focusmodus: welke twee item-handles hoort de geselecteerde lijn bij —
+  // die kaartjes lichten op zodat meteen duidelijk is van welk output- naar
+  // welk inputkaartje de lijn precies loopt, ook als hij onder een paar
+  // andere kaarten door loopt.
+  const activeItemIds = useMemo(() => {
+    if (!focusActive || !selectedEdgeId) return null
+    const edge = edges.find((e) => e.id === selectedEdgeId)
+    if (!edge) return null
+    const ids = [edge.sourceHandle, edge.targetHandle]
+      .filter(Boolean)
+      .map((handle) => handle.replace(/^item-(in|out):/, ''))
+    return new Set(ids)
+  }, [focusActive, selectedEdgeId, edges])
+
+  const displayNodes = useMemo(() => {
+    if (!activeItemIds) return nodes
+    return nodes.map((n) => (n.type === 'focusCard' ? { ...n, data: { ...n.data, activeItemIds } } : n))
+  }, [nodes, activeItemIds])
 
   function toggleTeam(teamId) {
     setDeselectedTeamIds((prev) => {
@@ -956,10 +1029,11 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
             >
               <PannableFlowCanvas
-                nodes={nodes}
+                nodes={displayNodes}
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
                 edgeTypes={focusEdgeTypes}
+                elevateEdgesOnSelect
                 onNodesChange={onNodesChange}
                 onNodeClick={(_, node) => {
                   if (node.type !== 'chainHeader' && node.type !== 'focusCard') return
@@ -986,7 +1060,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 onNodeMouseLeave={(_, node) => {
                   if (node.type === 'chainHeader') setHoveredTeamId((prev) => (prev === node.data.teamId ? null : prev))
                 }}
-                onEdgeClick={focusActive ? undefined : (_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
+                onEdgeClick={(_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
                 onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
                 onEdgeMouseLeave={() => setHoveredEdgeId(null)}
                 onPaneClick={() => setSelectedEdgeId(null)}

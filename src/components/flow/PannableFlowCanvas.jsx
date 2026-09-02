@@ -35,6 +35,10 @@ export default function PannableFlowCanvas({
   // daarmee racen (wie het laatst zet, wint) en soms zonder toolbar-marge
   // winnen, met content onder de zwevende toolbar als gevolg.
   disableAutoFit = false,
+  // Rendert een geselecteerde edge (edge.selected) in een aparte laag bóven
+  // de node-kaarten i.p.v. erachter — nodig om een lijn duidelijk te kunnen
+  // volgen zodra hij onder meerdere kaarten door loopt (Focusmodus).
+  elevateEdgesOnSelect = false,
   children,
 }) {
   return (
@@ -67,6 +71,7 @@ export default function PannableFlowCanvas({
       }}
       minZoom={minZoom}
       maxZoom={maxZoom}
+      elevateEdgesOnSelect={elevateEdgesOnSelect}
       proOptions={{ hideAttribution: true }}
       nodesConnectable
       nodesDraggable
