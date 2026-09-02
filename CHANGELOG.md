@@ -3,6 +3,16 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-02
+- **Fix: terugkoppelingslijnen in Focusmodus liepen dwars door kaarten heen** (Lars Hoogland)
+
+  De onderlangse boog van een terugkoppeling week alleen een vaste, kleine
+  marge af van zijn eigen bron/doel-hoogte. Bij kaarten met veel items (dus
+  flink hoger dan die twee punten) viel die marge midden in de kaarten
+  ertussen, in plaats van eronder — met name zichtbaar wanneer één output
+  naar meerdere eerdere teams tegelijk terugkoppelt. Nu routeert elke
+  terugkoppeling onder de laagste kaart van de hele weergave, ongeacht welke
+  kolommen hij overspant.
+
 - **Herontwerp Focusmodus: voorwaartse ketenweergave i.p.v. enkel-hop swimlanes** (Lars Hoogland)
 
   Toont het focusteam en de volledige keten die eruit voortkomt kolom voor
