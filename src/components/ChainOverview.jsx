@@ -263,11 +263,13 @@ const nodeTypes = { chainHeader: TeamHeaderNode, focusCard: FocusChainCardNode, 
 // scherm honderden pixels door, zie git-historie); focusketens zijn klein
 // genoeg dat een vaste marge ruim voldoende is.
 function FocusBackflowEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd, data }) {
-  // Elke terugkoppeling krijgt zijn eigen "diepte" (laneIndex, toegekend in
-  // computeFocusChainLayout op volgorde van voorkomen) — zonder dit vielen
-  // twee terugkoppelingen vanaf dezelfde kaart samen op precies dezelfde boog
-  // en liepen ze het grootste deel van hun lengte exact over elkaar heen.
-  const dip = Math.max(sourceY, targetY) + BACKFLOW_DIP + (data?.laneIndex ?? 0) * BACKFLOW_LANE_GAP
+  // `data.dip` komt kant-en-klaar uit computeFocusChainLayout: de laagste
+  // kaartrand van de HELE weergave (ongeacht welke kolommen deze specifieke
+  // koppeling overspant) plus een oplopende marge per terugkoppeling
+  // (laneIndex-volgorde). Een marge t.o.v. de eigen bron/doel-y (eerdere
+  // versie) schoot bij hoge kaarten dwars door de kaarten ertussen; onder de
+  // laagste kaart van de hele tekening is altijd vrije ruimte.
+  const dip = data.dip
   const path = `M ${sourceX},${sourceY} C ${sourceX},${dip} ${targetX},${dip} ${targetX},${targetY}`
   return <BaseEdge path={path} style={{ ...style, strokeDasharray: '5 4' }} markerEnd={markerEnd} />
 }
@@ -371,6 +373,7 @@ function computeFocusChainLayout(
   }
 
   const nodes = []
+  let maxCardBottom = 0
   columns.forEach((columnTeams, ci) => {
     let y = 0
     columnTeams.forEach((team) => {
@@ -383,10 +386,19 @@ function computeFocusChainLayout(
         data: { teamId: team.id, label: naamVan(team), risk, count: risk.count ?? 0, items, isFocus: ci === 0 },
         draggable: true,
       })
-      y += cardHeight(items) + FC_ROW_GAP
+      const bottom = y + cardHeight(items)
+      maxCardBottom = Math.max(maxCardBottom, bottom)
+      y = bottom + FC_ROW_GAP
     })
   })
 
+  // Terugkoppelingen routeren onderlangs de VOLLEDIGE tekening (maxCardBottom
+  // hierboven, ongeacht welke kolommen ze precies overspannen) i.p.v. een
+  // vaste marge t.o.v. hun eigen bron/doel-y: bij kaarten met veel items (dus
+  // flink hoger dan de bron/doel-rij) schoot die eigen-marge dwars door de
+  // kaarten ertussen heen — precies het "lijnen lopen door kaartjes heen"-
+  // probleem. Onder de laagste kaart van de hele weergave is er altijd
+  // vrije ruimte, ongeacht kaarthoogte of overspanning.
   let backflowLane = 0
   const edges = edgesToRender.map(({ edge, color, forward }) => ({
     id: edge.id,
@@ -395,7 +407,7 @@ function computeFocusChainLayout(
     sourceHandle: `item-out:${edge.sourceOutputId}`,
     targetHandle: `item-in:${edge.targetInputId}`,
     type: forward ? 'focusForward' : 'focusBackflow',
-    data: forward ? undefined : { laneIndex: backflowLane++ },
+    data: forward ? undefined : { dip: maxCardBottom + BACKFLOW_DIP + backflowLane++ * BACKFLOW_LANE_GAP },
     style: { stroke: color, strokeWidth: 2 },
     markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
   }))
