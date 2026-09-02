@@ -2,6 +2,15 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-02
+- **Herontwerp Focusmodus: voorwaartse ketenweergave i.p.v. enkel-hop swimlanes** (Lars Hoogland)
+
+  Toont het focusteam en de volledige keten die eruit voortkomt kolom voor
+  kolom (voorwaartse BFS), met alle input/output-items per team in één kaart,
+  per-relatie kleurcodering, en een aparte gestippelde onderlangse routering
+  voor terugkoppelingen/cycli. Team-focusmenu zit nu ingebouwd als zwevend
+  paneel op het canvas zelf i.p.v. in een aparte balk erboven.
+
 ## 2026-08-28
 - **Onthoud huidige pagina bij browserherlaad** (Lars Hoogland)
 
