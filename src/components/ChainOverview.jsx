@@ -1,25 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Handle, MarkerType, Position, ReactFlowProvider, useReactFlow, useUpdateNodeInternals } from 'reactflow'
+import { BaseEdge, Handle, MarkerType, Panel, Position, ReactFlowProvider, useReactFlow, useUpdateNodeInternals } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
 import { calculateRisk, riskLevelRank } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import { translateRiskLevel } from '../i18n/labels'
-import { resolveChainEdges, orderTeamsByChain, layerTeamsByChain, aggregateChainLinks } from '../lib/teamWorkflow'
+import { resolveChainEdges, orderTeamsByChain, layerTeamsByChain, aggregateChainLinks, traceForwardChain } from '../lib/teamWorkflow'
 import { emptyTeamWorkflow } from '../lib/storage'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
 import TeamFilterPanel from './TeamFilterPanel'
 import ScopeToggle from './ScopeToggle'
-
-const COLUMN_WIDTH = 480
-const INPUT_X = 0
-const OUTPUT_X = 220
-const HEADER_Y = 20
-const GROUP_LABEL_Y = HEADER_Y - 38
-const IO_Y_START = 90
-const IO_Y_GAP = 68
 
 function highestRisk(deps) {
   let best = { level: 'Laag', score: 0 }
@@ -114,27 +106,11 @@ function TeamHeaderNode({ id, data }) {
   )
 }
 
-// Klein, decoratief label boven een kolomgroep in Focusmodus (Inkomend /
-// Geselecteerd team / Uitgaand / Overige teams) — puur een tekstnode, geen
-// interactie, zodat de richting van de keten in één oogopslag leesbaar is.
+// Klein, decoratief label boven een groep kolommen — puur een tekstnode, geen
+// interactie. Gebruikt door de overview-modus voor de "Geen ketenkoppeling"-
+// tray.
 function ChainGroupLabelNode({ data }) {
   return <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{data.label}</div>
-}
-
-// Decoratieve swimlane-achtergrond per teamkolom — een gewone ReactFlow-node
-// (geen los gepositioneerde div) zodat hij meepant/zoomt met de rest van het
-// canvas i.p.v. los te raken van de andere nodes.
-function LaneNode({ data }) {
-  return (
-    <div
-      className="pointer-events-none rounded-lg"
-      style={{
-        width: COLUMN_WIDTH - 40,
-        height: data.height,
-        backgroundColor: data.index % 2 === 0 ? 'rgba(100,116,139,0.05)' : 'rgba(100,116,139,0.09)',
-      }}
-    />
-  )
 }
 
 // Zichtbare zoom-toolbar boven het canvas (i.p.v. enkel React Flow's kleine
@@ -191,190 +167,9 @@ function ChainAutoFit({ fitKey }) {
   return null
 }
 
-function ChainIoNode({ data }) {
-  return (
-    <div className="relative w-48 rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 shadow-sm">
-      <Handle type="target" position={Position.Left} style={{ opacity: 0.4 }} />
-      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">
-        {data.kind === 'input' ? '→ in' : 'out →'}
-      </div>
-      <div className="text-xs font-medium text-slate-700">{data.label || '—'}</div>
-      <Handle type="source" position={Position.Right} style={{ opacity: 0.4 }} />
-    </div>
-  )
-}
-
-const nodeTypes = { chainHeader: TeamHeaderNode, chainIo: ChainIoNode, lane: LaneNode, chainGroupLabel: ChainGroupLabelNode }
-
-function computeChainLayout(visibleTeams, teamWorkflows, teamRisk, teamLabels = {}, groupInfo = null, chainEdgesAll = []) {
-  const naamVan = (team) => teamLabels[team.id] ?? team.naam
-  const nodes = []
-  const edges = []
-
-  // Vooraf berekend (i.p.v. pas na de node-loop) zodat de swimlane-achtergrond
-  // precies zo hoog is als de content — een te hoge lane-node zou fitView's
-  // begrenzing opblazen en de eigenlijke kaartjes piepklein maken.
-  const maxIoCount = Math.max(
-    1,
-    ...visibleTeams.map((team) => {
-      const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
-      return Math.max(wf.inputs.length, wf.outputs.length)
-    }),
-  )
-  const canvasHeight = Math.max(420, IO_Y_START + maxIoCount * IO_Y_GAP + 60)
-
-  // Kolomindex per team (vast, want visibleTeams' volgorde ligt al vast) en een
-  // omgekeerde opzoektabel van output naar de kolomindices van de teams die 'm via
-  // een input gebruiken — hiermee kunnen IN/OUT-kaartjes zó gesorteerd worden dat
-  // een lijn naar/van een naburige kolom recht(er) loopt i.p.v. zigzaggend, zie de
-  // sortering vlak vóór de input/output-node-loops hieronder.
-  const teamColumnIndex = new Map(visibleTeams.map((team, ti) => [team.id, ti]))
-  const outputTargetColumns = new Map()
-  for (const edge of chainEdgesAll) {
-    const key = `${edge.sourceTeam}:${edge.sourceOutputId}`
-    const targetColumn = teamColumnIndex.get(edge.targetTeam)
-    if (targetColumn === undefined) continue
-    if (!outputTargetColumns.has(key)) outputTargetColumns.set(key, [])
-    outputTargetColumns.get(key).push(targetColumn)
-  }
-
-  // Focusmodus: label boven de eerste kolom van elke groep (Inkomend/
-  // Geselecteerd team/Uitgaand/Overige teams) zodra die groep niet leeg is.
-  if (groupInfo) {
-    let seen = new Set()
-    visibleTeams.forEach((team, ti) => {
-      const kind = groupInfo.kindById.get(team.id)
-      if (!kind || seen.has(kind)) return
-      seen.add(kind)
-      nodes.push({
-        id: `group-label:${kind}`,
-        type: 'chainGroupLabel',
-        position: { x: ti * COLUMN_WIDTH, y: GROUP_LABEL_Y },
-        data: { label: groupInfo.labelByKind[kind] },
-        draggable: false,
-        selectable: false,
-        focusable: false,
-      })
-    })
-  }
-
-  visibleTeams.forEach((team, ti) => {
-    const columnX = ti * COLUMN_WIDTH
-    nodes.push({
-      id: `lane:${team.id}`,
-      type: 'lane',
-      position: { x: columnX - 20, y: 0 },
-      data: { index: ti, height: canvasHeight },
-      draggable: false,
-      selectable: false,
-      focusable: false,
-      zIndex: -1,
-    })
-    const workflow = teamWorkflows[team.id] ?? emptyTeamWorkflow()
-    const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
-    const empty = workflow.inputs.length === 0 && workflow.outputs.length === 0
-
-    nodes.push({
-      id: `team-header:${team.id}`,
-      type: 'chainHeader',
-      position: { x: columnX, y: HEADER_Y },
-      data: {
-        teamId: team.id,
-        label: naamVan(team),
-        risk,
-        count: risk.count ?? 0,
-        empty,
-        dimmed: risk.dimmed ?? false,
-        groupKind: groupInfo?.kindById.get(team.id) ?? null,
-      },
-      draggable: true,
-    })
-
-    // Inputs sorteren op de kolomindex van hun gekoppelde team (ongekoppelde
-    // achteraan, stabiel) — outputs op het gemiddelde van de kolomindices van de
-    // teams die ze via een input gebruiken. Maakt de lijn naar/van een gekoppeld
-    // kaartje rechter i.p.v. dat de kaartjes toevallig in de opslagvolgorde staan.
-    const sortedInputs = [...workflow.inputs].sort((a, b) => {
-      const colA = a.linkedTeam ? (teamColumnIndex.get(a.linkedTeam) ?? Infinity) : Infinity
-      const colB = b.linkedTeam ? (teamColumnIndex.get(b.linkedTeam) ?? Infinity) : Infinity
-      return colA - colB
-    })
-    const sortedOutputs = [...workflow.outputs].sort((a, b) => {
-      const colsA = outputTargetColumns.get(`${team.id}:${a.id}`)
-      const colsB = outputTargetColumns.get(`${team.id}:${b.id}`)
-      const avgA = colsA ? colsA.reduce((x, y) => x + y, 0) / colsA.length : Infinity
-      const avgB = colsB ? colsB.reduce((x, y) => x + y, 0) / colsB.length : Infinity
-      return avgA - avgB
-    })
-
-    sortedInputs.forEach((input, i) => {
-      nodes.push({
-        id: `chain-input:${team.id}:${input.id}`,
-        type: 'chainIo',
-        position: { x: columnX + INPUT_X, y: IO_Y_START + i * IO_Y_GAP },
-        data: { kind: 'input', label: input.label },
-        draggable: true,
-      })
-    })
-
-    sortedOutputs.forEach((output, i) => {
-      nodes.push({
-        id: `chain-output:${team.id}:${output.id}`,
-        type: 'chainIo',
-        position: { x: columnX + OUTPUT_X, y: IO_Y_START + i * IO_Y_GAP },
-        data: { kind: 'output', label: output.label },
-        draggable: true,
-      })
-    })
-  })
-
-  // chainEdgesAll wordt één keer bovenin de component berekend (zie
-  // chainEdgesAll-useMemo) en hier hergebruikt — resolveChainEdges filtert
-  // zelf al niets weg op zichtbaarheid, dat gebeurt hieronder via teamIdSet,
-  // dus rekenen op de volledige set en pas daarna filteren geeft exact
-  // hetzelfde resultaat als eerst filteren en dan berekenen.
-  const teamIdSet = new Set(visibleTeams.map((team) => team.id))
-  const chainEdges = chainEdgesAll
-  const teamNaamById = Object.fromEntries(visibleTeams.map((team) => [team.id, naamVan(team)]))
-  chainEdges.forEach((edge) => {
-    if (!teamIdSet.has(edge.sourceTeam) || !teamIdSet.has(edge.targetTeam)) return
-    edges.push({
-      id: edge.id,
-      source: `chain-output:${edge.sourceTeam}:${edge.sourceOutputId}`,
-      target: `chain-input:${edge.targetTeam}:${edge.targetInputId}`,
-      style: { stroke: '#2a5f8a', strokeWidth: 2 },
-      animated: true,
-      // Zonder deze data was een ketenlijn alleen een streep: je kon nergens
-      // aflezen wélke output aan wélke input hangt zonder beide kaartjes te
-      // zoeken. Hover en klik gebruiken dit (zie ChainOverview).
-      data: {
-        sourceTeamNaam: teamNaamById[edge.sourceTeam] ?? edge.sourceTeam,
-        sourceLabel: edge.sourceLabel,
-        targetTeamNaam: teamNaamById[edge.targetTeam] ?? edge.targetTeam,
-        targetLabel: edge.targetLabel,
-      },
-    })
-  })
-
-  const canvasWidth = Math.max(visibleTeams.length * COLUMN_WIDTH + 260, 600)
-
-  // smoothstep i.p.v. de standaard bezier-lijn: minder kriskras bij meerdere
-  // teams met overlappende in/output-koppelingen.
-  const routedEdges = edges.map((e) => ({ type: 'smoothstep', ...e }))
-
-  return { nodes, edges: routedEdges, canvasWidth, canvasHeight }
-}
-
-const OV_COLUMN_GAP = 60
-const OV_ROW_GAP = 24
-const OV_CARD_WIDTH = 208 // w-52
-const OV_CARD_WIDTH_EXPANDED = 320 // w-80
-const OV_CARD_HEIGHT = 70
 const OV_ITEM_ROW_BASE_HEIGHT = 30 // één regel + padding + tussenruimte
 const OV_ITEM_ROW_EXTRA_LINE = 14 // extra hoogte per regel die terugloopt
 const OV_ITEM_CHARS_PER_LINE = 16 // ruwe, bewust voorzichtige schatting voor een kolom van ~130px op 11px tekst
-const OV_ROW_Y = 120
-const OV_TRAY_GAP = 70
 
 // Schatting van de gerenderde hoogte van één IN/OUT-rijtje op basis van de
 // labellengte — puur uit data, geen DOM-meting (die zou een meet-
@@ -382,10 +177,239 @@ const OV_TRAY_GAP = 70
 // ging elk rijtje voor een vaste hoogte door, ook als de tekst in de
 // werkelijke, smalle kolom over meerdere regels terugloopt — met een te lage
 // geschatte kaarthoogte en dus overlap met de kaart/tray eronder tot gevolg.
+// Gedeeld tussen computeFocusChainLayout en computeChainOverviewLayout.
 function estimateItemRowHeight(label) {
   const lines = Math.max(1, Math.ceil((label?.length || 1) / OV_ITEM_CHARS_PER_LINE))
   return OV_ITEM_ROW_BASE_HEIGHT + (lines - 1) * OV_ITEM_ROW_EXTRA_LINE
 }
+
+// Vaste, kleine kwalitatieve kleurenreeks voor Focusmodus: elke specifieke
+// output→input-relatie krijgt zijn eigen kleur (cyclisch toegewezen), zowel op
+// de kaartranden als op de verbindingslijn — zo is in één oogopslag te zien
+// welke twee kaartjes bij elkaar horen, ook als er meerdere lijnen door
+// elkaar heen lopen. Bewust geen stoplichtkleuren (CLAUDE.md); dit is een
+// eigen, herkenbaarheids-kleurenreeks, los van de risico-ernstkleuren in
+// riskStyles.js.
+const CONNECTION_COLORS = ['#0ea5e9', '#4338ca', '#9333ea', '#0d9488', '#d97706', '#e11d48']
+
+const FC_CARD_WIDTH = 230
+const FC_COLUMN_GAP = 70
+const FC_ROW_GAP = 28
+const FC_CARD_HEADER_HEIGHT = 55
+const BACKFLOW_DIP = 70
+const BACKFLOW_LANE_GAP = 22
+
+function FocusChainCardNode({ id, data }) {
+  const { t, language } = useLanguage()
+  const style = riskStyle(data.risk.level)
+
+  // De item-handles hieronder verschijnen/verdwijnen met de inhoud van deze
+  // ene kaart (bv. na een wijziging op de teampagina) — reactflow moet
+  // expliciet verteld worden dat de handle-set is gewijzigd, anders klopt de
+  // aanhechting van edges niet meer (zelfde patroon als de overview-kaart).
+  const updateNodeInternals = useUpdateNodeInternals()
+  useEffect(() => {
+    updateNodeInternals(id)
+  }, [data.items, id, updateNodeInternals])
+
+  return (
+    <div
+      className="relative cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md hover:shadow-lg"
+      style={{ width: FC_CARD_WIDTH, borderColor: data.isFocus ? '#2a5f8a' : data.count > 0 ? style.hex : '#cbd5e1' }}
+      title={t('chain.clickToFocusHint')}
+    >
+      <div className="text-sm font-semibold text-slate-800">{data.label}</div>
+      {data.count > 0 ? (
+        <div className={`mt-1 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+          {translateRiskLevel(data.risk.level, language)} · {data.count}
+        </div>
+      ) : (
+        <div className="mt-1 text-xs text-slate-400">{t('graph.noDeps')}</div>
+      )}
+      <div className="mt-2 flex flex-col gap-1.5 border-t border-slate-100 pt-2">
+        {data.items.map((item) => (
+          <div
+            key={item.id}
+            className="relative rounded border bg-slate-50 px-2 py-1 text-[11px] text-slate-600"
+            style={{ borderLeftWidth: 3, borderLeftColor: item.color ?? '#cbd5e1', borderColor: '#e2e8f0' }}
+          >
+            {item.kind === 'in' && <Handle type="target" position={Position.Left} id={`item-in:${item.id}`} style={{ opacity: 0.4 }} />}
+            <span className="block text-[8px] font-medium uppercase tracking-wide text-slate-400">{item.kind === 'in' ? 'in' : 'out'}</span>
+            {item.label || '—'}
+            {item.linkedTeamNaam && (
+              <span className="block text-[9px] text-slate-400">
+                {item.kind === 'in' ? t('chain.itemFromTeam', { team: item.linkedTeamNaam }) : t('chain.itemToTeam', { team: item.linkedTeamNaam })}
+              </span>
+            )}
+            {item.kind === 'out' && <Handle type="source" position={Position.Right} id={`item-out:${item.id}`} style={{ opacity: 0.4 }} />}
+          </div>
+        ))}
+        {data.items.length === 0 && <div className="text-[11px] italic text-slate-300">—</div>}
+      </div>
+    </div>
+  )
+}
+
+const nodeTypes = { chainHeader: TeamHeaderNode, focusCard: FocusChainCardNode, chainGroupLabel: ChainGroupLabelNode }
+
+// Eigen edge voor een terugkoppeling (een koppeling die niet voorwaarts naar
+// een nieuwe kolom gaat, maar terug naar een team dat al eerder in de keten
+// staat — incl. het focusteam zelf bij een cyclus): reactflow's ingebouwde
+// edge-types routeren altijd tussen de daadwerkelijke handle-posities, wat bij
+// "terug naar links" een lelijke/kruisende lijn zou geven. Deze edge tekent
+// zelf één rustige boog onderlangs — vaste, bescheiden marge i.p.v. meeschalen
+// met de absolute y-positie (dat laatste schoot in een eerdere ronde van dit
+// scherm honderden pixels door, zie git-historie); focusketens zijn klein
+// genoeg dat een vaste marge ruim voldoende is.
+function FocusBackflowEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd, data }) {
+  // Elke terugkoppeling krijgt zijn eigen "diepte" (laneIndex, toegekend in
+  // computeFocusChainLayout op volgorde van voorkomen) — zonder dit vielen
+  // twee terugkoppelingen vanaf dezelfde kaart samen op precies dezelfde boog
+  // en liepen ze het grootste deel van hun lengte exact over elkaar heen.
+  const dip = Math.max(sourceY, targetY) + BACKFLOW_DIP + (data?.laneIndex ?? 0) * BACKFLOW_LANE_GAP
+  const path = `M ${sourceX},${sourceY} C ${sourceX},${dip} ${targetX},${dip} ${targetX},${targetY}`
+  return <BaseEdge path={path} style={{ ...style, strokeDasharray: '5 4' }} markerEnd={markerEnd} />
+}
+
+// Voorwaartse koppeling tussen twee item-handles: een gewone smoothstep-edge
+// routeert rechthoekig op basis van de handle-richting en kan daardoor ver
+// boven de kaartenrij uitschieten zodra bron- en doelrij ver uit elkaar
+// liggen (getest: zichtbaar over de bovenkant van tussenliggende kaarten).
+// Deze eigen, simpele kubieke boog met horizontale aanloop/aankomst blijft
+// per definitie tussen de bron- en doel-y — dus nooit "over" een kaart heen.
+function FocusForwardEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd }) {
+  const midX = (sourceX + targetX) / 2
+  const path = `M ${sourceX},${sourceY} C ${midX},${sourceY} ${midX},${targetY} ${targetX},${targetY}`
+  return <BaseEdge path={path} style={style} markerEnd={markerEnd} />
+}
+
+const focusEdgeTypes = { focusBackflow: FocusBackflowEdge, focusForward: FocusForwardEdge }
+
+// Focusmodus-lay-out: voorwaartse BFS vanaf één gekozen team (traceForwardChain,
+// lib/teamWorkflow.js) i.p.v. de vorige inkomend/focus/uitgaand-swimlanes.
+// Elke output die naar een ander (nog niet getoond) team gaat, zet dat team in
+// de eerstvolgende kolom; van daaruit gaat het weer verder zolang de keten
+// reikt. Een koppeling naar een team dat al eerder in de keten staat (incl.
+// het focusteam zelf bij een cyclus) wordt niet als nieuwe kolom getekend,
+// maar als terugkoppeling (FocusBackflowEdge hierboven). Elk team toont al
+// zijn eigen input- én outputitems als één gestapelde lijst; alleen items die
+// naar een óók zichtbare kaart koppelen krijgen een kleur + lijn — een item
+// gekoppeld aan een team buiten deze weergave toont enkel een "van/naar
+// {team}"-onderschrift, nooit een fantoom-lijn naar een niet-getoonde kaart.
+//
+// Deelt zijn argumentenlijst met computeChainOverviewLayout (useMergedLayout
+// vereist een deps-array met stabiele lengte, ongeacht welke van de twee
+// functies actief is) — elke functie gebruikt alleen wat 'm aangaat en
+// negeert de rest (`_prefix`).
+function computeFocusChainLayout(
+  teamWorkflows,
+  teamRisk,
+  teamLabels = {},
+  chainEdgesAll = [],
+  _layeredTeams,
+  _noConnectionLabel,
+  _expandedTeamIds,
+  _pinnedTeamIds,
+  filteredTeams = [],
+  focusTeamId = '',
+) {
+  const naamVan = (team) => teamLabels[team.id] ?? team.naam
+  const { columns, columnOf } = traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll)
+  if (columns.length === 0) return { nodes: [], edges: [] }
+
+  const teamNaamById = Object.fromEntries(filteredTeams.map((team) => [team.id, naamVan(team)]))
+
+  // Kleur + "van/naar"-onderschrift per item: een lijn (en dus kleur) ontstaat
+  // alleen tussen twee kaarten die allebei zichtbaar zijn in deze
+  // keten-weergave.
+  const itemColor = new Map()
+  const itemLinkedTeam = new Map()
+  const edgesToRender = []
+  let colorIndex = 0
+  for (const edge of chainEdgesAll) {
+    const sourceShown = columnOf.has(edge.sourceTeam)
+    const targetShown = columnOf.has(edge.targetTeam)
+    if (!sourceShown && !targetShown) continue
+    if (sourceShown) itemLinkedTeam.set(edge.sourceOutputId, edge.targetTeam)
+    if (targetShown) itemLinkedTeam.set(edge.targetInputId, edge.sourceTeam)
+    if (!sourceShown || !targetShown) continue
+    const color = CONNECTION_COLORS[colorIndex % CONNECTION_COLORS.length]
+    colorIndex += 1
+    itemColor.set(edge.sourceOutputId, color)
+    itemColor.set(edge.targetInputId, color)
+    const forward = columnOf.get(edge.targetTeam) > columnOf.get(edge.sourceTeam)
+    edgesToRender.push({ edge, color, forward })
+  }
+
+  function buildItems(team) {
+    const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
+    return [
+      ...wf.inputs.map((input) => ({ id: input.id, label: input.label, kind: 'in' })),
+      ...wf.outputs.map((output) => ({ id: output.id, label: output.label, kind: 'out' })),
+    ].map((item) => ({
+      ...item,
+      color: itemColor.get(item.id) ?? null,
+      linkedTeamNaam: itemLinkedTeam.has(item.id) ? (teamNaamById[itemLinkedTeam.get(item.id)] ?? itemLinkedTeam.get(item.id)) : null,
+    }))
+  }
+  function cardHeight(items) {
+    // +12 per item met een "van/naar {team}"-onderschrift: estimateItemRowHeight
+    // is gedeeld met de overview-kaart, die geen onderschrift kent en dus geen
+    // idee heeft van deze extra regel — zonder deze correctie werd de kaart
+    // stelselmatig te laag ingeschat zodra items gekoppeld zijn (het gangbare
+    // geval), met overlap met de kolom eronder tot gevolg.
+    const content = items.reduce((sum, item) => sum + estimateItemRowHeight(item.label) + (item.linkedTeamNaam ? 12 : 0), 0)
+    return FC_CARD_HEADER_HEIGHT + 16 + Math.max(content, OV_ITEM_ROW_BASE_HEIGHT)
+  }
+
+  const columnX = []
+  let cumulativeX = 0
+  for (let ci = 0; ci < columns.length; ci++) {
+    columnX.push(cumulativeX)
+    cumulativeX += FC_CARD_WIDTH + FC_COLUMN_GAP
+  }
+
+  const nodes = []
+  columns.forEach((columnTeams, ci) => {
+    let y = 0
+    columnTeams.forEach((team) => {
+      const items = buildItems(team)
+      const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
+      nodes.push({
+        id: `focus-card:${team.id}`,
+        type: 'focusCard',
+        position: { x: columnX[ci], y },
+        data: { teamId: team.id, label: naamVan(team), risk, count: risk.count ?? 0, items, isFocus: ci === 0 },
+        draggable: true,
+      })
+      y += cardHeight(items) + FC_ROW_GAP
+    })
+  })
+
+  let backflowLane = 0
+  const edges = edgesToRender.map(({ edge, color, forward }) => ({
+    id: edge.id,
+    source: `focus-card:${edge.sourceTeam}`,
+    target: `focus-card:${edge.targetTeam}`,
+    sourceHandle: `item-out:${edge.sourceOutputId}`,
+    targetHandle: `item-in:${edge.targetInputId}`,
+    type: forward ? 'focusForward' : 'focusBackflow',
+    data: forward ? undefined : { laneIndex: backflowLane++ },
+    style: { stroke: color, strokeWidth: 2 },
+    markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+  }))
+
+  return { nodes, edges }
+}
+
+const OV_COLUMN_GAP = 60
+const OV_ROW_GAP = 24
+const OV_CARD_WIDTH = 208 // w-52
+const OV_CARD_WIDTH_EXPANDED = 320 // w-80
+const OV_CARD_HEIGHT = 70
+const OV_ROW_Y = 120
+const OV_TRAY_GAP = 70
 
 // Geaggregeerde, gelaagde ketenstroom-lay-out voor de overview-modus (niet gefocust
 // op één team): kolom = ketenstap (topologische laag, zie layerTeamsByChain), rij =
@@ -396,25 +420,26 @@ function estimateItemRowHeight(label) {
 // overgrote meerderheid van de koppelingen "naburig" (opeenvolgende lagen), dus
 // kort en direct. Positionering en kaartgrootte volgen volledig uit bekende data
 // (aantal IN/OUT-items, uitgeklapt of niet) — geen DOM-meting, dus geen
-// meet-terugkoppelingslus. Focusmodus blijft de losse computeChainLayout
-// hierboven gebruiken, ongewijzigd.
-// _visibleTeams/_groupInfo blijven ongebruikt maar staan wél op hun positie:
+// meet-terugkoppelingslus. Focusmodus gebruikt de eigen computeFocusChainLayout
+// hierboven.
+// _layeredTeams/_noConnectionLabel/_expandedTeamIds/_pinnedTeamIds hieronder,
+// en _filteredTeams/_focusTeamId bij computeFocusChainLayout hierboven,
+// blijven per functie deels ongebruikt maar staan wél op hun positie:
 // useMergedLayout geeft dezelfde deps-array door aan welke van de twee
 // lay-outfuncties er ook actief is — die array moet bij elke render dezelfde
 // lengte houden (React waarschuwt anders: "changed size between renders"),
-// dus computeChainLayout en computeChainOverviewLayout delen exact dezelfde
-// eerste zes argumenten, ook al gebruikt deze functie er maar een deel van.
+// dus delen beide functies exact dezelfde, uitgebreide argumentenlijst.
 function computeChainOverviewLayout(
-  _visibleTeams,
   teamWorkflows,
   teamRisk,
   teamLabels = {},
-  _groupInfo,
   chainEdgesAll = [],
   layeredTeams = { layers: [], isolated: [] },
   noConnectionLabel = '',
   expandedTeamIds = new Set(),
   pinnedTeamIds = new Set(),
+  _filteredTeams,
+  _focusTeamId,
 ) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const nodes = []
@@ -634,75 +659,33 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
   const filteredTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
 
-  // Focusmodus: bij veel teams wordt de swimlane-rij zo breed dat de fit
-  // tegen de zoom-ondergrens aanloopt en de helft buiten beeld valt. Focus op
-  // één team toont alleen dat team plus zijn directe ketenpartners, in de
-  // volgorde inkomend → focus → uitgaand, zodat de richting af te lezen is aan
-  // de positie. "chainMode" is losgekoppeld van focusTeamId: zo onthoudt de
-  // tool welk team je koos toen je terugschakelde naar Ketenflow.
+  // Focusmodus: kies één team, en de keten rolt voorwaarts uit (kolom per
+  // stap) vanaf dat team — zie focusChainTrace/traceForwardChain hieronder.
+  // "chainMode" is losgekoppeld van focusTeamId: zo onthoudt de tool welk team
+  // je koos toen je terugschakelde naar Ketenflow.
   const [chainMode, setChainMode] = useState('overview')
   const [focusTeamId, setFocusTeamId] = useState('')
-  // Verbergen is de standaard (rust); deze knop laat de rest van de teams
-  // alsnog zien, sterk gedimd, voor wie de bredere context wil terugzien.
-  const [showContext, setShowContext] = useState(false)
 
   const focusActive = chainMode === 'focus' && Boolean(focusTeamId)
 
-  // Eén keer berekend, hergebruikt door zowel chainPartners hieronder als
-  // computeChainLayout (via useMergedLayout) — voorheen liep resolveChainEdges
-  // twee keer per render.
+  // Eén keer berekend, hergebruikt door zowel focusChainTrace hieronder als
+  // computeFocusChainLayout/computeChainOverviewLayout (via useMergedLayout) —
+  // voorheen liep resolveChainEdges twee keer per render.
   const chainEdgesAll = useMemo(() => resolveChainEdges(teamWorkflows), [teamWorkflows])
 
-  const chainPartners = useMemo(() => {
-    if (!focusActive) return null
-    const focus = teams.find((tm) => tm.id === focusTeamId)
-    if (!focus) return null
-    const edges = chainEdgesAll
-    const incoming = new Set(edges.filter((e) => e.targetTeam === focusTeamId).map((e) => e.sourceTeam))
-    const outgoing = new Set(edges.filter((e) => e.sourceTeam === focusTeamId).map((e) => e.targetTeam))
-    incoming.delete(focusTeamId)
-    outgoing.delete(focusTeamId)
-    // Een partner die zowel levert als afneemt hoort maar één kolom te krijgen;
-    // die houden we aan de inkomende kant, links van het focusteam.
-    for (const id of incoming) outgoing.delete(id)
-    return { focus, incoming, outgoing, incomingCount: edges.filter((e) => e.targetTeam === focusTeamId).length, outgoingCount: edges.filter((e) => e.sourceTeam === focusTeamId).length }
-  }, [focusActive, focusTeamId, teams, chainEdgesAll])
+  // Voorwaartse BFS vanaf het focusteam (traceForwardChain, lib/teamWorkflow.js):
+  // kolom = ketenstap, i.p.v. de vorige inkomend/focus/uitgaand-swimlanes.
+  const focusChainTrace = useMemo(() => {
+    if (!focusActive || !teams.some((tm) => tm.id === focusTeamId)) return null
+    return traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll)
+  }, [focusActive, focusTeamId, filteredTeams, teams, chainEdgesAll])
 
   const visibleTeams = useMemo(() => {
     // Overzichtsmodus: kolomvolgorde op ketenlogica i.p.v. de toevallige
     // teams-volgorde uit de context — zie orderTeamsByChain in lib/teamWorkflow.js.
-    // Focusmodus (hieronder) heeft al een eigen, gerichte inkomend/uitgaand-
-    // groepering en blijft ongewijzigd.
-    if (!chainPartners) return orderTeamsByChain(filteredTeams, chainEdgesAll)
-    const { focus, incoming, outgoing } = chainPartners
-    const byId = (id) => teams.find((tm) => tm.id === id)
-    const core = [...[...incoming].map(byId).filter(Boolean), focus, ...[...outgoing].map(byId).filter(Boolean)]
-    if (!showContext) return core
-    const directIds = new Set(core.map((tm) => tm.id))
-    const context = filteredTeams.filter((tm) => !directIds.has(tm.id))
-    return [...core, ...context]
-  }, [chainPartners, filteredTeams, teams, showContext, chainEdgesAll])
-
-  // groupKind per zichtbaar team — drijft zowel de dim-styling van de
-  // teamkaart als de "Inkomend/Geselecteerd team/Uitgaand/Overige teams"-
-  // labels boven de kolommen.
-  const groupInfo = useMemo(() => {
-    if (!chainPartners) return null
-    const kindById = new Map()
-    for (const id of chainPartners.incoming) kindById.set(id, 'incoming')
-    kindById.set(chainPartners.focus.id, 'focus')
-    for (const id of chainPartners.outgoing) kindById.set(id, 'outgoing')
-    for (const tm of visibleTeams) if (!kindById.has(tm.id)) kindById.set(tm.id, 'context')
-    return {
-      kindById,
-      labelByKind: {
-        incoming: t('chain.groupIncoming'),
-        focus: t('chain.groupFocus'),
-        outgoing: t('chain.groupOutgoing'),
-        context: t('chain.groupContext'),
-      },
-    }
-  }, [chainPartners, visibleTeams, t])
+    if (focusChainTrace) return focusChainTrace.columns.flat()
+    return orderTeamsByChain(filteredTeams, chainEdgesAll)
+  }, [focusChainTrace, filteredTeams, chainEdgesAll])
 
   const teamRisk = useMemo(() => {
     // Alleen dimmen als het filter daadwerkelijk versmald is; met alle niveaus
@@ -724,17 +707,21 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   // Hub-statistieken voor het gefocuste team: aantal inkomende/uitgaande
   // koppelingen (niet unieke partners — een team met 3 losse koppelingen naar
   // dezelfde partner telt als 3) en het hoogste risiconiveau van zijn eigen
-  // dependencies, ongeacht het huidige risicofilter.
+  // dependencies, ongeacht het huidige risicofilter. Rechtstreeks uit
+  // chainEdgesAll i.p.v. via focusChainTrace — dit gaat over de dírecte
+  // koppelingen van het focusteam zelf, niet over de hele voorwaartse keten.
   const focusStats = useMemo(() => {
-    if (!chainPartners) return null
+    if (!focusActive) return null
+    const incoming = chainEdgesAll.filter((e) => e.targetTeam === focusTeamId && e.sourceTeam !== focusTeamId)
+    const outgoing = chainEdgesAll.filter((e) => e.sourceTeam === focusTeamId && e.targetTeam !== focusTeamId)
     const inScope = dependencies.filter((d) => d.teamId === focusTeamId && (scope === 'alle' || d.scope === scope))
     return {
-      incoming: chainPartners.incomingCount,
-      outgoing: chainPartners.outgoingCount,
-      total: chainPartners.incomingCount + chainPartners.outgoingCount,
+      incoming: incoming.length,
+      outgoing: outgoing.length,
+      total: incoming.length + outgoing.length,
       risk: inScope.length > 0 ? highestRisk(inScope) : null,
     }
-  }, [chainPartners, dependencies, focusTeamId, scope])
+  }, [focusActive, focusTeamId, chainEdgesAll, dependencies, scope])
 
   // Gelaagde structuur (kolom = ketenstap, rij = positie binnen de stap) voor de
   // 2D-plaatsing in overview-modus — zie layerTeamsByChain in lib/teamWorkflow.js.
@@ -761,24 +748,23 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   }, [focusActive, pinnedTeamIds, hoveredTeamId])
 
   // Eén vaste deps-vorm voor beide lay-outfuncties (zie de toelichting bij
-  // computeChainOverviewLayout's _visibleTeams/_groupInfo-parameters):
-  // useEffect/useMergedLayout vereist een deps-array met een stabiele lengte over
-  // renders heen, ook al wisselt welke van de twee functies er daadwerkelijk
-  // gebruikt wordt. computeChainOverviewLayout wordt bewust ook op elke hover/pin-
-  // wijziging opnieuw aangeroepen (i.p.v. dat apart te overlayen) — nodig om
-  // kaarten daadwerkelijk te laten op-/verschuiven; op deze schaal geen
-  // waarneembare performance-impact.
-  const [{ nodes, edges }, onNodesChange] = useMergedLayout(focusActive ? computeChainLayout : computeChainOverviewLayout, [
-    visibleTeams,
+  // computeChainOverviewLayout hierboven): useEffect/useMergedLayout vereist
+  // een deps-array met een stabiele lengte over renders heen, ook al wisselt
+  // welke van de twee functies er daadwerkelijk gebruikt wordt. Beide worden
+  // bewust ook op elke hover/pin-/focusteam-wijziging opnieuw aangeroepen
+  // (i.p.v. dat apart te overlayen) — nodig om kaarten daadwerkelijk te laten
+  // op-/verschuiven; op deze schaal geen waarneembare performance-impact.
+  const [{ nodes, edges }, onNodesChange] = useMergedLayout(focusActive ? computeFocusChainLayout : computeChainOverviewLayout, [
     teamWorkflows,
     teamRisk,
     teamLabels,
-    groupInfo,
     chainEdgesAll,
     layeredTeams,
     t('chain.groupNoConnection'),
     expandedTeamIds,
     pinnedTeamIds,
+    filteredTeams,
+    focusTeamId,
   ])
 
   // Klik pint een lijn vast (blijft staan terwijl je rondkijkt/scrollt) — dit
@@ -836,6 +822,64 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   const riskFilterActive = selectedRiskLevels.length < RISK_LEVELS.length
   const anyFilterActive = teamFilterActive || riskFilterActive
 
+  // Het team-focusmenu leeft op het canvas zelf (als zwevend paneel, zie
+  // <Panel> hieronder) i.p.v. in een aparte balk erboven — alleen bij een
+  // lege staat (geen canvas om op te zweven) valt dit terug op een gewone,
+  // gecentreerde plek in de melding, zodat je ook dan van focusteam kan
+  // wisselen.
+  const focusPicker = (
+    <div className="flex flex-wrap items-center gap-2.5 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-sm">
+      {focusTeamId ? (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2a5f8a]/10 px-3 py-1 text-xs font-medium text-[#2a5f8a]">
+          {t('chain.focusPillLabel', { team: teamLabels[focusTeamId] ?? teams.find((tm) => tm.id === focusTeamId)?.naam ?? '—' })}
+        </span>
+      ) : (
+        <span className="text-xs text-slate-400">{t('chain.focusChoosePrompt')}</span>
+      )}
+      <select
+        id="chain-focus"
+        value={focusTeamId}
+        onChange={(e) => setFocusTeamId(e.target.value)}
+        className="max-w-[168px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
+      >
+        <option value="">{t('chain.focusPlaceholder')}</option>
+        {filteredTeams.map((tm) => (
+          <option key={tm.id} value={tm.id}>
+            {teamLabels[tm.id] ?? tm.naam}
+          </option>
+        ))}
+      </select>
+      {focusTeamId && (
+        <button type="button" onClick={clearFocus} className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline">
+          {t('chain.focusClear')}
+        </button>
+      )}
+    </div>
+  )
+
+  const focusStatsBlock = focusStats && (
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-600 shadow-md backdrop-blur-sm">
+      <span>
+        {t('chain.statIncoming')}: <b className="text-slate-800">{focusStats.incoming}</b>
+      </span>
+      <span>
+        {t('chain.statOutgoing')}: <b className="text-slate-800">{focusStats.outgoing}</b>
+      </span>
+      <span>
+        {t('chain.statTotal')}: <b className="text-slate-800">{focusStats.total}</b>
+      </span>
+      {focusStats.risk && (
+        <span className="inline-flex items-center gap-1">
+          {t('chain.statHighestRisk')}:
+          <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${riskStyle(focusStats.risk.level).badge}`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${riskStyle(focusStats.risk.level).dot}`} />
+            {translateRiskLevel(focusStats.risk.level, language)}
+          </span>
+        </span>
+      )}
+    </div>
+  )
+
   return (
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1 space-y-2">
@@ -872,86 +916,23 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           <div className="flex shrink-0 items-center gap-2">
             <span
               className="hidden text-xs text-slate-400 sm:inline"
-              title={focusActive ? t('chain.edgeHint') : t('chain.overviewLegend')}
+              title={focusActive ? t('chain.focusLegend') : t('chain.overviewLegend')}
             >
-              {focusActive ? t('chain.edgeHint') : t('chain.overviewLegend')}
+              {focusActive ? t('chain.focusLegend') : t('chain.overviewLegend')}
             </span>
             <ScopeToggle scope={scope} onChange={setScope} />
           </div>
         </div>
 
-        {chainMode === 'focus' && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-2.5 shadow-sm">
-            <div className="flex flex-wrap items-center gap-2.5">
-              {focusTeamId ? (
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#2a5f8a]/10 px-3 py-1 text-xs font-medium text-[#2a5f8a]">
-                  {t('chain.focusPillLabel', { team: teamLabels[focusTeamId] ?? teams.find((tm) => tm.id === focusTeamId)?.naam ?? '—' })}
-                </span>
-              ) : (
-                <span className="text-xs text-slate-400">{t('chain.focusChoosePrompt')}</span>
-              )}
-              <select
-                id="chain-focus"
-                value={focusTeamId}
-                onChange={(e) => setFocusTeamId(e.target.value)}
-                className="max-w-[168px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
-              >
-                <option value="">{t('chain.focusPlaceholder')}</option>
-                {filteredTeams.map((tm) => (
-                  <option key={tm.id} value={tm.id}>
-                    {teamLabels[tm.id] ?? tm.naam}
-                  </option>
-                ))}
-              </select>
-              {focusTeamId && (
-                <button type="button" onClick={clearFocus} className="text-xs font-medium text-slate-500 hover:text-slate-700 hover:underline">
-                  {t('chain.focusClear')}
-                </button>
-              )}
-              {focusTeamId && (
-                <label className="flex items-center gap-1.5 text-xs text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={showContext}
-                    onChange={(e) => setShowContext(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
-                  />
-                  {t('chain.showContext')}
-                </label>
-              )}
-            </div>
-            {focusStats && (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
-                <span>
-                  {t('chain.statIncoming')}: <b className="text-slate-800">{focusStats.incoming}</b>
-                </span>
-                <span>
-                  {t('chain.statOutgoing')}: <b className="text-slate-800">{focusStats.outgoing}</b>
-                </span>
-                <span>
-                  {t('chain.statTotal')}: <b className="text-slate-800">{focusStats.total}</b>
-                </span>
-                {focusStats.risk && (
-                  <span className="inline-flex items-center gap-1">
-                    {t('chain.statHighestRisk')}:
-                    <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 ${riskStyle(focusStats.risk.level).badge}`}>
-                      <span className={`h-1.5 w-1.5 rounded-full ${riskStyle(focusStats.risk.level).dot}`} />
-                      {translateRiskLevel(focusStats.risk.level, language)}
-                    </span>
-                  </span>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {focusActive && chainPartners && chainPartners.incoming.size === 0 && chainPartners.outgoing.size === 0 && !showContext ? (
+        {focusActive && focusStats && focusStats.total === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+            {chainMode === 'focus' && <div className="mb-4 flex justify-center">{focusPicker}</div>}
             <div>{t('chain.focusEmptyTitle')}</div>
             <div className="mt-1 text-xs">{t('chain.focusEmptyHint')}</div>
           </div>
         ) : visibleTeams.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+            {chainMode === 'focus' && <div className="mb-4 flex justify-center">{focusPicker}</div>}
             {t('chain.noTeams')}
           </div>
         ) : (
@@ -966,9 +947,10 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 nodes={nodes}
                 edges={displayEdges}
                 nodeTypes={nodeTypes}
+                edgeTypes={focusEdgeTypes}
                 onNodesChange={onNodesChange}
                 onNodeClick={(_, node) => {
-                  if (node.type !== 'chainHeader') return
+                  if (node.type !== 'chainHeader' && node.type !== 'focusCard') return
                   if (focusActive) {
                     focusOnTeam(node.data.teamId)
                     return
@@ -992,16 +974,23 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 onNodeMouseLeave={(_, node) => {
                   if (node.type === 'chainHeader') setHoveredTeamId((prev) => (prev === node.data.teamId ? null : prev))
                 }}
-                onEdgeClick={(_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
+                onEdgeClick={focusActive ? undefined : (_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
                 onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
                 onEdgeMouseLeave={() => setHoveredEdgeId(null)}
                 onPaneClick={() => setSelectedEdgeId(null)}
-              />
+              >
+                {chainMode === 'focus' && (
+                  <>
+                    <Panel position="top-left">{focusPicker}</Panel>
+                    {focusStatsBlock && <Panel position="top-right">{focusStatsBlock}</Panel>}
+                  </>
+                )}
+              </PannableFlowCanvas>
             </div>
           </ReactFlowProvider>
         )}
 
-        {selectedEdge?.data && (
+        {!focusActive && selectedEdge?.data && (
           <div className="flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
             <div className="min-w-0 flex-1 text-xs">
               {Array.isArray(selectedEdge.data.links) ? (

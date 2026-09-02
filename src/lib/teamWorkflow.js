@@ -150,19 +150,44 @@ export function aggregateChainLinks(chainEdges) {
   return [...groups.values()]
 }
 
-// Team-id's met minstens één ketenkoppeling met een ánder zichtbaar team —
-// dezelfde regel als hasAnyConnection hierboven (beide kanten zichtbaar,
-// zelfkoppelingen tellen niet mee), los geëxporteerd zodat orderTeamsByChain
-// zelf niet aangeraakt hoeft te worden. Hou deze twee definities in sync als
-// één van beide ooit wijzigt.
-export function resolveConnectedTeamIds(teams, chainEdges) {
+// Volgt de keten voorwaarts vanaf één gekozen team, laag voor laag (BFS): elke
+// keer dat een output van het huidige team naar een ander team gaat, komt dat
+// team in de eerstvolgende kolom — net zo lang als de keten reikt. Een team
+// dat al eerder in de keten voorkomt (incl. het focusteam zelf bij een
+// cyclus) wordt niet nogmaals toegevoegd — de aanroeper herkent zo'n
+// koppeling zelf via columnOf (doel-kolom <= bron-kolom) en tekent 'm als
+// terugkoppeling i.p.v. als nieuwe stap. Voorkomt oneindig doorlopen bij een
+// cyclus in de data (bv. Casio -> Sterke verhalen -> Equinox -> Casio, zoals
+// in de mockdata voorkomt).
+export function traceForwardChain(focusTeamId, teams, chainEdges) {
   const teamIds = new Set(teams.map((t) => t.id))
-  const connected = new Set()
+  if (!teamIds.has(focusTeamId)) return { columns: [], columnOf: new Map() }
+
+  const outgoing = new Map(teams.map((t) => [t.id, []]))
   for (const edge of chainEdges) {
     if (edge.sourceTeam === edge.targetTeam) continue
     if (!teamIds.has(edge.sourceTeam) || !teamIds.has(edge.targetTeam)) continue
-    connected.add(edge.sourceTeam)
-    connected.add(edge.targetTeam)
+    outgoing.get(edge.sourceTeam)?.push(edge.targetTeam)
   }
-  return connected
+
+  const byId = new Map(teams.map((t) => [t.id, t]))
+  const columnOf = new Map([[focusTeamId, 0]])
+  const columns = [[byId.get(focusTeamId)]]
+  let frontier = [focusTeamId]
+  while (frontier.length > 0) {
+    const next = []
+    for (const id of frontier) {
+      for (const targetId of outgoing.get(id) ?? []) {
+        if (!columnOf.has(targetId)) {
+          columnOf.set(targetId, columns.length)
+          next.push(targetId)
+        }
+      }
+    }
+    if (next.length === 0) break
+    const unique = [...new Set(next)]
+    columns.push(unique.map((id) => byId.get(id)).filter(Boolean))
+    frontier = unique
+  }
+  return { columns, columnOf }
 }

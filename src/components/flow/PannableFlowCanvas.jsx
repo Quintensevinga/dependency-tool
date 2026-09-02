@@ -35,6 +35,7 @@ export default function PannableFlowCanvas({
   // daarmee racen (wie het laatst zet, wint) en soms zonder toolbar-marge
   // winnen, met content onder de zwevende toolbar als gevolg.
   disableAutoFit = false,
+  children,
 }) {
   return (
     <ReactFlow
@@ -76,6 +77,7 @@ export default function PannableFlowCanvas({
     >
       <Background color={backgroundColor} gap={24} />
       {!hideControls && <Controls showInteractive={false} />}
+      {children}
       {showMinimap && (
         <MiniMap
           pannable
