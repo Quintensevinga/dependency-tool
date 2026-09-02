@@ -3,6 +3,20 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-02
+- **Focusmodus: lijnselectie naar voorgrond + uniforme herkomst/bestemming per item** (Lars Hoogland)
+
+  Klik op een relatielijn licht 'm nu uit (dikker, naar de voorgrond via
+  elevateEdgesOnSelect, overige lijnen gedimd) en licht de twee betrokken
+  item-kaartjes zelf op (oranje rand + grotere handle-stip precies op het
+  aansluitpunt) — zo is in één oogopslag te zien welk output- en
+  inputkaartje bij elkaar horen, ook als de lijn onder andere kaarten door
+  loopt. Nogmaals klikken deselecteert en zet alles terug.
+
+  Elk item toont nu altijd waar het vandaan komt of naartoe gaat: niet
+  langer alleen bij een team-koppeling, ook bij een eigen applicatie/systeem,
+  een rol/persoon/stakeholder/omgeving, of een externe partij — voorheen
+  bleven zulke items zonder enige herkomstvermelding.
+
 - **Fix: terugkoppelingslijnen in Focusmodus liepen dwars door kaarten heen** (Lars Hoogland)
 
   De onderlangse boog van een terugkoppeling week alleen een vaste, kleine
