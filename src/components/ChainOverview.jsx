@@ -198,10 +198,11 @@ const FC_ROW_GAP = 28
 const FC_CARD_HEADER_HEIGHT = 55
 const BACKFLOW_DIP = 70
 const BACKFLOW_LANE_GAP = 22
+const SIDESTEP_BULGE = 45
+const SIDESTEP_LANE_GAP = 24
 
 function FocusChainCardNode({ id, data }) {
   const { t, language } = useLanguage()
-  const style = riskStyle(data.risk.level)
 
   // De item-handles hieronder verschijnen/verdwijnen met de inhoud van deze
   // ene kaart (bv. na een wijziging op de teampagina) — reactflow moet
@@ -215,45 +216,50 @@ function FocusChainCardNode({ id, data }) {
   return (
     <div
       className="relative cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md hover:shadow-lg"
-      style={{ width: FC_CARD_WIDTH, borderColor: data.isFocus ? '#2a5f8a' : data.count > 0 ? style.hex : '#cbd5e1' }}
+      style={{ width: FC_CARD_WIDTH, borderColor: data.isFocus ? '#2a5f8a' : '#cbd5e1' }}
       title={t('chain.clickToFocusHint')}
     >
       <div className="text-sm font-semibold text-slate-800">{data.label}</div>
-      {data.count > 0 ? (
-        <div className={`mt-1 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>
-          <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
-          {translateRiskLevel(data.risk.level, language)} · {data.count}
-        </div>
-      ) : (
-        <div className="mt-1 text-xs text-slate-400">{t('graph.noDeps')}</div>
-      )}
       <div className="mt-2 flex flex-col gap-1.5 border-t border-slate-100 pt-2">
         {data.items.map((item) => {
           const active = data.activeItemIds?.has(item.id) ?? false
+          const activeHandleStyle = { opacity: 1, width: 9, height: 9, background: '#d97706' }
           return (
             <div
               key={item.id}
               className={`relative rounded border px-2 py-1 text-[11px] text-slate-600 transition-colors ${active ? 'bg-amber-50 ring-2 ring-amber-400' : 'bg-slate-50'}`}
-              style={{ borderLeftWidth: 3, borderLeftColor: item.color ?? '#cbd5e1', borderColor: active ? undefined : '#e2e8f0' }}
+              style={{
+                borderLeftWidth: 3,
+                borderLeftColor: item.color ?? '#cbd5e1',
+                borderTopColor: active ? '#fbbf24' : '#e2e8f0',
+                borderRightColor: active ? '#fbbf24' : '#e2e8f0',
+                borderBottomColor: active ? '#fbbf24' : '#e2e8f0',
+              }}
             >
               {item.kind === 'in' && (
-                <Handle
-                  type="target"
-                  position={Position.Left}
-                  id={`item-in:${item.id}`}
-                  style={active ? { opacity: 1, width: 9, height: 9, background: '#d97706' } : { opacity: 0.4 }}
-                />
+                <>
+                  {/* Twee handles op hetzelfde inputitem: links voor een
+                      voorwaartse koppeling (bron ligt links, dus komt van
+                      links binnen), rechts voor een terugkoppeling (bron ligt
+                      rechts van dit kaartje in de keten) — welke van de twee
+                      een edge daadwerkelijk gebruikt bepaalt
+                      computeFocusChainLayout op basis van kolomrichting, niet
+                      een vast links/rechts-schema. Zonder dit moest een
+                      terugkoppeling altijd aan de kant "tegen de rijrichting
+                      in" aankoppelen en dus dwars om de eigen kaart heen
+                      lussen om er te komen. */}
+                  <Handle type="target" position={Position.Left} id={`item-in:${item.id}`} style={active ? activeHandleStyle : { opacity: 0.4 }} />
+                  <Handle type="target" position={Position.Right} id={`item-in-rev:${item.id}`} style={active ? activeHandleStyle : { opacity: 0.4 }} />
+                </>
               )}
               <span className="block text-[8px] font-medium uppercase tracking-wide text-slate-400">{item.kind === 'in' ? 'in' : 'out'}</span>
               {item.label || '—'}
               {itemOriginCaption(item, t, language) && <span className="block text-[9px] text-slate-400">{itemOriginCaption(item, t, language)}</span>}
               {item.kind === 'out' && (
-                <Handle
-                  type="source"
-                  position={Position.Right}
-                  id={`item-out:${item.id}`}
-                  style={active ? { opacity: 1, width: 9, height: 9, background: '#d97706' } : { opacity: 0.4 }}
-                />
+                <>
+                  <Handle type="source" position={Position.Right} id={`item-out:${item.id}`} style={active ? activeHandleStyle : { opacity: 0.4 }} />
+                  <Handle type="source" position={Position.Left} id={`item-out-rev:${item.id}`} style={active ? activeHandleStyle : { opacity: 0.4 }} />
+                </>
               )}
             </div>
           )
@@ -313,7 +319,21 @@ function FocusForwardEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd
   return <BaseEdge path={path} style={style} markerEnd={markerEnd} />
 }
 
-const focusEdgeTypes = { focusBackflow: FocusBackflowEdge, focusForward: FocusForwardEdge }
+// Koppeling tussen twee teams in DEZELFDE kolom (boven/onder elkaar gestapeld,
+// bv. Team Tiem → Team Polis): de onderlangse boog van FocusBackflowEdge werkt
+// hier averechts — bron en doel delen vrijwel dezelfde x, dus de afdaling
+// onder de héle tekening en weer omhoog naar het doel loopt bijna loodrecht
+// dwars door het doelkaartje heen zodra dat de hoogste kaart van de tekening
+// is (getest: 70-90% van de lijnlengte bleek verborgen). Deze boogt in plaats
+// daarvan zijwaarts uit, buiten de kolom om — nooit verticaal door een kaart
+// die er toch al naast staat.
+function FocusSidestepEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd, data }) {
+  const bulge = data.bulgeX
+  const path = `M ${sourceX},${sourceY} C ${bulge},${sourceY} ${bulge},${targetY} ${targetX},${targetY}`
+  return <BaseEdge path={path} style={{ ...style, strokeDasharray: '5 4' }} markerEnd={markerEnd} />
+}
+
+const focusEdgeTypes = { focusBackflow: FocusBackflowEdge, focusForward: FocusForwardEdge, focusSidestep: FocusSidestepEdge }
 
 // Focusmodus-lay-out: voorwaartse BFS vanaf één gekozen team (traceForwardChain,
 // lib/teamWorkflow.js) i.p.v. de vorige inkomend/focus/uitgaand-swimlanes.
@@ -367,8 +387,11 @@ function computeFocusChainLayout(
     colorIndex += 1
     itemColor.set(edge.sourceOutputId, color)
     itemColor.set(edge.targetInputId, color)
-    const forward = columnOf.get(edge.targetTeam) > columnOf.get(edge.sourceTeam)
-    edgesToRender.push({ edge, color, forward })
+    const sourceCol = columnOf.get(edge.sourceTeam)
+    const targetCol = columnOf.get(edge.targetTeam)
+    const forward = targetCol > sourceCol
+    const sameColumn = targetCol === sourceCol
+    edgesToRender.push({ edge, color, forward, sameColumn })
   }
 
   // Herkomst/bestemming van een item: eerst een daadwerkelijke team-koppeling
@@ -451,18 +474,52 @@ function computeFocusChainLayout(
   // kaarten ertussen heen — precies het "lijnen lopen door kaartjes heen"-
   // probleem. Onder de laagste kaart van de hele weergave is er altijd
   // vrije ruimte, ongeacht kaarthoogte of overspanning.
+  // Welke kant van het kaartje een koppeling gebruikt volgt de richting van
+  // de lijn, niet een vast "input=links, output=rechts"-schema: bij een
+  // voorwaartse koppeling ligt het doel rechts, dus verlaat de lijn de
+  // bronkaart rechts en komt links de doelkaart binnen (ongewijzigd). Bij een
+  // terugkoppeling ligt het doel juist links (een eerdere kolom), dus
+  // gebruikt de bronkaart zijn linker-uitgang en de doelkaart zijn rechter-
+  // ingang — beide kanten wijzen dan naar elkaar toe, in plaats van dat de
+  // lijn eerst de verkeerde kant op moet en helemaal om de eigen kaart heen
+  // moet lussen om alsnog terug te komen. Elk item heeft daarom altijd beide
+  // handles (zie FocusChainCardNode) — hier wordt alleen gekozen welke van de
+  // twee deze specifieke koppeling gebruikt.
+  // Twee teams in dezelfde kolom (boven/onder elkaar gestapeld) zijn géén
+  // "terugkoppeling" in de gebruikelijke zin — ze liggen al naast elkaar,
+  // dus de onderlangse omweg van hierboven zou hier juist dwars door het
+  // doelkaartje heen lopen (zie FocusSidestepEdge). Zo'n koppeling gebruikt
+  // daarom aan beide kanten dezelfde (rechter)zijde en boogt daar zijwaarts
+  // uit, buiten de kolom om, i.p.v. onderlangs.
   let backflowLane = 0
-  const edges = edgesToRender.map(({ edge, color, forward }) => ({
-    id: edge.id,
-    source: `focus-card:${edge.sourceTeam}`,
-    target: `focus-card:${edge.targetTeam}`,
-    sourceHandle: `item-out:${edge.sourceOutputId}`,
-    targetHandle: `item-in:${edge.targetInputId}`,
-    type: forward ? 'focusForward' : 'focusBackflow',
-    data: forward ? undefined : { dip: maxCardBottom + BACKFLOW_DIP + backflowLane++ * BACKFLOW_LANE_GAP },
-    style: { stroke: color, strokeWidth: 2 },
-    markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
-  }))
+  let sidestepLane = 0
+  const edges = edgesToRender.map(({ edge, color, forward, sameColumn }) => {
+    if (sameColumn) {
+      const columnRight = columnX[columnOf.get(edge.sourceTeam)] + FC_CARD_WIDTH
+      return {
+        id: edge.id,
+        source: `focus-card:${edge.sourceTeam}`,
+        target: `focus-card:${edge.targetTeam}`,
+        sourceHandle: `item-out:${edge.sourceOutputId}`,
+        targetHandle: `item-in-rev:${edge.targetInputId}`,
+        type: 'focusSidestep',
+        data: { bulgeX: columnRight + SIDESTEP_BULGE + sidestepLane++ * SIDESTEP_LANE_GAP },
+        style: { stroke: color, strokeWidth: 2 },
+        markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+      }
+    }
+    return {
+      id: edge.id,
+      source: `focus-card:${edge.sourceTeam}`,
+      target: `focus-card:${edge.targetTeam}`,
+      sourceHandle: forward ? `item-out:${edge.sourceOutputId}` : `item-out-rev:${edge.sourceOutputId}`,
+      targetHandle: forward ? `item-in:${edge.targetInputId}` : `item-in-rev:${edge.targetInputId}`,
+      type: forward ? 'focusForward' : 'focusBackflow',
+      data: forward ? undefined : { dip: maxCardBottom + BACKFLOW_DIP + backflowLane++ * BACKFLOW_LANE_GAP },
+      style: { stroke: color, strokeWidth: 2 },
+      markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+    }
+  })
 
   return { nodes, edges }
 }
@@ -871,7 +928,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     if (!edge) return null
     const ids = [edge.sourceHandle, edge.targetHandle]
       .filter(Boolean)
-      .map((handle) => handle.replace(/^item-(in|out):/, ''))
+      .map((handle) => handle.replace(/^item-(in|out)(-rev)?:/, ''))
     return new Set(ids)
   }, [focusActive, selectedEdgeId, edges])
 
