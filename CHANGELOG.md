@@ -2,6 +2,25 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-03
+- **Focusmodus: koppeling zelf-column loste dwars-door-kaart-bug op, badge weg** (Lars Hoogland)
+
+  Een koppeling tussen twee teams in dezelfde kolom (boven/onder elkaar
+  gestapeld, bv. Team Tiem -> Team Polis) gebruikte dezelfde onderlangse
+  boog als een echte terugkoppeling. Omdat de doelkaart in dat geval vaak
+  zelf de laagste kaart van de hele tekening is, liep de lijn bij het weer
+  omhoog komen dwars door die kaart heen (tot 90% van de lijnlengte
+  onzichtbaar). Zo'n koppeling boogt nu zijwaarts uit buiten de kolom om
+  i.p.v. onderlangs.
+
+  Daarnaast: elk item-kaartje kan nu aan weerszijden koppelen (links én
+  rechts) i.p.v. een vast input=links/output=rechts-schema, zodat een lijn
+  altijd de kant kiest die naar zijn bestemming wijst in plaats van eerst
+  de verkeerde kant op te moeten. De risicobadge per teamkaart is verwijderd
+  (hoort bij de losstaande afhankelijkheden-risicoscore, niet bij de keten
+  zelf) en een pre-existing React-waarschuwing over conflicterende
+  border-stijlen op de item-chips is opgelost.
+
 ## 2026-09-02
 - **Focusmodus: lijnselectie naar voorgrond + uniforme herkomst/bestemming per item** (Lars Hoogland)
 
