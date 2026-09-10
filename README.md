@@ -37,6 +37,7 @@ af te schermen tegen iemand die dat probeert.
 
 - **Matrix-overzicht**: sorteerbare tabel per team/keten-niveau, met filters op team en risiconiveau.
 - **Netwerkweergave**: teams en categorieën als sleepbare blokjes, klikbare categorie-legenda, en de mogelijkheid om een nieuwe dependency aan te maken door een lijn tussen twee blokjes te slepen.
+- **Analyse**: één pagina met alle metrieken, trends, constateringen en hygiënecontroles over álle data (dependencies, historie, keten, applicaties, partijen, log) — elke kaart legt zijn eigen regel uit; filterbaar per team.
 - **Taal**: NL/EN-toggle rechtsboven.
 - **Export**: huidige weergave als PNG, of alle data als JSON (back-up/herstel).
 

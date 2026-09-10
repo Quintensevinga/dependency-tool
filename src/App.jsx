@@ -17,6 +17,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // hoofdbundel ongeacht welk tabblad je als eerste opent.
 const GraphView = lazy(() => import('./components/GraphView'))
 const ChainOverview = lazy(() => import('./components/ChainOverview'))
+const AnalysePage = lazy(() => import('./components/AnalysePage'))
 const TeamPage = lazy(() => import('./components/TeamPage'))
 import { exportElementAsPng } from './lib/export'
 import { getCorruptRawData, clearCorruptRawData } from './lib/storage'
@@ -76,7 +77,7 @@ function AppContent() {
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState(() => {
     const restored = loadNavState().activeTab
-    return ['graph', 'matrix', 'chain'].includes(restored) ? restored : 'graph'
+    return ['graph', 'matrix', 'chain', 'analyse'].includes(restored) ? restored : 'graph'
   })
   // Weergavemodus van Netwerkweergave (Heatmap/Relatiekaart) leeft hier i.p.v.
   // lokaal in GraphView, zodat de Sidebar 'm ook kan tonen/wijzigen. Heatmap
@@ -321,6 +322,12 @@ function AppContent() {
               {activeTab === 'chain' &&
                 (adminSettings.pages.keten ? (
                   <ChainOverview adminSections={adminSettings.sections.keten} sidebarMode={sidebarMode} />
+                ) : (
+                  <PageDisabledNotice />
+                ))}
+              {activeTab === 'analyse' &&
+                (adminSettings.pages.analyse !== false ? (
+                  <AnalysePage onSelect={setSelectedDependency} onNavigateToTeam={handleNavigateToTeam} />
                 ) : (
                   <PageDisabledNotice />
                 ))}

@@ -52,11 +52,20 @@ function HeatmapIcon() {
 // door de gebruiker gevraagde volgorde. 'graphMode' bepaalt zowel welke
 // GraphView-modus als de actieve/hoogtelichte status; 'tab' bepaalt welk
 // hoofdtabblad (activeTab in App.jsx) actief wordt.
+function AnalyseIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+      <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 const NAV_ITEMS = [
   { key: 'heatmap', tab: 'graph', graphMode: 'heatmap', icon: HeatmapIcon, labelKey: 'graph.mode.heatmap' },
   { key: 'bipartite', tab: 'graph', graphMode: 'bipartite', icon: NetworkIcon, labelKey: 'graph.mode.bipartite' },
   { key: 'matrix', tab: 'matrix', graphMode: null, icon: MatrixIcon, labelKey: 'tab.matrix' },
   { key: 'chain', tab: 'chain', graphMode: null, icon: ChainIcon, labelKey: 'tab.chain' },
+  { key: 'analyse', tab: 'analyse', graphMode: null, icon: AnalyseIcon, labelKey: 'tab.analyse' },
 ]
 
 function SettingsIcon() {
@@ -340,6 +349,7 @@ export default function Sidebar({
     if (item.key === 'bipartite') return adminSettings.pages.netwerk && adminSettings.sections.netwerk.relatiekaart
     if (item.key === 'matrix') return adminSettings.pages.matrix
     if (item.key === 'chain') return adminSettings.pages.keten
+    if (item.key === 'analyse') return adminSettings.pages.analyse !== false
     return true
   })
 

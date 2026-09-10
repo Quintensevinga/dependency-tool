@@ -53,6 +53,12 @@ const ADMIN_PAGE_CONFIG = [
     ],
   },
   {
+    key: 'analyse',
+    labelNl: 'Analyse',
+    labelEn: 'Analysis',
+    sections: [],
+  },
+  {
     key: 'team',
     labelNl: 'Teampagina',
     labelEn: 'Team page',
