@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Handle, Position, ReactFlowProvider, useReactFlow, useNodesInitialized } from 'reactflow'
+import { BaseEdge, Handle, Position, ReactFlowProvider, getSmoothStepPath, useReactFlow, useNodesInitialized } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import {
@@ -32,6 +32,7 @@ import { riskStyle } from '../lib/riskStyles'
 import { generateId, emptyTeamWorkflow, emptyApplicatieflow } from '../lib/storage'
 import { buildDuplicatePrefill } from '../lib/duplicateDependency'
 import { fitViewAvoidingCorner } from '../lib/flowFit'
+import { roundedOrthPath } from '../lib/chainLayout'
 import { CategoryIcon } from '../data/categoryIcons'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -261,9 +262,18 @@ function ApplicatieflowBannerNode({ data }) {
       className="relative flex items-center gap-1.5 rounded-lg border bg-white px-2 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_3px_10px_rgba(15,23,42,0.1)]"
       style={{ width: data.width, borderColor: `${accentColor}59`, borderLeftWidth: 3, borderLeftColor: accentColor }}
     >
-      {/* Onzichtbare handles zodat app-naar-app-koppelingen (uit de
-          Applicatieflow-vragenlijst) hier als lijn op kunnen aansluiten. */}
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      {/* Drie onzichtbare handles, alle met een eigen id — nodig zodra een
+          node meer dan één handle aan dezelfde kant heeft (hier: twee
+          source-handles links+rechts), anders kan React Flow niet meer
+          betrouwbaar bepalen welke een edge zonder expliciete handle-id moet
+          gebruiken. 'left-in' = generieke linker-ingang (Applicatieflow-input
+          die naast deze lane hangt, of de bus die hier eindigt). 'bus-out' =
+          linker-uitgang, alleen voor app-naar-app-koppelingen die via de
+          linkergoot lopen (zie appconn-edges in computeWorkflowLayout).
+          'right-out' = rechter-uitgang, voor de chip-kolom (crossflow) en de
+          ongewijzigde Samengevoegd-route naar de output-kolom. */}
+      <Handle type="target" position={Position.Left} id="left-in" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Left} id="bus-out" style={{ opacity: 0 }} />
       {data.onToggleCollapse && (
         <button
           type="button"
@@ -314,7 +324,7 @@ function ApplicatieflowBannerNode({ data }) {
           </span>
         </span>
       </div>
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} id="right-out" style={{ opacity: 0 }} />
     </div>
   )
 }
@@ -336,6 +346,17 @@ function LaneGroupNode({ data }) {
         background: data.accent === 'app' ? 'rgba(255,255,255,0.6)' : `${accentColor}0a`,
       }}
     >
+      {/* Onzichtbaar handle op de rechterrand van het HELE kader (niet de
+          banner) — een outputitem dat bij deze lane hoort vertrekt hiervandaan,
+          dus ná alle chips, in plaats van vanaf de banner (links) er dwars
+          overheen. Geen eigen top-offset: React Flow centreert een handle
+          zonder die stijl standaard op 50% van de gerenderde hoogte van dít
+          element (data.height hierboven), en dat IS precies het midden van de
+          gereserveerde rij — ook als die extra hoog staat voor gestapelde
+          IO-kaarten (zie de ioRows-boost in placeLaneGroup). pointer-events-
+          none van de ouder is geen probleem: dit handle wordt nooit door de
+          gebruiker versleept, alleen door eigen edges bij id aangesproken. */}
+      <Handle type="source" position={Position.Right} id="lane-out" style={{ opacity: 0 }} />
       {/* Optioneel label-pilletje, bv. voor de losstaande Ontwikkelflow-
           Overstijgend-band — de gewone Applicatieflow-lanes tonen hun naam al
           via de banner zelf en geven hier geen label mee. */}
@@ -470,6 +491,38 @@ const nodeTypes = {
   externalTeam: ExternalTeamNode,
 }
 
+// Route een lijn via een vaste 'gang' (verticale kolom zonder lane-content)
+// tussen bron en doel: horizontaal naar de gang, verticaal naar de juiste
+// hoogte, horizontaal het doel in. Gebruikt voor Applicatieflow-IO (de gangen
+// tussen de IO-kolommen en de zone) en voor applicatiekoppelingen (de
+// linkergang naast de lanes) — zie computeWorkflowLayout. Degenereert vanzelf
+// tot een rechte lijn zodra bron en doel al op dezelfde hoogte staan
+// (roundedOrthPath slaat een nul-lengte segment stilzwijgend over).
+function gutterRoute(x1, y1, gutterX, x2, y2) {
+  return [
+    [x1, y1],
+    [gutterX, y1],
+    [gutterX, y2],
+    [x2, y2],
+  ]
+}
+
+// Tekent de orthogonale route die computeWorkflowLayout voor een edge heeft
+// uitgerekend (data.points), met afgeronde hoeken — zelfde renderer als het
+// ketenoverzicht (lib/chainLayout.js), hier ingezet voor Applicatieflow-IO en
+// applicatiekoppelingen zodat die nooit meer dwars over een andere lane of
+// chip heen lopen. Edges zonder data.points (fasepijl, capaciteit, crossflow,
+// Ontwikkelflow-IO, annotaties) vallen terug op de standaard
+// smoothstep-berekening, exact zoals voorheen.
+function LayoutEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, data }) {
+  const path = data?.points
+    ? roundedOrthPath(data.points)
+    : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 })[0]
+  return <BaseEdge path={path} style={style} markerEnd={markerEnd} />
+}
+
+const edgeTypes = { layout: LayoutEdge }
+
 function computeWorkflowLayout(
   inputs,
   outputs,
@@ -565,6 +618,20 @@ function computeWorkflowLayout(
   // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
   const ZONE_X = STAGE_START_X - ZONE_INNER_PAD_X
   const ZONE_WIDTH = BANNER_WIDTH + ZONE_INNER_PAD_X * 2
+  // Lege 'gangen' zonder lane-content, waar nodig gebruikt om een lijn
+  // gegarandeerd langs andere lanes/chips heen te leiden (zie
+  // gutterRoute/appconn-edges en de "rest"-outputplaatsing verderop).
+  // Applicatieflow-inputlijnen hebben zo'n gerichte route niet nodig: een
+  // input-item staat altijd links van de hele zone, dus de bocht van React
+  // Flow's eigen smoothstep-lijn valt daar vanzelf al in de lege ruimte vóór
+  // de zone (bevestigd: bij tegenoverliggende handles ligt die bocht op het
+  // midden tussen bron- en doel-x, en dat midden ligt bij deze afstanden nooit
+  // ín de zone). BUS_CHANNEL_X (drie banen, voor de applicatiekoppelingen) en
+  // OUTPUT_GUTTER_X (één brede gang voorbij ELKE lane, voor generieke/niet-
+  // lane-gekoppelde outputitems) hebben die garantie niet vanzelf en routeren
+  // daarom wél expliciet.
+  const BUS_CHANNEL_X = [ZONE_X - 28, ZONE_X - 16, ZONE_X - 4]
+  const OUTPUT_GUTTER_X = ZONE_X + ZONE_WIDTH + 10
 
   // --- Applicatieflow-lane bouwstenen ---
   // Hier al gedeclareerd (i.p.v. pas in de Applicatieflow-lanesectie verderop)
@@ -575,6 +642,13 @@ function computeWorkflowLayout(
   const LANE_ITEM_W = 195
   const LANE_CONTENT_GAP = 18
   const LANE_ROW_H = 52
+  // Halve bannerhoogte (ankerpunt voor het handle op het lane-kader, zie
+  // LaneGroupNode) en een ruwe schatting van één IoNode-hoogte (voor de
+  // rij-reservering verderop als een lane meer gekoppelde IO-kaarten heeft
+  // dan chip-rijen) — geen DOM-meting, zelfde schattingsstijl als de rest
+  // van dit bestand.
+  const LANE_BANNER_CENTER_Y = LANE_ROW_H / 2
+  const IO_CARD_HEIGHT_ESTIMATE = 80
   const LANE_GAP = 22
   const LANE_PACK_GAP_X = 24
   // Extra ademruimte tussen de laatste chip van de ene applicatie en de
@@ -733,6 +807,7 @@ function computeWorkflowLayout(
           edges.push({
             id: `crossflow:${dep.id}:${appId}`,
             source: `appbanner:${appId}`,
+            sourceHandle: 'right-out',
             target: mid,
             style: { stroke: '#7a5c8a', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.04 },
           })
@@ -779,6 +854,54 @@ function computeWorkflowLayout(
   // blijft, ook als de lanes zelf compacter worden.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
 
+  // Input/output vast eerder gesplitst dan voorheen (i.p.v. pas na de
+  // lane-plaatsing) — nodig omdat de lane-plaatsing hieronder al moet weten
+  // hoeveel IO-kaarten er per applicatie aan hangen (zie appIdsWithLane/
+  // splitByLane/ioRows), zodat een rij genoeg hoogte reserveert. Zuivere
+  // filters op de meegegeven inputs/outputs en showIO — geen afhankelijkheid
+  // van lane-plaatsing zelf.
+  const effectiveInputs = showIO ? inputs : []
+  const effectiveOutputs = showIO ? outputs : []
+  const applicatieflowInputs = effectiveInputs.filter((item) => item.flowtype !== 'ontwikkelflow')
+  const devInputs = effectiveInputs.filter((item) => item.flowtype === 'ontwikkelflow')
+  const applicatieflowOutputs = effectiveOutputs.filter((item) => item.flowtype !== 'ontwikkelflow')
+  const devOutputs = effectiveOutputs.filter((item) => item.flowtype === 'ontwikkelflow')
+
+  // Applicaties die in Split-modus een eigen lane krijgen (banner + evt.
+  // chips, zie pushApplicatieflowLane/placeLaneGroup hieronder) — alleen dán
+  // heeft "dit item hoort bij die lane" betekenis. Zonder lane (Samengevoegd,
+  // of een applicatie zonder Applicatieflow-dependency) is er geen rij om
+  // naast te zetten; zo'n item valt terug op de oude, over de hele zone
+  // gecentreerde kolom (zie splitByLane).
+  const appIdsWithLane = splitApplicaties
+    ? new Set(
+        applications
+          .filter((app) => applicatieflowDeps.some((d) => (d.applicatieIds ?? []).includes(app.id)))
+          .map((app) => app.id),
+      )
+    : new Set()
+
+  // Splitst Applicatieflow-input/output in wat aan zo'n lane hangt (per
+  // applicatie gegroepeerd — komt straks op de rij van die lane, zie
+  // laneGeometry/pushApplicatieflowLane) en de rest (ongewijzigd gecentreerd
+  // over de hele zone, zie applicatieflowInEdgeTarget/-OutEdgeTarget
+  // verderop).
+  function splitByLane(items) {
+    const byApp = new Map()
+    const rest = []
+    for (const item of items) {
+      if (item.applicatieId && appIdsWithLane.has(item.applicatieId)) {
+        if (!byApp.has(item.applicatieId)) byApp.set(item.applicatieId, [])
+        byApp.get(item.applicatieId).push(item)
+      } else {
+        rest.push(item)
+      }
+    }
+    return { byApp, rest }
+  }
+  const laneLinkedInputs = splitByLane(applicatieflowInputs)
+  const laneLinkedOutputs = splitByLane(applicatieflowOutputs)
+
   function pushApplicatieflowLane(id, label, deps, x, y, collapsed, accent, appTagFor, appIdOf, width, height, connCount) {
     const bid = `appbanner:${id}`
     // Overstijgend heeft geen eigen bannerkaart meer — alleen het label-
@@ -789,6 +912,14 @@ function computeWorkflowLayout(
     const { itemPos } = groupApplicatieflowDeps(deps, appIdOf, accent)
     const effectiveHeight = collapsed ? LANE_ROW_H : height
     const effectiveWidth = collapsed ? LANE_BANNER_W : width
+
+    // Geometrie van deze lane vastleggen voor de IO-plaatsing en de
+    // applicatiekoppelingen (bus), die pas ná alle lanes draaien — ook bij
+    // een ingeklapte lane: de banner (en dus het ankerpunt) blijft dan
+    // gewoon bestaan, alleen de chips zijn verborgen. `height` is de
+    // uiteindelijke (eventueel voor IO-kaarten opgehoogde) rijhoogte — de
+    // IO-plaatsing centreert daar zelf weer binnen, zie stackCenteredOnPoint.
+    if (hasBanner) laneGeometry.set(id, { x, y, bid, width: effectiveWidth, height: effectiveHeight })
 
     const bgId = `${bid}:bg`
     nodes.push({
@@ -857,7 +988,13 @@ function computeWorkflowLayout(
       // Zonder banner is er geen node meer om de chip mee te verbinden — de
       // omsluitende kader (laneGroup) toont de groepering al visueel.
       if (hasBanner) {
-        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 } })
+        edges.push({
+          id: `${bid}->${mid}`,
+          source: bid,
+          sourceHandle: 'right-out',
+          target: mid,
+          style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 },
+        })
       }
     })
   }
@@ -876,8 +1013,17 @@ function computeWorkflowLayout(
   let topLaneY = null
   // Id van de lane/groep dichtst bij de stage-rij — het natuurlijke
   // aanknopingspunt voor Applicatieflow-IO, analoog aan hoe Ontwikkelflow-IO aan de
-  // eerste/laatste workflowstap hangt.
+  // eerste/laatste workflowstap hangt. baseLaneAppId is hetzelfde, maar dan
+  // het kale request-id (zonder 'appbanner:'-prefix) — alleen gezet als het
+  // om een echte applicatie-lane gaat (dus met een geldige laneGeometry-
+  // entry), voor de gerichte gutter-route van de "rest"-outputitems verderop.
   let baseLaneId = null
+  let baseLaneAppId = null
+  // Per app-id (alleen accent==='app'-lanes) de uiteindelijke geometrie —
+  // gevuld door pushApplicatieflowLane zodra de rij geplaatst is, gelezen
+  // door de IO-plaatsing verderop zodra alle lanes staan (pas dan is elke
+  // lane's definitieve y bekend).
+  const laneGeometry = new Map()
 
   // 'Shelf'-packing: elke aangevraagde lane krijgt zijn eigen (compacte)
   // breedte; lanes pakken links-naar-rechts in dezelfde rij tot de
@@ -896,7 +1042,13 @@ function computeWorkflowLayout(
       // toggle meer — altijd volledig getoond.
       const collapsed = r.accent === 'overstijgend' ? false : (collapsedLaneIds?.has(r.id) ?? false)
       const { height, width } = groupApplicatieflowDeps(r.deps, r.appIdOf, r.accent)
-      return { ...r, collapsed, height: collapsed ? LANE_ROW_H : height, width: collapsed ? LANE_BANNER_W : width }
+      // Meer gekoppelde IO-kaarten dan chip-rijen? Dan reserveert de rij
+      // extra hoogte, zodat de gestapelde kaarten (zie stackCenteredOnPoint
+      // verderop) niet buiten hun eigen rij in de volgende lane belanden.
+      // Niet bij een ingeklapte lane — dat is een bewust compacte keuze, de
+      // IO-kaarten blijven dan wel op de (kortere) bannerrij aangehaakt.
+      const ioHeight = collapsed || !r.ioRows ? 0 : (r.ioRows - 1) * IO_Y_GAP + IO_CARD_HEIGHT_ESTIMATE
+      return { ...r, collapsed, height: collapsed ? LANE_ROW_H : Math.max(height, ioHeight), width: collapsed ? LANE_BANNER_W : width }
     })
 
     const rows = []
@@ -933,7 +1085,20 @@ function computeWorkflowLayout(
       let x = STAGE_START_X
       row.forEach((lane) => {
         pushApplicatieflowLane(lane.id, lane.label, lane.deps, x, rowY, lane.collapsed, lane.accent, lane.appTagFor, lane.appIdOf, lane.width, lane.height, lane.connCount)
-        if (ri === rows.length - 1 && baseLaneId === null) baseLaneId = `appbanner:${lane.id}`
+        // Alleen een lane mét banner (laneGeometry-entry; Overstijgend heeft
+        // er geen) kan het ankerpunt zijn — zónder deze check kon baseLaneId
+        // op een niet-bestaande 'appbanner:unlabeled'-node uitkomen zodra
+        // Overstijgend de laatst geplaatste rij was (in Split-modus altijd
+        // het geval als Overstijgend voorkomt, want die staat altijd als
+        // laatste in de aangeleverde lijst) — met als gevolg dat React Flow
+        // alle Applicatieflow-IO-lijnen naar dat doel stilzwijgend liet
+        // vallen. Rijen worden hier top-naar-onder doorlopen, dus de LAATST
+        // geziene geldige (bannerde) lane is vanzelf de rij het dichtst bij
+        // de stage-rij — precies het oorspronkelijke doel van baseLaneId.
+        if (laneGeometry.has(lane.id)) {
+          baseLaneId = `appbanner:${lane.id}`
+          baseLaneAppId = lane.id
+        }
         x += lane.width + LANE_PACK_GAP_X
       })
       rowY += rowHeights[ri] + LANE_STACK_GAP
@@ -987,30 +1152,52 @@ function computeWorkflowLayout(
         // (nooit naast een andere applicatie-lane gepakt), zodat de lijst
         // altijd netjes onder elkaar staat: banner links, dependencies rechts.
         forceOwnRow: true,
+        // Hoeveel IO-kaarten straks aan déze rij komen te hangen (zie
+        // laneLinkedInputs/-Outputs) — bepaalt of de rij extra hoogte nodig
+        // heeft (zie de ioHeight-berekening in placeLaneGroup's sized-stap).
+        ioRows: Math.max(laneLinkedInputs.byApp.get(app.id)?.length ?? 0, laneLinkedOutputs.byApp.get(app.id)?.length ?? 0),
       }))
       .filter((r) => r.deps.length > 0)
     placeLaneGroup(overstijgendRequest ? [...appRequests, overstijgendRequest] : appRequests)
 
     // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
-    // geeft werk/data door aan welke andere') worden hier als directe
-    // lijnen tussen de lane-banners getekend. Rust-opacity is heel laag (de
-    // '↔ N'-badge op de banner is de permanente indicator); de hover-dim-laag
-    // verderop licht de lijn pas op zodra je een van de twee gekoppelde
-    // banners hovert/focust.
+    // geeft werk/data door aan welke andere') lopen als 'bus' door de lege
+    // gang links van de lanes (BUS_CHANNEL_X) i.p.v. rechtstreeks van banner
+    // naar banner — een directe lijn zou bij twee lanes met een derde
+    // ertussen dwars over die tussenliggende lane/chips heen lopen. Beide
+    // uiteinden haken daarom aan de LINKERkant van hun banner aan (bus-out/
+    // left-in, zie ApplicatieflowBannerNode); channelIndex verdeelt
+    // gelijktijdige koppelingen simpelweg cyclisch over de drie banen, zodat
+    // ze elkaar niet allemaal op precies dezelfde x overlappen. Rust-opacity
+    // ligt hoger dan de losse IO-lijnen (0.04): dit zijn de koppelingen
+    // tussen applicaties zelf, de structuur van de zone, geen losse ruis.
+    let channelIndex = 0
     applicatieflowConnecties.forEach((c) => {
       const sourceId = `appbanner:${c.van}`
       const targetId = `appbanner:${c.naar}`
       if (!nodes.some((n) => n.id === sourceId) || !nodes.some((n) => n.id === targetId)) return
       const vanNaam = applications.find((a) => a.id === c.van)?.naam || '—'
       const naarNaam = applications.find((a) => a.id === c.naar)?.naam || '—'
+      const sourceGeo = laneGeometry.get(c.van)
+      const targetGeo = laneGeometry.get(c.naar)
+      const channelX = BUS_CHANNEL_X[channelIndex % BUS_CHANNEL_X.length]
+      channelIndex += 1
+      const points =
+        sourceGeo && targetGeo
+          ? gutterRoute(sourceGeo.x, sourceGeo.y + LANE_BANNER_CENTER_Y, channelX, targetGeo.x, targetGeo.y + LANE_BANNER_CENTER_Y)
+          : undefined
       edges.push({
         id: `appconn:${c.id}`,
         source: sourceId,
+        sourceHandle: 'bus-out',
         target: targetId,
-        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.05 },
+        targetHandle: 'left-in',
+        type: 'layout',
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.25 },
         // Hover toont de opsomming, klik opent 'm bewerkbaar in het
         // focuspaneel (zie onEdgeClick / buildFocusPanelContent).
         data: {
+          points,
           kind: 'appconn',
           connId: c.id,
           tooltipTitle: `${vanNaam} → ${naarNaam}`,
@@ -1142,18 +1329,24 @@ function computeWorkflowLayout(
     return `${flowLabel} · ${scopeLabel}`
   }
 
+  // Voor de "rest" (niet-lane-gekoppelde) IO-items: gecentreerd over de hele
+  // zone, ongewijzigd t.o.v. voorheen.
   function stackCenteredInZone(items, zoneTop, zoneBottom) {
     const totalH = Math.max(0, items.length - 1) * IO_Y_GAP
     const startY = zoneTop + Math.max(24, (zoneBottom - zoneTop - totalH) / 2)
     return items.map((item, i) => ({ item, y: startY + i * IO_Y_GAP }))
   }
 
-  const effectiveInputs = showIO ? inputs : []
-  const effectiveOutputs = showIO ? outputs : []
-  const applicatieflowInputs = effectiveInputs.filter((item) => item.flowtype !== 'ontwikkelflow')
-  const devInputs = effectiveInputs.filter((item) => item.flowtype === 'ontwikkelflow')
-  const applicatieflowOutputs = effectiveOutputs.filter((item) => item.flowtype !== 'ontwikkelflow')
-  const devOutputs = effectiveOutputs.filter((item) => item.flowtype === 'ontwikkelflow')
+  // Voor lane-gekoppelde IO-items: gecentreerd rond één vast punt (de rij van
+  // hun eigen lane) i.p.v. over een bereik — de kaarten stapelen dus symmetrisch
+  // om de lane heen, ongeacht hoeveel extra hoogte die rij daarvoor gereserveerd
+  // kreeg (zie de ioRows-boost in placeLaneGroup's sized-berekening).
+  function stackCenteredOnPoint(items, centerY) {
+    const totalH = Math.max(0, items.length - 1) * IO_Y_GAP
+    const startY = centerY - totalH / 2
+    return items.map((item, i) => ({ item, y: startY + i * IO_Y_GAP }))
+  }
+
   // Als er geen enkele lane bestaat (geen applicaties/Overstijgend-deps) hebben
   // Applicatieflow-IO-lijntjes niets om aan te haken binnen de Applicatieflow-zone zelf —
   // zonder dit anker vielen ze terug op de Ontwikkelflow-stagerij, waardoor
@@ -1172,74 +1365,117 @@ function computeWorkflowLayout(
     applicatieflowOutEdgeTarget = 'applicatieflowAnchor'
   }
 
-  stackCenteredInZone(applicatieflowInputs, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
+  // Node-data voor een Applicatieflow-IO-kaart — identiek voor lane-
+  // gekoppelde en gecentreerde items, alleen positie en lijndoel verschillen
+  // (zie de vier blokken hieronder).
+  function applicatieflowIoData(kind, item) {
+    return {
+      kind,
+      itemId: item.id,
+      label: item.label,
+      linkLabel: resolveLinkLabel(item, kind === 'output' ? 'output' : undefined),
+      bronColor: bronTypeColor(item.bron_type),
+      externalTeam: item.externalTeam,
+      meta: ioMetaLabel(item),
+      linkStatus: item.linkStatus,
+      linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+      ghost: Boolean(item._ghostRequest),
+      request: item._ghostRequest ?? item._pendingRequest ?? null,
+      requestLabel: item._ghostRequest
+        ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
+        : item._pendingRequest
+          ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
+          : '',
+    }
+  }
+  const applicatieflowIoEdgeData = (item) => ({ kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] })
+
+  // "Rest": items zonder eigen lane (Samengevoegd, Overstijgend, of een
+  // applicatie zonder lane) — ongewijzigd gecentreerd over de hele zone. Geen
+  // eigen `type: 'layout'` nodig: het inputitem staat altijd links van de
+  // héle zone (x = ZONE_X - 210, ruim vóór STAGE_START_X), dus bij
+  // tegenoverliggende handles (bron rechts op de kaart, doel links op de
+  // banner/het anker) legt React Flow's eigen smoothstep-berekening de bocht
+  // op het midden tussen bron- en doel-x — en dat midden ligt bij deze
+  // afstanden altijd nog vóór de zone, dus nooit over een lane heen.
+  stackCenteredInZone(laneLinkedInputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
     const id = `input:${item.id}`
-    nodes.push({
-      id,
-      type: 'ioItem',
-      position: withSavedPosition(id, { x: ZONE_X - 210, y }),
-      data: {
-        kind: 'input',
-        itemId: item.id,
-        label: item.label,
-        linkLabel: resolveLinkLabel(item),
-        bronColor: bronTypeColor(item.bron_type),
-        externalTeam: item.externalTeam,
-        meta: ioMetaLabel(item),
-        linkStatus: item.linkStatus,
-        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
-        ghost: Boolean(item._ghostRequest),
-        request: item._ghostRequest ?? item._pendingRequest ?? null,
-        requestLabel: item._ghostRequest
-          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
-          : item._pendingRequest
-            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
-            : '',
-      },
-      draggable: true,
-    })
+    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X - 210, y }), data: applicatieflowIoData('input', item), draggable: true })
     edges.push({
       id: `input:${item.id}->${applicatieflowInEdgeTarget}`,
       source: id,
       target: applicatieflowInEdgeTarget,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
-      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
+      data: applicatieflowIoEdgeData(item),
     })
   })
-  stackCenteredInZone(applicatieflowOutputs, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
-    const id = `output:${item.id}`
-    nodes.push({
-      id,
-      type: 'ioItem',
-      position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
-      data: {
-        kind: 'output',
-        itemId: item.id,
-        label: item.label,
-        linkLabel: resolveLinkLabel(item, 'output'),
-        bronColor: bronTypeColor(item.bron_type),
-        externalTeam: item.externalTeam,
-        meta: ioMetaLabel(item),
-        linkStatus: item.linkStatus,
-        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
-        ghost: Boolean(item._ghostRequest),
-        request: item._ghostRequest ?? item._pendingRequest ?? null,
-        requestLabel: item._ghostRequest
-          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
-          : item._pendingRequest
-            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
-            : '',
-      },
-      draggable: true,
+  // Lane-gekoppeld: item hangt aan een specifieke, zichtbare applicatie-lane
+  // (Split-modus) — komt op de hoogte van die lane's eigen rij te staan
+  // i.p.v. gecentreerd over de hele zone, en haakt rechtstreeks op die ene
+  // banner aan. Bron en doel liggen daardoor al op nagenoeg dezelfde hoogte,
+  // dus de lijn loopt vanzelf (bijna) recht en kan geen ándere lane kruisen —
+  // elke rij heeft een eigen, niet-overlappende hoogteband (forceOwnRow).
+  for (const [appId, items] of laneLinkedInputs.byApp) {
+    const geo = laneGeometry.get(appId)
+    if (!geo) continue
+    stackCenteredOnPoint(items, geo.y + LANE_BANNER_CENTER_Y).forEach(({ item, y }) => {
+      const id = `input:${item.id}`
+      nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X - 210, y }), data: applicatieflowIoData('input', item), draggable: true })
+      edges.push({
+        id: `input:${item.id}->${geo.bid}`,
+        source: id,
+        target: geo.bid,
+        targetHandle: 'left-in',
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
+        data: applicatieflowIoEdgeData(item),
+      })
     })
+  }
+  stackCenteredInZone(laneLinkedOutputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
+    const id = `output:${item.id}`
+    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }), data: applicatieflowIoData('output', item), draggable: true })
+    // Bron ligt op de rij van baseLaneAppId (het generieke ankerpunt), doel
+    // ergens anders in de zone gecentreerd — die twee liggen dus NIET op
+    // dezelfde hoogte, en een rechtstreekse lijn zou (bij een brede lane
+    // ertussen) dwars over diens chips heen kunnen lopen. Route daarom altijd
+    // via de zone-brede rechtergang (voorbij elke lane, ongeacht hoe breed),
+    // vanaf het bekende right-out-ankerpunt van de basislane. Alleen relevant
+    // als er een echte lane is (baseLaneAppId) — zonder lane bestaat dit
+    // kruisingsrisico niet (er is dan niets om overheen te lopen).
+    const baseGeo = baseLaneAppId ? laneGeometry.get(baseLaneAppId) : null
+    const points = baseGeo
+      ? gutterRoute(baseGeo.x + LANE_BANNER_W, baseGeo.y + LANE_BANNER_CENTER_Y, OUTPUT_GUTTER_X, ZONE_X + ZONE_WIDTH + 20, y)
+      : undefined
     edges.push({
       id: `${applicatieflowOutEdgeTarget}->output:${item.id}`,
       source: applicatieflowOutEdgeTarget,
       target: id,
+      type: points ? 'layout' : undefined,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
-      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
+      data: { points, ...applicatieflowIoEdgeData(item) },
     })
   })
+  // Lane-gekoppeld: vertrekt vanaf de RECHTERRAND van het lane-kader zelf
+  // (voorbij alle chips van die lane, zie de 'lane-out'-handle op
+  // LaneGroupNode) i.p.v. vanaf de banner — anders zou de lijn dwars over de
+  // eigen chips van die lane heen lopen. Bron en doel liggen op dezelfde
+  // hoogte (beide horen bij dezelfde rij), dus verder geen eigen route nodig.
+  for (const [appId, items] of laneLinkedOutputs.byApp) {
+    const geo = laneGeometry.get(appId)
+    if (!geo) continue
+    stackCenteredOnPoint(items, geo.y + geo.height / 2).forEach(({ item, y }) => {
+      const id = `output:${item.id}`
+      nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }), data: applicatieflowIoData('output', item), draggable: true })
+      edges.push({
+        id: `${geo.bid}:bg->output:${item.id}`,
+        source: `${geo.bid}:bg`,
+        sourceHandle: 'lane-out',
+        target: id,
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
+        data: applicatieflowIoEdgeData(item),
+      })
+    })
+  }
   stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
     const id = `input:${item.id}`
     nodes.push({
@@ -2770,6 +3006,11 @@ function DepFiltersDropdown({
   )
 }
 
+// Zuivere layout-berekening ook los van de component bruikbaar (bv. een
+// ad-hoc controle op de mockdata in node, zonder browser) — zelfde patroon
+// als computeChainGraph in ChainOverview.jsx.
+export { computeWorkflowLayout }
+
 export default function TeamPage({ teamId, onBack, adminSections, sidebarCollapsed, sidebarMode, containerRef }) {
   const {
     teams,
@@ -4182,6 +4423,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     nodes={filteredNodes}
                     edges={filteredEdges}
                     nodeTypes={nodeTypes}
+                    edgeTypes={edgeTypes}
                     onNodesChange={handleNodesChange}
                     onNodeClick={handleNodeClick}
                     onPaneClick={() => setCanvasFocus(null)}
