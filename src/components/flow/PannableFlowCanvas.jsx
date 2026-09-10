@@ -42,6 +42,10 @@ export default function PannableFlowCanvas({
   // Uit te zetten voor canvassen zonder onConnect (teampagina): anders kan de
   // gebruiker vanaf een handle een verbindingslijn trekken die nergens toe leidt.
   nodesConnectable = true,
+  // Handmatig slepen uit te zetten voor een canvas met een volledig berekende
+  // lay-out (Ketenoverzicht: ELK bepaalt de posities, slepen zou daarmee
+  // vechten).
+  nodesDraggable = true,
   children,
 }) {
   return (
@@ -77,7 +81,7 @@ export default function PannableFlowCanvas({
       elevateEdgesOnSelect={elevateEdgesOnSelect}
       proOptions={{ hideAttribution: true }}
       nodesConnectable={nodesConnectable}
-      nodesDraggable
+      nodesDraggable={nodesDraggable}
       elementsSelectable
       panOnDrag
       zoomOnScroll
