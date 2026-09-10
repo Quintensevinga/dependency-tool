@@ -3,6 +3,19 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Input/output-formulier: één leidende vraag met afhankelijke vervolgvelden** (Quinten)
+
+  "Van wie of wat komt dit?" (input) of "Naar wie of wat gaat dit?" (output)
+  bepaalt de rest: bij een team in deze tool kies je team en item (of stelt
+  een nieuw item voor, wat een koppelingsverzoek wordt); bij een team buiten
+  de tool, systeem, omgeving, stakeholder, rol of persoon kies je optioneel
+  een partij uit het register. Titel, vraagstelling en placeholders per
+  input/output; flowtype met korte uitleg; nieuwe items starten als
+  Applicatieflow. Vervangt de drie losse, elkaar overlappende velden
+  (bron/bestemming, gekoppeld aan, extern team).
+
 - **Merge pull request #1 from Quintensevinga/claude/dependency-insight-mockdata-dfc292** (Quintensevinga)
 
   Externe partijen in Ketenoverzicht, goedkeuring cross-team koppelinge…
