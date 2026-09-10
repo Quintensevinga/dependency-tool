@@ -3,6 +3,81 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+  # Conflicts:
+  #	src/components/ChainOverview.jsx
+
+- **Teampagina: IO-kaarten naast hun lane, applicatiekoppelingen als bus** (Quinten)
+
+  In Split per applicatie-modus stond elk input-/outputitem gecentreerd over
+  de volle hoogte van de Applicatieflow-zone, los van welke applicatie het
+  raakte — de lijn ernaartoe kon daardoor dwars over andere lanes/chips heen
+  lopen. Een item met een gekoppelde applicatie die al een lane heeft komt nu
+  op de hoogte van die lane's eigen rij te staan en haakt rechtstreeks op de
+  banner (input) of de rechterrand van het lane-kader (output, dus ná alle
+  chips) aan; bron en doel liggen zo altijd op dezelfde, niet-overlappende
+  hoogteband (elke lane heeft zijn eigen rij) en de lijn kan geen andere lane
+  meer kruisen. Een rij reserveert nu ook extra hoogte als er meer gekoppelde
+  IO-kaarten zijn dan chip-rijen.
+
+  Applicatiekoppelingen (uit de Applicatieflow-vragenlijst) liepen rechtstreeks
+  van banner naar banner — bij een derde lane ertussen dwars over diens chips
+  heen. Ze routeren nu als 'bus' door de lege gang links van de lanes (drie
+  banen, orthogonale lijnen met ronde hoeken, zelfde roundedOrthPath-renderer
+  als het ketenoverzicht), met hogere rust-opacity dan de losse IO-lijnen.
+
+  Onderweg een pre-existing bug gevonden en gefixt: in Split-modus met een
+  Overstijgend-lane (geen eigen banner) als laatst geplaatste rij verwees het
+  ankerpunt voor alle Applicatieflow-IO-lijnen naar een niet-bestaande
+  'appbanner:unlabeled'-node, met stilzwijgend verdwenen lijnen tot gevolg
+  (React Flow's eigen gedrag bij een ontbrekend handle/doel). Het ankerpunt
+  wordt nu alleen op een lane met een echte banner gezet.
+
+  Geverifieerd via directe inspectie van de berekende nodes/edges (posities,
+  handle-koppeling, kruisingstoets) op alle 8 mockteams plus een synthetisch
+  scenario met een extra brede lane, i.p.v. alleen visueel — geen enkele
+  Applicatieflow-lijn kruist een andere lane, geen dropped/dangling edges.
+
+- **Ketenoverzicht: rustige ruststand met ingeklapte kaarten, bundels, stapel-tabs en diepte** (Quinten)
+
+  In rust toont alleen het focusteam zijn items; elk ander team is een kaart
+  met titel, tellers (in/uit) en hoogste risico. Koppelingen worden op
+  itemniveau getekend (eigen kleur) zodra een van beide items zichtbaar is en
+  gaan anders op in één gebundelde grijze lijn per teampaar met een teller
+  (amber punt = minstens één verzoek wacht op akkoord). Klik op een kaart
+  klapt die uit en toont bij de buren alleen de items die eraan hangen
+  ("+N andere items"); klik op een bundel splitst 'm in zijn koppelingen; de
+  focus verleggen gaat via "Focus op dit team" in het detailvak.
+
+  Externe partijen zijn geen kaartjes meer in rust maar stapel-tabs onder de
+  kaart (links bronnen/afhankelijkheden, rechts ontvangers) met de lijst in
+  het detailvak; een gekozen partij wordt een hub met één lijn per geraakt
+  team. Nieuw in het focuspaneel: diepte (1–3 ketenstappen) en een schakelaar
+  voor terugkoppelingen. Verzoeken om een nog niet bestaand item staan als
+  amber ghost-rij, zoals de schaduwkaart op de teampagina.
+
+  Meetrobuustheid: een (opnieuw) toegevoegde node krijgt geen oude maat mee,
+  anders slaat React Flow zijn meting over en registreert het de handles nooit
+  (lijnen die nooit verschijnen); de lay-out wacht tot handles gemeten zijn.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: ELK-layout en orthogonale routing, lijnen nooit meer door kaarten** (Quinten)
+
+  De zelfgebouwde kolomlayout (BFS-kolommen, geschatte kaarthoogtes, drie eigen
+  boog-edges voor voorwaarts/terug/zijwaarts, partijenraster aan de rand) is
+  vervangen door elkjs (algoritme 'layered'): React Flow meet de kaarten en
+  handles, ELK bepaalt kolommen en posities en routeert elke lijn orthogonaal om
+  de kaarten heen. Cycli worden vooraf gebroken (terugkoppeling = gestippeld via
+  de -rev-handles), externe partijen zijn nodes in dezelfde graaf naast de teams
+  die ze raken, en afhankelijkheden van één partij op één team zijn één lijn.
+  Handmatig slepen vervalt in dit scherm: de lay-out is volledig berekend.
+
+  Valkuil onderweg: React Flow v11 neemt width/height van de eigen node-objecten
+  over en gooit zijn meting weg — zonder de 'dimensions'-changes terug te geven
+  rendert het stilzwijgend geen enkele edge (zie ChainCanvas).
+
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
 - **Analyse: rapport te downloaden als markdown-bestand** (Quinten)
