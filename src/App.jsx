@@ -64,8 +64,10 @@ function loadNavState() {
 function AppContent() {
   const {
     teams,
+    alleDependencies,
     setCurrentTeamId,
     addDependency,
+    addDependencies,
     updateDependency,
     deleteDependency,
     adminSettings,
@@ -133,6 +135,15 @@ function AppContent() {
     localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, graphViewMode, teamPageTeamId }))
   }, [activeTab, graphViewMode, teamPageTeamId])
 
+  // Een geopende teampagina hoort bij een bestaand team: na 'Wis alle data'
+  // of een JSON-import (beide vervangen de hele teamlijst) zou de pagina
+  // anders open blijven staan als "Onbekend team" op een lege workflow, en
+  // zouden wijzigingen daar onder een wees-sleutel belanden die bij de
+  // volgende laadbeurt (migrateTeamWorkflows) weer wegvalt.
+  useEffect(() => {
+    if (teamPageTeamId && !teams.some((tm) => tm.id === teamPageTeamId)) setTeamPageTeamId(null)
+  }, [teams, teamPageTeamId])
+
   function handleTabChange(tab) {
     setTeamPageTeamId(null)
     setActiveTab(tab)
@@ -155,11 +166,20 @@ function AppContent() {
     })
   }
 
+  // Zelfde afhandeling als TeamPage.handleSaveDependency: 'meerdere teams'
+  // in het formulier wordt één echte dependency per gekozen team (eigen id,
+  // eigen teamId), in één batch. extraTeamIds is puur formulierstate en
+  // hoort niet in het opgeslagen record — voorheen ging het hier ongewijzigd
+  // mee naar addDependency, zodat alleen het eerste team een dependency
+  // kreeg en de overige teams als restveld in het record bleven hangen.
   function handleSave(payload) {
+    const { extraTeamIds, ...rest } = payload
     if (formState?.editing) {
-      updateDependency(formState.editing.id, payload)
+      updateDependency(formState.editing.id, rest)
+    } else if (extraTeamIds?.length) {
+      addDependencies([rest, ...extraTeamIds.map((teamId) => ({ ...rest, teamId }))])
     } else {
-      addDependency(payload)
+      addDependency(rest)
     }
     setFormState(null)
   }
@@ -337,9 +357,15 @@ function AppContent() {
         </Suspense>
       </main>
 
+      {/* Altijd het live record uit de state tonen i.p.v. de momentopname die
+          bij het aanklikken werd doorgegeven: acties in het paneel zelf
+          (Accepteer, en straks ook de historie) muteren de state, en het
+          paneel moet die wijziging direct laten zien — anders leek Accepteer
+          niets te doen en zette een tweede klik 'm weer terug. Zelfde
+          oplossing als op de teampagina. */}
       {selectedDependency && (
         <DependencyDetail
-          dependency={selectedDependency}
+          dependency={alleDependencies.find((d) => d.id === selectedDependency.id) ?? selectedDependency}
           onClose={() => setSelectedDependency(null)}
           onEdit={(dep) => {
             setSelectedDependency(null)
