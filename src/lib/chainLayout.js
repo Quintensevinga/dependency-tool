@@ -77,6 +77,31 @@ export function roundedOrthPath(points, radius = 8) {
   return d
 }
 
+// Punt halverwege de totale lengte van een polylijn — daar hangt de teller
+// van een gebundelde lijn, zodat 'ie altijd óp de lijn ligt (het rekenkundige
+// midden tussen begin en eind kan bij een omweg naast de lijn vallen).
+export function polylineMidpoint(points) {
+  if (!points || points.length === 0) return null
+  if (points.length === 1) return points[0]
+  const lengths = []
+  let total = 0
+  for (let i = 1; i < points.length; i++) {
+    const len = Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1])
+    lengths.push(len)
+    total += len
+  }
+  let remaining = total / 2
+  for (let i = 1; i < points.length; i++) {
+    const len = lengths[i - 1]
+    if (remaining <= len) {
+      const t = len === 0 ? 0 : remaining / len
+      return [points[i - 1][0] + (points[i][0] - points[i - 1][0]) * t, points[i - 1][1] + (points[i][1] - points[i - 1][1]) * t]
+    }
+    remaining -= len
+  }
+  return points[points.length - 1]
+}
+
 // Afstanden in px; 'nodeNodeBetweenLayers' is de kolomtussenruimte (ELK
 // vergroot die zelf zodra er meer lijnbanen tussen twee kolommen nodig zijn),
 // 'nodeNode' de tussenruimte tussen kaarten in één kolom.

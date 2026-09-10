@@ -228,9 +228,10 @@
   <p class="lead">Toont hoe teams elkaars werk als input/output doorgeven — de "keten" achter de dependencies.</p>
   <img class="shot" src="img/03-ketenoverzicht.png">
   <ul>
-    <li>Bovenaan het canvas kies je het <b>focusteam</b>. Vanaf dat team rolt de keten stap voor stap naar rechts uit; klik op een teamkaart om de focus daarheen te verleggen.</li>
-    <li>Elke kaart is een team met zijn input- en outputblokjes; elke kolom is één stap verder in de keten. De indeling wordt volledig berekend (kaarten zijn niet versleepbaar) en lijnen lopen om de kaarten heen, nooit erdoorheen.</li>
-    <li><b>Externe partijen</b> (systemen, leveranciers, CAB, …) staan als grijze kaartjes naast de teams die ze raken: bronnen en afhankelijkheden ervóór, ontvangers erna. Klik op een partij om al haar lijnen op te lichten; het vinkje "Externe partijen" verbergt ze.</li>
+    <li>Bovenaan het canvas kies je het <b>focusteam</b>; met <b>Diepte</b> (1–3) begrens je hoeveel ketenstappen er vanaf dat team in beeld komen en met <b>Terugkoppelingen</b> verberg je koppelingen terug naar een eerder team.</li>
+    <li>In rust toont alleen het focusteam al zijn input- en outputblokjes; de andere teams zijn ingeklapt tot titel, tellers en hoogste risico. Elke kolom is één stap verder in de keten. De indeling wordt volledig berekend (kaarten zijn niet versleepbaar) en lijnen lopen om de kaarten heen, nooit erdoorheen.</li>
+    <li>Gekleurde lijnen zijn koppelingen op itemniveau; een grijze lijn met teller bundelt alle koppelingen tussen twee ingeklapte teams (een amber punt op de teller = minstens één verzoek wacht nog op akkoord). Klik op een kaart om die uit te klappen — de buren tonen dan alleen de items die eraan hangen — of op een lijn om de onderliggende koppelingen te zien. De focus verleggen doe je via <b>Focus op dit team</b> in het detailvak.</li>
+    <li><b>Externe partijen</b> (systemen, leveranciers, CAB, …) zitten als stapel-tab onder elke kaart: links bronnen en afhankelijkheden, rechts ontvangers. Klik op de tab voor de lijst en op een partij om haar als hub in de keten te zetten, met een lijn naar elk team dat ze raakt. Het vinkje "Externe partijen" verbergt dit alles.</li>
     <li>Een lijn tussen een output- en inputblokje is een <b>expliciete koppeling</b>, gelegd op de teampagina (hoofdstuk 8) — nooit automatisch geraden.</li>
     <li>Losse (nog niet gekoppelde) blokjes zijn normaal — geen foutstatus.</li>
     <li>Zelfde team- en risicofilters als de andere weergaven.</li>
