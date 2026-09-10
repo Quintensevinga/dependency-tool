@@ -3,6 +3,17 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Analyse: rapport te downloaden als markdown-bestand** (Quinten)
+
+  Naast "Kopieer rapport" (platte tekst naar het klembord) staat nu "Download":
+  hetzelfde rapport als markdown, met kopjes per alinea en bullets voor de
+  aanbevelingen. De bestandsnaam draagt het bereik en de dag
+  (dependency-insight-rapport-<team>-<datum>.md), zodat twee downloads naast
+  elkaar te leggen zijn. Downloaden loopt via exportTextAsFile in lib/export.js,
+  dezelfde blob-route als de bestaande JSON-export.
+
 - **Teamnamen in mockdata omgezet naar Marvel-thema** (Quinten)
 
   Elke naam gekozen op basis van de functie van het team in de keten
