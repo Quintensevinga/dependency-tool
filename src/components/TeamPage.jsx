@@ -23,6 +23,7 @@ import {
   translateRisicoBijUitval,
   translateFlowtype,
   translateStatus,
+  translateLinkStatus,
 } from '../i18n/labels'
 import { stageColor, bronTypeColor, ANNOTATION_PALETTE } from '../lib/workflowStyles'
 import { calculateRisk, sortByRiskDesc } from '../lib/risk'
@@ -165,6 +166,13 @@ function IoNode({ data }) {
       </div>
       <div className="mt-1 truncate text-xs font-medium text-slate-700">{data.label || '—'}</div>
       {data.linkLabel && <div className="mt-0.5 truncate text-[10px] text-slate-400">{data.linkLabel}</div>}
+      {/* Alleen de niet-definitieve koppelingsstatussen op de kaart zelf —
+          een geaccepteerde koppeling is de normale toestand. */}
+      {(data.linkStatus === 'voorgesteld' || data.linkStatus === 'afgewezen') && (
+        <div className={`mt-0.5 inline-flex rounded px-1 py-[1px] text-[9px] font-semibold ${LINK_STATUS_CHIP[data.linkStatus]}`}>
+          {data.linkStatusLabel}
+        </div>
+      )}
       {/* Compacte flowcontext direct op de kaart — hoort dit bij Applicatieflow of
           Ontwikkelflow, en bij een applicatie of Overstijgend — i.p.v. alleen
           via hover zichtbaar. */}
@@ -985,11 +993,22 @@ function computeWorkflowLayout(
       const sourceId = `appbanner:${c.van}`
       const targetId = `appbanner:${c.naar}`
       if (!nodes.some((n) => n.id === sourceId) || !nodes.some((n) => n.id === targetId)) return
+      const vanNaam = applications.find((a) => a.id === c.van)?.naam || '—'
+      const naarNaam = applications.find((a) => a.id === c.naar)?.naam || '—'
       edges.push({
         id: `appconn:${c.id}`,
         source: sourceId,
         target: targetId,
         style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.05 },
+        // Hover toont de opsomming, klik opent 'm bewerkbaar in het
+        // focuspaneel (zie onEdgeClick / buildFocusPanelContent).
+        data: {
+          kind: 'appconn',
+          connId: c.id,
+          tooltipTitle: `${vanNaam} → ${naarNaam}`,
+          tooltipSub: t('teampage.edgeFocusTypeAppConn'),
+          punten: c.punten ?? [],
+        },
       })
     })
   } else {
@@ -1151,7 +1170,17 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X - 210, y }),
-      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
+      data: {
+        kind: 'input',
+        itemId: item.id,
+        label: item.label,
+        linkLabel: resolveLinkLabel(item),
+        bronColor: bronTypeColor(item.bron_type),
+        externalTeam: item.externalTeam,
+        meta: ioMetaLabel(item),
+        linkStatus: item.linkStatus,
+        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+      },
       draggable: true,
     })
     edges.push({
@@ -1159,7 +1188,7 @@ function computeWorkflowLayout(
       source: id,
       target: applicatieflowInEdgeTarget,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
-      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
+      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
     })
   })
   stackCenteredInZone(applicatieflowOutputs, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
@@ -1176,6 +1205,8 @@ function computeWorkflowLayout(
         bronColor: bronTypeColor(item.bron_type),
         externalTeam: item.externalTeam,
         meta: ioMetaLabel(item),
+        linkStatus: item.linkStatus,
+        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
       },
       draggable: true,
     })
@@ -1184,7 +1215,7 @@ function computeWorkflowLayout(
       source: applicatieflowOutEdgeTarget,
       target: id,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
-      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
+      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
     })
   })
   stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -1193,7 +1224,17 @@ function computeWorkflowLayout(
       id,
       type: 'ioItem',
       position: withSavedPosition(id, { x: ZONE_X - 210, y }),
-      data: { kind: 'input', itemId: item.id, label: item.label, linkLabel: resolveLinkLabel(item), bronColor: bronTypeColor(item.bron_type), externalTeam: item.externalTeam, meta: ioMetaLabel(item) },
+      data: {
+        kind: 'input',
+        itemId: item.id,
+        label: item.label,
+        linkLabel: resolveLinkLabel(item),
+        bronColor: bronTypeColor(item.bron_type),
+        externalTeam: item.externalTeam,
+        meta: ioMetaLabel(item),
+        linkStatus: item.linkStatus,
+        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+      },
       draggable: true,
     })
     edges.push({
@@ -1201,7 +1242,7 @@ function computeWorkflowLayout(
       source: id,
       target: `stage:${WORKFLOW_STAGES[0]}`,
       style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.04 },
-      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
+      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
     })
   })
   stackCenteredInZone(devOutputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
@@ -1218,6 +1259,8 @@ function computeWorkflowLayout(
         bronColor: bronTypeColor(item.bron_type),
         externalTeam: item.externalTeam,
         meta: ioMetaLabel(item),
+        linkStatus: item.linkStatus,
+        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
       },
       draggable: true,
     })
@@ -1226,7 +1269,7 @@ function computeWorkflowLayout(
       source: `stage:${lastStage}`,
       target: id,
       style: { stroke: '#94a3b8', strokeWidth: 1.5, opacity: 0.04 },
-      data: { tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item) },
+      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
     })
   })
 
@@ -1340,13 +1383,58 @@ function emptyIoItem(_kind) {
     applicatieId: '',
     externalTeam: '',
     externalPartyId: '',
+    // Cross-team koppeling: goedkeuringsstatus van het verzoek, en of om een
+    // nieuw tegenhanger-item bij het andere team is gevraagd (zie LINK_STATUS
+    // in constants.js en acceptLinkRequest in AppContext).
+    linkStatus: '',
+    linkNieuw: false,
+    // Vrije opsomming (korte punten) bij de lijn van dit item op het canvas.
+    punten: [],
   }
+}
+
+// Sentinel-waarde in de item-keuzelijst van de IO-modal: "vraag het andere
+// team om een nieuw tegenhanger-item" i.p.v. een bestaand item kiezen.
+const NEW_LINK_ITEM = '__nieuw_item__'
+
+const LINK_STATUS_STRING_KEY = {
+  voorgesteld: 'teampage.ioLinkStatusVoorgesteld',
+  geaccepteerd: 'teampage.ioLinkStatusGeaccepteerd',
+  afgewezen: 'teampage.ioLinkStatusAfgewezen',
+}
+
+// Statuschips: geen stoplichtkleuren (CLAUDE.md) — amber voor "wacht", de
+// huisstijlblauw voor "akkoord", het bestaande bordeaux voor "afgewezen".
+const LINK_STATUS_CHIP = {
+  voorgesteld: 'bg-amber-100 text-amber-800',
+  geaccepteerd: 'bg-[#2a5f8a]/10 text-[#2a5f8a]',
+  afgewezen: 'bg-[#9a3b2e]/10 text-[#9a3b2e]',
+}
+
+// Bepaalt de goedkeuringsstatus van een cross-team koppeling bij opslaan:
+// een nieuwe of gewijzigde koppeling naar een ander team start altijd als
+// verzoek ('voorgesteld'); een ongewijzigde koppeling houdt zijn status;
+// geen koppeling (meer) = geen status. Een koppeling zonder gekozen item én
+// zonder 'nieuw item'-verzoek is nog geen verzoek — die blijft, zoals
+// voorheen, een losse teamverwijzing zonder ketenlijn.
+function withLinkStatus(draft, original) {
+  if (!draft.linkedTeam) return { ...draft, linkStatus: '', linkNieuw: false }
+  const hasTarget = Boolean(draft.linkedOutputId || draft.linkedInputId || draft.linkNieuw)
+  if (!hasTarget) return { ...draft, linkStatus: '' }
+  const unchanged =
+    original &&
+    original.linkedTeam === draft.linkedTeam &&
+    (original.linkedOutputId ?? '') === (draft.linkedOutputId ?? '') &&
+    (original.linkedInputId ?? '') === (draft.linkedInputId ?? '') &&
+    Boolean(original.linkNieuw) === Boolean(draft.linkNieuw)
+  if (unchanged && original.linkStatus) return draft
+  return { ...draft, linkStatus: 'voorgesteld' }
 }
 
 // Compacte beschrijving van een input/output-item voor de Teamgegevens-lijst
 // — maakt in het bijzonder zichtbaar of een item aan een team/output of een
 // applicatie gekoppeld is, zonder dat daarvoor de bewerk-modal open hoeft.
-function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName, language) {
+function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName, language, t) {
   const parts = []
   if (item.flowtype) parts.push(translateFlowtype(item.flowtype, language))
   if (item.bron_type) parts.push(translateBronType(item.bron_type, language))
@@ -1354,13 +1442,23 @@ function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName,
     const lijst = kind === 'input' ? (teamWorkflows[item.linkedTeam]?.outputs ?? []) : (teamWorkflows[item.linkedTeam]?.inputs ?? [])
     const linkedId = kind === 'input' ? item.linkedOutputId : item.linkedInputId
     const linked = lijst.find((x) => x.id === linkedId)
-    parts.push(`${teamName(item.linkedTeam)}${linked ? ` → ${linked.label || '—'}` : ''}`)
+    let linkPart = teamName(item.linkedTeam)
+    if (linked) linkPart += ` → ${linked.label || '—'}`
+    else if (item.linkNieuw && t) linkPart += ` → ${t('teampage.ioLinkNewShort')}`
+    // Alleen de niet-definitieve statussen benoemen — 'geaccepteerd' is de
+    // normale toestand en zou de lijst alleen maar drukker maken.
+    if (item.linkStatus === 'voorgesteld' || item.linkStatus === 'afgewezen') {
+      linkPart += ` (${translateLinkStatus(item.linkStatus, language).toLowerCase()})`
+    }
+    parts.push(linkPart)
   }
   if (item.applicatieId) {
     const app = applications.find((a) => a.id === item.applicatieId)
     if (app) parts.push(app.naam || '—')
   }
   if (item.externalTeam) parts.push(`↔ ${item.externalTeam}`)
+  const punten = item.punten ?? []
+  if (punten.length > 0 && t) parts.push(punten.length === 1 ? t('teampage.puntenCountOne') : t('teampage.puntenCount', { count: punten.length }))
   return parts.join(' · ')
 }
 
@@ -1372,6 +1470,10 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
   const isEditing = Boolean(item)
   const linkedItems = kind === 'input' ? (teamWorkflows[draft.linkedTeam]?.outputs ?? []) : (teamWorkflows[draft.linkedTeam]?.inputs ?? [])
   const linkedIdField = kind === 'input' ? 'linkedOutputId' : 'linkedInputId'
+  const linkedTeamNaam = teams.find((tm) => tm.id === draft.linkedTeam)?.naam ?? '—'
+  // Status alleen tonen zolang de koppeling nog dezelfde is als opgeslagen —
+  // zodra het team wisselt, gaat de status bij opslaan toch opnieuw beginnen.
+  const savedLinkStatus = item?.linkStatus && item.linkedTeam === draft.linkedTeam ? item.linkStatus : ''
 
   function update(fields) {
     setDraft((d) => ({ ...d, ...fields }))
@@ -1465,8 +1567,12 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
               </select>
               {draft.linkedTeam && (
                 <select
-                  value={draft[linkedIdField] ?? ''}
-                  onChange={(e) => update({ [linkedIdField]: e.target.value })}
+                  value={draft.linkNieuw ? NEW_LINK_ITEM : (draft[linkedIdField] ?? '')}
+                  onChange={(e) =>
+                    e.target.value === NEW_LINK_ITEM
+                      ? update({ [linkedIdField]: '', linkNieuw: true })
+                      : update({ [linkedIdField]: e.target.value, linkNieuw: false })
+                  }
                   className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
                 >
                   <option value="">{kind === 'input' ? t('teampage.ioLinkItemPlaceholder') : t('teampage.ioLinkInputPlaceholder')}</option>
@@ -1475,8 +1581,15 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
                       {linkedItem.label || '—'}
                     </option>
                   ))}
+                  <option value={NEW_LINK_ITEM}>{t('teampage.ioLinkNewItem', { team: linkedTeamNaam })}</option>
                 </select>
               )}
+              {savedLinkStatus && (
+                <span className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${LINK_STATUS_CHIP[savedLinkStatus]}`}>
+                  {t(LINK_STATUS_STRING_KEY[savedLinkStatus], { team: linkedTeamNaam })}
+                </span>
+              )}
+              {draft.linkedTeam && <p className="text-[11px] text-slate-400">{t('teampage.ioLinkStatusHint')}</p>}
             </div>
           </div>
 
@@ -1947,6 +2060,124 @@ function StageNoteModal({ stage, initialText, onSave, onRemove, onClose, t, lang
 // Eén compact, inklapbaar blok binnen "Teamgegevens" — titel + aantal
 // toegevoegde items, een inline actieknop rechts, en de content pas
 // zichtbaar na openklappen. Standaard dicht zodat de pagina rustig blijft.
+// Bewerkbare opsomming (korte punten) bij een lijn op het canvas — leeft in
+// het focuspaneel zodat hover (lezen, zie FloatingTooltip) en klik (bewerken)
+// dezelfde inhoud tonen. Een leeg punt wordt niet opgeslagen.
+function PuntenEditor({ items, onChange, t }) {
+  const [draft, setDraft] = useState('')
+  function add() {
+    const text = draft.trim()
+    if (!text) return
+    onChange([...items, text])
+    setDraft('')
+  }
+  return (
+    <div>
+      <div className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{t('teampage.puntenTitle')}</div>
+      <p className="mt-0.5 text-[11px] text-slate-400">{t('teampage.puntenHint')}</p>
+      {items.length === 0 ? (
+        <p className="mt-1.5 text-xs italic text-slate-400">{t('teampage.puntenEmpty')}</p>
+      ) : (
+        <ul className="mt-1.5 space-y-1">
+          {items.map((p, i) => (
+            <li key={`${i}:${p}`} className="flex items-start gap-1.5 text-xs text-slate-700">
+              <span className="mt-[5px] h-1 w-1 shrink-0 rounded-full bg-slate-400" />
+              <span className="min-w-0 flex-1">{p}</span>
+              <button
+                type="button"
+                onClick={() => onChange(items.filter((_, j) => j !== i))}
+                aria-label={t('teampage.puntenRemove')}
+                className="shrink-0 text-slate-300 hover:text-[#9a3b2e]"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          add()
+        }}
+        className="mt-2 flex gap-1.5"
+      >
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={t('teampage.puntenPlaceholder')}
+          className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={!draft.trim()}
+          className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {t('teampage.puntenAdd')}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+// Verzoeken van andere teams om een input/output aan dit team te koppelen —
+// bewust een opvallende kaart boven de tabbladen i.p.v. verstopt in een
+// lijst: wie op deze teampagina komt moet meteen zien dat er iets op akkoord
+// wacht. Accepteren/afwijzen loopt via AppContext (acceptLinkRequest).
+function LinkRequestsPanel({ requests, workflow, teamName, onAccept, onReject, t }) {
+  function describe(req) {
+    const team = teamName(req.teamId)
+    const label = req.item.label || '—'
+    if (req.kind === 'input') {
+      const target = req.item.linkedOutputId ? workflow.outputs.find((o) => o.id === req.item.linkedOutputId) : null
+      return target
+        ? t('teampage.linkRequestInputExisting', { team, label, target: target.label || '—' })
+        : t('teampage.linkRequestInputNew', { team, label })
+    }
+    const target = req.item.linkedInputId ? workflow.inputs.find((i) => i.id === req.item.linkedInputId) : null
+    return target
+      ? t('teampage.linkRequestOutputExisting', { team, label, target: target.label || '—' })
+      : t('teampage.linkRequestOutputNew', { team, label })
+  }
+  return (
+    <div data-testid="link-requests" className="rounded-xl border border-amber-200 bg-amber-50/60 p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-amber-500 px-1.5 text-[11px] font-bold text-white">
+          {requests.length}
+        </span>
+        <h3 className="text-sm font-semibold text-slate-800">{t('teampage.linkRequestsTitle')}</h3>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">{t('teampage.linkRequestsHint')}</p>
+      <ul className="mt-3 space-y-2">
+        {requests.map((req) => (
+          <li
+            key={`${req.teamId}:${req.kind}:${req.item.id}`}
+            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700"
+          >
+            <span className="min-w-0 flex-1">{describe(req)}</span>
+            <span className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => onAccept(req)}
+                className="rounded-md bg-[#2a5f8a] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#1f4a6c]"
+              >
+                {t('teampage.linkRequestAccept')}
+              </button>
+              <button
+                type="button"
+                onClick={() => onReject(req)}
+                className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+              >
+                {t('teampage.linkRequestReject')}
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 function TeamDataBlock({ title, count, open, onToggle, action, children, blockRef }) {
   return (
     <div ref={blockRef} className="py-3 first:pt-0 last:pb-0">
@@ -2395,6 +2626,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     externalParties,
     addExternalParty,
     adminSettings,
+    acceptLinkRequest,
+    rejectLinkRequest,
   } = useAppContext()
   const { t, language } = useLanguage()
   const teamNaam = teamName(teamId)
@@ -2875,6 +3108,29 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
     patch({ applicatieflow: { ...applicatieflow, connecties: (applicatieflow.connecties ?? []).filter((c) => c.id !== id) } })
   }
+  function updateAppConnection(id, fields) {
+    const applicatieflow = workflow.applicatieflow ?? emptyApplicatieflow()
+    patch({
+      applicatieflow: { ...applicatieflow, connecties: (applicatieflow.connecties ?? []).map((c) => (c.id === id ? { ...c, ...fields } : c)) },
+    })
+  }
+
+  // Koppelingsverzoeken van andere teams aan dít team: elk input-/output-item
+  // elders dat naar dit team wijst en nog op akkoord wacht (zie
+  // acceptLinkRequest/rejectLinkRequest in AppContext).
+  const incomingLinkRequests = useMemo(() => {
+    const list = []
+    for (const [otherTeamId, wf] of Object.entries(teamWorkflows)) {
+      if (otherTeamId === teamId) continue
+      for (const item of wf.inputs ?? []) {
+        if (item.linkedTeam === teamId && item.linkStatus === 'voorgesteld') list.push({ kind: 'input', item, teamId: otherTeamId })
+      }
+      for (const item of wf.outputs ?? []) {
+        if (item.linkedTeam === teamId && item.linkStatus === 'voorgesteld') list.push({ kind: 'output', item, teamId: otherTeamId })
+      }
+    }
+    return list
+  }, [teamWorkflows, teamId])
 
   const applicatieflowSectionRef = useRef(null)
   const onOpenApplicatieflow = useCallback(() => {
@@ -2939,11 +3195,14 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // relatie-highlight staan zonder dat de muis erboven hoeft te blijven, en
   // dimt niet-gerelateerde content veel verder weg dan een losse hover.
   const focusNodeId = canvasFocus?.id ?? null
+  // Focus kan ook een lijn zijn (klik op een edge, zie onEdgeClick): dan is
+  // alleen die lijn zelf 'gerelateerd', plus de twee elementen die hij verbindt.
+  const focusIsEdge = canvasFocus?.type === 'edge'
   const activeRelationId = focusNodeId ?? hoverNodeId
   const displayEdges = useMemo(() => {
     if (!activeRelationId) return edges
     return edges.map((edge) => {
-      const related = edge.source === activeRelationId || edge.target === activeRelationId
+      const related = focusIsEdge ? edge.id === activeRelationId : edge.source === activeRelationId || edge.target === activeRelationId
       const isAppConn = edge.id.startsWith('appconn:')
       return {
         ...edge,
@@ -2955,7 +3214,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
         },
       }
     })
-  }, [edges, activeRelationId, focusNodeId])
+  }, [edges, activeRelationId, focusNodeId, focusIsEdge])
   // Niet-gerelateerde content-nodes (dependencies/IO/lanes/externe teams)
   // dimmen mee zodra er een focus actief is — structurele elementen (zones,
   // lane-achtergronden, workflowstappen) blijven altijd op volle sterkte,
@@ -2964,6 +3223,13 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     if (!focusNodeId) return nodes
     const relatedIds = new Set([focusNodeId])
     edges.forEach((edge) => {
+      if (focusIsEdge) {
+        if (edge.id === focusNodeId) {
+          relatedIds.add(edge.source)
+          relatedIds.add(edge.target)
+        }
+        return
+      }
       if (edge.source === focusNodeId) relatedIds.add(edge.target)
       if (edge.target === focusNodeId) relatedIds.add(edge.source)
     })
@@ -2971,7 +3237,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
       if (!DIMMABLE_NODE_TYPES.has(n.type)) return n
       return { ...n, style: { ...n.style, opacity: relatedIds.has(n.id) ? 1 : 0.3 } }
     })
-  }, [nodes, edges, focusNodeId])
+  }, [nodes, edges, focusNodeId, focusIsEdge])
 
   // Canvas-filters: verbergt hele elementtypes ná de layoutberekening, zodat
   // je gericht op een deelverzameling kunt focussen (bv. voor een gesprek)
@@ -3074,6 +3340,37 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // actieknop die de bestaande volledige modal opent. Zo blijft canvas-klik
   // licht (paneel) terwijl de bestaande modals bereikbaar blijven.
   function buildFocusPanelContent(node) {
+    // Een aangeklikte lijn (zie onEdgeClick): applicatiekoppeling of de lijn
+    // van een input-/output-item. De opsomming wordt live uit de workflow
+    // gelezen (niet uit de klik-snapshot), zodat een net toegevoegd punt
+    // meteen in het paneel staat.
+    if (node.type === 'edge') {
+      const d = node.data ?? {}
+      if (d.kind === 'appconn') {
+        const conn = (workflow.applicatieflow?.connecties ?? []).find((c) => c.id === d.connId)
+        return {
+          typeLabel: t('teampage.edgeFocusTypeAppConn'),
+          title: d.tooltipTitle,
+          meta: [],
+          punten: { items: conn?.punten ?? [], onChange: (next) => updateAppConnection(d.connId, { punten: next }) },
+        }
+      }
+      if (d.kind === 'io') {
+        // De lijn van een input vertrekt bij de input-node, die van een output
+        // komt bij de output-node aan — daaruit volgt om welke lijst het gaat.
+        const ioKind = node.source?.startsWith('input:') ? 'input' : 'output'
+        const items = ioKind === 'input' ? workflow.inputs : workflow.outputs
+        const item = items.find((i) => i.id === d.itemId)
+        const save = ioKind === 'input' ? updateInput : updateOutput
+        return {
+          typeLabel: t('teampage.edgeFocusTypeIo'),
+          title: item?.label || d.tooltipTitle || '—',
+          meta: [{ label: t('teampage.focusFlowcontext'), value: d.tooltipSub }],
+          punten: { items: item?.punten ?? [], onChange: (next) => save(d.itemId, { punten: next }) },
+        }
+      }
+      return null
+    }
     // Geen 'dependencyMarker'-tak hier: die node-type slaat het focuspaneel
     // altijd over en opent al direct de volledige DependencyDetail (zie
     // handleNodeClick) — dit paneel is dus uitsluitend voor de overige,
@@ -3097,6 +3394,9 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
       }
     }
     if (node.type === 'ioItem') {
+      const items = node.data.kind === 'input' ? workflow.inputs : workflow.outputs
+      const item = items.find((i) => i.id === node.data.itemId)
+      const save = node.data.kind === 'input' ? updateInput : updateOutput
       const meta = [{ label: t('teampage.focusFlowcontext'), value: node.data.meta }]
       if (node.data.linkLabel) meta.push({ label: t('teampage.focusLinkedFrom'), value: node.data.linkLabel })
       if (node.data.externalTeam) meta.push({ label: t('teampage.legendExternalTeam'), value: node.data.externalTeam })
@@ -3104,10 +3404,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
         typeLabel: node.data.kind === 'input' ? t('teampage.focusTypeInput') : t('teampage.focusTypeOutput'),
         title: node.data.label || '—',
         meta,
+        // Zelfde opsomming als op de lijn van dit item: kaart en lijn zijn
+        // één relatie, dus één lijstje.
+        punten: { items: item?.punten ?? [], onChange: (next) => save(node.data.itemId, { punten: next }) },
         actionLabel: t('appflow.detailEdit'),
         onAction: () => {
-          const items = node.data.kind === 'input' ? workflow.inputs : workflow.outputs
-          const item = items.find((i) => i.id === node.data.itemId)
           if (item) setCanvasIoTarget({ kind: node.data.kind, item })
         },
       }
@@ -3636,9 +3937,24 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     // Relatielijnen zelf blijven bewust bijna onzichtbaar
                     // (lage opacity) totdat je erover hovert — dan pas zie je
                     // welk input/output-item bij welke fase/zone hoort.
+                    // Klik op een lijn opent het focuspaneel met de
+                    // bewerkbare opsomming van die koppeling (applicatie-
+                    // koppeling of input-/outputlijn); structurele lijnen
+                    // (fase→fase, capaciteit) hebben geen data.kind en doen
+                    // niets.
+                    onEdgeClick={(_, edge) => {
+                      if (!edge.data?.kind) return
+                      setCanvasFocus({ id: edge.id, type: 'edge', data: edge.data, source: edge.source, target: edge.target })
+                    }}
                     onEdgeMouseEnter={(event, edge) => {
                       if (!edge.data?.tooltipTitle) return
-                      setCanvasHover({ x: event.clientX, y: event.clientY, title: edge.data.tooltipTitle, sub: edge.data.tooltipSub })
+                      setCanvasHover({
+                        x: event.clientX,
+                        y: event.clientY,
+                        title: edge.data.tooltipTitle,
+                        sub: edge.data.tooltipSub,
+                        items: edge.data.punten ?? [],
+                      })
                     }}
                     onEdgeMouseMove={(event) => setCanvasHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
                     onEdgeMouseLeave={() => setCanvasHover(null)}
@@ -3669,6 +3985,13 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   <FloatingTooltip x={canvasHover.x} y={canvasHover.y}>
                     <div className="font-semibold text-slate-50">{canvasHover.title}</div>
                     {canvasHover.sub && <div className="mt-0.5 text-[11px] text-slate-300">{canvasHover.sub}</div>}
+                    {canvasHover.items?.length > 0 && (
+                      <ul className="mt-1.5 list-disc space-y-0.5 pl-4 text-[11px] text-slate-200">
+                        {canvasHover.items.map((p, i) => (
+                          <li key={`${i}:${p}`}>{p}</li>
+                        ))}
+                      </ul>
+                    )}
                   </FloatingTooltip>
                 )}
               </div>
@@ -3713,6 +4036,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                             ))}
                           </dl>
                         )}
+                        {content.punten && <PuntenEditor items={content.punten.items} onChange={content.punten.onChange} t={t} />}
                       </div>
                       {content.onAction && (
                         <div className="shrink-0 border-t border-slate-100 px-4 py-3">
@@ -3788,8 +4112,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             <IoItemModal
               kind={canvasIoTarget.kind}
               item={canvasIoTarget.item}
-              onSave={(draft) => {
+              onSave={(rawDraft) => {
                 const isNew = !canvasIoTarget.item
+                // Nieuwe/gewijzigde koppeling naar een ander team wordt een
+                // verzoek aan dat team — zie withLinkStatus.
+                const draft = withLinkStatus(rawDraft, canvasIoTarget.item)
                 if (canvasIoTarget.kind === 'input') {
                   if (isNew) addInput(draft)
                   else updateInput(draft.id, draft)
@@ -3835,6 +4162,17 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               onClose={() => setStageNoteTarget(null)}
               t={t}
               language={language}
+            />
+          )}
+
+          {incomingLinkRequests.length > 0 && (
+            <LinkRequestsPanel
+              requests={incomingLinkRequests}
+              workflow={workflow}
+              teamName={teamName}
+              onAccept={(req) => acceptLinkRequest(teamId, req.teamId, req.kind, req.item.id)}
+              onReject={(req) => rejectLinkRequest(teamId, req.teamId, req.kind, req.item.id)}
+              t={t}
             />
           )}
 
@@ -4067,6 +4405,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                                 <span className="font-medium text-slate-700">{van?.naam || '—'}</span>
                                 <span className="text-slate-400">→</span>
                                 <span className="font-medium text-slate-700">{naar?.naam || '—'}</span>
+                                {(c.punten?.length ?? 0) > 0 && (
+                                  <span className="text-xs text-slate-400">
+                                    · {c.punten.length === 1 ? t('teampage.puntenCountOne') : t('teampage.puntenCount', { count: c.punten.length })}
+                                  </span>
+                                )}
                                 <button type="button" onClick={() => removeAppConnection(c.id)} className="ml-auto text-xs text-[#9a3b2e] hover:underline">
                                   {t('teampage.remove')}
                                 </button>
@@ -4111,7 +4454,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   ) : (
                     <ul className="divide-y divide-slate-100">
                       {workflow.inputs.map((item) => {
-                        const summary = ioItemSummary(item, 'input', teams, teamWorkflows, workflow.applications, teamName, language)
+                        const summary = ioItemSummary(item, 'input', teams, teamWorkflows, workflow.applications, teamName, language, t)
                         return (
                           <li key={item.id}>
                             <button
@@ -4152,7 +4495,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   ) : (
                     <ul className="divide-y divide-slate-100">
                       {workflow.outputs.map((item) => {
-                        const summary = ioItemSummary(item, 'output', teams, teamWorkflows, workflow.applications, teamName, language)
+                        const summary = ioItemSummary(item, 'output', teams, teamWorkflows, workflow.applications, teamName, language, t)
                         return (
                           <li key={item.id}>
                             <button

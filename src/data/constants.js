@@ -128,3 +128,10 @@ export const DEADLINE_LEVELS = ['geen_datum', 'interne_afspraak', 'vaste_datum',
 // release?) verplicht — wie de datum niet kan noemen, kan de optie niet kiezen.
 export const DEADLINE_TEKST_VERPLICHT = ['vaste_datum', 'harde_deadline']
 
+// --- Cross-team koppeling van een input-/output-item: goedkeuringsstatus ---
+// Een koppeling die team B legt naar team A verschijnt bij A als verzoek
+// ('voorgesteld'); pas na akkoord van A ('geaccepteerd') telt hij als echte
+// ketenkoppeling. 'afgewezen' blijft op het item van B staan (met reden om
+// het opnieuw te proberen), i.p.v. stilzwijgend te verdwijnen.
+export const LINK_STATUS = ['voorgesteld', 'geaccepteerd', 'afgewezen']
+

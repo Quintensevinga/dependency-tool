@@ -5,6 +5,7 @@ import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
 import { calculateRisk, riskLevelRank } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
+import { bronTypeColor } from '../lib/workflowStyles'
 import { translateRiskLevel, translateBronType } from '../i18n/labels'
 import { resolveChainEdges, orderTeamsByChain, layerTeamsByChain, aggregateChainLinks, traceForwardChain } from '../lib/teamWorkflow'
 import { emptyTeamWorkflow } from '../lib/storage'
@@ -113,6 +114,175 @@ function ChainGroupLabelNode({ data }) {
   return <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{data.label}</div>
 }
 
+// Externe partijen (systeem, ander bedrijfsonderdeel, leverancier, CAB, …)
+// als eigen kaartjes aan de rand van de keten: links wat input levert of
+// waar een team van afhankelijk is, rechts wat alleen output ontvangt.
+// Bewust grijs, buiten de risicokleurenreeks — een partij heeft zelf geen
+// risicoscore; de lijnen tonen de relatie (input/output/afhankelijkheid),
+// niet een ernst.
+const EXT_COLOR = '#5c6b8a'
+const OV_EXT_WIDTH = 176
+const OV_EXT_HEIGHT = 58
+// Koppeling die nog op akkoord van het andere team wacht (zie LINK_STATUS in
+// constants.js): gestippeld i.p.v. een eigen kleur, zodat de risicokleur van
+// de lijn intact blijft.
+const PENDING_EDGE_STYLE = { strokeDasharray: '3 4', opacity: 0.8 }
+
+function ExternalPartyNode({ data }) {
+  const { t, language } = useLanguage()
+  const dot = bronTypeColor(data.type) ?? EXT_COLOR
+  const teamsLabel = data.teamCount === 1 ? t('chain.externalPartyTeamsOne') : t('chain.externalPartyTeams', { count: data.teamCount })
+  return (
+    <div
+      className={`relative cursor-pointer rounded-xl border-2 bg-slate-50 px-3 py-2 shadow-sm transition-shadow hover:shadow-md ${data.selected ? 'ring-2 ring-[#2a5f8a]' : ''}`}
+      style={{ width: OV_EXT_WIDTH, borderColor: `${EXT_COLOR}55` }}
+      title={t('chain.clickPartyHint')}
+    >
+      <Handle type="source" position={Position.Right} id="right-source" style={{ opacity: 0.4 }} />
+      <Handle type="target" position={Position.Right} id="right-target" style={{ opacity: 0.4 }} />
+      <Handle type="target" position={Position.Left} id="left-target" style={{ opacity: 0.4 }} />
+      <Handle type="source" position={Position.Left} id="left-source" style={{ opacity: 0.4 }} />
+      <div className="flex items-center gap-1.5">
+        <span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: dot }} />
+        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-[#3f4a63]">{data.naam}</span>
+      </div>
+      <div className="mt-0.5 truncate text-[10px] text-slate-400">{[translateBronType(data.type, language), teamsLabel].filter(Boolean).join(' · ')}</div>
+    </div>
+  )
+}
+
+// Verzamelt alle externe partijen die aan teams hangen: via input-/output-
+// items (externalPartyId, anders de vrije externalTeam-naam) en via
+// dependencies (geraaktPartijId, anders de vrije geraakte_team_extern-naam —
+// mits dat geen eigen team is, want dan is het een team-op-team-
+// afhankelijkheid en geen externe partij). Eén kaartje per partij (op id,
+// anders op naam), zodat een generieke afhankelijkheid als "CAB" of
+// "IAM-beheer" als één hub verschijnt met lijnen naar álle teams die 'm
+// noemen — precies wat het ketenoverzicht zonder deze partijen niet kon
+// laten zien. Zuivere functie; de lay-outfuncties filteren zelf op de
+// zichtbare teams.
+function buildExternalPartyGraph(teamWorkflows, dependencies, externalParties, teams, teamLabels) {
+  const byId = new Map(externalParties.map((p) => [p.id, p]))
+  const byName = new Map(externalParties.map((p) => [p.naam.trim().toLowerCase(), p]))
+  const teamNames = new Set(teams.flatMap((tm) => [tm.naam, teamLabels[tm.id] ?? tm.naam]).map((n) => n.trim().toLowerCase()))
+  const parties = new Map()
+
+  function resolve(partyId, naam, fallbackType) {
+    const cleanNaam = typeof naam === 'string' ? naam.trim() : ''
+    const record = (partyId && byId.get(partyId)) || (cleanNaam && byName.get(cleanNaam.toLowerCase())) || null
+    if (!record && !cleanNaam) return null
+    const key = record ? `id:${record.id}` : `naam:${cleanNaam.toLowerCase()}`
+    if (!parties.has(key)) {
+      parties.set(key, { key, naam: record?.naam ?? cleanNaam, type: record?.type ?? fallbackType ?? '', sources: new Map(), sinks: new Map() })
+    }
+    return parties.get(key)
+  }
+  function add(map, teamId, ref) {
+    if (!map.has(teamId)) map.set(teamId, [])
+    map.get(teamId).push(ref)
+  }
+
+  for (const [teamId, wf] of Object.entries(teamWorkflows)) {
+    for (const item of wf.inputs ?? []) {
+      const party = resolve(item.externalPartyId, item.externalTeam, item.bron_type)
+      if (party) add(party.sources, teamId, { kind: 'input', id: item.id, label: item.label })
+    }
+    for (const item of wf.outputs ?? []) {
+      const party = resolve(item.externalPartyId, item.externalTeam, item.bron_type)
+      if (party) add(party.sinks, teamId, { kind: 'output', id: item.id, label: item.label })
+    }
+  }
+  for (const dep of dependencies) {
+    if (!dep.teamId) continue
+    const naam = typeof dep.geraakte_team_extern === 'string' ? dep.geraakte_team_extern.trim() : ''
+    if (!dep.geraaktPartijId && (!naam || teamNames.has(naam.toLowerCase()))) continue
+    const party = resolve(dep.geraaktPartijId, naam, '')
+    if (party) add(party.sources, dep.teamId, { kind: 'dependency', id: dep.id, label: dep.titel })
+  }
+  return [...parties.values()]
+}
+
+// Splitst de partijen voor een gegeven set zichtbare teams in een linker-
+// kolom (levert input of is een afhankelijkheid) en een rechterkolom (alleen
+// output-ontvanger). Gedeeld door beide lay-outfuncties.
+function partitionParties(partyGraph, visibleTeamIds) {
+  const relevant = (partyGraph ?? [])
+    .map((p) => ({
+      ...p,
+      sourceTeams: [...p.sources.keys()].filter((id) => visibleTeamIds.has(id)),
+      sinkTeams: [...p.sinks.keys()].filter((id) => visibleTeamIds.has(id)),
+    }))
+    .filter((p) => p.sourceTeams.length > 0 || p.sinkTeams.length > 0)
+  return {
+    left: relevant.filter((p) => p.sourceTeams.length > 0),
+    right: relevant.filter((p) => p.sourceTeams.length === 0),
+  }
+}
+
+const OV_EXT_COL_GAP = 24
+
+function partyTeamCount(p) {
+  return new Set([...p.sourceTeams, ...p.sinkTeams]).size
+}
+
+// Rooster i.p.v. één lange kolom: het aantal rijen volgt de hoogte van de
+// keten zelf (zodat de partijen ernaast passen i.p.v. er ver onderuit te
+// steken), met een ondergrens van √n zodat een grote lijst nooit één smalle,
+// eindeloos hoge kolom wordt. Hubs (meeste teams) staan het dichtst bij de
+// keten — kolom 0 is de kolom die aan de teams grenst.
+function partyGrid(count, chainHeight, rowHeight) {
+  const byHeight = Math.floor(Math.max(chainHeight, rowHeight) / rowHeight)
+  const rows = Math.min(count, Math.max(1, byHeight, Math.ceil(Math.sqrt(count))))
+  return { rows, cols: Math.ceil(count / rows) }
+}
+
+// Plaatst één zijde (links = bronnen, rechts = ontvangers) als rooster naast
+// de keten en levert de bodem-y terug. Gedeeld door beide lay-outfuncties.
+function pushPartyGrid({ nodes, list, side, anchorX, topY, chainHeight, rowGap, label, selectedPartyKey, onPlaced }) {
+  if (list.length === 0) return topY
+  const sorted = [...list].sort((a, b) => partyTeamCount(b) - partyTeamCount(a))
+  const rowHeight = OV_EXT_HEIGHT + rowGap
+  const { rows, cols } = partyGrid(sorted.length, chainHeight, rowHeight)
+  const colStep = OV_EXT_WIDTH + OV_EXT_COL_GAP
+  const xFor = (col) => (side === 'left' ? anchorX - col * colStep : anchorX + col * colStep)
+  nodes.push({
+    id: `group-label:${side}`,
+    type: 'chainGroupLabel',
+    position: { x: side === 'left' ? xFor(cols - 1) : anchorX, y: topY - 30 },
+    data: { label },
+    draggable: false,
+    selectable: false,
+    focusable: false,
+  })
+  sorted.forEach((p, i) => {
+    const col = Math.floor(i / rows)
+    const row = i % rows
+    onPlaced?.(p, side)
+    nodes.push(partyNode(p, xFor(col), topY + row * rowHeight, selectedPartyKey))
+  })
+  return topY + rows * rowHeight
+}
+
+function partyNode(p, x, y, selectedPartyKey) {
+  return {
+    id: `party:${p.key}`,
+    type: 'externalParty',
+    position: { x, y },
+    data: {
+      key: p.key,
+      naam: p.naam,
+      type: p.type,
+      teamCount: new Set([...p.sourceTeams, ...p.sinkTeams]).size,
+      selected: selectedPartyKey === p.key,
+    },
+    draggable: true,
+  }
+}
+
+function externalEdgeData(p, teamNaam, direction, refs) {
+  return { external: true, partyKey: p.key, partyNaam: p.naam, teamNaam, direction, refs }
+}
+
 // Zichtbare zoom-toolbar boven het canvas (i.p.v. enkel React Flow's kleine
 // standaard knoppen linksonder) — moet binnen een ReactFlowProvider zitten
 // om via useReactFlow() bij de zoom/fitView-acties van déze canvas-instantie
@@ -219,6 +389,13 @@ function FocusChainCardNode({ id, data }) {
       style={{ width: FC_CARD_WIDTH, borderColor: data.isFocus ? '#2a5f8a' : '#cbd5e1' }}
       title={t('chain.clickToFocusHint')}
     >
+      {/* Kaart-handles (naast de item-handles hieronder): voor lijnen die aan
+          geen specifiek item hangen — een afhankelijkheid van een externe
+          partij, of een koppelingsverzoek om een nog niet bestaand item. */}
+      <Handle type="target" position={Position.Left} id="card-in" style={{ top: 18, opacity: 0.4 }} />
+      <Handle type="target" position={Position.Right} id="card-in-rev" style={{ top: 18, opacity: 0.4 }} />
+      <Handle type="source" position={Position.Right} id="card-out" style={{ top: 30, opacity: 0.4 }} />
+      <Handle type="source" position={Position.Left} id="card-out-rev" style={{ top: 30, opacity: 0.4 }} />
       <div className="text-sm font-semibold text-slate-800">{data.label}</div>
       <div className="mt-2 flex flex-col gap-1.5 border-t border-slate-100 pt-2">
         {data.items.map((item) => {
@@ -284,7 +461,12 @@ function itemOriginCaption(item, t, language) {
   return t('chain.itemExternal', { naam: origin.naam })
 }
 
-const nodeTypes = { chainHeader: TeamHeaderNode, focusCard: FocusChainCardNode, chainGroupLabel: ChainGroupLabelNode }
+const nodeTypes = {
+  chainHeader: TeamHeaderNode,
+  focusCard: FocusChainCardNode,
+  chainGroupLabel: ChainGroupLabelNode,
+  externalParty: ExternalPartyNode,
+}
 
 // Eigen edge voor een terugkoppeling (een koppeling die niet voorwaarts naar
 // een nieuwe kolom gaat, maar terug naar een team dat al eerder in de keten
@@ -362,6 +544,8 @@ function computeFocusChainLayout(
   _pinnedTeamIds,
   filteredTeams = [],
   focusTeamId = '',
+  partyGraph = null,
+  partyUi = {},
 ) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const { columns, columnOf } = traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll)
@@ -493,6 +677,22 @@ function computeFocusChainLayout(
   // uit, buiten de kolom om, i.p.v. onderlangs.
   let backflowLane = 0
   let sidestepLane = 0
+  // Een verzoek om een nog niet bestaand tegenhanger-item (linkNieuw) heeft
+  // aan één kant geen item-id: dan haakt de lijn aan op de kaart-handle
+  // (card-in/card-out, zie FocusChainCardNode) i.p.v. een item-handle.
+  const outHandle = (edge, rev) => (edge.sourceOutputId ? `item-out${rev ? '-rev' : ''}:${edge.sourceOutputId}` : `card-out${rev ? '-rev' : ''}`)
+  const inHandle = (edge, rev) => (edge.targetInputId ? `item-in${rev ? '-rev' : ''}:${edge.targetInputId}` : `card-in${rev ? '-rev' : ''}`)
+  const linkData = (edge) => ({
+    link: {
+      sourceTeamNaam: teamNaamById[edge.sourceTeam] ?? edge.sourceTeam,
+      targetTeamNaam: teamNaamById[edge.targetTeam] ?? edge.targetTeam,
+      sourceLabel: edge.sourceLabel,
+      targetLabel: edge.targetLabel,
+      status: edge.status,
+      punten: edge.punten ?? [],
+    },
+  })
+  const pendingStyle = (edge) => (edge.status === 'voorgesteld' ? PENDING_EDGE_STYLE : {})
   const edges = edgesToRender.map(({ edge, color, forward, sameColumn }) => {
     if (sameColumn) {
       const columnRight = columnX[columnOf.get(edge.sourceTeam)] + FC_CARD_WIDTH
@@ -500,11 +700,11 @@ function computeFocusChainLayout(
         id: edge.id,
         source: `focus-card:${edge.sourceTeam}`,
         target: `focus-card:${edge.targetTeam}`,
-        sourceHandle: `item-out:${edge.sourceOutputId}`,
-        targetHandle: `item-in-rev:${edge.targetInputId}`,
+        sourceHandle: outHandle(edge, false),
+        targetHandle: inHandle(edge, true),
         type: 'focusSidestep',
-        data: { bulgeX: columnRight + SIDESTEP_BULGE + sidestepLane++ * SIDESTEP_LANE_GAP },
-        style: { stroke: color, strokeWidth: 2 },
+        data: { bulgeX: columnRight + SIDESTEP_BULGE + sidestepLane++ * SIDESTEP_LANE_GAP, ...linkData(edge) },
+        style: { stroke: color, strokeWidth: 2, ...pendingStyle(edge) },
         markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
       }
     }
@@ -512,14 +712,70 @@ function computeFocusChainLayout(
       id: edge.id,
       source: `focus-card:${edge.sourceTeam}`,
       target: `focus-card:${edge.targetTeam}`,
-      sourceHandle: forward ? `item-out:${edge.sourceOutputId}` : `item-out-rev:${edge.sourceOutputId}`,
-      targetHandle: forward ? `item-in:${edge.targetInputId}` : `item-in-rev:${edge.targetInputId}`,
+      sourceHandle: outHandle(edge, !forward),
+      targetHandle: inHandle(edge, !forward),
       type: forward ? 'focusForward' : 'focusBackflow',
-      data: forward ? undefined : { dip: maxCardBottom + BACKFLOW_DIP + backflowLane++ * BACKFLOW_LANE_GAP },
-      style: { stroke: color, strokeWidth: 2 },
+      data: { ...(forward ? {} : { dip: maxCardBottom + BACKFLOW_DIP + backflowLane++ * BACKFLOW_LANE_GAP }), ...linkData(edge) },
+      style: { stroke: color, strokeWidth: 2, ...pendingStyle(edge) },
       markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
     }
   })
+
+  // --- Externe partijen naast de getoonde keten (zie buildExternalPartyGraph):
+  // bronnen links van het focusteam, pure ontvangers rechts van de laatste
+  // kolom. Lijnen haken aan op het specifieke input-/outputitem; een
+  // afhankelijkheid (dependency op een partij) hangt aan de kaart zelf.
+  if (partyGraph) {
+    const { left, right } = partitionParties(partyGraph, new Set(columnOf.keys()))
+    const leftX = -(OV_EXT_WIDTH + FC_COLUMN_GAP)
+    const rightX = columnX[columnX.length - 1] + FC_CARD_WIDTH + FC_COLUMN_GAP
+    const sideOf = new Map()
+    const shared = {
+      nodes,
+      topY: 0,
+      chainHeight: maxCardBottom,
+      rowGap: FC_ROW_GAP,
+      selectedPartyKey: partyUi.selectedPartyKey,
+      onPlaced: (p, side) => sideOf.set(p.key, side),
+    }
+    pushPartyGrid({ ...shared, list: left, side: 'left', anchorX: leftX, label: partyUi.sourcesLabel ?? '' })
+    pushPartyGrid({ ...shared, list: right, side: 'right', anchorX: rightX, label: partyUi.sinksLabel ?? '' })
+    const marker = { type: MarkerType.ArrowClosed, color: EXT_COLOR, width: 12, height: 12 }
+    for (const p of [...left, ...right]) {
+      const side = sideOf.get(p.key)
+      for (const teamId of p.sourceTeams) {
+        for (const ref of p.sources.get(teamId)) {
+          const isDep = ref.kind === 'dependency'
+          edges.push({
+            id: `ext:${p.key}->${teamId}:${ref.id}`,
+            source: `party:${p.key}`,
+            target: `focus-card:${teamId}`,
+            sourceHandle: 'right-source',
+            targetHandle: isDep ? 'card-in' : `item-in:${ref.id}`,
+            type: 'focusForward',
+            style: { stroke: EXT_COLOR, strokeWidth: 1.5, strokeDasharray: isDep ? '5 4' : undefined, opacity: 0.85 },
+            markerEnd: marker,
+            data: externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'in', [ref]),
+          })
+        }
+      }
+      for (const teamId of p.sinkTeams) {
+        for (const ref of p.sinks.get(teamId)) {
+          edges.push({
+            id: `ext:${teamId}->${p.key}:${ref.id}`,
+            source: `focus-card:${teamId}`,
+            target: `party:${p.key}`,
+            sourceHandle: side === 'right' ? `item-out:${ref.id}` : `item-out-rev:${ref.id}`,
+            targetHandle: side === 'right' ? 'left-target' : 'right-target',
+            type: 'focusForward',
+            style: { stroke: EXT_COLOR, strokeWidth: 1.5, opacity: 0.85 },
+            markerEnd: marker,
+            data: externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'out', [ref]),
+          })
+        }
+      }
+    }
+  }
 
   return { nodes, edges }
 }
@@ -561,6 +817,8 @@ function computeChainOverviewLayout(
   pinnedTeamIds = new Set(),
   _filteredTeams,
   _focusTeamId,
+  partyGraph = null,
+  partyUi = {},
 ) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const nodes = []
@@ -636,6 +894,32 @@ function computeChainOverviewLayout(
     maxYReached = Math.max(maxYReached, y)
   })
 
+  const allTeams = [...layeredTeams.layers.flat(), ...layeredTeams.isolated]
+  const teamIdSet = new Set(allTeams.map((team) => team.id))
+  const teamNaamById = Object.fromEntries(allTeams.map((team) => [team.id, naamVan(team)]))
+
+  // --- Externe partijen (zie buildExternalPartyGraph): bronnen (input of
+  // afhankelijkheid) in een kolom links van de eerste laag, pure ontvangers
+  // (alleen output) rechts van de laatste laag. De kolommen tellen mee voor
+  // maxYReached, zodat de "Geen ketenkoppeling"-bak eronder er nooit
+  // doorheen valt.
+  const partySide = new Map()
+  const partyById = new Map()
+  if (partyGraph) {
+    const { left, right } = partitionParties(partyGraph, teamIdSet)
+    const leftX = -(OV_EXT_WIDTH + OV_COLUMN_GAP)
+    const rightX = layeredTeams.layers.length > 0 ? cumulativeX : OV_CARD_WIDTH + OV_COLUMN_GAP
+    const chainHeight = maxYReached - OV_ROW_Y
+    const onPlaced = (p, side) => {
+      partySide.set(p.key, side)
+      partyById.set(p.key, p)
+    }
+    const shared = { nodes, topY: OV_ROW_Y, chainHeight, rowGap: OV_ROW_GAP, selectedPartyKey: partyUi.selectedPartyKey, onPlaced }
+    const leftBottom = pushPartyGrid({ ...shared, list: left, side: 'left', anchorX: leftX, label: partyUi.sourcesLabel ?? '' })
+    const rightBottom = pushPartyGrid({ ...shared, list: right, side: 'right', anchorX: rightX, label: partyUi.sinksLabel ?? '' })
+    maxYReached = Math.max(maxYReached, leftBottom, rightBottom)
+  }
+
   // Teams zonder ketenkoppeling: eigen, expliciet gelabeld vak ónder de gelaagde
   // keten (nooit stilzwijgend weggelaten), positie afhankelijk van hoe hoog de
   // gelaagde keten op dit moment reikt — nooit een vaste y die door een
@@ -663,9 +947,6 @@ function computeChainOverviewLayout(
   // aggregatie ter plekke weer "gesplitst" naar de onderliggende losse
   // koppelingen, elk naar de specifieke item-handle i.p.v. het algemene
   // teampunt — zo springt de lijn zichtbaar mee zodra je een kaart uitklapt.
-  const allTeams = [...layeredTeams.layers.flat(), ...layeredTeams.isolated]
-  const teamIdSet = new Set(allTeams.map((team) => team.id))
-  const teamNaamById = Object.fromEntries(allTeams.map((team) => [team.id, naamVan(team)]))
   const groups = aggregateChainLinks(chainEdgesAll).filter((g) => teamIdSet.has(g.sourceTeam) && teamIdSet.has(g.targetTeam))
 
   const edges = []
@@ -706,6 +987,9 @@ function computeChainOverviewLayout(
     const level = riskLevelRank(riskA) >= riskLevelRank(riskB) ? riskA : riskB
     const style = riskStyle(level)
     const count = g.links.length
+    // Alleen gestippeld als élke onderliggende koppeling nog op akkoord
+    // wacht — één echte koppeling maakt de lijn al een ketenkoppeling.
+    const allPending = g.links.every((l) => l.status === 'voorgesteld')
     const sourceExpanded = expandedTeamIds.has(g.sourceTeam)
     const targetExpanded = expandedTeamIds.has(g.targetTeam)
 
@@ -725,7 +1009,7 @@ function computeChainOverviewLayout(
         targetHandle: baseTargetHandle,
         type: 'smoothstep',
         pathOptions,
-        style: { stroke: style.hex, strokeWidth: Math.min(2 + count * 1.5, 8) },
+        style: { stroke: style.hex, strokeWidth: Math.min(2 + count * 1.5, 8), ...(allPending ? PENDING_EDGE_STYLE : {}) },
         markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
         label: count > 1 ? String(count) : undefined,
         labelStyle: { fill: style.hex, fontWeight: 700, fontSize: 11 },
@@ -740,6 +1024,8 @@ function computeChainOverviewLayout(
             targetInputId: l.targetInputId,
             sourceLabel: l.sourceLabel,
             targetLabel: l.targetLabel,
+            status: l.status,
+            punten: l.punten ?? [],
           })),
         },
       })
@@ -747,18 +1033,93 @@ function computeChainOverviewLayout(
     }
 
     for (const link of g.links) {
+      // Een verzoek om een nog niet bestaand item heeft aan die kant geen
+      // item-handle — dan blijft de lijn op het algemene teampunt haken.
+      const pending = link.status === 'voorgesteld'
       edges.push({
         id: link.id,
         source: `team-header-ov:${g.sourceTeam}`,
         target: `team-header-ov:${g.targetTeam}`,
-        sourceHandle: sourceExpanded ? `item-out:${link.sourceOutputId}` : baseSourceHandle,
-        targetHandle: targetExpanded ? `item-in:${link.targetInputId}` : baseTargetHandle,
+        sourceHandle: sourceExpanded && link.sourceOutputId ? `item-out:${link.sourceOutputId}` : baseSourceHandle,
+        targetHandle: targetExpanded && link.targetInputId ? `item-in:${link.targetInputId}` : baseTargetHandle,
         type: 'smoothstep',
         pathOptions,
-        style: { stroke: style.hex, strokeWidth: 2 },
+        style: { stroke: style.hex, strokeWidth: 2, ...(pending ? PENDING_EDGE_STYLE : {}) },
         markerEnd: { type: MarkerType.ArrowClosed, color: style.hex, width: 16, height: 16 },
-        data: { ...sharedData, links: [{ sourceLabel: link.sourceLabel, targetLabel: link.targetLabel }] },
+        data: {
+          ...sharedData,
+          links: [{ sourceLabel: link.sourceLabel, targetLabel: link.targetLabel, status: link.status, punten: link.punten ?? [] }],
+        },
       })
+    }
+  }
+
+  // --- Lijnen van/naar externe partijen: geaggregeerd per partij-team-paar
+  // (dikte = aantal onderliggende items/dependencies, telling als label),
+  // gesplitst naar item-handles zodra de teamkaart uitgeklapt is — zelfde
+  // patroon als de ketenkoppelingen hierboven. Alleen-afhankelijkheid-lijnen
+  // zijn gestreept: dat is geen werkstroom, maar "dit team hangt hiervan af".
+  if (partyGraph) {
+    const marker = { type: MarkerType.ArrowClosed, color: EXT_COLOR, width: 14, height: 14 }
+    const extStyle = (n, dashed) => ({
+      stroke: EXT_COLOR,
+      strokeWidth: Math.min(1.5 + n * 0.75, 5),
+      strokeDasharray: dashed ? '5 4' : undefined,
+      opacity: 0.9,
+    })
+    const labelProps = (n) =>
+      n > 1
+        ? { label: String(n), labelStyle: { fill: EXT_COLOR, fontWeight: 700, fontSize: 11 }, labelBgStyle: { fill: 'white' }, labelBgPadding: [4, 2], labelBgBorderRadius: 6 }
+        : {}
+    for (const p of partyById.values()) {
+      const side = partySide.get(p.key)
+      for (const teamId of p.sourceTeams) {
+        const refs = p.sources.get(teamId)
+        const teamNaam = teamNaamById[teamId] ?? teamId
+        const pushIn = (suffix, targetHandle, edgeRefs, dashed) =>
+          edges.push({
+            id: `ext:${p.key}->${teamId}${suffix}`,
+            source: `party:${p.key}`,
+            target: `team-header-ov:${teamId}`,
+            sourceHandle: 'right-source',
+            targetHandle,
+            type: 'smoothstep',
+            style: extStyle(edgeRefs.length, dashed),
+            markerEnd: marker,
+            ...labelProps(edgeRefs.length),
+            data: externalEdgeData(p, teamNaam, 'in', edgeRefs),
+          })
+        const inputRefs = refs.filter((r) => r.kind === 'input')
+        const depRefs = refs.filter((r) => r.kind === 'dependency')
+        if (expandedTeamIds.has(teamId) && inputRefs.length > 0) {
+          for (const r of inputRefs) pushIn(`:${r.id}`, `item-in:${r.id}`, [r], false)
+          if (depRefs.length > 0) pushIn(':deps', 'left-target', depRefs, true)
+        } else {
+          pushIn('', 'left-target', refs, inputRefs.length === 0)
+        }
+      }
+      for (const teamId of p.sinkTeams) {
+        const refs = p.sinks.get(teamId)
+        const teamNaam = teamNaamById[teamId] ?? teamId
+        const pushOut = (suffix, sourceHandle, edgeRefs) =>
+          edges.push({
+            id: `ext:${teamId}->${p.key}${suffix}`,
+            source: `team-header-ov:${teamId}`,
+            target: `party:${p.key}`,
+            sourceHandle,
+            targetHandle: side === 'right' ? 'left-target' : 'right-target',
+            type: 'smoothstep',
+            style: extStyle(edgeRefs.length, false),
+            markerEnd: marker,
+            ...labelProps(edgeRefs.length),
+            data: externalEdgeData(p, teamNaam, 'out', edgeRefs),
+          })
+        if (expandedTeamIds.has(teamId)) {
+          for (const r of refs) pushOut(`:${r.id}`, `item-out:${r.id}`, [r])
+        } else {
+          pushOut('', side === 'right' ? 'right-source' : 'left-source', refs)
+        }
+      }
     }
   }
 
@@ -766,7 +1127,7 @@ function computeChainOverviewLayout(
 }
 
 export default function ChainOverview({ adminSections, sidebarMode }) {
-  const { teams, dependencies, teamWorkflows, teamLabels } = useAppContext()
+  const { teams, dependencies, teamWorkflows, teamLabels, externalParties } = useAppContext()
   const { t, language } = useLanguage()
   // Gearchiveerde teams staan bij openen standaard uit, zelfde gedrag als
   // de netwerkweergave — blijven wel aan te vinken voor historische data.
@@ -786,6 +1147,11 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   // je koos toen je terugschakelde naar Ketenflow.
   const [chainMode, setChainMode] = useState('overview')
   const [focusTeamId, setFocusTeamId] = useState('')
+  // Externe partijen (systemen, leveranciers, CAB, …) als kaartjes aan de rand
+  // van de keten — standaard aan, uit te zetten voor een puur team-op-team
+  // beeld. Klik op een partij licht al haar lijnen op en toont de details.
+  const [showExternalParties, setShowExternalParties] = useState(true)
+  const [selectedPartyKey, setSelectedPartyKey] = useState(null)
 
   const focusActive = chainMode === 'focus' && Boolean(focusTeamId)
 
@@ -833,8 +1199,10 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   // koppelingen van het focusteam zelf, niet over de hele voorwaartse keten.
   const focusStats = useMemo(() => {
     if (!focusActive) return null
-    const incoming = chainEdgesAll.filter((e) => e.targetTeam === focusTeamId && e.sourceTeam !== focusTeamId)
-    const outgoing = chainEdgesAll.filter((e) => e.sourceTeam === focusTeamId && e.targetTeam !== focusTeamId)
+    // Verzoeken die nog op akkoord wachten tellen nog niet mee als koppeling.
+    const accepted = chainEdgesAll.filter((e) => e.status !== 'voorgesteld')
+    const incoming = accepted.filter((e) => e.targetTeam === focusTeamId && e.sourceTeam !== focusTeamId)
+    const outgoing = accepted.filter((e) => e.sourceTeam === focusTeamId && e.targetTeam !== focusTeamId)
     const inScope = dependencies.filter((d) => d.teamId === focusTeamId && (scope === 'alle' || d.scope === scope))
     return {
       incoming: incoming.length,
@@ -851,6 +1219,21 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   // twee keer (ook via orderTeamsByChain in visibleTeams) — verwaarloosbaar op deze
   // schaal (tientallen teams, geen honderden).
   const layeredTeams = useMemo(() => layerTeamsByChain(filteredTeams, chainEdgesAll), [filteredTeams, chainEdgesAll])
+
+  // Externe partijen: één keer verzameld uit alle teams/dependencies; de
+  // lay-outfuncties filteren zelf op de zichtbare teams (zie partitionParties).
+  const partyGraph = useMemo(
+    () => buildExternalPartyGraph(teamWorkflows, dependencies, externalParties, teams, teamLabels),
+    [teamWorkflows, dependencies, externalParties, teams, teamLabels],
+  )
+  const partyUi = useMemo(
+    () => ({ selectedPartyKey, sourcesLabel: t('chain.externalGroupSources'), sinksLabel: t('chain.externalGroupSinks') }),
+    [selectedPartyKey, t],
+  )
+  const selectedParty = useMemo(
+    () => (selectedPartyKey && showExternalParties ? (partyGraph.find((p) => p.key === selectedPartyKey) ?? null) : null),
+    [selectedPartyKey, showExternalParties, partyGraph],
+  )
 
   // Hover-uitklap + vastzetten van een teamkaart in overview-modus (alleen daar —
   // focusmodus toont IN/OUT-items al permanent per swimlane). Moet vóór de
@@ -886,6 +1269,8 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     pinnedTeamIds,
     filteredTeams,
     focusTeamId,
+    showExternalParties ? partyGraph : null,
+    partyUi,
   ])
 
   // Klik pint een lijn vast (blijft staan terwijl je rondkijkt/scrollt) — dit
@@ -902,21 +1287,43 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   // omdat de muis toevallig over een andere lijn beweegt.
   const activeEdgeId = selectedEdgeId ?? hoveredEdgeId
 
+  // Een geselecteerde externe partij licht ál haar lijnen tegelijk op (i.p.v.
+  // één lijn), zodat in één oogopslag te zien is welke teams eraan hangen.
   const displayEdges = useMemo(
     () =>
       edges.map((e) => {
         const selected = e.id === selectedEdgeId
-        if (!activeEdgeId) return { ...e, selected }
-        const active = e.id === activeEdgeId
+        if (!activeEdgeId && !selectedPartyKey) return { ...e, selected }
+        const active = e.id === activeEdgeId || (selectedPartyKey && e.data?.partyKey === selectedPartyKey)
         return {
           ...e,
           selected,
-          animated: active && Boolean(selectedEdgeId),
+          animated: active && Boolean(selectedEdgeId || selectedPartyKey),
           style: { ...e.style, strokeWidth: active ? 3.5 : 1.5, opacity: active ? 1 : 0.15 },
         }
       }),
-    [edges, activeEdgeId, selectedEdgeId],
+    [edges, activeEdgeId, selectedEdgeId, selectedPartyKey],
   )
+
+  // Rijen voor het detailvak van een geselecteerde partij: per team elk
+  // item/dependency dat de partij noemt, alleen voor zichtbare teams.
+  const selectedPartyRows = useMemo(() => {
+    if (!selectedParty) return []
+    const visible = new Set(filteredTeams.map((tm) => tm.id))
+    const rows = []
+    for (const [teamId, refs] of selectedParty.sources) {
+      if (!visible.has(teamId)) continue
+      for (const ref of refs) rows.push({ key: `${teamId}:${ref.kind}:${ref.id}`, teamId, kind: ref.kind, label: ref.label })
+    }
+    for (const [teamId, refs] of selectedParty.sinks) {
+      if (!visible.has(teamId)) continue
+      for (const ref of refs) rows.push({ key: `${teamId}:${ref.kind}:${ref.id}`, teamId, kind: ref.kind, label: ref.label })
+    }
+    return rows
+  }, [selectedParty, filteredTeams])
+
+  const refKindLabel = (kind) =>
+    kind === 'input' ? t('chain.externalLinkInput') : kind === 'output' ? t('chain.externalLinkOutput') : t('chain.externalLinkDependency')
 
   // Focusmodus: welke twee item-handles hoort de geselecteerde lijn bij —
   // die kaartjes lichten op zodat meteen duidelijk is van welk output- naar
@@ -1055,7 +1462,19 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               </span>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600">
+              <input
+                type="checkbox"
+                checked={showExternalParties}
+                onChange={(e) => {
+                  setShowExternalParties(e.target.checked)
+                  if (!e.target.checked) setSelectedPartyKey(null)
+                }}
+                className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+              />
+              {t('chain.showExternalParties')}
+            </label>
             <span
               className="hidden text-xs text-slate-400 sm:inline"
               title={focusActive ? t('chain.focusLegend') : t('chain.overviewLegend')}
@@ -1093,6 +1512,11 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 elevateEdgesOnSelect
                 onNodesChange={onNodesChange}
                 onNodeClick={(_, node) => {
+                  if (node.type === 'externalParty') {
+                    setSelectedEdgeId(null)
+                    setSelectedPartyKey((prev) => (prev === node.data.key ? null : node.data.key))
+                    return
+                  }
                   if (node.type !== 'chainHeader' && node.type !== 'focusCard') return
                   if (focusActive) {
                     focusOnTeam(node.data.teamId)
@@ -1117,10 +1541,16 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 onNodeMouseLeave={(_, node) => {
                   if (node.type === 'chainHeader') setHoveredTeamId((prev) => (prev === node.data.teamId ? null : prev))
                 }}
-                onEdgeClick={(_, edge) => setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))}
+                onEdgeClick={(_, edge) => {
+                  setSelectedPartyKey(null)
+                  setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id))
+                }}
                 onEdgeMouseEnter={(_, edge) => setHoveredEdgeId(edge.id)}
                 onEdgeMouseLeave={() => setHoveredEdgeId(null)}
-                onPaneClick={() => setSelectedEdgeId(null)}
+                onPaneClick={() => {
+                  setSelectedEdgeId(null)
+                  setSelectedPartyKey(null)
+                }}
               >
                 {chainMode === 'focus' && (
                   <>
@@ -1133,47 +1563,92 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           </ReactFlowProvider>
         )}
 
-        {!focusActive && selectedEdge?.data && (
+        {(selectedParty || selectedEdge?.data) && (
           <div className="flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
             <div className="min-w-0 flex-1 text-xs">
-              {Array.isArray(selectedEdge.data.links) ? (
+              {selectedParty ? (
+                // Geselecteerde externe partij: alles wat er in de zichtbare
+                // keten aan hangt, per team.
                 <>
                   <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">
-                    {selectedEdge.data.sourceTeamNaam} → {selectedEdge.data.targetTeamNaam} ·{' '}
-                    {selectedEdge.data.links.length === 1
-                      ? t('chain.edgeSelectedCountOne')
-                      : t('chain.edgeSelectedCount', { count: selectedEdge.data.links.length })}
+                    {t('chain.externalSelectedTitle')} · {selectedParty.naam}
                   </div>
                   <div className="space-y-1">
-                    {selectedEdge.data.links.map((link, i) => (
-                      <div key={i} className="text-slate-700">
-                        <span className="text-slate-400">{t('chain.edgeOutput')}: </span>
-                        {link.sourceLabel || '—'}
-                        <span className="text-slate-400"> · {t('chain.edgeInput')}: </span>
-                        {link.targetLabel || '—'}
+                    {selectedPartyRows.map((row) => (
+                      <div key={row.key} className="text-slate-700">
+                        <span className="font-medium">{teamLabels[row.teamId] ?? row.teamId}</span>
+                        <span className="text-slate-400"> · {refKindLabel(row.kind)}: </span>
+                        {row.label || '—'}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : selectedEdge.data.external ? (
+                <>
+                  <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">
+                    {selectedEdge.data.direction === 'in'
+                      ? `${selectedEdge.data.partyNaam} → ${selectedEdge.data.teamNaam}`
+                      : `${selectedEdge.data.teamNaam} → ${selectedEdge.data.partyNaam}`}
+                  </div>
+                  <div className="space-y-1">
+                    {selectedEdge.data.refs.map((ref) => (
+                      <div key={`${ref.kind}:${ref.id}`} className="text-slate-700">
+                        <span className="text-slate-400">{refKindLabel(ref.kind)}: </span>
+                        {ref.label || '—'}
                       </div>
                     ))}
                   </div>
                 </>
               ) : (
-                <>
-                  <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">{t('chain.edgeSelectedTitle')}</div>
-                  <div className="text-slate-700">
-                    <span className="font-medium">{selectedEdge.data.sourceTeamNaam}</span>
-                    <span className="text-slate-400"> · {t('chain.edgeOutput')}: </span>
-                    {selectedEdge.data.sourceLabel || '—'}
-                  </div>
-                  <div className="text-slate-700">
-                    <span className="font-medium">{selectedEdge.data.targetTeamNaam}</span>
-                    <span className="text-slate-400"> · {t('chain.edgeInput')}: </span>
-                    {selectedEdge.data.targetLabel || '—'}
-                  </div>
-                </>
+                // Ketenkoppeling(en): geaggregeerd (overview) of één lijn
+                // (focusmodus) — elk met status en de opsomming die op de
+                // teampagina bij de betrokken items is vastgelegd.
+                (() => {
+                  const links = selectedEdge.data.links ?? (selectedEdge.data.link ? [selectedEdge.data.link] : [])
+                  const first = links[0] ?? {}
+                  const sourceNaam = selectedEdge.data.sourceTeamNaam ?? first.sourceTeamNaam ?? ''
+                  const targetNaam = selectedEdge.data.targetTeamNaam ?? first.targetTeamNaam ?? ''
+                  return (
+                    <>
+                      <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">
+                        {sourceNaam} → {targetNaam} ·{' '}
+                        {links.length === 1 ? t('chain.edgeSelectedCountOne') : t('chain.edgeSelectedCount', { count: links.length })}
+                      </div>
+                      <div className="space-y-1.5">
+                        {links.map((link, i) => (
+                          <div key={i} className="text-slate-700">
+                            <div>
+                              <span className="text-slate-400">{t('chain.edgeOutput')}: </span>
+                              {link.sourceLabel || '—'}
+                              <span className="text-slate-400"> · {t('chain.edgeInput')}: </span>
+                              {link.targetLabel || '—'}
+                              {link.status === 'voorgesteld' && (
+                                <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+                                  {t('chain.edgePending')}
+                                </span>
+                              )}
+                            </div>
+                            {link.punten?.length > 0 && (
+                              <ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-slate-600">
+                                {link.punten.map((p, j) => (
+                                  <li key={`${j}:${p}`}>{p}</li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )
+                })()
               )}
             </div>
             <button
               type="button"
-              onClick={() => setSelectedEdgeId(null)}
+              onClick={() => {
+                setSelectedEdgeId(null)
+                setSelectedPartyKey(null)
+              }}
               className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
               {t('graph.selectionClear')}

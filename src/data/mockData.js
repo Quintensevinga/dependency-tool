@@ -1905,3 +1905,12 @@ function enrichForUitgebreideAnalyse(deps) {
 }
 
 export const MOCK_DEPENDENCIES = enrichForUitgebreideAnalyse(RAW_MOCK_DEPENDENCIES.map(metAanmaakdatum))
+
+// Optionele extra seed-collecties (nog leeg totdat de rijkere dataset ze
+// vult): centrale externe partijen, admin-wijzigingenlog en admin-
+// instellingen. mockState() in lib/storage.js neemt ze mee door hetzelfde
+// migratiepad als een JSON-import, zodat de demo ook de partij-goedkeuring
+// en de wijzigingenlog kan laten zien.
+export const MOCK_EXTERNAL_PARTIES = []
+export const MOCK_CHANGE_LOG = []
+export const MOCK_ADMIN_SETTINGS = null

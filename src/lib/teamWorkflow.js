@@ -3,23 +3,67 @@
 // (via id-referentie, nooit tekst-matching) levert één gekoppelde edge op.
 // Niet-gekoppelde input/output-items worden hier simpelweg niet in
 // opgenomen — de aanroeper rendert ze los, nooit als foutstatus.
+//
+// Elke edge draagt een status mee (zie LINK_STATUS in constants.js):
+// 'geaccepteerd' is een echte ketenkoppeling, 'voorgesteld' een verzoek dat
+// nog op akkoord van het andere team wacht (de aanroeper tekent 'm
+// gestippeld). Een afgewezen koppeling levert geen edge op. Een verzoek om
+// een nóg niet bestaand tegenhanger-item (linkNieuw) heeft aan één kant geen
+// item-id; de aanroeper valt dan terug op een kaart-handle i.p.v. een
+// item-handle. Verzoeken vanaf de output-kant (output → input van ander
+// team) tellen alleen zolang ze in afwachting zijn: na akkoord draagt de
+// input van het andere team de koppeling (zie acceptLinkRequest in
+// AppContext), anders zou dezelfde koppeling twee keer getekend worden.
 export function resolveChainEdges(teamWorkflows) {
   const edges = []
 
   for (const [team, workflow] of Object.entries(teamWorkflows)) {
     for (const input of workflow.inputs ?? []) {
-      if (!input.linkedTeam || !input.linkedOutputId) continue
+      if (!input.linkedTeam || input.linkStatus === 'afgewezen') continue
       const sourceWorkflow = teamWorkflows[input.linkedTeam]
-      const sourceOutput = sourceWorkflow?.outputs?.find((o) => o.id === input.linkedOutputId)
-      if (!sourceOutput) continue
+      if (!sourceWorkflow) continue
+      const pending = input.linkStatus === 'voorgesteld'
+      const sourceOutput = input.linkedOutputId ? (sourceWorkflow.outputs ?? []).find((o) => o.id === input.linkedOutputId) : null
+      if (input.linkedOutputId) {
+        if (!sourceOutput) continue
+      } else if (!(pending && input.linkNieuw)) {
+        continue
+      }
       edges.push({
-        id: `${input.linkedTeam}:${sourceOutput.id}->${team}:${input.id}`,
+        id: `${input.linkedTeam}:${sourceOutput?.id ?? 'nieuw'}->${team}:${input.id}`,
         sourceTeam: input.linkedTeam,
-        sourceOutputId: sourceOutput.id,
-        sourceLabel: sourceOutput.label,
+        sourceOutputId: sourceOutput?.id ?? '',
+        sourceLabel: sourceOutput?.label ?? input.label,
         targetTeam: team,
         targetInputId: input.id,
         targetLabel: input.label,
+        status: pending ? 'voorgesteld' : 'geaccepteerd',
+        proposedBy: pending ? team : null,
+        punten: [...(sourceOutput?.punten ?? []), ...(input.punten ?? [])],
+      })
+    }
+
+    for (const output of workflow.outputs ?? []) {
+      if (!output.linkedTeam || output.linkStatus !== 'voorgesteld') continue
+      const targetWorkflow = teamWorkflows[output.linkedTeam]
+      if (!targetWorkflow) continue
+      const targetInput = output.linkedInputId ? (targetWorkflow.inputs ?? []).find((i) => i.id === output.linkedInputId) : null
+      if (output.linkedInputId) {
+        if (!targetInput) continue
+      } else if (!output.linkNieuw) {
+        continue
+      }
+      edges.push({
+        id: `voorstel:${team}:${output.id}->${output.linkedTeam}:${targetInput?.id ?? 'nieuw'}`,
+        sourceTeam: team,
+        sourceOutputId: output.id,
+        sourceLabel: output.label,
+        targetTeam: output.linkedTeam,
+        targetInputId: targetInput?.id ?? '',
+        targetLabel: targetInput?.label ?? output.label,
+        status: 'voorgesteld',
+        proposedBy: team,
+        punten: [...(output.punten ?? []), ...(targetInput?.punten ?? [])],
       })
     }
   }
