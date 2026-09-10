@@ -5,6 +5,30 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-10
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
+- **Analyse: rapport in lopende tekst, waarschuwingen per geval en 14 extra analyses** (Quinten)
+
+  - src/lib/analyseTeksten.js: tekstlaag (nl/en) met sjablonen — rapport in
+    acht alinea's (samenvatting, ontwikkeling, risico, teams, keten en
+    partijen, applicaties en proces, datakwaliteit, aanbevelingen) dat het
+    teamfilter volgt en te kopiëren is; één zin per waarschuwing; per
+    constatering een samenvattende zin (verdeling over teams, hoogste risico,
+    oudste); werkwoordsvormen volgen het aantal
+  - analytics.js: score-verandering in 30 dagen, leeftijdsverdeling,
+    statusovergangen (mitigatie hield geen stand, heropend), lineaire
+    projectie, ketenrisico stroomop- en -afwaarts, wederzijdse
+    afhankelijkheden, kaartvolledigheid, concentratie (top 3), teamscorekaart
+    met gemiddelde, gedeelde applicaties via ketenkoppelingen, laatste
+    activiteit per team, dubbele registraties; sluimerend, geparkeerd-maar-hoog
+    en gemitigeerd-niet-gesloten; twaalf nieuwe constateringsregels en de
+    geprioriteerde signalenlijst
+  - AnalysePage: secties Rapport en Waarschuwingen, springnavigatie, kaarten
+    voor alle nieuwe analyses
+  - mockdata: vier mitigaties die geen stand hielden en twee heropende
+    dependencies, zodat de levensloopanalyses iets laten zien
+  - handleiding hoofdstuk 12 en README bijgewerkt
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
 - **Analysepagina: metrieken, trends, constateringen en hygiënecontroles over alle data** (Quinten)
 
   - src/lib/analytics.js: replay van de historie (trends per week, vergelijking
