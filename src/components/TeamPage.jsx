@@ -1465,18 +1465,70 @@ function ioItemSummary(item, kind, teams, teamWorkflows, applications, teamName,
 // Klein modal-formulier voor één input-/output-item — vervangt de eerder
 // altijd-open inline velden per rij, zodat de lijst daarboven een rustig,
 // leesbaar overzicht blijft en je alleen bij bewerken de details ziet.
+// Afgeleide beginstand van het formulier voor een bestaand item: een
+// teamkoppeling betekent altijd "team in deze tool"; een partij zonder
+// koppeling betekent het brontype van het item (of van de partij zelf), en
+// bij type 'team' dan "team buiten deze tool".
+function ioItemModeOf(item, externalParties) {
+  if (!item) return { type: '', teamMode: 'intern' }
+  if (item.linkedTeam) return { type: 'team', teamMode: 'intern' }
+  const hasParty = Boolean(item.externalPartyId || item.externalTeam)
+  const partyType = item.externalPartyId ? (externalParties.find((p) => p.id === item.externalPartyId)?.type ?? '') : ''
+  const type = item.bron_type || (hasParty ? partyType || 'stakeholder' : '')
+  return { type, teamMode: type === 'team' && hasParty ? 'extern' : 'intern' }
+}
+
+const FIELD_CLASS =
+  'w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none'
+
+// Formulier voor één input-/output-item. Eén leidende vraag — "van wie of
+// wat komt dit?" (input) of "naar wie of wat gaat dit?" (output) — en de
+// vervolgvelden hangen van dat antwoord af: bij een team in deze tool kies je
+// het item van dat team (of stelt een nieuw item voor, wat een
+// koppelingsverzoek wordt); bij een team buiten de tool, systeem, omgeving,
+// stakeholder, rol of persoon kies je optioneel een partij uit het register.
+// Voorheen stonden bron/bestemming, teamkoppeling en externe partij als drie
+// losse, elkaar overlappende velden naast elkaar — dat was niet te volgen.
 function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeamId, teamWorkflows, applications, externalParties, addExternalParty, t, language }) {
-  const [draft, setDraft] = useState(() => ({ ...emptyIoItem(kind), ...item }))
+  const isInput = kind === 'input'
   const isEditing = Boolean(item)
-  const linkedItems = kind === 'input' ? (teamWorkflows[draft.linkedTeam]?.outputs ?? []) : (teamWorkflows[draft.linkedTeam]?.inputs ?? [])
-  const linkedIdField = kind === 'input' ? 'linkedOutputId' : 'linkedInputId'
+  const [draft, setDraft] = useState(() => {
+    const mode = ioItemModeOf(item, externalParties)
+    // Nieuwe items starten expliciet als Applicatieflow (dat was de stille
+    // aanname op het canvas voor een leeg flowtype).
+    return { ...emptyIoItem(kind), flowtype: 'applicatieflow', ...item, bron_type: item?.bron_type || mode.type }
+  })
+  const [teamMode, setTeamMode] = useState(() => ioItemModeOf(item, externalParties).teamMode)
+  const type = draft.bron_type ?? ''
+  const linkedIdField = isInput ? 'linkedOutputId' : 'linkedInputId'
+  const linkedItems = isInput ? (teamWorkflows[draft.linkedTeam]?.outputs ?? []) : (teamWorkflows[draft.linkedTeam]?.inputs ?? [])
   const linkedTeamNaam = teams.find((tm) => tm.id === draft.linkedTeam)?.naam ?? '—'
   // Status alleen tonen zolang de koppeling nog dezelfde is als opgeslagen —
   // zodra het team wisselt, gaat de status bij opslaan toch opnieuw beginnen.
   const savedLinkStatus = item?.linkStatus && item.linkedTeam === draft.linkedTeam ? item.linkStatus : ''
+  const showTeamBlock = type === 'team'
+  const showPartyBlock = Boolean(type) && (type !== 'team' || teamMode === 'extern')
 
   function update(fields) {
     setDraft((d) => ({ ...d, ...fields }))
+  }
+
+  const clearLink = { linkedTeam: '', linkedOutputId: '', linkedInputId: '', linkNieuw: false, linkStatus: '' }
+  const clearParty = { externalPartyId: '', externalTeam: '' }
+
+  // Wisselen van type ruimt de velden op die bij het vorige antwoord hoorden:
+  // een teamkoppeling bestaat alleen bij 'team', een partij niet bij 'team in
+  // deze tool'.
+  function chooseType(next) {
+    if (next === 'team') {
+      update({ bron_type: 'team', ...(teamMode === 'intern' ? clearParty : clearLink) })
+      return
+    }
+    update({ bron_type: next, ...clearLink })
+  }
+  function chooseTeamMode(mode) {
+    setTeamMode(mode)
+    update(mode === 'intern' ? clearParty : clearLink)
   }
 
   function handleSubmit(e) {
@@ -1484,36 +1536,43 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
     onSave(draft)
   }
 
+  const title = isEditing
+    ? isInput
+      ? t('teampage.ioEditTitleInput')
+      : t('teampage.ioEditTitleOutput')
+    : isInput
+      ? t('teampage.ioAddTitleInput')
+      : t('teampage.ioAddTitleOutput')
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
-      <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white shadow-2xl">
+      <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
-          <h3 className="text-base font-semibold text-slate-900">
-            {isEditing ? t('teampage.ioEditTitle') : t('teampage.ioAddTitle')}
-          </h3>
+          <h3 className="text-base font-semibold text-slate-900">{title}</h3>
           <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
             ✕
           </button>
         </div>
-        <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
+        <form onSubmit={handleSubmit} className="space-y-4 px-5 py-4">
           <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{isInput ? t('teampage.ioNameInput') : t('teampage.ioNameOutput')}</label>
             <input
               autoFocus
               value={draft.label}
               onChange={(e) => update({ label: e.target.value })}
-              placeholder={t('teampage.ioLabelPlaceholder')}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+              placeholder={isInput ? t('teampage.ioNamePlaceholderInput') : t('teampage.ioNamePlaceholderOutput')}
+              className={`${FIELD_CLASS} text-slate-800 placeholder:text-slate-400`}
             />
           </div>
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">{t('form.flowtype')}</label>
-            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
+            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioFlowtypeLabel')}</label>
+            <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('teampage.ioFlowtypeLabel')}>
               {FLOWTYPE_LEVELS.map((value) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => update({ flowtype: draft.flowtype === value ? '' : value })}
+                  onClick={() => update({ flowtype: value })}
                   aria-pressed={draft.flowtype === value}
                   className={`rounded px-2.5 py-1 text-xs transition-colors ${
                     draft.flowtype === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
@@ -1523,84 +1582,112 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
                 </button>
               ))}
             </div>
+            <p className="mt-1 text-[11px] text-slate-400">{t('teampage.ioFlowtypeHint')}</p>
           </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">
-              {kind === 'input' ? t('teampage.ioBronLabel') : t('teampage.ioBestemmingLabel')}
-            </label>
+          <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+            <label className="block text-xs font-medium text-slate-600">{isInput ? t('teampage.ioSourceLabel') : t('teampage.ioDestinationLabel')}</label>
             <div className="flex items-center gap-1.5">
-              <select
-                value={draft.bron_type ?? ''}
-                onChange={(e) => update({ bron_type: e.target.value })}
-                className="flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-              >
-                <option value="">{kind === 'input' ? t('teampage.ioBronNone') : t('teampage.ioBestemmingNone')}</option>
+              <select value={type} onChange={(e) => chooseType(e.target.value)} className={FIELD_CLASS}>
+                <option value="">{t('teampage.ioSourceNone')}</option>
                 {BRON_TYPES.map((bron) => (
                   <option key={bron} value={bron}>
                     {translateBronType(bron, language)}
                   </option>
                 ))}
               </select>
-              {draft.bron_type && (
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(draft.bron_type) }} />
-              )}
+              {type && <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(type) }} />}
             </div>
-          </div>
 
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioLinkLabel')}</label>
-            <div className="flex flex-col gap-1.5">
-              <select
-                value={draft.linkedTeam ?? ''}
-                onChange={(e) => update({ linkedTeam: e.target.value, linkedOutputId: '', linkedInputId: '' })}
-                className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-              >
-                <option value="">{t('teampage.ioLinkNone')}</option>
-                {teams
-                  .filter((tm) => tm.id !== currentTeamId)
-                  .map((tm) => (
-                    <option key={tm.id} value={tm.id}>
-                      {tm.naam}
-                    </option>
-                  ))}
-              </select>
-              {draft.linkedTeam && (
+            {showTeamBlock && (
+              <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('teampage.ioTeamWhich')}>
+                {['intern', 'extern'].map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => chooseTeamMode(mode)}
+                    aria-pressed={teamMode === mode}
+                    className={`rounded px-2.5 py-1 text-xs transition-colors ${
+                      teamMode === mode ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    {mode === 'intern' ? t('teampage.ioTeamInTool') : t('teampage.ioTeamOutsideTool')}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {showTeamBlock && teamMode === 'intern' && (
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-medium text-slate-500">{t('teampage.ioTeamWhich')}</label>
                 <select
-                  value={draft.linkNieuw ? NEW_LINK_ITEM : (draft[linkedIdField] ?? '')}
-                  onChange={(e) =>
-                    e.target.value === NEW_LINK_ITEM
-                      ? update({ [linkedIdField]: '', linkNieuw: true })
-                      : update({ [linkedIdField]: e.target.value, linkNieuw: false })
-                  }
-                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+                  value={draft.linkedTeam ?? ''}
+                  onChange={(e) => update({ linkedTeam: e.target.value, linkedOutputId: '', linkedInputId: '', linkNieuw: false })}
+                  className={FIELD_CLASS}
                 >
-                  <option value="">{kind === 'input' ? t('teampage.ioLinkItemPlaceholder') : t('teampage.ioLinkInputPlaceholder')}</option>
-                  {linkedItems.map((linkedItem) => (
-                    <option key={linkedItem.id} value={linkedItem.id}>
-                      {linkedItem.label || '—'}
-                    </option>
-                  ))}
-                  <option value={NEW_LINK_ITEM}>{t('teampage.ioLinkNewItem', { team: linkedTeamNaam })}</option>
+                  <option value="">{t('teampage.ioLinkTeamPlaceholder')}</option>
+                  {teams
+                    .filter((tm) => tm.id !== currentTeamId)
+                    .map((tm) => (
+                      <option key={tm.id} value={tm.id}>
+                        {tm.naam}
+                      </option>
+                    ))}
                 </select>
-              )}
-              {savedLinkStatus && (
-                <span className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${LINK_STATUS_CHIP[savedLinkStatus]}`}>
-                  {t(LINK_STATUS_STRING_KEY[savedLinkStatus], { team: linkedTeamNaam })}
-                </span>
-              )}
-              {draft.linkedTeam && <p className="text-[11px] text-slate-400">{t('teampage.ioLinkStatusHint')}</p>}
-            </div>
+                {draft.linkedTeam && (
+                  <>
+                    <label className="block text-[11px] font-medium text-slate-500">
+                      {isInput ? t('teampage.ioTeamItemInput', { team: linkedTeamNaam }) : t('teampage.ioTeamItemOutput', { team: linkedTeamNaam })}
+                    </label>
+                    <select
+                      value={draft.linkNieuw ? NEW_LINK_ITEM : (draft[linkedIdField] ?? '')}
+                      onChange={(e) =>
+                        e.target.value === NEW_LINK_ITEM
+                          ? update({ [linkedIdField]: '', linkNieuw: true })
+                          : update({ [linkedIdField]: e.target.value, linkNieuw: false })
+                      }
+                      className={FIELD_CLASS}
+                    >
+                      <option value="">{isInput ? t('teampage.ioLinkItemPlaceholder') : t('teampage.ioLinkInputPlaceholder')}</option>
+                      {linkedItems.map((linkedItem) => (
+                        <option key={linkedItem.id} value={linkedItem.id}>
+                          {linkedItem.label || '—'}
+                        </option>
+                      ))}
+                      <option value={NEW_LINK_ITEM}>{t('teampage.ioLinkNewItem', { team: linkedTeamNaam })}</option>
+                    </select>
+                  </>
+                )}
+                {savedLinkStatus && (
+                  <span className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${LINK_STATUS_CHIP[savedLinkStatus]}`}>
+                    {t(LINK_STATUS_STRING_KEY[savedLinkStatus], { team: linkedTeamNaam })}
+                  </span>
+                )}
+                <p className="text-[11px] text-slate-400">{t('teampage.ioLinkStatusHint')}</p>
+              </div>
+            )}
+
+            {showPartyBlock && (
+              <div className="space-y-1.5">
+                <label className="block text-[11px] font-medium text-slate-500">{t('teampage.ioPartyLabel')}</label>
+                <PartyPicker
+                  value={draft.externalPartyId}
+                  onChange={(id, naam) => update({ externalPartyId: id, externalTeam: naam })}
+                  externalParties={externalParties}
+                  addExternalParty={addExternalParty}
+                  currentTeamId={currentTeamId}
+                  t={t}
+                  language={language}
+                />
+                <p className="text-[11px] text-slate-400">{t('teampage.ioPartyHint')}</p>
+              </div>
+            )}
           </div>
 
           {applications.length > 0 && (
             <div>
               <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioApplicatieLabel')}</label>
-              <select
-                value={draft.applicatieId ?? ''}
-                onChange={(e) => update({ applicatieId: e.target.value })}
-                className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
-              >
+              <select value={draft.applicatieId ?? ''} onChange={(e) => update({ applicatieId: e.target.value })} className={FIELD_CLASS}>
                 <option value="">{t('teampage.ioApplicatieNone')}</option>
                 {applications.map((app) => (
                   <option key={app.id} value={app.id}>
@@ -1610,19 +1697,6 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
               </select>
             </div>
           )}
-
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.ioExternalTeamLabel')}</label>
-            <PartyPicker
-              value={draft.externalPartyId}
-              onChange={(id, naam) => update({ externalPartyId: id, externalTeam: naam })}
-              externalParties={externalParties}
-              addExternalParty={addExternalParty}
-              currentTeamId={currentTeamId}
-              t={t}
-              language={language}
-            />
-          </div>
 
           <div className="flex items-center justify-between gap-2 border-t border-slate-200 pt-3">
             {isEditing ? (
