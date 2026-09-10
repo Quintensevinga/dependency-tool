@@ -418,7 +418,7 @@ function FocusForwardEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd
 }
 
 // Koppeling tussen twee teams in DEZELFDE kolom (boven/onder elkaar gestapeld,
-// bv. Team Tiem → Team Polis): de onderlangse boog van FocusBackflowEdge werkt
+// bv. Team Fantastic Four → Team Wakanda): de onderlangse boog van FocusBackflowEdge werkt
 // hier averechts — bron en doel delen vrijwel dezelfde x, dus de afdaling
 // onder de héle tekening en weer omhoog naar het doel loopt bijna loodrecht
 // dwars door het doelkaartje heen zodra dat de hoogste kaart van de tekening

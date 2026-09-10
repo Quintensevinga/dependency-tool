@@ -3,6 +3,47 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Teamnamen in mockdata omgezet naar Marvel-thema** (Quinten)
+
+  Elke naam gekozen op basis van de functie van het team in de keten
+  (bv. Polis → Wakanda voor het kennisrisico-zwaartepunt, Smurfen →
+  S.H.I.E.L.D. voor de IAM/toegangshub). Team-id's en interne
+  referenties (T.*, DEPS_*) blijven ongewijzigd; alleen weergavenamen
+  en prozateksten zijn aangepast. "Polis" als generieke verzekerings-
+  term (polisadministratie, polisstatus, ...) blijft intact.
+
+- **Voorbeelddata verversen bij inhoudelijke wijziging voor bestaande bezoekers** (Quinten)
+
+  MOCK_DATA_VERSION naast SCHEMA_VERSION: wie de site al opende maar nog geen
+  eigen data invoerde (usingMockData: true) krijgt bij een verouderde versie
+  automatisch de nieuwste voorbeelddata i.p.v. vast te blijven zitten op wat
+  ooit geseed is. Echte gebruikersdata blijft altijd ongemoeid. Op 2 gezet
+  zodat dit ook de aankomende Marvel-teamnamen in mockData.js meeneemt.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Analyse: rapport in lopende tekst, waarschuwingen per geval en 14 extra analyses** (Quinten)
+
+  - src/lib/analyseTeksten.js: tekstlaag (nl/en) met sjablonen — rapport in
+    acht alinea's (samenvatting, ontwikkeling, risico, teams, keten en
+    partijen, applicaties en proces, datakwaliteit, aanbevelingen) dat het
+    teamfilter volgt en te kopiëren is; één zin per waarschuwing; per
+    constatering een samenvattende zin (verdeling over teams, hoogste risico,
+    oudste); werkwoordsvormen volgen het aantal
+  - analytics.js: score-verandering in 30 dagen, leeftijdsverdeling,
+    statusovergangen (mitigatie hield geen stand, heropend), lineaire
+    projectie, ketenrisico stroomop- en -afwaarts, wederzijdse
+    afhankelijkheden, kaartvolledigheid, concentratie (top 3), teamscorekaart
+    met gemiddelde, gedeelde applicaties via ketenkoppelingen, laatste
+    activiteit per team, dubbele registraties; sluimerend, geparkeerd-maar-hoog
+    en gemitigeerd-niet-gesloten; twaalf nieuwe constateringsregels en de
+    geprioriteerde signalenlijst
+  - AnalysePage: secties Rapport en Waarschuwingen, springnavigatie, kaarten
+    voor alle nieuwe analyses
+  - mockdata: vier mitigaties die geen stand hielden en twee heropende
+    dependencies, zodat de levensloopanalyses iets laten zien
+  - handleiding hoofdstuk 12 en README bijgewerkt
+
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
 - **Analysepagina: metrieken, trends, constateringen en hygiënecontroles over alle data** (Quinten)

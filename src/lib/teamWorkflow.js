@@ -201,8 +201,8 @@ export function aggregateChainLinks(chainEdges) {
 // cyclus) wordt niet nogmaals toegevoegd — de aanroeper herkent zo'n
 // koppeling zelf via columnOf (doel-kolom <= bron-kolom) en tekent 'm als
 // terugkoppeling i.p.v. als nieuwe stap. Voorkomt oneindig doorlopen bij een
-// cyclus in de data (bv. Casio -> Sterke verhalen -> Equinox -> Casio, zoals
-// in de mockdata voorkomt).
+// cyclus in de data (bv. Stark Industries -> Daily Bugle -> Asgard -> Stark
+// Industries, zoals in de mockdata voorkomt).
 export function traceForwardChain(focusTeamId, teams, chainEdges) {
   const teamIds = new Set(teams.map((t) => t.id))
   if (!teamIds.has(focusTeamId)) return { columns: [], columnOf: new Map() }
