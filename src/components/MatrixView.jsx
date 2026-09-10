@@ -5,6 +5,7 @@ import { calculateRisk } from '../lib/risk'
 import ScopeToggle from './ScopeToggle'
 import DependencyTable from './DependencyTable'
 import TeamFilterPanel from './TeamFilterPanel'
+import { useTeamSelection } from '../lib/useTeamSelection'
 import { translateWorkflowStap, translateEffectOpFlow } from '../i18n/labels'
 import { RISK_LEVELS, WORKFLOW_STAP_LEVELS, EFFECT_OP_FLOW_LEVELS } from '../data/constants'
 
@@ -13,25 +14,14 @@ export default function MatrixView({ onSelect, adminSections }) {
   const { t, language } = useLanguage()
   const [sortBy, setSortBy] = useState('risk_desc')
   // Matrix is een organisatiebreed overzicht en start dus altijd bij alle
-  // teams — teamnavigatie (sidebar) en view-filtering (hier) zijn losgekoppeld.
-  // Uitgesloten-set i.p.v. een lijst van geselecteerde ids (zelfde patroon als
-  // GraphView.jsx) — een team dat later bijkomt (addTeam of JSON-import) staat
-  // zo automatisch al in de zichtbare stand, in plaats van nooit geselecteerd
-  // te zijn omdat de initiële state maar één keer werd bepaald.
-  const [deselectedTeamIds, setDeselectedTeamIds] = useState(() => new Set())
-  const selectedTeams = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
+  // teams (ook gearchiveerde: includeArchived) — teamnavigatie (sidebar) en
+  // view-filtering (hier) zijn losgekoppeld. Zelfde hook als Heatmap/
+  // Relatiekaart en Ketenoverzicht: een team dat later bijkomt (addTeam of
+  // JSON-import) staat automatisch in de zichtbare stand.
+  const { selectedTeamIds: selectedTeams, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams, { includeArchived: true })
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
   const [selectedEffectOpFlow, setSelectedEffectOpFlow] = useState([...EFFECT_OP_FLOW_LEVELS, ''])
-
-  function toggleTeam(id) {
-    setDeselectedTeamIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
 
   function toggleRiskLevel(level) {
     setSelectedRiskLevels((prev) => (prev.includes(level) ? prev.filter((x) => x !== level) : [...prev, level]))
@@ -121,8 +111,8 @@ export default function MatrixView({ onSelect, adminSections }) {
         teams={teams}
         selected={selectedTeams}
         onToggle={toggleTeam}
-        onSelectAll={() => setDeselectedTeamIds(new Set())}
-        onSelectNone={() => setDeselectedTeamIds(new Set(teams.map((tm) => tm.id)))}
+        onSelectAll={selectAllTeams}
+        onSelectNone={selectNoTeams}
         riskLevels={selectedRiskLevels}
         onToggleRisk={toggleRiskLevel}
         onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import ReactFlow, { Background, Controls, Handle, Position } from 'reactflow'
 import 'reactflow/dist/style.css'
 import { useAppContext } from '../context/AppContext'
@@ -19,6 +19,7 @@ import DependencyTable from './DependencyTable'
 import ScopeToggle from './ScopeToggle'
 import { useModalA11y } from '../lib/a11y'
 import { useMergedLayout } from './flow/useMergedLayout'
+import { useTeamSelection } from '../lib/useTeamSelection'
 
 function highestRisk(deps) {
   let best = { level: 'Laag', score: 0 }
@@ -52,9 +53,16 @@ function groupByTeamCategory(visibleDependencies) {
 // stip van een paar pixels is in de praktijk vrijwel onvindbaar met een muis.
 // De balk is bewust groot (grote hit-area) maar rustig getint zodat hij niet
 // domineert; op hover licht hij op als duidelijke sleep-affordance.
+// Verticale balk aan de zijkant van het blokje: de Relatiekaart is een
+// links/rechts-layout (teams links, categorieën rechts, zie computeLayout),
+// dus lijnen vertrekken rechts uit een team en komen links een categorie
+// binnen. Met de vroegere onder-/bovenkant-handles (uit de tijd dat teams
+// bovenaan en categorieën onderaan stonden) liepen alle lijnen dwars door
+// de blokjes eronder/erboven en ving een gemarkeerde lijn de klik op het
+// blokje weg.
 const handleStyle = {
-  width: '55%',
-  height: 11,
+  width: 11,
+  height: '55%',
   borderRadius: 5,
   background: '#2a5f8a',
   border: '2px solid white',
@@ -73,8 +81,8 @@ function TeamNode({ data }) {
       className="cursor-grab rounded-xl border-2 bg-white px-4 py-3 shadow-md transition-all duration-200 hover:shadow-lg active:cursor-grabbing"
       style={{ borderColor: data.count > 0 ? style.hex : '#cbd5e1', minWidth: 168, opacity: dimmed ? 0.3 : 1 }}
     >
-      <Handle type="target" position={Position.Bottom} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
-      <Handle type="source" position={Position.Bottom} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
+      <Handle type="target" position={Position.Right} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
+      <Handle type="source" position={Position.Right} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
       <div className="text-sm font-semibold text-slate-800">{data.label}</div>
       {data.count > 0 ? (
         <div className={`mt-1.5 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>
@@ -97,8 +105,8 @@ function CategoryNode({ data }) {
       className="cursor-pointer rounded-xl border-2 border-dashed bg-slate-50/80 px-3 py-2 shadow-sm transition-all duration-200"
       style={{ width: 156, borderColor: data.selected ? style.hex : '#cbd5e1', opacity: dimmed ? 0.25 : 1 }}
     >
-      <Handle type="source" position={Position.Top} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
-      <Handle type="target" position={Position.Top} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
+      <Handle type="source" position={Position.Left} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
+      <Handle type="target" position={Position.Left} style={handleStyle} className={handleClassName} title={HANDLE_HINT} />
       <div className="mb-1 flex items-center gap-1.5">
         <CategoryIcon categorie={data.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-500" />
         <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{t('graph.categoryNode')}</span>
@@ -132,6 +140,13 @@ function EdgeLabel({ categorie, count }) {
 // categorieën (dezelfde taxonomie als het matrix-overzicht) als verticale
 // rail rechts — leesbaarder dan een volle grid met kruisende lijnen, en beter
 // geschikt voor hover-gebaseerde focus (zie hoverTeamId state).
+// Bovenrand van de eerste rij en de ondergrens waaronder de labels op de
+// kaartjes niet meer leesbaar zijn. Bij ~16 categorieën is de layout zo hoog
+// dat een gewone fitView tot ver onder die grens uitzoomt; fitReadable kapt
+// dat af en zet de kaart op de bovenste rij i.p.v. midden in de lijst.
+const LAYOUT_TOP_Y = 20
+const MIN_READABLE_ZOOM = 0.55
+
 function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
   const TEAM_NODE_WIDTH = 210
   const ROW_H = 96
@@ -145,7 +160,7 @@ function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
     return {
       id: `team:${team.id}`,
       type: 'team',
-      position: { x: 0, y: 20 + i * ROW_H },
+      position: { x: 0, y: LAYOUT_TOP_Y + i * ROW_H },
       data: { label: teamLabels[team.id] ?? team.naam, count: teamDeps.length, risk: highestRisk(teamDeps), deps: teamDeps },
       draggable: true,
     }
@@ -157,7 +172,7 @@ function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
     nodeList.push({
       id: `cat:${categorie}`,
       type: 'category',
-      position: { x: TEAM_NODE_WIDTH + COLUMN_GAP, y: 20 + i * ROW_H },
+      position: { x: TEAM_NODE_WIDTH + COLUMN_GAP, y: LAYOUT_TOP_Y + i * ROW_H },
       data: { categorie, count: catDeps.length, teamCount, risk: highestRisk(catDeps), deps: catDeps },
       draggable: true,
     })
@@ -189,6 +204,36 @@ function computeLayout(visibleTeams, visibleDependencies, teamLabels = {}) {
   return { nodes: nodeList, edges: routedEdges, categoriesPresent, graphHeight }
 }
 
+// fitView met een leesbaarheidsvloer. Zonder ondergrens zoomde de kaart bij
+// veel categorieën zo ver uit dat de teamnamen onleesbaar werden; met alleen
+// een ondergrens blijft fitView centreren en begin je midden in de lijst.
+// Vandaar de correctie naar de bovenste rij zodra de zoom is afgekapt.
+// Bewust zonder animatie: de correctie moet in dezelfde tick als de fit
+// gebeuren, en een geanimeerde fit levert pas ná de animatie een leesbare
+// zoomwaarde op.
+function fitReadable(instance) {
+  if (!instance) return
+  instance.fitView({ padding: 0.15, minZoom: MIN_READABLE_ZOOM })
+  const zoom = instance.getZoom()
+  if (zoom > MIN_READABLE_ZOOM + 0.001) return
+  const { x } = instance.getViewport()
+  instance.setViewport({ x, y: 24 - LAYOUT_TOP_Y * zoom, zoom })
+}
+
+// fitView kan pas rekenen zodra reactflow de nodes heeft opgemeten; bij een
+// aanroep in onInit is dat nog niet zo (zoom staat dan nog op 1 en fitView
+// doet niets). Vandaar dit wachten per frame — niet op een vaste timeout, die
+// is op een langzame machine te kort en op een snelle onnodig lang.
+function fitReadableWhenMeasured(instance, tries = 20) {
+  if (!instance) return
+  const nodes = instance.getNodes()
+  if (tries <= 0 || (nodes.length > 0 && nodes.every((n) => n.width))) {
+    fitReadable(instance)
+    return
+  }
+  window.requestAnimationFrame(() => fitReadableWhenMeasured(instance, tries - 1))
+}
+
 export default function GraphView({
   onSelect,
   onQuickCreate,
@@ -202,12 +247,17 @@ export default function GraphView({
 }) {
   const { teams, dependencies, teamLabels } = useAppContext()
   const { t, language } = useLanguage()
-  const [listPanel, setListPanel] = useState(null)
+  // Selectie voor de lijst onder de Relatiekaart: alleen de sleutel (node,
+  // lijn of team/categorie-paar). Titel en dependencies worden verderop live
+  // uit de actuele nodes/edges afgeleid (zie listPanel), zodat een bewerking,
+  // sluiting of verwijdering vanuit het detailpaneel meteen in de lijst
+  // doorwerkt — de vroegere momentopname van de deps-array bleef verouderde
+  // rijen (en een verouderd aantal) tonen.
+  const [listSelection, setListSelection] = useState(null) // { kind: 'node'|'edge'|'pair', id?, teamId?, categorie? }
   const [hover, setHover] = useState(null) // { x, y, kind: 'node'|'edge', payload }
-  // Gearchiveerde teams staan bij openen standaard uit (verdwijnen uit de
-  // standaardselectie), maar blijven aan- te vinken zodat historische data
-  // opvraagbaar blijft.
-  const [deselectedTeamIds, setDeselectedTeamIds] = useState(() => new Set(teams.filter((tm) => !tm.actief).map((tm) => tm.id)))
+  // Gearchiveerde teams staan standaard uit, maar blijven aan te vinken zodat
+  // historische data opvraagbaar blijft — zie useTeamSelection.
+  const { selectedTeamIds, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams)
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   const [highlightedCategory, setHighlightedCategory] = useState(null)
   // Presentatie-only focus-op-hover, geen databewerking. Bevat de node-id
@@ -242,8 +292,6 @@ export default function GraphView({
   // Relatiekaart tonen 'm nooit tegelijk (ze wisselen elkaar af via viewMode).
   const [legendOpen, setLegendOpen] = useState(false)
 
-  const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
-
   const visibleTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
   const visibleDependencies = useMemo(
     () =>
@@ -275,37 +323,60 @@ export default function GraphView({
   // Cluster/Heatmap zodat alle drie modi exact dezelfde data tonen.
   const groups = useMemo(() => groupByTeamCategory(visibleDependencies), [visibleDependencies])
 
-  // Titel + dependencies voor de huidige Heatmap-selectie — team en/of
-  // categorie mag leeg zijn (hele rij resp. hele kolom), net als bij
-  // pinnedPair hierboven.
-  const heatmapSelectionInfo = useMemo(() => {
-    if (!heatmapSelection) return null
-    const { teamId, categorie } = heatmapSelection
-    const team = teamId ? teams.find((tm) => tm.id === teamId) : null
-    let deps
-    let title
-    if (teamId && categorie) {
-      deps = groups.get(`${teamId}::${categorie}`) ?? []
-      title = `${team?.naam ?? teamId} → ${translateCategorie(categorie, language)}`
-    } else if (teamId) {
-      deps = visibleDependencies.filter((d) => d.teamId === teamId)
-      title = team?.naam ?? teamId
-    } else {
-      deps = visibleDependencies.filter((d) => d.categorie === categorie)
-      title = translateCategorie(categorie, language)
+  // Titel + dependencies voor een team en/of categorie — team of categorie
+  // mag leeg zijn (hele rij resp. hele kolom). Gedeeld door de Heatmap-
+  // selectie, de doorklik-pin en de lijst onder de Relatiekaart, en altijd
+  // berekend op de actuele (gefilterde) dependencies.
+  const selectionInfo = useCallback(
+    (teamId, categorie) => {
+      const team = teamId ? teams.find((tm) => tm.id === teamId) : null
+      const teamNaam = team ? (teamLabels[team.id] ?? team.naam) : teamId
+      let deps
+      let title
+      if (teamId && categorie) {
+        deps = groups.get(`${teamId}::${categorie}`) ?? []
+        title = `${teamNaam} → ${translateCategorie(categorie, language)}`
+      } else if (teamId) {
+        deps = visibleDependencies.filter((d) => d.teamId === teamId)
+        title = teamNaam
+      } else {
+        deps = visibleDependencies.filter((d) => d.categorie === categorie)
+        title = translateCategorie(categorie, language)
+      }
+      return { teamId: teamId ?? null, categorie: categorie ?? null, team, deps, title }
+    },
+    [teams, teamLabels, groups, visibleDependencies, language],
+  )
+
+  const heatmapSelectionInfo = useMemo(
+    () => (heatmapSelection ? selectionInfo(heatmapSelection.teamId, heatmapSelection.categorie) : null),
+    [heatmapSelection, selectionInfo],
+  )
+
+  // Live afgeleid uit de huidige nodes/edges/groepen — nooit een bewaarde
+  // momentopname (zie listSelection). Verdwijnt de selectie uit beeld (team
+  // uitgevinkt, laatste dependency gesloten), dan sluit de lijst vanzelf.
+  const listPanel = useMemo(() => {
+    if (!listSelection) return null
+    if (listSelection.kind === 'node') {
+      const node = nodes.find((n) => n.id === listSelection.id)
+      if (!node || node.data.deps.length === 0) return null
+      return { title: node.type === 'team' ? node.data.label : translateCategorie(node.data.categorie, language), deps: node.data.deps }
     }
-    return { teamId, categorie, team, deps, title }
-  }, [heatmapSelection, groups, visibleDependencies, teams, language])
+    if (listSelection.kind === 'edge') {
+      const edge = edges.find((e) => e.id === listSelection.id)
+      if (!edge || edge.data.deps.length === 0) return null
+      return { title: `${edge.data.sourceLabel} → ${translateCategorie(edge.data.targetLabel, language)}`, deps: edge.data.deps }
+    }
+    const info = selectionInfo(listSelection.teamId, listSelection.categorie)
+    return info.deps.length > 0 ? { title: info.title, deps: info.deps } : null
+  }, [listSelection, nodes, edges, selectionInfo, language])
 
   // Alleen selecteren als er ook echt iets te tonen valt — lege rijen/
   // kolommen/cellen (geen dependencies) openen geen lege detailsectie.
   function selectHeatmapCell(team, categorie) {
     const teamId = team ? team.id : null
-    let deps
-    if (teamId && categorie) deps = groups.get(`${teamId}::${categorie}`) ?? []
-    else if (teamId) deps = visibleDependencies.filter((d) => d.teamId === teamId)
-    else deps = visibleDependencies.filter((d) => d.categorie === categorie)
-    if (deps.length === 0) return
+    if (selectionInfo(teamId, categorie ?? null).deps.length === 0) return
     setHeatmapSelection({ teamId, categorie: categorie ?? null })
   }
 
@@ -334,21 +405,7 @@ export default function GraphView({
     }
     const { teamId = null, categorie = null } = highlight
     setPinnedPair({ teamId, categorie })
-    const team = teamId ? teams.find((tm) => tm.id === teamId) : null
-    let deps
-    let title
-    if (teamId && categorie) {
-      deps = groups.get(`${teamId}::${categorie}`) ?? []
-      title = `${team?.naam ?? teamId} → ${translateCategorie(categorie, language)}`
-    } else if (teamId) {
-      deps = visibleDependencies.filter((d) => d.teamId === teamId)
-      title = team?.naam ?? teamId
-    } else {
-      deps = visibleDependencies.filter((d) => d.categorie === categorie)
-      title = translateCategorie(categorie, language)
-    }
-    if (deps.length > 0) setListPanel({ title, deps })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setListSelection({ kind: 'pair', teamId, categorie })
   }, [highlight])
 
   // Highlight-status toepassen op de weergegeven (niet de bewaarde) nodes/edges,
@@ -431,15 +488,6 @@ export default function GraphView({
     return edges
   }, [edges, highlightedCategory, hoverNodeId, pinnedPair])
 
-  function toggleTeam(teamId) {
-    setDeselectedTeamIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(teamId)) next.delete(teamId)
-      else next.add(teamId)
-      return next
-    })
-  }
-
   function toggleRiskLevel(level) {
     setSelectedRiskLevels((prev) => (prev.includes(level) ? prev.filter((x) => x !== level) : [...prev, level]))
   }
@@ -448,7 +496,11 @@ export default function GraphView({
     setSelectedWorkflowStap((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]))
   }
 
+  // Een legenda-klik wint van een eventuele doorklik-pin (die zou de
+  // categorie-markering anders volledig overstemmen, zie displayNodes/
+  // displayEdges: pinnedPair gaat daar vóór highlightedCategory).
   function toggleHighlight(categorie) {
+    if (pinnedPair) clearPinnedPair()
     setHighlightedCategory((prev) => (prev === categorie ? null : categorie))
   }
 
@@ -458,7 +510,7 @@ export default function GraphView({
   }
 
   function closeListPanel() {
-    setListPanel(null)
+    setListSelection(null)
     if (pinnedPair) clearPinnedPair()
   }
 
@@ -537,7 +589,10 @@ export default function GraphView({
   }
 
   function handleConnect(connection) {
-    if (!onQuickCreate || !connection.source || !connection.target || connection.source === connection.target) return
+    // Alleen team → categorie (zelfde regel als isValidConnection hieronder):
+    // een team → team-verbinding leverde anders een dependency op met de
+    // node-id van het andere team als categorie.
+    if (!onQuickCreate || !connection.source?.startsWith('team:') || !connection.target?.startsWith('cat:')) return
     const sourceTeamId = connection.source.replace(/^team:/, '')
     const categorie = connection.target.replace(/^cat:/, '')
     const scope = CATEGORIES_INTERN.includes(categorie) ? 'intern' : 'extern'
@@ -546,12 +601,13 @@ export default function GraphView({
 
   function openNodeListPanel(node) {
     if (node.data.deps.length === 0) return
-    const title = node.type === 'team' ? node.data.label : translateCategorie(node.data.categorie, language)
-    setListPanel({ title, deps: node.data.deps })
+    setListSelection({ kind: 'node', id: node.id })
   }
 
+  // trapFocus: false — de lijst is een sectie ín de pagina (geen modal), dus
+  // Tab moet gewoon verder de pagina in kunnen; Escape sluit 'm wel.
   const listPanelRef = useRef(null)
-  useModalA11y({ open: Boolean(listPanel), onClose: closeListPanel, containerRef: listPanelRef })
+  useModalA11y({ open: Boolean(listPanel), onClose: closeListPanel, containerRef: listPanelRef, trapFocus: false })
 
   // Past de Relatiekaart opnieuw in beeld wanneer de zijbalk *definitief*
   // wisselt (open/iconen/auto) en daardoor de beschikbare canvasbreedte
@@ -567,13 +623,13 @@ export default function GraphView({
     }
     if (viewMode !== 'bipartite') return
     const id = window.setTimeout(() => {
-      flowInstanceRef.current?.fitView({ padding: 0.15, duration: 200 })
+      fitReadable(flowInstanceRef.current)
     }, 220)
     return () => window.clearTimeout(id)
   }, [sidebarMode, viewMode])
 
   const heatmapPanelRef = useRef(null)
-  useModalA11y({ open: Boolean(heatmapSelection), onClose: clearHeatmapSelection, containerRef: heatmapPanelRef })
+  useModalA11y({ open: Boolean(heatmapSelection), onClose: clearHeatmapSelection, containerRef: heatmapPanelRef, trapFocus: false })
 
   // De sidebar laat Heatmap/Relatiekaart al weg als de bijbehorende sectie
   // via Admin uitstaat, maar viewMode zelf (App.jsx-state) kan daar los van
@@ -630,7 +686,7 @@ export default function GraphView({
             nodeTypes={nodeTypes}
             onNodesChange={onNodesChange}
             onConnect={handleConnect}
-            isValidConnection={(connection) => connection.source?.startsWith('team:')}
+            isValidConnection={(connection) => Boolean(connection.source?.startsWith('team:') && connection.target?.startsWith('cat:'))}
             onNodeClick={(_, node) => openNodeListPanel(node)}
             onNodeMouseEnter={(event, node) => {
               if (node.type === 'team' || node.type === 'category') setHoverNodeId(node.id)
@@ -645,20 +701,16 @@ export default function GraphView({
               setHoverNodeId(null)
               setHover(null)
             }}
-            onEdgeClick={(_, edge) => {
-              setListPanel({
-                title: `${edge.data.sourceLabel} → ${translateCategorie(edge.data.targetLabel, language)}`,
-                deps: edge.data.deps,
-              })
-            }}
+            onEdgeClick={(_, edge) => setListSelection({ kind: 'edge', id: edge.id })}
             onEdgeMouseEnter={(event, edge) => setHover({ x: event.clientX, y: event.clientY, kind: 'edge', payload: edge.data })}
             onEdgeMouseMove={(event) => setHover((prev) => (prev ? { ...prev, x: event.clientX, y: event.clientY } : prev))}
             onEdgeMouseLeave={() => setHover(null)}
             onInit={(instance) => {
               flowInstanceRef.current = instance
+              fitReadableWhenMeasured(instance)
             }}
             fitView
-            fitViewOptions={{ padding: 0.15 }}
+            fitViewOptions={{ padding: 0.15, minZoom: MIN_READABLE_ZOOM }}
             minZoom={0.2}
             maxZoom={2}
             proOptions={{ hideAttribution: true }}
@@ -787,7 +839,9 @@ export default function GraphView({
                             // Zonder aria-label is de toegankelijke naam van deze
                             // knop alleen het getal ('3'); je hoort dan niet bij
                             // welk team of welke categorie die cel hoort.
-                            aria-label={t('graph.heatmapCellLabel', {
+                            // Enkelvoud apart: één dependency las voorheen als
+                            // "1 dependencies" in de schermlezer.
+                            aria-label={t(deps.length === 1 ? 'graph.heatmapCellLabelEen' : 'graph.heatmapCellLabel', {
                               team: teamLabels[team.id] ?? team.naam,
                               categorie: translateCategorie(cat, language),
                               count: deps.length,
@@ -970,8 +1024,8 @@ export default function GraphView({
         teams={teams}
         selected={selectedTeamIds}
         onToggle={toggleTeam}
-        onSelectAll={() => setDeselectedTeamIds(new Set())}
-        onSelectNone={() => setDeselectedTeamIds(new Set(teams.map((tm) => tm.id)))}
+        onSelectAll={selectAllTeams}
+        onSelectNone={selectNoTeams}
         riskLevels={selectedRiskLevels}
         onToggleRisk={toggleRiskLevel}
         onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}

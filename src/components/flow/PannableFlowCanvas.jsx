@@ -39,6 +39,9 @@ export default function PannableFlowCanvas({
   // de node-kaarten i.p.v. erachter — nodig om een lijn duidelijk te kunnen
   // volgen zodra hij onder meerdere kaarten door loopt (Focusmodus).
   elevateEdgesOnSelect = false,
+  // Uit te zetten voor canvassen zonder onConnect (teampagina): anders kan de
+  // gebruiker vanaf een handle een verbindingslijn trekken die nergens toe leidt.
+  nodesConnectable = true,
   children,
 }) {
   return (
@@ -73,7 +76,7 @@ export default function PannableFlowCanvas({
       maxZoom={maxZoom}
       elevateEdgesOnSelect={elevateEdgesOnSelect}
       proOptions={{ hideAttribution: true }}
-      nodesConnectable
+      nodesConnectable={nodesConnectable}
       nodesDraggable
       elementsSelectable
       panOnDrag

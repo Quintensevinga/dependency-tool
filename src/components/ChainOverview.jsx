@@ -11,6 +11,7 @@ import { resolveChainEdges, orderTeamsByChain, traceForwardChain } from '../lib/
 import { emptyTeamWorkflow } from '../lib/storage'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
+import { useTeamSelection } from '../lib/useTeamSelection'
 import TeamFilterPanel from './TeamFilterPanel'
 import ScopeToggle from './ScopeToggle'
 
@@ -282,7 +283,10 @@ const CONNECTION_COLORS = ['#0ea5e9', '#4338ca', '#9333ea', '#0d9488', '#d97706'
 const FC_CARD_WIDTH = 230
 const FC_COLUMN_GAP = 70
 const FC_ROW_GAP = 28
-const FC_CARD_HEADER_HEIGHT = 55
+// Kop = teamnaam + risicobadge (zie FocusChainCardNode) — de schatting moet
+// meegroeien met wat er echt in de kop staat, anders overlapt de kaart de
+// kaart eronder.
+const FC_CARD_HEADER_HEIGHT = 80
 const BACKFLOW_DIP = 70
 const BACKFLOW_LANE_GAP = 22
 const SIDESTEP_BULGE = 45
@@ -302,8 +306,8 @@ function FocusChainCardNode({ id, data }) {
 
   return (
     <div
-      className="relative cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md hover:shadow-lg"
-      style={{ width: FC_CARD_WIDTH, borderColor: data.isFocus ? '#2a5f8a' : '#cbd5e1' }}
+      className="relative cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md transition-opacity hover:shadow-lg"
+      style={{ width: FC_CARD_WIDTH, borderColor: data.isFocus ? '#2a5f8a' : '#cbd5e1', opacity: data.risk?.dimmed ? 0.4 : 1 }}
       title={t('chain.clickToFocusHint')}
     >
       {/* Kaart-handles (naast de item-handles hieronder): voor lijnen die aan
@@ -314,6 +318,18 @@ function FocusChainCardNode({ id, data }) {
       <Handle type="source" position={Position.Right} id="card-out" style={{ top: 30, opacity: 0.4 }} />
       <Handle type="source" position={Position.Left} id="card-out-rev" style={{ top: 30, opacity: 0.4 }} />
       <div className="text-sm font-semibold text-slate-800">{data.label}</div>
+      {/* Risicobadge van het team: hoogste niveau + aantal dependencies
+          binnen het huidige risico-/scopefilter (teamRisk in ChainOverview).
+          Zo doen de filters rechts ook op dit canvas zichtbaar iets: een team
+          zonder dependencies in de gekozen niveaus dimt (data.risk.dimmed). */}
+      {data.count > 0 ? (
+        <div className={`mt-1 inline-flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] ${riskStyle(data.risk.level).badge}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${riskStyle(data.risk.level).dot}`} />
+          {data.count} {t('graph.totalCount')} · {translateRiskLevel(data.risk.level, language)}
+        </div>
+      ) : (
+        <div className="mt-1 text-[11px] text-slate-400">{t('graph.noDeps')}</div>
+      )}
       <div className="mt-2 flex flex-col gap-1.5 border-t border-slate-100 pt-2">
         {data.items.map((item) => {
           const active = data.activeItemIds?.has(item.id) ?? false
@@ -462,26 +478,44 @@ function computeFocusChainLayout(
   const { columns, columnOf } = traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll)
   if (columns.length === 0) return { nodes: [], edges: [] }
 
-  const teamNaamById = Object.fromEntries(filteredTeams.map((team) => [team.id, naamVan(team)]))
+  // Namen voor álle teams (teamLabels dekt ook gearchiveerde en uitgevinkte
+  // teams): een "van/naar {team}"-onderschrift kan naar een team buiten de
+  // huidige selectie wijzen, en toonde dan het kale team-id.
+  const teamNaamById = { ...teamLabels }
+  for (const team of filteredTeams) teamNaamById[team.id] = naamVan(team)
 
   // Kleur + "van/naar"-onderschrift per item: een lijn (en dus kleur) ontstaat
   // alleen tussen twee kaarten die allebei zichtbaar zijn in deze
-  // keten-weergave.
+  // keten-weergave. Per item álle gekoppelde teams (een output kan naar
+  // meerdere teams gaan): het onderschrift somt ze op, i.p.v. alleen het
+  // laatst verwerkte team te tonen.
   const itemColor = new Map()
-  const itemLinkedTeam = new Map()
+  const itemLinkedTeams = new Map()
+  const addLinkedTeam = (itemId, teamId) => {
+    if (!itemId) return
+    const list = itemLinkedTeams.get(itemId) ?? []
+    if (!list.includes(teamId)) itemLinkedTeams.set(itemId, [...list, teamId])
+  }
   const edgesToRender = []
   let colorIndex = 0
   for (const edge of chainEdgesAll) {
     const sourceShown = columnOf.has(edge.sourceTeam)
     const targetShown = columnOf.has(edge.targetTeam)
     if (!sourceShown && !targetShown) continue
-    if (sourceShown) itemLinkedTeam.set(edge.sourceOutputId, edge.targetTeam)
-    if (targetShown) itemLinkedTeam.set(edge.targetInputId, edge.sourceTeam)
+    if (sourceShown) addLinkedTeam(edge.sourceOutputId, edge.targetTeam)
+    if (targetShown) addLinkedTeam(edge.targetInputId, edge.sourceTeam)
     if (!sourceShown || !targetShown) continue
-    const color = CONNECTION_COLORS[colorIndex % CONNECTION_COLORS.length]
-    colorIndex += 1
-    itemColor.set(edge.sourceOutputId, color)
-    itemColor.set(edge.targetInputId, color)
+    // Kleur per output-item i.p.v. per lijn: alle lijnen die uit hetzelfde
+    // outputblokje vertrekken (fan-out naar meerdere teams) delen zo één
+    // kleur met dat blokje — voorheen hield het blokje alleen de kleur van
+    // de laatst getekende lijn over.
+    let color = edge.sourceOutputId ? itemColor.get(edge.sourceOutputId) : undefined
+    if (!color) {
+      color = CONNECTION_COLORS[colorIndex % CONNECTION_COLORS.length]
+      colorIndex += 1
+      if (edge.sourceOutputId) itemColor.set(edge.sourceOutputId, color)
+    }
+    if (edge.targetInputId) itemColor.set(edge.targetInputId, color)
     const sourceCol = columnOf.get(edge.sourceTeam)
     const targetCol = columnOf.get(edge.targetTeam)
     const forward = targetCol > sourceCol
@@ -500,8 +534,8 @@ function computeFocusChainLayout(
   // waar het vandaan komt of naartoe gaat, niet alleen de items die toevallig
   // aan een andere (zichtbare of onzichtbare) team hangen.
   function resolveOrigin(rawItem, appsById) {
-    const linkedTeamId = itemLinkedTeam.get(rawItem.id)
-    if (linkedTeamId) return { kind: 'team', naam: teamNaamById[linkedTeamId] ?? linkedTeamId }
+    const linkedTeamIds = itemLinkedTeams.get(rawItem.id)
+    if (linkedTeamIds?.length) return { kind: 'team', naam: linkedTeamIds.map((id) => teamNaamById[id] ?? id).join(', ') }
     if (rawItem.externalTeam) return { kind: 'extern', naam: rawItem.externalTeam }
     if (rawItem.applicatieId && appsById.has(rawItem.applicatieId)) {
       return { kind: 'systeem', naam: appsById.get(rawItem.applicatieId).naam || '—' }
@@ -694,16 +728,15 @@ function computeFocusChainLayout(
 export default function ChainOverview({ adminSections, sidebarMode }) {
   const { teams, dependencies, teamWorkflows, teamLabels, externalParties } = useAppContext()
   const { t, language } = useLanguage()
-  // Gearchiveerde teams staan bij openen standaard uit, zelfde gedrag als
-  // de netwerkweergave — blijven wel aan te vinken voor historische data.
-  const [deselectedTeamIds, setDeselectedTeamIds] = useState(() => new Set(teams.filter((tm) => !tm.actief).map((tm) => tm.id)))
+  // Gearchiveerde teams staan standaard uit, zelfde gedrag als de
+  // netwerkweergave — blijven wel aan te vinken voor historische data.
+  const { selectedTeamIds, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams)
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
   // Lokale scope-filter, zelfde opzet als Netwerkweergave: standaard 'alle'
   // zodat het ketenoverzicht zoals voorheen Teamniveau + Ketenniveau gemengd
   // toont, met de optie om te versmallen.
   const [scope, setScope] = useState('alle')
 
-  const selectedTeamIds = useMemo(() => teams.filter((tm) => !deselectedTeamIds.has(tm.id)).map((tm) => tm.id), [teams, deselectedTeamIds])
   const filteredTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
 
   // Het ketenoverzicht kent nog maar één weergave: focus op één team, waarna
@@ -785,8 +818,12 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   // koppelingen van het focusteam zelf, niet over de hele voorwaartse keten.
   const focusStats = useMemo(() => {
     if (!focusActive) return null
-    // Verzoeken die nog op akkoord wachten tellen nog niet mee als koppeling.
-    const accepted = chainEdgesAll.filter((e) => e.status !== 'voorgesteld')
+    // Verzoeken die nog op akkoord wachten tellen nog niet mee als koppeling,
+    // en alleen koppelingen met teams binnen de huidige teamselectie tellen:
+    // een uitgevinkt team staat niet op het canvas en hoort dan ook niet in
+    // deze tellingen.
+    const selected = new Set(filteredTeams.map((tm) => tm.id))
+    const accepted = chainEdgesAll.filter((e) => e.status !== 'voorgesteld' && selected.has(e.sourceTeam) && selected.has(e.targetTeam))
     const incoming = accepted.filter((e) => e.targetTeam === activeFocusTeamId && e.sourceTeam !== activeFocusTeamId)
     const outgoing = accepted.filter((e) => e.sourceTeam === activeFocusTeamId && e.targetTeam !== activeFocusTeamId)
     const inScope = dependencies.filter((d) => d.teamId === activeFocusTeamId && (scope === 'alle' || d.scope === scope))
@@ -796,7 +833,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
       total: incoming.length + outgoing.length,
       risk: inScope.length > 0 ? highestRisk(inScope) : null,
     }
-  }, [focusActive, activeFocusTeamId, chainEdgesAll, dependencies, scope])
+  }, [focusActive, activeFocusTeamId, chainEdgesAll, filteredTeams, dependencies, scope])
 
   // Externe partijen: één keer verzameld uit alle teams/dependencies; de
   // lay-outfuncties filteren zelf op de zichtbare teams (zie partitionParties).
@@ -825,7 +862,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     activeFocusTeamId,
     showExternalParties ? partyGraph : null,
     partyUi,
-  ])
+  ], { resetKey: activeFocusTeamId })
 
   // Klik pint een lijn vast (blijft staan terwijl je rondkijkt/scrollt) — dit
   // vervangt een eerdere zwevende hover-tooltip volledig (die bleek buggy en
@@ -860,10 +897,11 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   )
 
   // Rijen voor het detailvak van een geselecteerde partij: per team elk
-  // item/dependency dat de partij noemt, alleen voor zichtbare teams.
+  // item/dependency dat de partij noemt, alleen voor teams die ook echt op
+  // het canvas staan (de keten van het focusteam, niet de hele selectie).
   const selectedPartyRows = useMemo(() => {
     if (!selectedParty) return []
-    const visible = new Set(filteredTeams.map((tm) => tm.id))
+    const visible = new Set(visibleTeams.map((tm) => tm.id))
     const rows = []
     for (const [teamId, refs] of selectedParty.sources) {
       if (!visible.has(teamId)) continue
@@ -874,7 +912,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
       for (const ref of refs) rows.push({ key: `${teamId}:${ref.kind}:${ref.id}`, teamId, kind: ref.kind, label: ref.label })
     }
     return rows
-  }, [selectedParty, filteredTeams])
+  }, [selectedParty, visibleTeams])
 
   const refKindLabel = (kind) =>
     kind === 'input' ? t('chain.externalLinkInput') : kind === 'output' ? t('chain.externalLinkOutput') : t('chain.externalLinkDependency')
@@ -898,20 +936,11 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     return nodes.map((n) => (n.type === 'focusCard' ? { ...n, data: { ...n.data, activeItemIds } } : n))
   }, [nodes, activeItemIds])
 
-  function toggleTeam(teamId) {
-    setDeselectedTeamIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(teamId)) next.delete(teamId)
-      else next.add(teamId)
-      return next
-    })
-  }
-
   function toggleRiskLevel(level) {
     setSelectedRiskLevels((prev) => (prev.includes(level) ? prev.filter((x) => x !== level) : [...prev, level]))
   }
 
-  const teamFilterActive = deselectedTeamIds.size > 0
+  const teamFilterActive = selectedTeamIds.length < teams.length
   const riskFilterActive = selectedRiskLevels.length < RISK_LEVELS.length
   const anyFilterActive = teamFilterActive || riskFilterActive
 
@@ -995,7 +1024,12 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           </div>
         </div>
 
-        {focusActive && focusStats && focusStats.total === 0 ? (
+        {/* Leeg-melding alleen als de tekening écht leeg zou zijn: geen andere
+            kaart en geen enkele lijn. Een team met alleen een nog niet
+            geaccepteerd verzoek (gestippelde lijn) of alleen externe
+            partijen heeft wél een canvas — focusStats telt die bewust niet
+            mee en gaf daardoor ten onrechte de lege staat. */}
+        {focusActive && visibleTeams.length <= 1 && edges.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
             <div className="mb-4 flex justify-center">{focusPicker}</div>
             <div>{t('chain.focusEmptyTitle')}</div>
@@ -1147,8 +1181,8 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           teams={teams}
           selected={selectedTeamIds}
           onToggle={toggleTeam}
-          onSelectAll={() => setDeselectedTeamIds(new Set())}
-          onSelectNone={() => setDeselectedTeamIds(new Set(teams.map((tm) => tm.id)))}
+          onSelectAll={selectAllTeams}
+          onSelectNone={selectNoTeams}
           riskLevels={selectedRiskLevels}
           onToggleRisk={toggleRiskLevel}
           onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}
