@@ -634,6 +634,21 @@ export function rapportAlsTekst(rapport, titel) {
   return regels.join('\n').trim()
 }
 
+// Zelfde rapport als markdown: kopjes en, in de slotsectie, bullets. Voor de
+// download, zodat het rapport in een wiki of document te plakken is; het
+// klembord houdt de platte tekst, die overal leesbaar blijft.
+export function rapportAlsMarkdown(rapport, titel) {
+  const laatste = rapport[rapport.length - 1]?.kop
+  const regels = [`# ${titel}`, '']
+  for (const s of rapport) {
+    regels.push(`## ${s.kop}`, '')
+    if (s.kop === laatste) for (const z of s.zinnen) regels.push(`- ${z}`)
+    else regels.push(s.zinnen.join(' '))
+    regels.push('')
+  }
+  return `${regels.join('\n').trim()}\n`
+}
+
 // Zonder deze export zou de deadline-vertaler ongebruikt zijn; de pagina
 // gebruikt hem voor de deadlinezin in de waarschuwingenlijst.
 export { translateDeadline }

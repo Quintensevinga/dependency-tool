@@ -27,6 +27,18 @@ export function exportDataAsJson(state, filename) {
   URL.revokeObjectURL(url)
 }
 
+// Zelfde blob-route als de JSON-export, maar met een vrij mimetype, zodat
+// ook een rapport (markdown) of andere platte tekst te downloaden is.
+export function exportTextAsFile(text, filename, type = 'text/markdown') {
+  const blob = new Blob([text], { type: `${type};charset=utf-8` })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.download = filename
+  link.href = url
+  link.click()
+  URL.revokeObjectURL(url)
+}
+
 export function readJsonFile(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()

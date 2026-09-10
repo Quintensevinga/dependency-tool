@@ -2,7 +2,9 @@ import { useMemo, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { analyseer, trendReeks, NIVEAUS, LEEFTIJD_KLASSEN } from '../lib/analytics'
-import { signaalZin, constateringZin, bouwRapport, rapportAlsTekst } from '../lib/analyseTeksten'
+import { signaalZin, constateringZin, bouwRapport, rapportAlsTekst, rapportAlsMarkdown } from '../lib/analyseTeksten'
+import { exportTextAsFile } from '../lib/export'
+import { slugify } from '../lib/slug'
 import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import {
@@ -54,6 +56,8 @@ const TEKST = {
     sWaarschuwingen: 'Waarschuwingen',
     rapportUitleg: 'Lopende tekst uit dezelfde cijfers: samenvatting, ontwikkeling, risico, teams, keten, applicaties, datakwaliteit en aanbevelingen. Volgt het teamfilter.',
     rapportKopieer: 'Kopieer rapport',
+    rapportDownload: 'Download',
+    rapportDownloadTitel: 'Download het rapport als markdown-bestand',
     rapportGekopieerd: 'Gekopieerd',
     rapportTitel: 'Rapport dependencies',
     waarschuwingenUitleg: 'Eén zin per geval, gesorteerd op ernst en zwaarte. Klik om het detail of de teampagina te openen.',
@@ -399,6 +403,8 @@ const TEKST = {
     sWaarschuwingen: 'Warnings',
     rapportUitleg: 'Running text from the same numbers: summary, development, risk, teams, chain, applications, data quality and recommendations. Follows the team filter.',
     rapportKopieer: 'Copy report',
+    rapportDownload: 'Download',
+    rapportDownloadTitel: 'Download the report as a markdown file',
     rapportGekopieerd: 'Copied',
     rapportTitel: 'Dependency report',
     waarschuwingenUitleg: 'One sentence per case, sorted by severity and weight. Click to open the detail or the team page.',
@@ -996,7 +1002,7 @@ function Waarschuwingen({ signalen, ctx, onSelect, onNavigateToTeam, tx }) {
   )
 }
 
-function Rapport({ rapport, titel, tx }) {
+function Rapport({ rapport, titel, bestandsnaam, tx }) {
   const [gekopieerd, setGekopieerd] = useState(false)
   const kopieer = async () => {
     try {
@@ -1007,14 +1013,20 @@ function Rapport({ rapport, titel, tx }) {
       // Klembord niet beschikbaar (bv. zonder https): dan blijft de knop gewoon staan.
     }
   }
+  const download = () => exportTextAsFile(rapportAlsMarkdown(rapport, titel), bestandsnaam)
   const laatste = rapport[rapport.length - 1]?.kop
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] leading-relaxed text-slate-400">{tx('rapportUitleg')}</p>
-        <button type="button" onClick={kopieer} className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
-          {gekopieerd ? tx('rapportGekopieerd') : tx('rapportKopieer')}
-        </button>
+        <div className="flex shrink-0 gap-2">
+          <button type="button" onClick={kopieer} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+            {gekopieerd ? tx('rapportGekopieerd') : tx('rapportKopieer')}
+          </button>
+          <button type="button" onClick={download} title={tx('rapportDownloadTitel')} className="rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+            {tx('rapportDownload')}
+          </button>
+        </div>
       </div>
       <div className="mt-3 gap-8 lg:columns-2">
         {rapport.map((s) => (
@@ -1107,6 +1119,8 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
   const rapport = useMemo(() => bouwRapport(a, ctx), [a, ctx])
   const constateringZinnen = useMemo(() => Object.fromEntries(a.constateringen.map((c) => [c.key, constateringZin(c, ctx)])), [a, ctx])
   const rapportTitel = `${tx('rapportTitel')} · ${teamFilter ? teamName(teamFilter) : tx('alleTeams')}`
+  // Bestandsnaam draagt het bereik en de dag, zodat twee downloads naast elkaar te leggen zijn.
+  const rapportBestand = `dependency-insight-rapport-${slugify(teamFilter ? teamName(teamFilter) : tx('alleTeams'))}-${dagenGeleden(0)}.md`
 
   return (
     <div className="space-y-8 pb-8">
@@ -1160,7 +1174,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
       </Sectie>
 
       <Sectie id="an-rapport" titel={tx('sRapport')}>
-        <Rapport rapport={rapport} titel={rapportTitel} tx={tx} />
+        <Rapport rapport={rapport} titel={rapportTitel} bestandsnaam={rapportBestand} tx={tx} />
       </Sectie>
 
       <Sectie id="an-waarschuwingen" titel={tx('sWaarschuwingen')}>
