@@ -571,8 +571,6 @@ export const STRINGS = {
     'teampage.requestLinksToItem': 'gekoppeld aan jullie item "{{target}}"',
 
     'chain.showExternalParties': 'Externe partijen',
-    'chain.externalGroupSources': 'Externe input & afhankelijkheden',
-    'chain.externalGroupSinks': 'Externe output',
     'chain.externalPartyTeams': '{{count}} teams',
     'chain.externalPartyTeamsOne': '1 team',
     'chain.externalLinkInput': 'input',
@@ -1155,8 +1153,6 @@ export const STRINGS = {
     'teampage.requestLinksToItem': 'linked to your item "{{target}}"',
 
     'chain.showExternalParties': 'External parties',
-    'chain.externalGroupSources': 'External input & dependencies',
-    'chain.externalGroupSinks': 'External output',
     'chain.externalPartyTeams': '{{count}} teams',
     'chain.externalPartyTeamsOne': '1 team',
     'chain.externalLinkInput': 'input',

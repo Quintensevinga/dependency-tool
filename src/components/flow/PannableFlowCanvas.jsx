@@ -39,6 +39,10 @@ export default function PannableFlowCanvas({
   // de node-kaarten i.p.v. erachter — nodig om een lijn duidelijk te kunnen
   // volgen zodra hij onder meerdere kaarten door loopt (Focusmodus).
   elevateEdgesOnSelect = false,
+  // Handmatig slepen uit te zetten voor een canvas met een volledig berekende
+  // lay-out (Ketenoverzicht: ELK bepaalt de posities, slepen zou daarmee
+  // vechten).
+  nodesDraggable = true,
   children,
 }) {
   return (
@@ -74,7 +78,7 @@ export default function PannableFlowCanvas({
       elevateEdgesOnSelect={elevateEdgesOnSelect}
       proOptions={{ hideAttribution: true }}
       nodesConnectable
-      nodesDraggable
+      nodesDraggable={nodesDraggable}
       elementsSelectable
       panOnDrag
       zoomOnScroll

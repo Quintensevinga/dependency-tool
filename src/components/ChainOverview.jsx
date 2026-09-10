@@ -1,5 +1,23 @@
-import { useEffect, useMemo, useState } from 'react'
-import { BaseEdge, Handle, MarkerType, Panel, Position, ReactFlowProvider, useReactFlow, useUpdateNodeInternals } from 'reactflow'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  BaseEdge,
+  Handle,
+  MarkerType,
+  Panel,
+  Position,
+  ReactFlowProvider,
+  getSmoothStepPath,
+  internalsSymbol,
+  useNodesInitialized,
+  useReactFlow,
+  useStoreApi,
+  useUpdateNodeInternals,
+} from 'reactflow'
+// Volledige ELK-bundel op de hoofdthread: een ketenlay-out van enkele
+// tientallen nodes rekent in milliseconden, een web worker is de complexiteit
+// (Vite-workerconfiguratie) hier niet waard. Komt alleen in de lazy chunk van
+// dit scherm terecht (zie App.jsx).
+import ELK from 'elkjs/lib/elk.bundled.js'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { RISK_LEVELS } from '../data/constants'
@@ -8,9 +26,9 @@ import { riskStyle } from '../lib/riskStyles'
 import { bronTypeColor } from '../lib/workflowStyles'
 import { translateRiskLevel, translateBronType } from '../i18n/labels'
 import { resolveChainEdges, orderTeamsByChain, traceForwardChain } from '../lib/teamWorkflow'
+import { orderChain, roundedOrthPath, buildElkGraph, applyElkLayout, fallbackPositions } from '../lib/chainLayout'
 import { emptyTeamWorkflow } from '../lib/storage'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
-import { useMergedLayout } from './flow/useMergedLayout'
 import TeamFilterPanel from './TeamFilterPanel'
 import ScopeToggle from './ScopeToggle'
 
@@ -23,25 +41,21 @@ function highestRisk(deps) {
   return best
 }
 
-// Klein, decoratief label boven een groep kolommen — puur een tekstnode, geen
-// interactie. Gebruikt boven de kolommen met externe partijen.
-function ChainGroupLabelNode({ data }) {
-  return <div className="text-[11px] font-bold uppercase tracking-wide text-slate-400">{data.label}</div>
-}
-
 // Externe partijen (systeem, ander bedrijfsonderdeel, leverancier, CAB, …)
-// als eigen kaartjes aan de rand van de keten: links wat input levert of
-// waar een team van afhankelijk is, rechts wat alleen output ontvangt.
-// Bewust grijs, buiten de risicokleurenreeks — een partij heeft zelf geen
-// risicoscore; de lijnen tonen de relatie (input/output/afhankelijkheid),
-// niet een ernst.
+// als eigen kaartjes in de keten, door ELK naast de teams gezet die ze
+// raken: wat input levert of waar een team van afhankelijk is komt vóór dat
+// team, wat alleen output ontvangt erna. Bewust grijs, buiten de
+// risicokleurenreeks — een partij heeft zelf geen risicoscore; de lijnen
+// tonen de relatie (input/output/afhankelijkheid), niet een ernst.
 const EXT_COLOR = '#5c6b8a'
 const OV_EXT_WIDTH = 176
-const OV_EXT_HEIGHT = 58
 // Koppeling die nog op akkoord van het andere team wacht (zie LINK_STATUS in
 // constants.js): gestippeld i.p.v. een eigen kleur, zodat de risicokleur van
 // de lijn intact blijft.
 const PENDING_EDGE_STYLE = { strokeDasharray: '3 4', opacity: 0.8 }
+// Terugkoppeling (koppeling terug naar een team eerder in de keten): eigen,
+// langer streepje zodat 'ie naast een wachtend verzoek herkenbaar blijft.
+const BACK_EDGE_STYLE = { strokeDasharray: '5 4' }
 
 function ExternalPartyNode({ data }) {
   const { t, language } = useLanguage()
@@ -137,63 +151,23 @@ function partitionParties(partyGraph, visibleTeamIds) {
   }
 }
 
-const OV_EXT_COL_GAP = 24
-
-function partyTeamCount(p) {
-  return new Set([...p.sourceTeams, ...p.sinkTeams]).size
-}
-
-// Rooster i.p.v. één lange kolom: het aantal rijen volgt de hoogte van de
-// keten zelf (zodat de partijen ernaast passen i.p.v. er ver onderuit te
-// steken), met een ondergrens van √n zodat een grote lijst nooit één smalle,
-// eindeloos hoge kolom wordt. Hubs (meeste teams) staan het dichtst bij de
-// keten — kolom 0 is de kolom die aan de teams grenst.
-function partyGrid(count, chainHeight, rowHeight) {
-  const byHeight = Math.floor(Math.max(chainHeight, rowHeight) / rowHeight)
-  const rows = Math.min(count, Math.max(1, byHeight, Math.ceil(Math.sqrt(count))))
-  return { rows, cols: Math.ceil(count / rows) }
-}
-
-// Plaatst één zijde (links = bronnen, rechts = ontvangers) als rooster naast
-// de keten en levert de bodem-y terug. Gedeeld door beide lay-outfuncties.
-function pushPartyGrid({ nodes, list, side, anchorX, topY, chainHeight, rowGap, label, selectedPartyKey, onPlaced }) {
-  if (list.length === 0) return topY
-  const sorted = [...list].sort((a, b) => partyTeamCount(b) - partyTeamCount(a))
-  const rowHeight = OV_EXT_HEIGHT + rowGap
-  const { rows, cols } = partyGrid(sorted.length, chainHeight, rowHeight)
-  const colStep = OV_EXT_WIDTH + OV_EXT_COL_GAP
-  const xFor = (col) => (side === 'left' ? anchorX - col * colStep : anchorX + col * colStep)
-  nodes.push({
-    id: `group-label:${side}`,
-    type: 'chainGroupLabel',
-    position: { x: side === 'left' ? xFor(cols - 1) : anchorX, y: topY - 30 },
-    data: { label },
-    draggable: false,
-    selectable: false,
-    focusable: false,
-  })
-  sorted.forEach((p, i) => {
-    const col = Math.floor(i / rows)
-    const row = i % rows
-    onPlaced?.(p, side)
-    nodes.push(partyNode(p, xFor(col), topY + row * rowHeight, selectedPartyKey))
-  })
-  return topY + rows * rowHeight
-}
-
-function partyNode(p, x, y, selectedPartyKey) {
+// Eén node per externe partij; de positie bepaalt ELK (zie ChainCanvas), niet
+// meer een vast raster aan de rand. `layer` is alleen een hint voor de
+// noodlay-out: bronnen vóór het eerste team dat ze voeden, pure ontvangers ná
+// het laatste team dat aan ze levert. `selected` wordt pas in displayNodes
+// gezet, zodat een partij aanklikken geen nieuwe lay-out uitlokt.
+function partyNode(p, layer) {
   return {
     id: `party:${p.key}`,
     type: 'externalParty',
-    position: { x, y },
+    position: { x: 0, y: 0 },
     data: {
       key: p.key,
       naam: p.naam,
       type: p.type,
       teamCount: new Set([...p.sourceTeams, ...p.sinkTeams]).size,
-      selected: selectedPartyKey === p.key,
+      layer,
     },
-    draggable: true,
   }
 }
 
@@ -255,19 +229,126 @@ function ChainAutoFit({ fitKey }) {
   return null
 }
 
-const OV_ITEM_ROW_BASE_HEIGHT = 30 // één regel + padding + tussenruimte
-const OV_ITEM_ROW_EXTRA_LINE = 14 // extra hoogte per regel die terugloopt
-const OV_ITEM_CHARS_PER_LINE = 16 // ruwe, bewust voorzichtige schatting voor een kolom van ~130px op 11px tekst
+const elk = new ELK()
 
-// Schatting van de gerenderde hoogte van één IN/OUT-rijtje op basis van de
-// labellengte — puur uit data, geen DOM-meting (die zou een meet-
-// terugkoppelingslus introduceren, bewust vermeden in dit bestand). Zonder dit
-// ging elk rijtje voor een vaste hoogte door, ook als de tekst in de
-// werkelijke, smalle kolom over meerdere regels terugloopt — met een te lage
-// geschatte kaarthoogte en dus overlap met de kaart eronder tot gevolg.
-function estimateItemRowHeight(label) {
-  const lines = Math.max(1, Math.ceil((label?.length || 1) / OV_ITEM_CHARS_PER_LINE))
-  return OV_ITEM_ROW_BASE_HEIGHT + (lines - 1) * OV_ITEM_ROW_EXTRA_LINE
+// Leest de door React Flow gemeten afmetingen en handle-posities uit zijn
+// interne administratie (nodeInternals). Levert null zolang nog niet elke
+// node van de graaf gemeten is — dan wacht ChainCanvas op de volgende ronde
+// (useNodesInitialized). Handle-posities zijn t.o.v. de node, ongeschaald.
+function measureNodes(nodeInternals, graph) {
+  const sizes = new Map()
+  for (const node of graph.nodes) {
+    const internal = nodeInternals.get(node.id)
+    if (!internal?.width || !internal?.height) return null
+    const bounds = internal[internalsSymbol]?.handleBounds
+    const handles = new Map()
+    for (const handle of [...(bounds?.source ?? []), ...(bounds?.target ?? [])]) {
+      if (!handle.id) continue
+      handles.set(handle.id, {
+        x: handle.x + handle.width / 2,
+        y: handle.y + handle.height / 2,
+        side: handle.position === Position.Right ? 'EAST' : 'WEST',
+      })
+    }
+    sizes.set(node.id, { width: internal.width, height: internal.height, handles })
+  }
+  return sizes
+}
+
+// Het canvas zelf, binnen de ReactFlowProvider: laat React Flow de kaarten
+// eerst renderen en meten, geeft de gemeten maten en handle-posities aan ELK
+// (algoritme 'layered', orthogonale routing) en zet daarna posities en
+// lijnpunten op de nodes/edges. Geen schatting van kaarthoogtes uit tekst-
+// lengte meer (eerdere versies van dit scherm liepen daar telkens op vast):
+// er wordt gemeten wat er echt staat. Geen meet-terugkoppelingslus: posities
+// veranderen niets aan de maten, dus na één ELK-ronde per structuurwijziging
+// is de tekening stabiel. Nodes die nog geen positie hebben (eerste render,
+// of net toegevoegd na een focuswissel) staan onzichtbaar op (0,0) tot de
+// eerstvolgende lay-out klaar is — zo is er nooit een frame met kaarten op een
+// verkeerde plek; hun lijnen blijven zolang verborgen.
+function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
+  const store = useStoreApi()
+  const nodesInitialized = useNodesInitialized()
+  const [layout, setLayout] = useState({ version: 0, positions: new Map(), points: new Map() })
+  const runRef = useRef(0)
+
+  // Gemeten afmetingen per node, bijgehouden uit React Flow's 'dimensions'-
+  // wijzigingen en teruggegeven op de nodes (width/height). Dat is geen
+  // sier: React Flow neemt bij elke nieuwe nodes-array de maten over van de
+  // node-objecten zélf en gooit zijn eigen meting weg — zonder deze
+  // terugkoppeling verloor elke kaart na de eerste lay-out zijn maat en
+  // sloeg React Flow alle lijnen stilzwijgend over (getest).
+  const [dims, setDims] = useState(() => new Map())
+  const onNodesChange = useCallback((changes) => {
+    const measured = changes.filter((change) => change.type === 'dimensions' && change.dimensions)
+    if (measured.length === 0) return
+    setDims((prev) => {
+      const next = new Map(prev)
+      for (const change of measured) next.set(change.id, change.dimensions)
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!nodesInitialized || graph.nodes.length === 0) return
+    const sizes = measureNodes(store.getState().nodeInternals, graph)
+    if (!sizes) return
+    // Alleen het laatste verzoek telt: een oudere lay-out die later klaar is
+    // (ELK is asynchroon) mag een nieuwere niet overschrijven.
+    const run = ++runRef.current
+    elk
+      .layout(buildElkGraph(graph, sizes))
+      .then((result) => {
+        if (run !== runRef.current) return
+        setLayout({ version: run, ...applyElkLayout(result, graph) })
+      })
+      .catch((error) => {
+        if (run !== runRef.current) return
+        console.error('Ketenoverzicht: ELK-lay-out mislukt, noodlay-out gebruikt', error)
+        setLayout({ version: run, positions: fallbackPositions(graph, sizes), points: new Map() })
+      })
+    // `dims` hoort in de deps: een kaart die van maat verandert zonder dat de
+    // structuur wijzigt (bv. een nagemeten handle-set) krijgt zo ook een
+    // nieuwe lay-out.
+  }, [nodesInitialized, graph, store, dims])
+
+  const positionedNodes = useMemo(
+    () =>
+      nodes.map((n) => {
+        const position = layout.positions.get(n.id)
+        const size = dims.get(n.id)
+        const withSize = size ? { ...n, width: size.width, height: size.height } : n
+        return position ? { ...withSize, position } : { ...withSize, position: { x: 0, y: 0 }, style: { ...n.style, opacity: 0 } }
+      }),
+    [nodes, layout, dims],
+  )
+  const routedEdges = useMemo(
+    () =>
+      edges.map((e) => {
+        if (!layout.positions.has(e.source) || !layout.positions.has(e.target)) return { ...e, hidden: true }
+        const points = layout.points.get(e.id)
+        return points ? { ...e, data: { ...e.data, points } } : e
+      }),
+    [edges, layout],
+  )
+
+  return (
+    <>
+      <ChainAutoFit fitKey={`${layout.version}:${fitKey}`} />
+      <PannableFlowCanvas
+        nodes={positionedNodes}
+        edges={routedEdges}
+        nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
+        elevateEdgesOnSelect
+        nodesDraggable={false}
+        onNodesChange={onNodesChange}
+        {...handlers}
+      >
+        {children}
+      </PannableFlowCanvas>
+    </>
+  )
 }
 
 // Vaste, kleine kwalitatieve kleurenreeks voor Focusmodus: elke specifieke
@@ -280,13 +361,6 @@ function estimateItemRowHeight(label) {
 const CONNECTION_COLORS = ['#0ea5e9', '#4338ca', '#9333ea', '#0d9488', '#d97706', '#e11d48']
 
 const FC_CARD_WIDTH = 230
-const FC_COLUMN_GAP = 70
-const FC_ROW_GAP = 28
-const FC_CARD_HEADER_HEIGHT = 55
-const BACKFLOW_DIP = 70
-const BACKFLOW_LANE_GAP = 22
-const SIDESTEP_BULGE = 45
-const SIDESTEP_LANE_GAP = 24
 
 function FocusChainCardNode({ id, data }) {
   const { t, language } = useLanguage()
@@ -380,87 +454,48 @@ function itemOriginCaption(item, t, language) {
 
 const nodeTypes = {
   focusCard: FocusChainCardNode,
-  chainGroupLabel: ChainGroupLabelNode,
   externalParty: ExternalPartyNode,
 }
 
-// Eigen edge voor een terugkoppeling (een koppeling die niet voorwaarts naar
-// een nieuwe kolom gaat, maar terug naar een team dat al eerder in de keten
-// staat — incl. het focusteam zelf bij een cyclus): reactflow's ingebouwde
-// edge-types routeren altijd tussen de daadwerkelijke handle-posities, wat bij
-// "terug naar links" een lelijke/kruisende lijn zou geven. Deze edge tekent
-// zelf één rustige boog onderlangs — vaste, bescheiden marge i.p.v. meeschalen
-// met de absolute y-positie (dat laatste schoot in een eerdere ronde van dit
-// scherm honderden pixels door, zie git-historie); focusketens zijn klein
-// genoeg dat een vaste marge ruim voldoende is.
-function FocusBackflowEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd, data }) {
-  // `data.dip` komt kant-en-klaar uit computeFocusChainLayout: de laagste
-  // kaartrand van de HELE weergave (ongeacht welke kolommen deze specifieke
-  // koppeling overspant) plus een oplopende marge per terugkoppeling
-  // (laneIndex-volgorde). Een marge t.o.v. de eigen bron/doel-y (eerdere
-  // versie) schoot bij hoge kaarten dwars door de kaarten ertussen; onder de
-  // laagste kaart van de hele tekening is altijd vrije ruimte.
-  const dip = data.dip
-  const path = `M ${sourceX},${sourceY} C ${sourceX},${dip} ${targetX},${dip} ${targetX},${targetY}`
-  return <BaseEdge path={path} style={{ ...style, strokeDasharray: '5 4' }} markerEnd={markerEnd} />
-}
-
-// Voorwaartse koppeling tussen twee item-handles: een gewone smoothstep-edge
-// routeert rechthoekig op basis van de handle-richting en kan daardoor ver
-// boven de kaartenrij uitschieten zodra bron- en doelrij ver uit elkaar
-// liggen (getest: zichtbaar over de bovenkant van tussenliggende kaarten).
-// Deze eigen, simpele kubieke boog met horizontale aanloop/aankomst blijft
-// per definitie tussen de bron- en doel-y — dus nooit "over" een kaart heen.
-function FocusForwardEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd }) {
-  const midX = (sourceX + targetX) / 2
-  const path = `M ${sourceX},${sourceY} C ${midX},${sourceY} ${midX},${targetY} ${targetX},${targetY}`
+// Eén edge-type voor alle lijnen: tekent de orthogonale route die ELK heeft
+// berekend (data.points: start → bochten → einde, zie ChainCanvas) met
+// afgeronde hoeken. ELK routeert om kaarten heen, dus een lijn loopt nooit
+// meer dwars door een tussenliggende kaart — het probleem waarvoor eerdere
+// versies van dit scherm eigen boog-edges (onderlangs, zijwaarts) nodig
+// hadden. Zolang er nog geen ELK-resultaat is (eerste meting), of ELK faalde,
+// valt de lijn terug op React Flow's eigen smoothstep-route tussen de
+// handles — nooit "geen lijn". Streepjespatronen (terugkoppeling, wachtend
+// verzoek) komen via `style` mee uit computeChainGraph.
+function ElkEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, data }) {
+  const path = data?.points
+    ? roundedOrthPath(data.points)
+    : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 })[0]
   return <BaseEdge path={path} style={style} markerEnd={markerEnd} />
 }
 
-// Koppeling tussen twee teams in DEZELFDE kolom (boven/onder elkaar gestapeld,
-// bv. Team Tiem → Team Polis): de onderlangse boog van FocusBackflowEdge werkt
-// hier averechts — bron en doel delen vrijwel dezelfde x, dus de afdaling
-// onder de héle tekening en weer omhoog naar het doel loopt bijna loodrecht
-// dwars door het doelkaartje heen zodra dat de hoogste kaart van de tekening
-// is (getest: 70-90% van de lijnlengte bleek verborgen). Deze boogt in plaats
-// daarvan zijwaarts uit, buiten de kolom om — nooit verticaal door een kaart
-// die er toch al naast staat.
-function FocusSidestepEdge({ sourceX, sourceY, targetX, targetY, style, markerEnd, data }) {
-  const bulge = data.bulgeX
-  const path = `M ${sourceX},${sourceY} C ${bulge},${sourceY} ${bulge},${targetY} ${targetX},${targetY}`
-  return <BaseEdge path={path} style={{ ...style, strokeDasharray: '5 4' }} markerEnd={markerEnd} />
-}
+const edgeTypes = { elk: ElkEdge }
 
-const focusEdgeTypes = { focusBackflow: FocusBackflowEdge, focusForward: FocusForwardEdge, focusSidestep: FocusSidestepEdge }
-
-// Ketenlay-out: voorwaartse BFS vanaf één gekozen team (traceForwardChain,
-// lib/teamWorkflow.js) — de enige weergave van het ketenoverzicht.
-// Elke output die naar een ander (nog niet getoond) team gaat, zet dat team in
-// de eerstvolgende kolom; van daaruit gaat het weer verder zolang de keten
-// reikt. Een koppeling naar een team dat al eerder in de keten staat (incl.
-// het focusteam zelf bij een cyclus) wordt niet als nieuwe kolom getekend,
-// maar als terugkoppeling (FocusBackflowEdge hierboven). Elk team toont al
+// Ketengraaf: voorwaartse BFS vanaf één gekozen team (traceForwardChain,
+// lib/teamWorkflow.js) bepaalt wélke teams meedoen — de enige weergave van
+// het ketenoverzicht. De kolommen zelf en de lijnroutes komen daarna van ELK
+// (zie ChainCanvas): kolom = laag in de DAG, waardoor twee gekoppelde teams
+// nooit meer in dezelfde kolom belanden. Een koppeling terug naar een team
+// eerder in de keten (incl. het focusteam zelf bij een cyclus) is een
+// terugkoppeling (orderChain, lib/chainLayout.js): gestippeld en via de
+// -rev-handles, zodat bron en doel naar elkaar toe wijzen. Elk team toont al
 // zijn eigen input- én outputitems als één gestapelde lijst; alleen items die
 // naar een óók zichtbare kaart koppelen krijgen een kleur + lijn — een item
 // gekoppeld aan een team buiten deze weergave toont enkel een "van/naar
 // {team}"-onderschrift, nooit een fantoom-lijn naar een niet-getoonde kaart.
 //
-// Wordt via useMergedLayout aangeroepen als computeFocusChainLayout(...deps) —
-// de volgorde van de argumenten hieronder moet dus gelijk blijven aan de
-// deps-array daar.
-function computeFocusChainLayout(
-  teamWorkflows,
-  teamRisk,
-  teamLabels = {},
-  chainEdgesAll = [],
-  filteredTeams = [],
-  focusTeamId = '',
-  partyGraph = null,
-  partyUi = {},
-) {
+// Levert nodes zónder positie en edges zónder lijnpunten: die vult de
+// ELK-lay-out in ChainCanvas in. Zuivere functie.
+function computeChainGraph(teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, focusTeamId, partyGraph) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const { columns, columnOf } = traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll)
   if (columns.length === 0) return { nodes: [], edges: [] }
+  const visibleTeamIds = new Set(columnOf.keys())
+  const { layerOf, backEdgeIds } = orderChain(focusTeamId, visibleTeamIds, chainEdgesAll)
 
   const teamNaamById = Object.fromEntries(filteredTeams.map((team) => [team.id, naamVan(team)]))
 
@@ -472,21 +507,20 @@ function computeFocusChainLayout(
   const edgesToRender = []
   let colorIndex = 0
   for (const edge of chainEdgesAll) {
-    const sourceShown = columnOf.has(edge.sourceTeam)
-    const targetShown = columnOf.has(edge.targetTeam)
+    const sourceShown = visibleTeamIds.has(edge.sourceTeam)
+    const targetShown = visibleTeamIds.has(edge.targetTeam)
     if (!sourceShown && !targetShown) continue
     if (sourceShown) itemLinkedTeam.set(edge.sourceOutputId, edge.targetTeam)
     if (targetShown) itemLinkedTeam.set(edge.targetInputId, edge.sourceTeam)
     if (!sourceShown || !targetShown) continue
+    // Een koppeling van een team naar zichzelf is geen ketenstap en heeft in
+    // een gelaagde tekening geen plek; de items tonen wel hun onderschrift.
+    if (edge.sourceTeam === edge.targetTeam) continue
     const color = CONNECTION_COLORS[colorIndex % CONNECTION_COLORS.length]
     colorIndex += 1
     itemColor.set(edge.sourceOutputId, color)
     itemColor.set(edge.targetInputId, color)
-    const sourceCol = columnOf.get(edge.sourceTeam)
-    const targetCol = columnOf.get(edge.targetTeam)
-    const forward = targetCol > sourceCol
-    const sameColumn = targetCol === sourceCol
-    edgesToRender.push({ edge, color, forward, sameColumn })
+    edgesToRender.push({ edge, color, back: backEdgeIds.has(edge.id) })
   }
 
   // Herkomst/bestemming van een item: eerst een daadwerkelijke team-koppeling
@@ -525,54 +559,24 @@ function computeFocusChainLayout(
       origin: resolveOrigin(item, appsById),
     }))
   }
-  function cardHeight(items) {
-    // +12 per item met een herkomst/bestemmings-onderschrift: estimateItemRowHeight
-    // is gedeeld met de overview-kaart, die geen onderschrift kent en dus geen
-    // idee heeft van deze extra regel — zonder deze correctie werd de kaart
-    // stelselmatig te laag ingeschat zodra items gekoppeld zijn (het gangbare
-    // geval), met overlap met de kolom eronder tot gevolg.
-    const content = items.reduce((sum, item) => sum + estimateItemRowHeight(item.label) + (item.origin ? 12 : 0), 0)
-    return FC_CARD_HEADER_HEIGHT + 16 + Math.max(content, OV_ITEM_ROW_BASE_HEIGHT)
-  }
-
-  const columnX = []
-  let cumulativeX = 0
-  for (let ci = 0; ci < columns.length; ci++) {
-    columnX.push(cumulativeX)
-    cumulativeX += FC_CARD_WIDTH + FC_COLUMN_GAP
-  }
-
-  const nodes = []
-  let maxCardBottom = 0
-  columns.forEach((columnTeams, ci) => {
-    let y = 0
-    columnTeams.forEach((team) => {
-      const items = buildItems(team)
-      const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
-      nodes.push({
-        id: `focus-card:${team.id}`,
-        type: 'focusCard',
-        position: { x: columnX[ci], y },
-        data: { teamId: team.id, label: naamVan(team), risk, count: risk.count ?? 0, items, isFocus: ci === 0 },
-        draggable: true,
-      })
-      const bottom = y + cardHeight(items)
-      maxCardBottom = Math.max(maxCardBottom, bottom)
-      y = bottom + FC_ROW_GAP
-    })
+  // Kaarten in ketenvolgorde (focusteam eerst): ELK gebruikt die invoer-
+  // volgorde als tie-breaker (considerModelOrder), zodat dezelfde data ook
+  // telkens dezelfde tekening oplevert. Geen positie: die komt van ELK.
+  const nodes = columns.flat().map((team, index) => {
+    const items = buildItems(team)
+    const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
+    return {
+      id: `focus-card:${team.id}`,
+      type: 'focusCard',
+      position: { x: 0, y: 0 },
+      data: { teamId: team.id, label: naamVan(team), risk, count: risk.count ?? 0, items, isFocus: index === 0, layer: layerOf.get(team.id) ?? 0 },
+    }
   })
 
-  // Terugkoppelingen routeren onderlangs de VOLLEDIGE tekening (maxCardBottom
-  // hierboven, ongeacht welke kolommen ze precies overspannen) i.p.v. een
-  // vaste marge t.o.v. hun eigen bron/doel-y: bij kaarten met veel items (dus
-  // flink hoger dan de bron/doel-rij) schoot die eigen-marge dwars door de
-  // kaarten ertussen heen — precies het "lijnen lopen door kaartjes heen"-
-  // probleem. Onder de laagste kaart van de hele weergave is er altijd
-  // vrije ruimte, ongeacht kaarthoogte of overspanning.
   // Welke kant van het kaartje een koppeling gebruikt volgt de richting van
   // de lijn, niet een vast "input=links, output=rechts"-schema: bij een
   // voorwaartse koppeling ligt het doel rechts, dus verlaat de lijn de
-  // bronkaart rechts en komt links de doelkaart binnen (ongewijzigd). Bij een
+  // bronkaart rechts en komt links de doelkaart binnen. Bij een
   // terugkoppeling ligt het doel juist links (een eerdere kolom), dus
   // gebruikt de bronkaart zijn linker-uitgang en de doelkaart zijn rechter-
   // ingang — beide kanten wijzen dan naar elkaar toe, in plaats van dat de
@@ -580,14 +584,6 @@ function computeFocusChainLayout(
   // moet lussen om alsnog terug te komen. Elk item heeft daarom altijd beide
   // handles (zie FocusChainCardNode) — hier wordt alleen gekozen welke van de
   // twee deze specifieke koppeling gebruikt.
-  // Twee teams in dezelfde kolom (boven/onder elkaar gestapeld) zijn géén
-  // "terugkoppeling" in de gebruikelijke zin — ze liggen al naast elkaar,
-  // dus de onderlangse omweg van hierboven zou hier juist dwars door het
-  // doelkaartje heen lopen (zie FocusSidestepEdge). Zo'n koppeling gebruikt
-  // daarom aan beide kanten dezelfde (rechter)zijde en boogt daar zijwaarts
-  // uit, buiten de kolom om, i.p.v. onderlangs.
-  let backflowLane = 0
-  let sidestepLane = 0
   // Een verzoek om een nog niet bestaand tegenhanger-item (linkNieuw) heeft
   // aan één kant geen item-id: dan haakt de lijn aan op de kaart-handle
   // (card-in/card-out, zie FocusChainCardNode) i.p.v. een item-handle.
@@ -604,82 +600,95 @@ function computeFocusChainLayout(
     },
   })
   const pendingStyle = (edge) => (edge.status === 'voorgesteld' ? PENDING_EDGE_STYLE : {})
-  const edges = edgesToRender.map(({ edge, color, forward, sameColumn }) => {
-    if (sameColumn) {
-      const columnRight = columnX[columnOf.get(edge.sourceTeam)] + FC_CARD_WIDTH
-      return {
-        id: edge.id,
-        source: `focus-card:${edge.sourceTeam}`,
-        target: `focus-card:${edge.targetTeam}`,
-        sourceHandle: outHandle(edge, false),
-        targetHandle: inHandle(edge, true),
-        type: 'focusSidestep',
-        data: { bulgeX: columnRight + SIDESTEP_BULGE + sidestepLane++ * SIDESTEP_LANE_GAP, ...linkData(edge) },
-        style: { stroke: color, strokeWidth: 2, ...pendingStyle(edge) },
-        markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
-      }
-    }
-    return {
-      id: edge.id,
-      source: `focus-card:${edge.sourceTeam}`,
-      target: `focus-card:${edge.targetTeam}`,
-      sourceHandle: outHandle(edge, !forward),
-      targetHandle: inHandle(edge, !forward),
-      type: forward ? 'focusForward' : 'focusBackflow',
-      data: { ...(forward ? {} : { dip: maxCardBottom + BACKFLOW_DIP + backflowLane++ * BACKFLOW_LANE_GAP }), ...linkData(edge) },
-      style: { stroke: color, strokeWidth: 2, ...pendingStyle(edge) },
-      markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
-    }
-  })
+  const edges = edgesToRender.map(({ edge, color, back }) => ({
+    id: edge.id,
+    source: `focus-card:${edge.sourceTeam}`,
+    target: `focus-card:${edge.targetTeam}`,
+    sourceHandle: outHandle(edge, back),
+    targetHandle: inHandle(edge, back),
+    type: 'elk',
+    data: { back, ...linkData(edge) },
+    style: { stroke: color, strokeWidth: 2, ...(back ? BACK_EDGE_STYLE : {}), ...pendingStyle(edge) },
+    markerEnd: { type: MarkerType.ArrowClosed, color, width: 14, height: 14 },
+  }))
 
-  // --- Externe partijen naast de getoonde keten (zie buildExternalPartyGraph):
-  // bronnen links van het focusteam, pure ontvangers rechts van de laatste
-  // kolom. Lijnen haken aan op het specifieke input-/outputitem; een
-  // afhankelijkheid (dependency op een partij) hangt aan de kaart zelf.
+  // --- Externe partijen in de keten (zie buildExternalPartyGraph): bronnen
+  // en afhankelijkheden vóór het team dat ze raken, pure ontvangers erna —
+  // waar precies bepaalt ELK. Lijnen haken aan op het specifieke input-/
+  // outputitem; afhankelijkheden (dependencies op een partij) hangen aan de
+  // kaart zelf en worden per partij+team tot één lijn samengevoegd (voorheen
+  // lagen drie identieke lijnen exact over elkaar; het detailvak toont toch
+  // al alle refs van die ene lijn).
   if (partyGraph) {
-    const { left, right } = partitionParties(partyGraph, new Set(columnOf.keys()))
-    const leftX = -(OV_EXT_WIDTH + FC_COLUMN_GAP)
-    const rightX = columnX[columnX.length - 1] + FC_CARD_WIDTH + FC_COLUMN_GAP
-    const sideOf = new Map()
-    const shared = {
-      nodes,
-      topY: 0,
-      chainHeight: maxCardBottom,
-      rowGap: FC_ROW_GAP,
-      selectedPartyKey: partyUi.selectedPartyKey,
-      onPlaced: (p, side) => sideOf.set(p.key, side),
-    }
-    pushPartyGrid({ ...shared, list: left, side: 'left', anchorX: leftX, label: partyUi.sourcesLabel ?? '' })
-    pushPartyGrid({ ...shared, list: right, side: 'right', anchorX: rightX, label: partyUi.sinksLabel ?? '' })
+    const { left, right } = partitionParties(partyGraph, visibleTeamIds)
+    const layerOfTeam = (teamId) => layerOf.get(teamId) ?? 0
     const marker = { type: MarkerType.ArrowClosed, color: EXT_COLOR, width: 12, height: 12 }
-    for (const p of [...left, ...right]) {
-      const side = sideOf.get(p.key)
+    const extStyle = (dashed) => ({ stroke: EXT_COLOR, strokeWidth: 1.5, ...(dashed ? BACK_EDGE_STYLE : {}), opacity: 0.85 })
+    for (const p of left) {
+      nodes.push(partyNode(p, Math.min(...p.sourceTeams.map(layerOfTeam)) - 1))
       for (const teamId of p.sourceTeams) {
-        for (const ref of p.sources.get(teamId)) {
-          const isDep = ref.kind === 'dependency'
+        const refs = p.sources.get(teamId)
+        const depRefs = refs.filter((ref) => ref.kind === 'dependency')
+        if (depRefs.length > 0) {
+          edges.push({
+            id: `ext:${p.key}->${teamId}:deps`,
+            source: `party:${p.key}`,
+            target: `focus-card:${teamId}`,
+            sourceHandle: 'right-source',
+            targetHandle: 'card-in',
+            type: 'elk',
+            style: extStyle(true),
+            markerEnd: marker,
+            data: externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'in', depRefs),
+          })
+        }
+        for (const ref of refs) {
+          if (ref.kind === 'dependency') continue
           edges.push({
             id: `ext:${p.key}->${teamId}:${ref.id}`,
             source: `party:${p.key}`,
             target: `focus-card:${teamId}`,
             sourceHandle: 'right-source',
-            targetHandle: isDep ? 'card-in' : `item-in:${ref.id}`,
-            type: 'focusForward',
-            style: { stroke: EXT_COLOR, strokeWidth: 1.5, strokeDasharray: isDep ? '5 4' : undefined, opacity: 0.85 },
+            targetHandle: `item-in:${ref.id}`,
+            type: 'elk',
+            style: extStyle(false),
             markerEnd: marker,
             data: externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'in', [ref]),
           })
         }
       }
+      // Output naar een partij die óók bron is (bv. een bankpartner: betaal-
+      // instructies in, betaalbestand uit) loopt terug naar links en is dus
+      // een terugkoppeling: linker item-uitgang naar de rechterkant van de
+      // partij.
       for (const teamId of p.sinkTeams) {
         for (const ref of p.sinks.get(teamId)) {
           edges.push({
             id: `ext:${teamId}->${p.key}:${ref.id}`,
             source: `focus-card:${teamId}`,
             target: `party:${p.key}`,
-            sourceHandle: side === 'right' ? `item-out:${ref.id}` : `item-out-rev:${ref.id}`,
-            targetHandle: side === 'right' ? 'left-target' : 'right-target',
-            type: 'focusForward',
-            style: { stroke: EXT_COLOR, strokeWidth: 1.5, opacity: 0.85 },
+            sourceHandle: `item-out-rev:${ref.id}`,
+            targetHandle: 'right-target',
+            type: 'elk',
+            style: extStyle(false),
+            markerEnd: marker,
+            data: { back: true, ...externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'out', [ref]) },
+          })
+        }
+      }
+    }
+    for (const p of right) {
+      nodes.push(partyNode(p, Math.max(...p.sinkTeams.map(layerOfTeam)) + 1))
+      for (const teamId of p.sinkTeams) {
+        for (const ref of p.sinks.get(teamId)) {
+          edges.push({
+            id: `ext:${teamId}->${p.key}:${ref.id}`,
+            source: `focus-card:${teamId}`,
+            target: `party:${p.key}`,
+            sourceHandle: `item-out:${ref.id}`,
+            targetHandle: 'left-target',
+            type: 'elk',
+            style: extStyle(false),
             markerEnd: marker,
             data: externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'out', [ref]),
           })
@@ -804,28 +813,21 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     () => buildExternalPartyGraph(teamWorkflows, dependencies, externalParties, teams, teamLabels),
     [teamWorkflows, dependencies, externalParties, teams, teamLabels],
   )
-  const partyUi = useMemo(
-    () => ({ selectedPartyKey, sourcesLabel: t('chain.externalGroupSources'), sinksLabel: t('chain.externalGroupSinks') }),
-    [selectedPartyKey, t],
-  )
   const selectedParty = useMemo(
     () => (selectedPartyKey && showExternalParties ? (partyGraph.find((p) => p.key === selectedPartyKey) ?? null) : null),
     [selectedPartyKey, showExternalParties, partyGraph],
   )
 
-  // De deps-array hieronder wordt één-op-één als argumenten aan
-  // computeFocusChainLayout doorgegeven (zie useMergedLayout) — volgorde moet
-  // dus gelijk blijven aan de parameterlijst daar.
-  const [{ nodes, edges }, onNodesChange] = useMergedLayout(computeFocusChainLayout, [
-    teamWorkflows,
-    teamRisk,
-    teamLabels,
-    chainEdgesAll,
-    filteredTeams,
-    activeFocusTeamId,
-    showExternalParties ? partyGraph : null,
-    partyUi,
-  ])
+  // Structuur van de tekening (welke kaarten, welke lijnen, aan welke
+  // handles) — bewust zonder selectie-/hover-toestand, want elke wijziging
+  // hierin laat ChainCanvas een nieuwe ELK-lay-out berekenen. Handmatig
+  // slepen bestaat in dit scherm niet meer: de lay-out is volledig berekend,
+  // slepen zou daar alleen maar mee vechten (nodesDraggable staat uit).
+  const graph = useMemo(
+    () => computeChainGraph(teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, showExternalParties ? partyGraph : null),
+    [teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, showExternalParties, partyGraph],
+  )
+  const { nodes, edges } = graph
 
   // Klik pint een lijn vast (blijft staan terwijl je rondkijkt/scrollt) — dit
   // vervangt een eerdere zwevende hover-tooltip volledig (die bleek buggy en
@@ -893,10 +895,18 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     return new Set(ids)
   }, [focusActive, selectedEdgeId, edges])
 
-  const displayNodes = useMemo(() => {
-    if (!activeItemIds) return nodes
-    return nodes.map((n) => (n.type === 'focusCard' ? { ...n, data: { ...n.data, activeItemIds } } : n))
-  }, [nodes, activeItemIds])
+  // Selectie-toestand pas hier op de nodes gezet (en niet in computeChainGraph)
+  // zodat een klik op een partij of lijn de structuur — en dus de ELK-lay-out
+  // — ongemoeid laat.
+  const displayNodes = useMemo(
+    () =>
+      nodes.map((n) => {
+        if (n.type === 'externalParty') return selectedPartyKey ? { ...n, data: { ...n.data, selected: n.data.key === selectedPartyKey } } : n
+        if (n.type === 'focusCard' && activeItemIds) return { ...n, data: { ...n.data, activeItemIds } }
+        return n
+      }),
+    [nodes, activeItemIds, selectedPartyKey],
+  )
 
   function toggleTeam(teamId) {
     setDeselectedTeamIds((prev) => {
@@ -1008,18 +1018,15 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
         ) : (
           <ReactFlowProvider>
             <ChainZoomToolbar />
-            <ChainAutoFit fitKey={`${nodes.length}:${activeFocusTeamId}:${sidebarMode}`} />
             <div
               className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
             >
-              <PannableFlowCanvas
+              <ChainCanvas
+                graph={graph}
                 nodes={displayNodes}
                 edges={displayEdges}
-                nodeTypes={nodeTypes}
-                edgeTypes={focusEdgeTypes}
-                elevateEdgesOnSelect
-                onNodesChange={onNodesChange}
+                fitKey={`${activeFocusTeamId}:${sidebarMode}`}
                 onNodeClick={(_, node) => {
                   if (node.type === 'externalParty') {
                     setSelectedEdgeId(null)
@@ -1043,7 +1050,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               >
                 <Panel position="top-left">{focusPicker}</Panel>
                 {focusStatsBlock && <Panel position="top-right">{focusStatsBlock}</Panel>}
-              </PannableFlowCanvas>
+              </ChainCanvas>
             </div>
           </ReactFlowProvider>
         )}
