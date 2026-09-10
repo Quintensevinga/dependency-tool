@@ -3,6 +3,26 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Rijke demodataset: 8 teams in één keten, 198 dependencies, partijregister, log** (Quinten)
+
+  Volledig herschreven mockData.js: Tiem → Polis → Superheroes (nieuw team,
+  aanvraag- en claimbeoordeling) → Casio ↔ Sterke verhalen, met Equinox,
+  Smurfen en Freggels als bronnen. Bewust: één cyclus/wederzijds paar aan het
+  eind, fan-out van één output naar drie teams, meerdere koppelingen op één
+  teampaar, een laagsprong, externe input aan het begin en externe output
+  aan het eind, koppelingsverzoeken in alle statussen, punten bij lijnen,
+  fasenotities, aantekeningen, applicatiedetails, 23 registerpartijen (incl.
+  in afwachting en geweigerd), wijzigingenlog met vier statussen en een
+  gekoppeld duplicaat. Alle profielen compleet; alleen Equinox bewust zonder
+  uitgebreide analyse. Datums relatief aan vandaag. Risicoverdeling: Laag het
+  vaakst, Kritiek schaars; observaties bewust getriggerd.
+
+  Analyse-gereedheid: geraaktTeamId naast geraakte_team_extern (formulier,
+  migratie, ketenoverzicht, auditscript), loader accepteert team-ids en extra
+  seed-collecties, uitgebreide analyse standaard aan in de demo.
+
 - **Ketenoverzicht: alleen nog de focusweergave** (Quinten)
 
   De geaggregeerde "Ketenflow"-modus en de schakelaar ernaartoe zijn weg. Het
