@@ -178,6 +178,7 @@
   <li><a href="#h9">Teampagina — capaciteit</a></li>
   <li><a href="#h10">Teampagina — aantekeningen (Miro-achtig)</a></li>
   <li><a href="#h11">Instellingen &amp; privacy</a></li>
+  <li><a href="#h12">Analyse</a></li>
 </ol>
 </div>
 
@@ -192,7 +193,7 @@
     <li><b>+ Nieuwe dependency</b> — open het formulier om een dependency toe te voegen.</li>
     <li><b>NL / EN</b> — wissel de taal van de hele applicatie.</li>
     <li><b>⚙ Instellingen</b> — export/import, mockdata, alles wissen (hoofdstuk 11).</li>
-    <li>Drie tabbladen: <b>Matrix-overzicht</b>, <b>Netwerkweergave</b>, <b>Ketenoverzicht</b> — elk hoofdstuk hieronder behandelt er één.</li>
+    <li>Vier tabbladen: <b>Matrix-overzicht</b>, <b>Netwerkweergave</b>, <b>Ketenoverzicht</b> en <b>Analyse</b> (hoofdstuk 12) — elk hoofdstuk hieronder behandelt er één.</li>
   </ul>
 </section>
 
@@ -329,6 +330,26 @@
     <li><b>Exporteer/importeer als JSON</b> — volledige back-up of overdracht naar een collega.</li>
     <li><b>Terug naar mockdata</b> — herstelt de fictieve demo-data (alleen zichtbaar bij eigen data).</li>
     <li><b>Wis alle data</b> — verwijdert alles definitief, met bevestigingsstap.</li>
+  </ul>
+</section>
+
+<!-- ===================== 12. ANALYSE ===================== -->
+<section class="chapter" id="h12">
+  <h2><span class="num">12</span>Analyse</h2>
+  <p class="lead">Eén pagina die alles uit de data haalt wat erin zit: metrieken, trends, constateringen en hygiënecontroles. Bewust zo volledig mogelijk — schrap wat je niet gebruikt.</p>
+  <ul>
+    <li><b>Filters</b> bovenaan: een team (alles wordt dan tot dat team teruggebracht, inclusief keten en applicaties) en de periode van de trendgrafieken (13, 26 of 52 weken).</li>
+    <li><b>Overzicht</b> — kerncijfers met het verschil ten opzichte van 30 dagen geleden: open, kritiek, blokkerend, gemiddelde score, verouderd, zonder actie-afspraak, gesloten, nieuw, dagen tot mitigatie en open koppelingsverzoeken.</li>
+    <li><b>Rapport</b> — dezelfde cijfers als lopende tekst: samenvatting, ontwikkeling, risico, teams, keten, applicaties, datakwaliteit en aanbevelingen. Volgt het teamfilter; met "Kopieer rapport" zet je de tekst op het klembord.</li>
+    <li><b>Waarschuwingen</b> — één zin per geval (dependency, verzoek, applicatie, team of partij), gesorteerd op ernst; klik opent het detail of de teampagina.</li>
+    <li><b>Constateringen</b> — regels die afgaan op de data (harde deadline zonder afspraak, lang blokkerend, stille risico's, hub-partijen, oude verzoeken, kennisconcentratie, mitigaties die geen stand hielden, groeiende voorraad, wederzijdse afhankelijkheid …), met ernst hoog/midden/laag en een samenvattende zin (verdeling over teams, hoogste risico, oudste). Klik een regel open voor de records.</li>
+    <li><b>Trends</b> — per week teruggerekend uit de wijzigingshistorie: open per status, per risiconiveau, nieuw tegenover gesloten, de som van alle scores, verslechterd en verbeterd in 30 dagen, een lineaire projectie en de statusovergangen.</li>
+    <li><b>Risico en urgentie</b> — kwadranten (quick win / opschalen / opruimen / accepteren), stille risico's, deadlines, gemitigeerd-maar-hoog, acuut en chronisch, dekking van actie-afspraken, top 15.</li>
+    <li><b>Verdelingen, hubs en keten</b> — per niveau/status/scope/categorie/effect, hotspots team × categorie, externe partijen als hub, wie blokkeert wie, kennisconcentratie, teamscorekaart met gemiddelde, concentratie (top 3), koppelingen per team, cycli, losse items, verzoeken, kaart tegenover praktijk, ketenrisico stroomop- en -afwaarts, wederzijdse afhankelijkheden, kaartvolledigheid, applicaties als single point of failure en gedeelde applicaties.</li>
+    <li><b>Proces, flowverlies, doorlooptijden</b> — belasting per werkstap tegenover capaciteit, flowverlies per team/categorie/partij, dagen tot mitigatie en sluiting, langst blokkerend, escalatiegeschiedenis.</li>
+    <li><b>Datakwaliteit en beheer</b> — hygiënecontroles op dependencies, input/output en applicaties; registratie per week en per team; de review-wachtrij; laatste activiteit per team en dubbele registraties.</li>
+    <li>Elke kaart heeft een regel uitleg: welke velden en welke formule. Klik op een dependency om het detail te openen, op een team om naar de teampagina te gaan.</li>
+    <li>De pagina kan in Instellingen → Admin → Pagina's uitgezet worden, net als de andere weergaven.</li>
   </ul>
 </section>
 

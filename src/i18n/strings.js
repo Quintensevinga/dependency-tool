@@ -298,6 +298,7 @@ export const STRINGS = {
 
 
     'tab.chain': 'Ketenoverzicht',
+    'tab.analyse': 'Analyse',
 
     'tour.skip': 'Overslaan',
     'tour.previous': 'Vorige',
@@ -569,6 +570,18 @@ export const STRINGS = {
     'teampage.requestBecomesInput': 'een nieuwe input bij jullie',
     'teampage.requestBecomesOutput': 'een nieuwe output bij jullie',
     'teampage.requestLinksToItem': 'gekoppeld aan jullie item "{{target}}"',
+    'teampage.depTabGesloten': 'Gesloten',
+    'teampage.dependenciesEmptyClosed': 'Nog geen gesloten dependencies.',
+    'teampage.closedOnShort': 'gesloten op {{datum}}',
+    'detail.close': 'Afsluiten',
+    'detail.reopen': 'Heropenen',
+    'detail.closedBadge': 'Gesloten',
+    'detail.closedOn': 'Gesloten op',
+    'detail.history': 'Historie',
+    'detail.historyClosed': 'Afgesloten',
+    'detail.historyReopened': 'Heropend',
+    'detail.historyAccepted': 'Geaccepteerd (geparkeerd)',
+    'detail.historyUnaccepted': 'Acceptatie ongedaan gemaakt',
 
     'chain.showExternalParties': 'Externe partijen',
     'chain.externalPartyTeams': '{{count}} teams',
@@ -880,6 +893,7 @@ export const STRINGS = {
 
 
     'tab.chain': 'Chain overview',
+    'tab.analyse': 'Analysis',
 
     'tour.skip': 'Skip',
     'tour.previous': 'Previous',
@@ -1151,6 +1165,18 @@ export const STRINGS = {
     'teampage.requestBecomesInput': 'a new input on your side',
     'teampage.requestBecomesOutput': 'a new output on your side',
     'teampage.requestLinksToItem': 'linked to your item "{{target}}"',
+    'teampage.depTabGesloten': 'Closed',
+    'teampage.dependenciesEmptyClosed': 'No closed dependencies yet.',
+    'teampage.closedOnShort': 'closed on {{datum}}',
+    'detail.close': 'Close out',
+    'detail.reopen': 'Reopen',
+    'detail.closedBadge': 'Closed',
+    'detail.closedOn': 'Closed on',
+    'detail.history': 'History',
+    'detail.historyClosed': 'Closed out',
+    'detail.historyReopened': 'Reopened',
+    'detail.historyAccepted': 'Accepted (parked)',
+    'detail.historyUnaccepted': 'Acceptance undone',
 
     'chain.showExternalParties': 'External parties',
     'chain.externalPartyTeams': '{{count}} teams',

@@ -58,6 +58,14 @@
 // - Eén goedgekeurd duplicaat (Superheroes + Casio op de leverancier
 //   regelmotor) bestaat als gekoppeld paar met een gedeelde dedupGroupId.
 //
+// Historie: elke dependency draagt een wijzigingshistorie (status, impact,
+// frequentie, sluiting) met datum, afgeleid uit wat het record nu is (zie
+// historieVoor), plus 27 afgesloten dependencies verspreid over het afgelopen
+// jaar (zie DEPS_GESLOTEN). Koppelingsverzoeken hebben voorstel- en
+// besluitdatums, en de wijzigingenlog bevat naast de review-entries de
+// gebeurtenissen van de afgelopen maanden. Samen maken ze doorlooptijden en
+// trendlijnen op de analysepagina mogelijk.
+//
 // Formaat: leesbare brondata; lib/storage.js (migrateState /
 // applyMockTeamWorkflows) zet dit om naar het echte schema via hetzelfde pad
 // als een JSON-import. Datums staan als "dagen geleden" en worden bij het
@@ -159,7 +167,35 @@ function extern(id) {
   return { externalPartyId: id, externalTeam: P[id] }
 }
 
+// Deterministische "toevalsbron" per id (FNV-1a): dezelfde variatie bij elke
+// herlaad, geen echte randomness in demodata.
+function hashVan(str) {
+  let h = 2166136261
+  for (const ch of str) {
+    h ^= ch.charCodeAt(0)
+    h = Math.imul(h, 16777619)
+  }
+  return h >>> 0
+}
+
 function io(fields) {
+  // Datums van koppelingsverzoeken: een lopend verzoek is recent, een
+  // afgewezen verzoek ligt een maand terug, een geaccepteerde koppeling is
+  // ooit (2 tot 14 dagen na het voorstel) goedgekeurd.
+  const linked = Boolean(fields.linkedTeam && (fields.linkedOutputId || fields.linkedInputId || fields.linkNieuw))
+  const h = hashVan(fields.id)
+  let linkVoorgesteldOp = ''
+  let linkBesluitOp = ''
+  if (linked && fields.linkStatus === 'voorgesteld') {
+    linkVoorgesteldOp = dagenGeleden(3 + (h % 9))
+  } else if (linked && fields.linkStatus === 'afgewezen') {
+    linkVoorgesteldOp = dagenGeleden(31)
+    linkBesluitOp = dagenGeleden(26)
+  } else if (linked) {
+    const voorgesteld = 60 + (h % 340)
+    linkVoorgesteldOp = dagenGeleden(voorgesteld)
+    linkBesluitOp = dagenGeleden(Math.max(0, voorgesteld - 2 - (h % 12)))
+  }
   return {
     flowtype: 'applicatieflow',
     bron_type: '',
@@ -170,6 +206,8 @@ function io(fields) {
     externalTeam: '',
     externalPartyId: '',
     punten: [],
+    linkVoorgesteldOp,
+    linkBesluitOp,
     ...fields,
   }
 }
@@ -625,13 +663,100 @@ const DEP_DEFAULTS = {
   oplosbaarheid: '',
 }
 
+const IMPACT_VOLGORDE = ['klein', 'beperkt', 'duidelijk', 'zwaar']
+const FREQ_VOLGORDE = ['eenmalig', 'soms', 'regelmatig', 'structureel']
+function lager(lijst, waarde) {
+  const i = lijst.indexOf(waarde)
+  return i > 0 ? lijst[i - 1] : null
+}
+function hoger(lijst, waarde) {
+  const i = lijst.indexOf(waarde)
+  return i >= 0 && i < lijst.length - 1 ? lijst[i + 1] : null
+}
+
+// Geloofwaardige wijzigingshistorie per dependency, afgeleid uit wat het
+// record nú is (in dagen geleden; finalize zet ze om naar datums):
+// - een gemitigeerde dependency is ooit als bekend risico begonnen en is bij
+//   een deel tussendoor blokkerend geweest, soms met een lagere impact na de
+//   mitigatie;
+// - een blokkerende dependency is ge-escaleerd vanuit bekend risico, soms
+//   met een hogere impact op hetzelfde moment;
+// - een deel van de bekende risico's is eerder al eens blokkerend geweest en
+//   weer afgeschaald, of is in frequentie toegenomen.
+// Het laatste moment valt samen met 'laatst bijgewerkt'. Deterministisch via
+// hashVan(id), dus bij elke herlaad dezelfde historie. Een record zonder
+// tussentijdse wijziging (bijgewerkt = aangemaakt) heeft geen historie —
+// onvolledig is niet verzonnen.
+function historieVoor(raw) {
+  const { aangemaakt = 180, bijgewerkt = 30, status, impact, frequentie, id } = raw
+  const h = hashVan(id)
+  const span = Math.max(0, aangemaakt - Math.min(bijgewerkt, aangemaakt))
+  const laatste = Math.min(bijgewerkt, aangemaakt)
+  const events = []
+  if (span === 0) return events
+  const tussen = (f) => Math.round(aangemaakt - span * f)
+  if (status === 'gemitigeerd') {
+    if (span > 60 && h % 3 === 0) {
+      events.push({ dagen: tussen(0.35), veld: 'status', van: 'bekend risico', naar: 'actief blokkerend' })
+      events.push({ dagen: laatste, veld: 'status', van: 'actief blokkerend', naar: 'gemitigeerd' })
+    } else {
+      events.push({ dagen: laatste, veld: 'status', van: 'bekend risico', naar: 'gemitigeerd' })
+    }
+    const hogerImpact = hoger(IMPACT_VOLGORDE, impact)
+    if (hogerImpact && h % 4 === 0) events.push({ dagen: laatste, veld: 'impact', van: hogerImpact, naar: impact })
+  } else if (status === 'actief blokkerend' && span > 90 && h % 7 === 0) {
+    // Mitigatie die geen stand hield: eerst gemitigeerd, daarna toch blokkerend.
+    events.push({ dagen: tussen(0.3), veld: 'status', van: 'bekend risico', naar: 'gemitigeerd' })
+    events.push({ dagen: laatste, veld: 'status', van: 'gemitigeerd', naar: 'actief blokkerend' })
+  } else if (status === 'actief blokkerend') {
+    events.push({ dagen: laatste, veld: 'status', van: 'bekend risico', naar: 'actief blokkerend' })
+    const lagerImpact = lager(IMPACT_VOLGORDE, impact)
+    if (lagerImpact && h % 3 === 0) events.push({ dagen: laatste, veld: 'impact', van: lagerImpact, naar: impact })
+  } else if (span > 30 && h % 4 === 0) {
+    events.push({ dagen: tussen(0.5), veld: 'status', van: 'bekend risico', naar: 'actief blokkerend' })
+    events.push({ dagen: laatste, veld: 'status', van: 'actief blokkerend', naar: 'bekend risico' })
+  } else if (h % 5 === 0) {
+    const lagerFreq = lager(FREQ_VOLGORDE, frequentie)
+    if (lagerFreq) events.push({ dagen: laatste, veld: 'frequentie', van: lagerFreq, naar: frequentie })
+  }
+  return events
+}
+
+// Afgehandelde (gesloten) dependency: gemitigeerd en daarna afgesloten, soms
+// met een escalatie ervoor. Blijft bewaard mét historie — de basis voor
+// oplostempo en trends — maar telt niet mee in de operationele weergaven.
+function afgehandeld(fields) {
+  const { aangemaakt, gemitigeerd, gesloten, escalatie = null, ...rest } = fields
+  const historie = []
+  if (escalatie != null) historie.push({ dagen: escalatie, veld: 'status', van: 'bekend risico', naar: 'actief blokkerend' })
+  historie.push({ dagen: gemitigeerd, veld: 'status', van: escalatie != null ? 'actief blokkerend' : 'bekend risico', naar: 'gemitigeerd' })
+  historie.push({ dagen: gesloten, veld: 'gesloten', van: null, naar: true })
+  return { ...rest, status: 'gemitigeerd', aangemaakt, bijgewerkt: gesloten, gesloten, historie }
+}
+
 function finalize(raw) {
-  const { aangemaakt = 180, bijgewerkt = 30, ...rest } = raw
+  const { aangemaakt = 180, bijgewerkt = 30, gesloten = null, heropend = null, historie, ...rest } = raw
+  const events = (historie ?? historieVoor(raw)).map((e) => ({
+    datum: dagenGeleden(e.dagen),
+    veld: e.veld,
+    van: e.van ?? null,
+    naar: e.veld === 'gesloten' && e.naar === true ? dagenGeleden(e.dagen) : (e.naar ?? null),
+  }))
+  // Eerder afgesloten en later heropend: twee 'gesloten'-events, zoals de
+  // app ze zelf schrijft (naar = sluitdatum, daarna van = sluitdatum, naar = null).
+  if (heropend) {
+    const sluitDatum = dagenGeleden(heropend.gesloten)
+    events.push({ datum: sluitDatum, veld: 'gesloten', van: null, naar: sluitDatum })
+    events.push({ datum: dagenGeleden(heropend.heropend), veld: 'gesloten', van: sluitDatum, naar: null })
+  }
+  events.sort((a, b) => a.datum.localeCompare(b.datum))
   return {
     ...DEP_DEFAULTS,
     ...rest,
     aangemaakt_op: dagenGeleden(aangemaakt),
     laatst_bijgewerkt: dagenGeleden(Math.min(bijgewerkt, aangemaakt)),
+    historie: events,
+    gesloten_op: gesloten != null ? dagenGeleden(gesloten) : null,
   }
 }
 
@@ -647,7 +772,7 @@ const DEPS_TIEM = [
     workflowStap: 'ontwikkeling_configuratie', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
     actieAfspraak: 'Pair programming op alle koppelingswijzigingen; kennisdocument in Q4.',
-    aangemaakt: 380, bijgewerkt: 25,
+    aangemaakt: 380, bijgewerkt: 25, heropend: { gesloten: 150, heropend: 40 },
   },
   {
     id: 'ti-dep-02', teamId: T.tiem, categorie: 'Proces-/workflow-afhankelijkheid',
@@ -1013,7 +1138,7 @@ const DEPS_POLIS = [
     flowtype: 'applicatieflow', applicatieIds: ['po-app-klantportaal'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
     mitigatie: 'Synchronisatie van dagelijks naar elk uur gezet.',
-    aangemaakt: 330, bijgewerkt: 60,
+    aangemaakt: 330, bijgewerkt: 60, heropend: { gesloten: 200, heropend: 70 },
   },
   {
     id: 'po-dep-17', teamId: T.polis, categorie: 'Proces-/workflow-afhankelijkheid',
@@ -2484,6 +2609,280 @@ const DEPS_FREGGELS = [
   },
 ]
 
+// ============================================================
+// Afgesloten dependencies (afgelopen jaar) — gemitigeerd en daarna
+// afgesloten, verspreid over de teams; de basis voor oplostempo en trend.
+// ============================================================
+const DEPS_GESLOTEN = [
+  afgehandeld({
+    id: 'ti-gesl-01', teamId: T.tiem, categorie: 'Data-afhankelijkheid',
+    titel: 'Dubbele klantregistratie bij gelijktijdige chat en telefoon',
+    toelichting: 'Een klant die tegelijk belde en chatte kreeg twee klantrecords.',
+    impact: 'beperkt', frequentie: 'regelmatig',
+    flowtype: 'applicatieflow', applicatieIds: ['ti-app-klant', 'ti-app-zaak'], effectOpFlow: 'herwerk',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
+    mitigatie: 'Ontdubbeling op klant-id ingebouwd.',
+    aangemaakt: 320, escalatie: 250, gemitigeerd: 200, gesloten: 170,
+  }),
+  afgehandeld({
+    id: 'ti-gesl-02', teamId: T.tiem, scope: 'extern', categorie: 'Omgevingsafhankelijkheid',
+    titel: 'Telefonieplatform-upgrade zonder testvenster',
+    toelichting: 'De leverancier plande de upgrade zonder testmoment voor het team.',
+    impact: 'duidelijk', frequentie: 'eenmalig',
+    workflowStap: 'testen', effectOpFlow: 'niet_startklaar',
+    wachttijd: 'dagen', deadline: 'vaste_datum', deadlineTekst: 'Upgrade in het maartvenster', oplosbaarheid: 'team_overstijgend',
+    mitigatie: 'Apart testvenster afgesproken met omgevingenbeheer.',
+    ...partij('party-omgevingen'), aangemaakt: 260, gemitigeerd: 150, gesloten: 120,
+  }),
+  afgehandeld({
+    id: 'ti-gesl-03', teamId: T.tiem, categorie: 'Overig intern',
+    titel: 'Kennisbank-migratie naar het intranet',
+    toelichting: 'De migratie van de kennisbank vroeg tijdelijk aandacht van het hele team.',
+    impact: 'klein', frequentie: 'eenmalig',
+    effectOpFlow: 'contextswitch',
+    wachttijd: 'geen', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Migratie afgerond.',
+    aangemaakt: 120, gemitigeerd: 40, gesloten: 20,
+  }),
+  afgehandeld({
+    id: 'po-gesl-01', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    titel: 'Premieherberekening liep vast op schrikkeljaar',
+    toelichting: 'De nachtelijke herberekening faalde op 29 februari.',
+    impact: 'zwaar', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-premie'], effectOpFlow: 'blokkade',
+    wachttijd: 'dagen', deadline: 'harde_deadline', deadlineTekst: 'Herberekening 1 maart', oplosbaarheid: 'meerdere_teamleden',
+    mitigatie: 'Datumlogica gecorrigeerd en getest.',
+    aangemaakt: 200, escalatie: 195, gemitigeerd: 190, gesloten: 175,
+  }),
+  afgehandeld({
+    id: 'po-gesl-02', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    titel: 'Certificaat integratie gateway verlopen',
+    toelichting: 'Alle externe koppelingen vielen uit toen het gateway-certificaat verliep.',
+    impact: 'zwaar', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-gateway'], effectOpFlow: 'blokkade',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Certificaat vernieuwd; verloopdatum in de monitoring.',
+    aangemaakt: 95, escalatie: 94, gemitigeerd: 93, gesloten: 80,
+  }),
+  afgehandeld({
+    id: 'po-gesl-03', teamId: T.polis, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
+    titel: 'Handmatige polisoverdracht bij fusie van een verzekeraar',
+    toelichting: 'De overdracht van polissen vroeg wekenlang afstemming met de business.',
+    impact: 'duidelijk', frequentie: 'eenmalig',
+    workflowStap: 'analyse_refinement', effectOpFlow: 'extra_afstemming',
+    wachttijd: 'dagen', deadline: 'vaste_datum', deadlineTekst: 'Overdracht vóór 1 oktober', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Overdracht afgerond in twee batches.',
+    ...partij('party-business-verzekeringen'), aangemaakt: 340, gemitigeerd: 260, gesloten: 240,
+  }),
+  afgehandeld({
+    id: 'po-gesl-04', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    titel: 'Documentservice genereerde lege PDFs bij speciale tekens',
+    toelichting: 'Namen met diakritische tekens leverden een leeg document op.',
+    impact: 'beperkt', frequentie: 'regelmatig',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-document'], effectOpFlow: 'herwerk',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Tekenset gecorrigeerd.',
+    aangemaakt: 60, gemitigeerd: 30, gesloten: 12,
+  }),
+  afgehandeld({
+    id: 'sh-gesl-01', teamId: T.superheroes, categorie: 'Technische afhankelijkheid',
+    titel: 'Regelmotor accepteerde een verlopen beleidsversie',
+    toelichting: 'Beoordelingen liepen een week op oude regels.',
+    impact: 'zwaar', frequentie: 'soms',
+    flowtype: 'applicatieflow', applicatieIds: ['sh-app-regels'], effectOpFlow: 'blokkade',
+    wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
+    mitigatie: 'Versiecontrole op beleidsregels toegevoegd.',
+    aangemaakt: 150, escalatie: 140, gemitigeerd: 110, gesloten: 90,
+  }),
+  afgehandeld({
+    id: 'sh-gesl-02', teamId: T.superheroes, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
+    titel: 'Dossierviewer zonder leesrechten voor nieuwe beoordelaars',
+    toelichting: 'Nieuwe beoordelaars konden weken geen dossiers openen.',
+    impact: 'beperkt', frequentie: 'soms',
+    flowtype: 'applicatieflow', applicatieIds: ['sh-app-dossier'], effectOpFlow: 'niet_startklaar',
+    wachttijd: 'sprint_of_meer', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Standaardrol beoordelaar ingericht bij IAM-beheer.',
+    ...partij('party-iam'), aangemaakt: 230, gemitigeerd: 180, gesloten: 160,
+  }),
+  afgehandeld({
+    id: 'sh-gesl-03', teamId: T.superheroes, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
+    titel: 'Beoordelingskader Q2 kwam zonder wijzigingsoverzicht',
+    toelichting: 'Het team moest zelf uitzoeken wat er in het kader veranderd was.',
+    impact: 'beperkt', frequentie: 'eenmalig',
+    workflowStap: 'analyse_refinement', effectOpFlow: 'onduidelijkheid',
+    wachttijd: 'kort', deadline: 'interne_afspraak', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Wijzigingsoverzicht is nu vast onderdeel van elke beleidsupdate.',
+    ...partij('party-business-verzekeringen'), aangemaakt: 110, gemitigeerd: 70, gesloten: 45,
+  }),
+  afgehandeld({
+    id: 'ca-gesl-01', teamId: T.casio, scope: 'extern', categorie: 'Technische afhankelijkheid',
+    titel: 'SEPA-bestand afgekeurd door de bank na formaatwijziging',
+    toelichting: 'De bank wijzigde de specificatie; het eerste bestand werd afgekeurd op de uitbetaaldag.',
+    impact: 'zwaar', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-betaal'], effectOpFlow: 'blokkade',
+    wachttijd: 'dagen', deadline: 'harde_deadline', deadlineTekst: 'Uitbetaling op de 23e', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Formaat aangepast; de bankspecificatie zit in de regressietest.',
+    ...partij('party-bank'), aangemaakt: 275, escalatie: 274, gemitigeerd: 271, gesloten: 260,
+  }),
+  afgehandeld({
+    id: 'ca-gesl-02', teamId: T.casio, categorie: 'Data-afhankelijkheid',
+    titel: 'Batchverwerker liep vast op dubbele mutaties',
+    toelichting: 'Dubbele polismutaties uit dezelfde nacht blokkeerden de batch.',
+    impact: 'duidelijk', frequentie: 'soms',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-batch'], effectOpFlow: 'herwerk',
+    wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
+    mitigatie: 'Ontdubbeling vóór verwerking ingebouwd.',
+    aangemaakt: 180, gemitigeerd: 130, gesloten: 100,
+  }),
+  afgehandeld({
+    id: 'ca-gesl-03', teamId: T.casio, scope: 'extern', categorie: 'Data-afhankelijkheid',
+    titel: 'Testcertificaat loonaangifte-koppeling verlopen',
+    toelichting: 'De testkoppeling met de Belastingdienst werkte een maand niet.',
+    impact: 'beperkt', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-loon'], effectOpFlow: 'wachten',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Nieuw testcertificaat ontvangen.',
+    ...partij('party-belastingdienst'), aangemaakt: 70, gemitigeerd: 50, gesloten: 35,
+  }),
+  afgehandeld({
+    id: 'ca-gesl-04', teamId: T.casio, categorie: 'Proces-/workflow-afhankelijkheid',
+    titel: 'Uitkeringsbeschikkingen zonder rekeningnummer',
+    toelichting: 'Beschikkingen zonder rekeningnummer kwamen pas bij de betaling aan het licht.',
+    impact: 'duidelijk', frequentie: 'soms',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering'], effectOpFlow: 'herwerk',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Verplichte validatie op rekeningnummer.',
+    aangemaakt: 400, gemitigeerd: 350, gesloten: 330,
+  }),
+  afgehandeld({
+    id: 'sv-gesl-01', teamId: T.sv, categorie: 'Technische afhankelijkheid',
+    titel: 'Dashboard toonde de verkeerde maand na de jaarovergang',
+    toelichting: 'Het maandfilter sprong in januari terug naar december.',
+    impact: 'duidelijk', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['sv-app-dashboard'], effectOpFlow: 'herwerk',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Datumfilter gecorrigeerd.',
+    aangemaakt: 250, gemitigeerd: 245, gesloten: 230,
+  }),
+  afgehandeld({
+    id: 'sv-gesl-02', teamId: T.sv, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
+    titel: 'Toezichtrapportage Q1 in het oude formaat aangeleverd',
+    toelichting: 'De toezichthouder wees de rapportage af; opnieuw aanleveren kostte een week.',
+    impact: 'zwaar', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['sv-app-rapport'], effectOpFlow: 'blokkade',
+    wachttijd: 'dagen', deadline: 'harde_deadline', deadlineTekst: 'Kwartaalrapportage 15 april', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Rapportage opnieuw aangeleverd in het nieuwe formaat.',
+    ...partij('party-toezicht'), aangemaakt: 160, escalatie: 158, gemitigeerd: 150, gesloten: 140,
+  }),
+  afgehandeld({
+    id: 'sv-gesl-03', teamId: T.sv, categorie: 'Data-afhankelijkheid',
+    titel: 'Laadproces polisdata dubbel geregistreerd',
+    toelichting: 'Polisdata werd twee keer per nacht geladen, met dubbele tellingen in de rapportages.',
+    impact: 'beperkt', frequentie: 'soms',
+    flowtype: 'applicatieflow', applicatieIds: ['sv-app-dwh'], effectOpFlow: 'herwerk',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Dubbele laadstap verwijderd.',
+    aangemaakt: 45, gemitigeerd: 20, gesloten: 8,
+  }),
+  afgehandeld({
+    id: 'eq-gesl-01', teamId: T.equinox, categorie: 'Technische afhankelijkheid',
+    titel: 'Releasekalender op de verkeerde tijdzone',
+    toelichting: 'Releasevensters stonden een uur verschoven in de kalender-app.',
+    impact: 'beperkt', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['eq-app-kalender'], effectOpFlow: 'herwerk',
+    mitigatie: 'Tijdzone vastgezet.',
+    aangemaakt: 300, gemitigeerd: 290, gesloten: 280,
+  }),
+  afgehandeld({
+    id: 'eq-gesl-02', teamId: T.equinox, categorie: 'Technische afhankelijkheid',
+    titel: 'Notificaties kwamen dubbel binnen bij teams',
+    toelichting: 'Elke kalenderwijziging leverde twee notificaties op.',
+    impact: 'beperkt', frequentie: 'regelmatig',
+    flowtype: 'applicatieflow', applicatieIds: ['eq-app-notif'], effectOpFlow: 'vertraging',
+    mitigatie: 'Ontdubbeling op berichtsleutel.',
+    aangemaakt: 130, gemitigeerd: 100, gesloten: 85,
+  }),
+  afgehandeld({
+    id: 'eq-gesl-03', teamId: T.equinox, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
+    titel: 'CAB vroeg extra onderbouwing voor het zomervenster',
+    toelichting: 'Het zomervenster werd pas na een tweede CAB-ronde goedgekeurd.',
+    impact: 'beperkt', frequentie: 'eenmalig',
+    workflowStap: 'release_overdracht', effectOpFlow: 'wachten',
+    mitigatie: 'Onderbouwing aangeleverd en goedgekeurd.',
+    ...partij('party-cab'), aangemaakt: 90, gemitigeerd: 75, gesloten: 60,
+  }),
+  afgehandeld({
+    id: 'sm-gesl-01', teamId: T.smurfen, categorie: 'Technische afhankelijkheid',
+    titel: 'Certificaatrotatie API-gateway brak koppelingen van drie teams',
+    toelichting: 'Een onaangekondigde rotatie zette Polis, Casio en Tiem een ochtend stil.',
+    impact: 'zwaar', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['sm-app-api'], effectOpFlow: 'blokkade',
+    wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
+    mitigatie: 'Rotatie nu met aankondiging en overlapperiode.',
+    aangemaakt: 210, escalatie: 209, gemitigeerd: 205, gesloten: 190,
+  }),
+  afgehandeld({
+    id: 'sm-gesl-02', teamId: T.smurfen, scope: 'extern', categorie: 'Technische afhankelijkheid',
+    titel: 'Logservice liep vol door debug-logging van Freggels',
+    toelichting: 'Een testrun met debug-logging vulde de logopslag in één nacht.',
+    impact: 'duidelijk', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['sm-app-log'], effectOpFlow: 'vertraging',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
+    mitigatie: 'Logniveau per team begrensd.',
+    ...team('Team Freggels'), aangemaakt: 140, gemitigeerd: 130, gesloten: 115,
+  }),
+  afgehandeld({
+    id: 'sm-gesl-03', teamId: T.smurfen, categorie: 'Omgevingsafhankelijkheid',
+    titel: 'Pipeline-runners zonder onderhoudsvenster',
+    toelichting: 'Onderhoud aan de runners viel altijd midden in een sprint.',
+    impact: 'beperkt', frequentie: 'regelmatig',
+    workflowStap: 'beheer_nazorg', effectOpFlow: 'wachten',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Wekelijks onderhoudsvenster ingesteld.',
+    aangemaakt: 380, gemitigeerd: 330, gesloten: 300,
+  }),
+  afgehandeld({
+    id: 'sm-gesl-04', teamId: T.smurfen, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
+    titel: 'Security-auditbevindingen op IAM-rollen',
+    toelichting: 'De jaarlijkse audit leverde vier bevindingen op het rollenmodel op.',
+    impact: 'duidelijk', frequentie: 'eenmalig',
+    flowtype: 'applicatieflow', applicatieIds: ['sm-app-iam'], effectOpFlow: 'herwerk',
+    wachttijd: 'dagen', deadline: 'vaste_datum', deadlineTekst: 'Hersteltermijn 30 dagen na de audit', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Alle bevindingen binnen de termijn hersteld.',
+    ...partij('party-security'), aangemaakt: 55, gemitigeerd: 28, gesloten: 15,
+  }),
+  afgehandeld({
+    id: 'fr-gesl-01', teamId: T.freggels, categorie: 'Data-afhankelijkheid',
+    titel: 'Ketentest jaarovergang zonder representatieve data',
+    toelichting: 'De jaarovergang kon niet getest worden zonder data uit twee kalenderjaren.',
+    impact: 'zwaar', frequentie: 'eenmalig',
+    workflowStap: 'testen', effectOpFlow: 'niet_startklaar',
+    wachttijd: 'dagen', deadline: 'harde_deadline', deadlineTekst: 'Ketentest vóór 15 december', oplosbaarheid: 'meerdere_teams',
+    mitigatie: 'Jaarovergangsset toegevoegd aan de testdata generator.',
+    aangemaakt: 290, escalatie: 280, gemitigeerd: 270, gesloten: 255,
+  }),
+  afgehandeld({
+    id: 'fr-gesl-02', teamId: T.freggels, categorie: 'Technische afhankelijkheid',
+    titel: 'Performancetestsuite meldde valse alarmen',
+    toelichting: 'Te scherpe drempelwaarden gaven elke nacht een alarm.',
+    impact: 'beperkt', frequentie: 'regelmatig',
+    flowtype: 'applicatieflow', applicatieIds: ['fr-app-perf'], effectOpFlow: 'contextswitch',
+    wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
+    mitigatie: 'Drempelwaarden herijkt.',
+    aangemaakt: 170, gemitigeerd: 140, gesloten: 125,
+  }),
+  afgehandeld({
+    id: 'fr-gesl-03', teamId: T.freggels, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
+    titel: 'Testaccounts verliepen midden in de ketentest',
+    toelichting: 'Halverwege de ketentest verliepen de testaccounts van IAM-beheer.',
+    impact: 'duidelijk', frequentie: 'soms',
+    workflowStap: 'testen', effectOpFlow: 'blokkade',
+    wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
+    mitigatie: 'Testaccounts met verlengde geldigheid afgesproken met IAM-beheer.',
+    ...partij('party-iam'), aangemaakt: 100, escalatie: 98, gemitigeerd: 90, gesloten: 70,
+  }),
+]
+
 export const RAW_MOCK_DEPENDENCIES = [
   ...DEPS_TIEM,
   ...DEPS_POLIS,
@@ -2493,6 +2892,7 @@ export const RAW_MOCK_DEPENDENCIES = [
   ...DEPS_EQUINOX,
   ...DEPS_SMURFEN,
   ...DEPS_FREGGELS,
+  ...DEPS_GESLOTEN,
 ]
 
 export const MOCK_DEPENDENCIES = RAW_MOCK_DEPENDENCIES.map(finalize)
@@ -2503,15 +2903,56 @@ export const MOCK_DEPENDENCIES = RAW_MOCK_DEPENDENCIES.map(finalize)
 // het goedgekeurde duplicaat Superheroes/Casio op de leverancier regelmotor.
 // ---------------------------------------------------------------------------
 
-export const MOCK_CHANGE_LOG = [
-  { id: 'log-1', timestamp: tijdstipGeleden(1, 9), teamId: T.freggels, type: 'dependency_created', dependencyId: 'fr-dep-21', duplicateOfId: null, status: 'pending' },
-  { id: 'log-2', timestamp: tijdstipGeleden(2, 14), teamId: T.casio, type: 'dependency_created', dependencyId: 'ca-dep-28', duplicateOfId: null, status: 'pending' },
-  { id: 'log-3', timestamp: tijdstipGeleden(3, 11), teamId: T.tiem, type: 'dependency_created', dependencyId: 'ti-dep-23', duplicateOfId: 'ca-dep-26', status: 'pending' },
-  { id: 'log-4', timestamp: tijdstipGeleden(6, 16), teamId: T.superheroes, type: 'dependency_created', dependencyId: 'sh-dep-09', duplicateOfId: 'ca-dep-14', status: 'approved' },
-  { id: 'log-5', timestamp: tijdstipGeleden(9, 10), teamId: T.polis, type: 'dependency_created', dependencyId: 'po-dep-33', duplicateOfId: null, status: 'edited' },
-  { id: 'log-6', timestamp: tijdstipGeleden(12, 15), teamId: T.sv, type: 'dependency_created', dependencyId: 'sv-dep-21', duplicateOfId: null, status: 'rejected' },
-  { id: 'log-7', timestamp: tijdstipGeleden(14, 9), teamId: T.smurfen, type: 'dependency_created', dependencyId: 'sm-dep-27', duplicateOfId: null, status: 'approved' },
+// Handmatige review-entries (de admin-logpagina): alle vier statussen,
+// inclusief een duplicaatmelding (Tiem en Casio registreerden elk een
+// SSD-aanvraag op hetzelfde loket) en het goedgekeurde duplicaat
+// Superheroes/Casio op de leverancier regelmotor.
+const REVIEW_LOG = [
+  { id: 'log-1', timestamp: tijdstipGeleden(1, 9), teamId: T.freggels, type: 'dependency_created', dependencyId: 'fr-dep-21', titel: 'Signaleringsservice mist koppeling met de releasekalender', duplicateOfId: null, status: 'pending' },
+  { id: 'log-2', timestamp: tijdstipGeleden(2, 14), teamId: T.casio, type: 'dependency_created', dependencyId: 'ca-dep-28', titel: 'Fraudecheck-pilot leest productiedata zonder anonimisering', duplicateOfId: null, status: 'pending' },
+  { id: 'log-3', timestamp: tijdstipGeleden(3, 11), teamId: T.tiem, type: 'dependency_created', dependencyId: 'ti-dep-23', titel: 'SSD-aanvraag extra opslag gespreksopnames wacht al een maand', duplicateOfId: 'ca-dep-26', status: 'pending' },
+  { id: 'log-4', timestamp: tijdstipGeleden(6, 16), teamId: T.superheroes, type: 'dependency_created', dependencyId: 'sh-dep-09', titel: 'Leverancier regelmotor levert regelreleases later dan afgesproken', duplicateOfId: 'ca-dep-14', status: 'approved' },
+  { id: 'log-5', timestamp: tijdstipGeleden(9, 10), teamId: T.polis, type: 'dependency_created', dependencyId: 'po-dep-33', titel: 'SSD-aanvraag database-uitbreiding polisadministratie wacht op capaciteit', duplicateOfId: null, status: 'edited' },
+  { id: 'log-6', timestamp: tijdstipGeleden(12, 15), teamId: T.sv, type: 'dependency_created', dependencyId: 'sv-dep-21', titel: 'Correctiesignalen naar Casio worden niet teruggekoppeld', duplicateOfId: null, status: 'rejected' },
+  { id: 'log-7', timestamp: tijdstipGeleden(14, 9), teamId: T.smurfen, type: 'dependency_created', dependencyId: 'sm-dep-27', titel: 'Nog te beoordelen: zero-trust netwerkmodel', duplicateOfId: null, status: 'approved' },
 ]
+
+// Koppelingsverzoeken als gebeurtenis, passend bij de items in de workflows.
+const LINK_LOG = [
+  { id: 'log-link-1', timestamp: tijdstipGeleden(5, 11), teamId: T.freggels, type: 'link_proposed', titel: 'Releasekalender voor testplanning', details: { targetTeamId: T.equinox, kind: 'input' } },
+  { id: 'log-link-2', timestamp: tijdstipGeleden(8, 14), teamId: T.casio, type: 'link_proposed', titel: 'Uitkeringsstatistiek per maand', details: { targetTeamId: T.sv, kind: 'output' } },
+  { id: 'log-link-3', timestamp: tijdstipGeleden(31, 10), teamId: T.freggels, type: 'link_proposed', titel: 'Testrapport per release', details: { targetTeamId: T.tiem, kind: 'output' } },
+  { id: 'log-link-4', timestamp: tijdstipGeleden(26, 15), teamId: T.tiem, type: 'link_rejected', titel: 'Testrapport per release', details: { proposerTeamId: T.freggels, kind: 'output' } },
+]
+
+// Gebeurtenissen afgeleid uit de historie van de dependencies: aanmaak
+// (afgelopen 60 dagen, tenzij er al een review-entry is), wijzigingen
+// (afgelopen 90 dagen) en sluitingen (afgelopen 120 dagen). Zo klopt de log
+// met wat het detailpaneel per dependency als historie toont.
+function afgeleideLog(rawDeps, reviewIds) {
+  const entries = []
+  for (const raw of rawDeps) {
+    const uur = 9 + (hashVan(raw.id) % 8)
+    const events = raw.historie ?? historieVoor(raw)
+    if ((raw.aangemaakt ?? 180) <= 60 && !reviewIds.has(raw.id)) {
+      entries.push({ id: `log-${raw.id}-aangemaakt`, timestamp: tijdstipGeleden(raw.aangemaakt, uur), teamId: raw.teamId, type: 'dependency_created', dependencyId: raw.id, titel: raw.titel, duplicateOfId: null, status: 'approved' })
+    }
+    if (raw.heropend && raw.heropend.heropend <= 120) {
+      entries.push({ id: `log-${raw.id}-heropend`, timestamp: tijdstipGeleden(raw.heropend.heropend, uur), teamId: raw.teamId, type: 'dependency_reopened', dependencyId: raw.id, titel: raw.titel })
+    }
+    for (const e of events) {
+      if (e.dagen > 120) continue
+      if (e.veld === 'gesloten') {
+        entries.push({ id: `log-${raw.id}-gesloten`, timestamp: tijdstipGeleden(e.dagen, uur), teamId: raw.teamId, type: 'dependency_closed', dependencyId: raw.id, titel: raw.titel })
+      } else if (e.dagen <= 90) {
+        entries.push({ id: `log-${raw.id}-${e.veld}-${e.dagen}`, timestamp: tijdstipGeleden(e.dagen, uur), teamId: raw.teamId, type: 'dependency_updated', dependencyId: raw.id, titel: raw.titel, details: { velden: [e.veld] } })
+      }
+    }
+  }
+  return entries
+}
+
+export const MOCK_CHANGE_LOG = [...REVIEW_LOG, ...LINK_LOG, ...afgeleideLog(RAW_MOCK_DEPENDENCIES, new Set(REVIEW_LOG.map((e) => e.dependencyId)))]
 
 // De uitgebreide analyse staat in de demo aan: de demo laat zo meteen
 // flowverlies, urgentie, kwadranten en de labels 'stil risico', 'verouderd'

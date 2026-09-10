@@ -12,7 +12,10 @@ import { slugify, uniqueSlug } from './slug'
 export const STORAGE_KEY = 'dependency-insight:v1'
 // 5: input-/output-items kennen linkStatus/linkNieuw/punten, applicatie-
 // koppelingen kennen punten (zie migrateIoItem/migrateConnection).
-export const SCHEMA_VERSION = 5
+// 6: dependencies kennen een wijzigingshistorie (historie) en een sluitdatum
+// (gesloten_op); koppelingsverzoeken kennen voorstel-/besluitdatums; de
+// wijzigingenlog kent naast review-entries ook losse gebeurtenissen.
+export const SCHEMA_VERSION = 6
 
 export const MAX_SNAPSHOTS_PER_TEAM = 10
 
@@ -74,6 +77,7 @@ export const DEFAULT_ADMIN_SETTINGS = {
     netwerk: true,
     keten: true,
     team: true,
+    analyse: true,
   },
   sections: {
     matrix: { samenvattingskaarten: true, keyObservations: true, tabel: true, filters: true },
@@ -203,6 +207,17 @@ const CATEGORIE_MIGRATIE = {
   Procesafhankelijkheid: 'Governance/proces-afhankelijkheid',
 }
 
+// Alleen entries met een datum en een veldnaam blijven staan; van/naar mogen
+// leeg zijn (bv. een sluiting). Chronologisch gesorteerd zodat "toestand op
+// datum X" een simpele replay is.
+function sanitizeHistorie(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((e) => e && typeof e === 'object' && typeof e.datum === 'string' && e.datum && typeof e.veld === 'string' && e.veld)
+    .map((e) => ({ datum: e.datum, veld: e.veld, van: e.van ?? null, naar: e.naar ?? null }))
+    .sort((a, b) => a.datum.localeCompare(b.datum))
+}
+
 function migrateDependency(raw, teamsState) {
   const teamId = resolveTeamId(raw, teamsState)
   const { eigenaarFunctieIds: _eigenaarFunctieIds, oplossingsniveau: _oplossingsniveau, ...rest } = raw
@@ -255,6 +270,15 @@ function migrateDependency(raw, teamsState) {
     // nieuw aangemaakte records (via AppContext.addDependency) krijgen dit
     // vanaf nu automatisch gezet.
     aangemaakt_op: typeof raw.aangemaakt_op === 'string' ? raw.aangemaakt_op : null,
+    // Wijzigingshistorie (status, impact, frequentie, …) met datum — de basis
+    // voor trends en doorlooptijden. Wordt vanaf nu door AppContext gevuld bij
+    // elke wijziging; oudere data start met een lege historie (onvolledig ≠
+    // verzonnen).
+    historie: sanitizeHistorie(raw.historie),
+    // Gesloten dependencies blijven bewaard mét historie, maar tellen niet
+    // meer mee in de operationele weergaven (zie activeDependencies in
+    // AppContext).
+    gesloten_op: typeof raw.gesloten_op === 'string' && raw.gesloten_op ? raw.gesloten_op : null,
   }
 }
 
@@ -320,7 +344,16 @@ function migrateIoItem(item) {
   if (!item || typeof item !== 'object') return item
   const hasLink = Boolean(item.linkedTeam && (item.linkedOutputId || item.linkedInputId))
   const linkStatus = LINK_STATUS.includes(item.linkStatus) ? item.linkStatus : hasLink ? 'geaccepteerd' : ''
-  return { ...item, punten: sanitizePunten(item.punten), linkStatus, linkNieuw: item.linkNieuw === true }
+  return {
+    ...item,
+    punten: sanitizePunten(item.punten),
+    linkStatus,
+    linkNieuw: item.linkNieuw === true,
+    // Datum van het koppelingsverzoek en van het besluit erover: samen de
+    // doorlooptijd van goedkeuring.
+    linkVoorgesteldOp: typeof item.linkVoorgesteldOp === 'string' ? item.linkVoorgesteldOp : '',
+    linkBesluitOp: typeof item.linkBesluitOp === 'string' ? item.linkBesluitOp : '',
+  }
 }
 
 function migrateConnection(conn) {
@@ -383,19 +416,42 @@ function migrateTeamSnapshots(rawSnapshots, teams) {
 // dependency op een ander team (zie AppContext.jsx addDependency/
 // findPotentialDuplicate). Onbekende/corrupte entries vallen weg i.p.v. de
 // hele import te blokkeren.
+// 'dependency_created' is de review-entry van de admin-logpagina (met
+// goedkeurstatus en eventuele duplicaatmarkering); de overige types zijn
+// losse gebeurtenissen zonder review, puur voor de analyse (registratie-
+// gedrag, sluitingen, koppelingsverzoeken). Een verwijderde dependency
+// bestaat niet meer, daarom draagt elke entry de titel zelf mee.
+export const CHANGE_LOG_TYPES = [
+  'dependency_created',
+  'dependency_updated',
+  'dependency_closed',
+  'dependency_reopened',
+  'dependency_deleted',
+  'link_proposed',
+  'link_accepted',
+  'link_rejected',
+]
+
 function migrateChangeLog(raw) {
   if (!Array.isArray(raw)) return []
   return raw
-    .filter((c) => c && typeof c === 'object' && c.id && c.dependencyId)
-    .map((c) => ({
-      id: String(c.id),
-      timestamp: c.timestamp ?? new Date().toISOString(),
-      teamId: c.teamId ?? null,
-      type: c.type ?? 'dependency_created',
-      dependencyId: c.dependencyId,
-      duplicateOfId: c.duplicateOfId ?? null,
-      status: ['pending', 'approved', 'edited', 'rejected'].includes(c.status) ? c.status : 'pending',
-    }))
+    .filter((c) => c && typeof c === 'object' && c.id)
+    .map((c) => {
+      const type = CHANGE_LOG_TYPES.includes(c.type) ? c.type : 'dependency_created'
+      const isReview = type === 'dependency_created'
+      return {
+        id: String(c.id),
+        timestamp: c.timestamp ?? new Date().toISOString(),
+        teamId: c.teamId ?? null,
+        type,
+        dependencyId: c.dependencyId ?? null,
+        duplicateOfId: c.duplicateOfId ?? null,
+        titel: typeof c.titel === 'string' ? c.titel : '',
+        details: c.details && typeof c.details === 'object' ? c.details : null,
+        status: isReview ? (['pending', 'approved', 'edited', 'rejected'].includes(c.status) ? c.status : 'pending') : null,
+      }
+    })
+    .filter((c) => c.type !== 'dependency_created' || c.dependencyId)
 }
 
 // Structurele validatie van een geïmporteerd JSON-bestand. Gooit een

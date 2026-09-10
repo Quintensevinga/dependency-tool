@@ -5,6 +5,56 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-10
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
+- **Analyse: rapport in lopende tekst, waarschuwingen per geval en 14 extra analyses** (Quinten)
+
+  - src/lib/analyseTeksten.js: tekstlaag (nl/en) met sjablonen — rapport in
+    acht alinea's (samenvatting, ontwikkeling, risico, teams, keten en
+    partijen, applicaties en proces, datakwaliteit, aanbevelingen) dat het
+    teamfilter volgt en te kopiëren is; één zin per waarschuwing; per
+    constatering een samenvattende zin (verdeling over teams, hoogste risico,
+    oudste); werkwoordsvormen volgen het aantal
+  - analytics.js: score-verandering in 30 dagen, leeftijdsverdeling,
+    statusovergangen (mitigatie hield geen stand, heropend), lineaire
+    projectie, ketenrisico stroomop- en -afwaarts, wederzijdse
+    afhankelijkheden, kaartvolledigheid, concentratie (top 3), teamscorekaart
+    met gemiddelde, gedeelde applicaties via ketenkoppelingen, laatste
+    activiteit per team, dubbele registraties; sluimerend, geparkeerd-maar-hoog
+    en gemitigeerd-niet-gesloten; twaalf nieuwe constateringsregels en de
+    geprioriteerde signalenlijst
+  - AnalysePage: secties Rapport en Waarschuwingen, springnavigatie, kaarten
+    voor alle nieuwe analyses
+  - mockdata: vier mitigaties die geen stand hielden en twee heropende
+    dependencies, zodat de levensloopanalyses iets laten zien
+  - handleiding hoofdstuk 12 en README bijgewerkt
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Analysepagina: metrieken, trends, constateringen en hygiënecontroles over alle data** (Quinten)
+
+  - src/lib/analytics.js: replay van de historie (trends per week, vergelijking
+    met 30 dagen terug, doorlooptijden), portfolio-kengetallen, hotspots,
+    partij-hubs, wie-blokkeert-wie, kennisconcentratie, ketenkengetallen (cycli,
+    losse items, verzoeken, kaart tegenover praktijk, SPOF), werkstapbelasting,
+    flowverlies, hygiënecontroles, registratiegedrag en constateringen met ernst
+  - src/components/AnalysePage.jsx: twaalf secties, elke kaart met uitleg van
+    de regel; teamfilter dat ook keten, applicaties en capaciteit terugbrengt
+    tot dat team; periode 13/26/52 weken; klik door naar detail en teampagina
+  - zijbalkitem Analyse, admin-schakelaar voor de pagina, README en
+    handleiding (hoofdstuk 12)
+
+- **Historie en levensloop: wijzigingshistorie per dependency, afsluiten/heropenen, tab Gesloten** (Quinten)
+
+  - dependency.historie (veldwijzigingen met datum), gesloten_op en geraaktTeamId;
+    migratie naar schema 6 vult ze voor bestaande data
+  - wijzigingenlog uitgebreid: dependency_updated/closed/reopened/deleted en
+    link_proposed/accepted/rejected naast de bestaande aanmeldingen
+  - detailpaneel toont de historie en kan afsluiten/heropenen; teampagina krijgt
+    een tab Gesloten; koppelingen dragen voorstel- en besluitdatum
+  - mockdata: geloofwaardige historie over een jaar, 27 gesloten dependencies,
+    afgeleide logregels en koppelingsdatums
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
 - **Rijke demodataset: 8 teams in één keten, 198 dependencies, partijregister, log** (Quinten)
 
   Volledig herschreven mockData.js: Tiem → Polis → Superheroes (nieuw team,

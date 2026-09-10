@@ -1464,7 +1464,7 @@ function withLinkStatus(draft, original) {
     (original.linkedInputId ?? '') === (draft.linkedInputId ?? '') &&
     Boolean(original.linkNieuw) === Boolean(draft.linkNieuw)
   if (unchanged && original.linkStatus) return draft
-  return { ...draft, linkStatus: 'voorgesteld' }
+  return { ...draft, linkStatus: 'voorgesteld', linkVoorgesteldOp: new Date().toISOString().slice(0, 10), linkBesluitOp: '' }
 }
 
 // Compacte beschrijving van een input/output-item voor de Teamgegevens-lijst
@@ -2787,6 +2787,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     adminSettings,
     acceptLinkRequest,
     rejectLinkRequest,
+    alleDependencies,
+    logEvent,
   } = useAppContext()
   const { t, language } = useLanguage()
   const teamNaam = teamName(teamId)
@@ -3084,8 +3086,14 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [bottomSectionTab, setBottomSectionTab] = useState('dependencies')
   const acceptedDeps = useMemo(() => filteredTeamDependencies.filter((d) => d.geaccepteerd), [filteredTeamDependencies])
   const visibleTeamDependencies = useMemo(
-    () => filteredTeamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd')),
+    () => (depTab === 'gesloten' ? [] : filteredTeamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd'))),
     [filteredTeamDependencies, depTab],
+  )
+  // Gesloten dependencies staan niet in de operationele lijst (context levert
+  // alleen open records) — eigen tabblad, nieuwste sluiting bovenaan.
+  const closedTeamDeps = useMemo(
+    () => alleDependencies.filter((d) => d.teamId === teamId && d.gesloten_op).sort((a, b) => b.gesloten_op.localeCompare(a.gesloten_op)),
+    [alleDependencies, teamId],
   )
 
   // Drieledige splitsing per de Ontwikkelflow/Applicatieflow-scheiding:
@@ -4386,6 +4394,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 // Nieuwe/gewijzigde koppeling naar een ander team wordt een
                 // verzoek aan dat team — zie withLinkStatus.
                 const draft = withLinkStatus(rawDraft, canvasIoTarget.item)
+                // Nieuw verzoek (of opnieuw ingediend na wijziging): als
+                // gebeurtenis in de wijzigingenlog voor de analyse.
+                if (draft.linkStatus === 'voorgesteld' && draft.linkVoorgesteldOp && draft.linkVoorgesteldOp !== (canvasIoTarget.item?.linkVoorgesteldOp ?? '')) {
+                  logEvent({ teamId, type: 'link_proposed', titel: draft.label, details: { targetTeamId: draft.linkedTeam, kind: canvasIoTarget.kind } })
+                }
                 if (canvasIoTarget.kind === 'input') {
                   if (isNew) addInput(draft)
                   else updateInput(draft.id, draft)
@@ -4496,8 +4509,41 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               >
                 {t('teampage.depTabGeaccepteerd')} · {acceptedDeps.length}
               </button>
+              <button
+                type="button"
+                onClick={() => setDepTab('gesloten')}
+                aria-pressed={depTab === 'gesloten'}
+                className={`rounded px-2.5 py-1 font-medium transition-colors ${depTab === 'gesloten' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                {t('teampage.depTabGesloten')} · {closedTeamDeps.length}
+              </button>
             </div>
-            {visibleTeamDependencies.length === 0 && (
+            {depTab === 'gesloten' &&
+              (closedTeamDeps.length === 0 ? (
+                <p className="text-xs text-slate-400">{t('teampage.dependenciesEmptyClosed')}</p>
+              ) : (
+                <ul className="divide-y divide-slate-100">
+                  {closedTeamDeps.map((dep) => {
+                    const risk = calculateRisk(dep)
+                    const style = riskStyle(risk.level)
+                    return (
+                      <li key={dep.id}>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDependency(dep)}
+                          className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
+                        >
+                          <CategoryIcon categorie={dep.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+                          <span className="min-w-0 flex-1 truncate text-slate-700">{dep.titel}</span>
+                          <span className="shrink-0 text-xs text-slate-400">{t('teampage.closedOnShort', { datum: dep.gesloten_op })}</span>
+                          <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
+                </ul>
+              ))}
+            {depTab !== 'gesloten' && visibleTeamDependencies.length === 0 && (
               <p className="text-xs text-slate-400">
                 {depFiltersActive
                   ? t('teampage.dependenciesEmptyFiltered')
@@ -4530,7 +4576,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               </div>
             )}
 
-            {(
+            {depTab !== 'gesloten' && (
               <div>
                 <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t('teampage.flowtypeApplicatieflow')} · {applicatieflowDeps.length}
