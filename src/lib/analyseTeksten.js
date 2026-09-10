@@ -377,7 +377,10 @@ export function constateringZin(c, ctx) {
   if (c.key === 'backlogGroei' && c.proj) {
     return h.zin('cBacklog', { nieuw: c.proj.nieuwPerWeek, gesloten: c.proj.geslotenPerWeek, weken: c.proj.weken, netto: c.proj.nettoPerWeek, horizon: c.proj.horizon, proj: c.proj.openOverHorizon })
   }
-  const deps = (c.records ?? []).filter((r) => r && typeof r.titel === 'string' && r.teamId)
+  // Alleen echte dependencies (met een impact-veld): de records van
+  // 'reviewOud' zijn logregels die ook een titel en teamId dragen, maar
+  // waarover niets zinnigs te zeggen valt qua risico of leeftijd.
+  const deps = (c.records ?? []).filter((r) => r && typeof r.titel === 'string' && r.teamId && typeof r.impact === 'string')
   if (deps.length === 0) return null
   const perTeam = new Map()
   for (const d of deps) perTeam.set(d.teamId, (perTeam.get(d.teamId) ?? 0) + 1)
@@ -614,7 +617,7 @@ export function bouwRapport(a, ctx) {
   if (spofZonder > 0) aanb.push(h.zin('a6', { n: spofZonder }))
   const kennisTeams = c('kennisBusFactor')?.teams ?? []
   if (kennisTeams.length > 0) aanb.push(h.zin('a7', { teams: h.lijst(kennisTeams.map((id) => h.team(id))) }))
-  if (port.kwadranten.onvolledig.length > 0) aanb.push(h.zin('a8', { n: port.kwadranten.onvolledig.length }))
+  if (a.uitgebreideAnalyse !== false && port.kwadranten.onvolledig.length > 0) aanb.push(h.zin('a8', { n: port.kwadranten.onvolledig.length }))
   if (p && p.nettoPerWeek >= 0.5) aanb.push(h.zin('a9', { netto: p.nettoPerWeek }))
   if (port.gemitigeerdNietGesloten.length > 0) aanb.push(h.zin('a10', { n: port.gemitigeerdNietGesloten.length }))
   if (stil.length > 0) aanb.push(h.zin('a11', { teams: h.lijst(stil.map((s) => h.team(s.teamId))) }))

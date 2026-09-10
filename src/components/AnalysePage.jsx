@@ -978,7 +978,7 @@ function Waarschuwingen({ signalen, ctx, onSelect, onNavigateToTeam, tx }) {
           const teamId = s.params?.teamId ?? s.params?.teamIdA
           const klik = dep ? () => onSelect(dep) : teamId ? () => onNavigateToTeam(teamId) : null
           return (
-            <li key={`${s.key}:${dep?.id ?? teamId ?? i}`}>
+            <li key={`${s.key}:${dep?.id ?? teamId ?? ''}:${i}`}>
               <button type="button" disabled={!klik} onClick={klik ?? undefined} className="flex w-full items-start gap-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent">
                 <span className={`mt-px shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${ERNST_STIJL[s.ernst]}`}>{tx(ERNST_LABEL[s.ernst])}</span>
                 <span className="text-slate-700">{signaalZin(s, ctx)}</span>
@@ -1053,12 +1053,12 @@ const SECTIES = [
   ['an-beheer', 'sBeheer'],
 ]
 
-function SectieNav({ tx }) {
+function SectieNav({ tx, verborgen = [] }) {
   const spring = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   return (
     <nav className="flex flex-wrap items-center gap-1.5 text-[11px]" aria-label={tx('navSpring')}>
       <span className="mr-1 text-slate-400">{tx('navSpring')}</span>
-      {SECTIES.map(([id, key]) => (
+      {SECTIES.filter(([id]) => !verborgen.includes(id)).map(([id, key]) => (
         <button key={id} type="button" onClick={() => spring(id)} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-600 hover:border-slate-400 hover:text-slate-800">
           {tx(key)}
         </button>
@@ -1070,15 +1070,18 @@ function SectieNav({ tx }) {
 // --- de pagina ------------------------------------------------------------
 
 export default function AnalysePage({ onSelect, onNavigateToTeam }) {
-  const { teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamName } = useAppContext()
+  // activeTeams i.p.v. teams: een gearchiveerd team hoort niet als 'slapend'
+  // of in de scorekaart op te duiken; zijn dependencies blijven wel meetellen
+  // in de totalen (ze bestaan nog).
+  const { activeTeams: teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamName, adminSettings } = useAppContext()
   const { language } = useLanguage()
   const [teamFilter, setTeamFilter] = useState('')
   const [weken, setWeken] = useState(26)
   const tx = (key, vars) => vul(TEKST[language]?.[key] ?? TEKST.nl[key] ?? key, vars)
 
   const a = useMemo(
-    () => analyseer({ teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamFilter: teamFilter || null }),
-    [teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamFilter],
+    () => analyseer({ teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamFilter: teamFilter || null, uitgebreideAnalyse: adminSettings.uitgebreideAnalyse }),
+    [teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamFilter, adminSettings.uitgebreideAnalyse],
   )
   const trend = useMemo(() => trendReeks(a.alle, { weken }), [a.alle, weken])
 
@@ -1140,7 +1143,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </div>
 
-      <SectieNav tx={tx} />
+      <SectieNav tx={tx} verborgen={a.uitgebreideAnalyse ? [] : ['an-flowverlies']} />
 
       <Sectie id="an-overzicht" titel={tx('sOverzicht')}>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -1188,7 +1191,19 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                     </summary>
                     {c.key !== 'backlogGroei' && (
                     <div className="mt-2 rounded-md bg-white p-2">
-                      {c.records[0]?.titel !== undefined ? (
+                      {/* Logregels (reviewOud) éérst: die dragen ook een titel en
+                          teamId, en werden anders als dependency gerenderd —
+                          met een nep-risicobadge en een detailpaneel op een
+                          logregel. */}
+                      {c.records[0]?.timestamp ? (
+                        <ul className="text-xs text-slate-700">
+                          {c.records.map((r) => (
+                            <li key={r.id}>
+                              {teamName(r.teamId)} · {r.titel} · {tx('dagen', { n: r.leeftijd })}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : c.records[0]?.titel !== undefined ? (
                         <DepLijst deps={c.records} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} />
                       ) : c.verzoeken ? (
                         <ul className="text-xs text-slate-700">
@@ -1202,14 +1217,6 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                         <ul className="text-xs text-slate-700">
                           {c.records.map((r) => (
                             <li key={r.id}>{r.naam}</li>
-                          ))}
-                        </ul>
-                      ) : c.records[0]?.timestamp ? (
-                        <ul className="text-xs text-slate-700">
-                          {c.records.map((r) => (
-                            <li key={r.id}>
-                              {teamName(r.teamId)} · {r.titel} · {tx('dagen', { n: r.leeftijd })}
-                            </li>
                           ))}
                         </ul>
                       ) : (
@@ -1310,6 +1317,9 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
 
       <Sectie id="an-risico" titel={tx('sRisico')}>
         <div className="grid gap-3 lg:grid-cols-2">
+          {/* Kwadranten bestaan bij gratie van de profielvelden (uitgebreide
+              analyse); zonder die toggle zou alles in 'onvolledig' belanden. */}
+          {a.uitgebreideAnalyse && (
           <Kaart titel={tx('kKwadranten')} uitleg={tx('uKwadranten')} breed>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
               {[
@@ -1329,6 +1339,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
               ))}
             </div>
           </Kaart>
+          )}
           <Kaart titel={tx('kStil')} uitleg={tx('uStil')}>
             <DepLijst deps={a.port.stilRisico} onSelect={onSelect} teamName={teamName} language={language} tx={tx} />
           </Kaart>
@@ -1842,13 +1853,14 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                 { key: 'deps', label: tx('deps'), rechts: true },
                 { key: 'teams', label: tx('andereTeams') },
               ]}
-              rijen={a.gedeeld.map((g) => ({ key: `${g.teamId}:${g.app.id}`, team: teamName(g.teamId), app: g.app.naam || '—', uitval: g.risico ? '●' : '○', deps: g.deps.length, teams: g.andereTeams.map((id) => teamName(id)).join(', '), onClick: () => onSelect(g.deps[0]) }))}
+              rijen={a.gedeeld.map((g) => ({ key: `${g.teamId}:${g.app.id}`, team: teamName(g.teamId), app: g.app.naam || '—', uitval: g.risico ? '●' : '○', deps: g.deps.length, teams: g.andereTeams.map((id) => teamName(id)).join(', '), onClick: () => (g.deps[0] ? onSelect(g.deps[0]) : onNavigateToTeam(g.teamId)) }))}
               leeg={tx('geenGedeeld')}
             />
           </Kaart>
         </div>
       </Sectie>
 
+      {a.uitgebreideAnalyse && (
       <Sectie id="an-flowverlies" titel={tx('sFlowverlies')}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Kaart titel={tx('kFlowTeam')} uitleg={tx('uFlow')}>
@@ -1862,6 +1874,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
           </Kaart>
         </div>
       </Sectie>
+      )}
 
       <Sectie id="an-doorloop" titel={tx('sDoorloop')}>
         <div className="grid gap-3 lg:grid-cols-2">
