@@ -48,6 +48,15 @@ function buildCrossTeamCopy(dependency, teamId, dedupGroupId, today) {
 // het gegeven team verwijzen — gebruikt door deleteTeam (zie B-09) om een
 // verweesde ketenkoppeling te voorkomen, net als de bestaande
 // dependency-check hieronder al deed voor dependencies.
+// Velden waarvan een wijziging met datum in de historie van de dependency
+// komt (van → naar). Tekstvelden zoals titel, toelichting en afspraken
+// tellen niet als gebeurtenis: die veranderen de betekenis niet.
+const HISTORIE_VELDEN = ['status', 'impact', 'frequentie', 'categorie', 'scope', 'flowtype', 'workflowStap', 'geaccepteerd', 'oplosbaarheid', 'wachttijd', 'deadline', 'teamId']
+
+function logEntry({ teamId = null, type, dependencyId = null, titel = '', details = null, duplicateOfId = null, status = null }) {
+  return { id: generateId(), timestamp: new Date().toISOString(), teamId, type, dependencyId, duplicateOfId, titel, details, status }
+}
+
 function teamsReferencingViaWorkflow(teamWorkflows, teamId) {
   return Object.entries(teamWorkflows)
     .filter(([otherTeamId]) => otherTeamId !== teamId)
@@ -113,6 +122,10 @@ export function AppProvider({ children }) {
     [teamLabels],
   )
   const activeTeams = useMemo(() => state.teams.filter((t) => t.actief), [state.teams])
+  // Gesloten dependencies blijven in de state (historie, oplostempo), maar
+  // alle operationele weergaven krijgen alleen de open records; de analyse
+  // en het tabblad 'Gesloten' op de teampagina lezen alleDependencies.
+  const activeDependencies = useMemo(() => state.dependencies.filter((d) => !d.gesloten_op), [state.dependencies])
 
   // --- teams ---
 
@@ -449,18 +462,22 @@ export function AppProvider({ children }) {
       externalPartyId: '',
       linkStatus: 'geaccepteerd',
       linkNieuw: false,
+      linkVoorgesteldOp: '',
+      linkBesluitOp: '',
       punten: [],
     }
   }
 
   const acceptLinkRequest = useCallback(
     (targetTeamId, proposerTeamId, kind, itemId) => {
+      const today = new Date().toISOString().slice(0, 10)
       persist((prev) => {
         const proposerWf = prev.teamWorkflows[proposerTeamId]
         const targetWf = prev.teamWorkflows[targetTeamId] ?? emptyTeamWorkflow()
         if (!proposerWf) return prev
         const item = (kind === 'input' ? proposerWf.inputs : proposerWf.outputs).find((i) => i.id === itemId)
         if (!item || item.linkedTeam !== targetTeamId) return prev
+        const accepted = logEntry({ teamId: targetTeamId, type: 'link_accepted', titel: item.label, details: { proposerTeamId, kind } })
 
         if (kind === 'input') {
           // B's input wil A's output: bestaand output-item koppelen (en, als
@@ -479,7 +496,7 @@ export function AppProvider({ children }) {
             )
           }
           const inputs = proposerWf.inputs.map((i) =>
-            i.id === itemId ? { ...i, linkedOutputId: outputId, linkNieuw: false, linkStatus: 'geaccepteerd' } : i,
+            i.id === itemId ? { ...i, linkedOutputId: outputId, linkNieuw: false, linkStatus: 'geaccepteerd', linkBesluitOp: today } : i,
           )
           return {
             ...prev,
@@ -488,6 +505,7 @@ export function AppProvider({ children }) {
               [proposerTeamId]: { ...proposerWf, inputs },
               [targetTeamId]: { ...targetWf, outputs },
             },
+            changeLog: [...prev.changeLog, accepted],
             usingMockData: false,
           }
         }
@@ -511,7 +529,7 @@ export function AppProvider({ children }) {
           )
         }
         const outputs = proposerWf.outputs.map((o) =>
-          o.id === itemId ? { ...o, linkedInputId: inputId, linkNieuw: false, linkStatus: 'geaccepteerd' } : o,
+          o.id === itemId ? { ...o, linkedInputId: inputId, linkNieuw: false, linkStatus: 'geaccepteerd', linkBesluitOp: today } : o,
         )
         return {
           ...prev,
@@ -520,6 +538,7 @@ export function AppProvider({ children }) {
             [proposerTeamId]: { ...proposerWf, outputs },
             [targetTeamId]: { ...targetWf, inputs },
           },
+          changeLog: [...prev.changeLog, accepted],
           usingMockData: false,
         }
       })
@@ -532,19 +551,23 @@ export function AppProvider({ children }) {
   // aanpassen (wat 'm automatisch weer als nieuw verzoek indient).
   const rejectLinkRequest = useCallback(
     (targetTeamId, proposerTeamId, kind, itemId) => {
+      const today = new Date().toISOString().slice(0, 10)
       persist((prev) => {
         const wf = prev.teamWorkflows[proposerTeamId]
         if (!wf) return prev
         const key = kind === 'input' ? 'inputs' : 'outputs'
+        const item = wf[key].find((i) => i.id === itemId && i.linkedTeam === targetTeamId)
+        if (!item) return prev
         return {
           ...prev,
           teamWorkflows: {
             ...prev.teamWorkflows,
             [proposerTeamId]: {
               ...wf,
-              [key]: wf[key].map((i) => (i.id === itemId && i.linkedTeam === targetTeamId ? { ...i, linkStatus: 'afgewezen' } : i)),
+              [key]: wf[key].map((i) => (i.id === itemId ? { ...i, linkStatus: 'afgewezen', linkBesluitOp: today } : i)),
             },
           },
+          changeLog: [...prev.changeLog, logEntry({ teamId: targetTeamId, type: 'link_rejected', titel: item.label, details: { proposerTeamId, kind } })],
           usingMockData: false,
         }
       })
@@ -557,22 +580,21 @@ export function AppProvider({ children }) {
   const addDependency = useCallback(
     (dependency) => {
       const today = new Date().toISOString().slice(0, 10)
-      const record = { ...dependency, id: generateId(), laatst_bijgewerkt: today, aangemaakt_op: today }
+      const record = { ...dependency, id: generateId(), laatst_bijgewerkt: today, aangemaakt_op: today, historie: [], gesloten_op: null }
       persist((prev) => {
         const duplicate = findPotentialDuplicate(record, prev.dependencies)
-        const logEntry = {
-          id: generateId(),
-          timestamp: new Date().toISOString(),
+        const entry = logEntry({
           teamId: record.teamId,
           type: 'dependency_created',
           dependencyId: record.id,
+          titel: record.titel,
           duplicateOfId: duplicate?.id ?? null,
           status: 'pending',
-        }
+        })
         return {
           ...prev,
           dependencies: [...prev.dependencies, record],
-          changeLog: [...prev.changeLog, logEntry],
+          changeLog: [...prev.changeLog, entry],
           usingMockData: false,
         }
       })
@@ -589,28 +611,127 @@ export function AppProvider({ children }) {
   const addDependencies = useCallback(
     (deps) => {
       const now = new Date().toISOString().slice(0, 10)
-      const records = deps.map((dependency) => ({ ...dependency, id: generateId(), laatst_bijgewerkt: now, aangemaakt_op: now }))
-      persist((prev) => ({ ...prev, dependencies: [...prev.dependencies, ...records], usingMockData: false }))
+      const records = deps.map((dependency) => ({
+        ...dependency,
+        id: generateId(),
+        laatst_bijgewerkt: now,
+        aangemaakt_op: now,
+        historie: [],
+        gesloten_op: null,
+      }))
+      // Geen review-entry (dat is het dedup-pad van addDependency), wel een
+      // aanmaak-gebeurtenis per record voor de analyse van registratiegedrag.
+      const entries = records.map((r) => logEntry({ teamId: r.teamId, type: 'dependency_created', dependencyId: r.id, titel: r.titel, status: 'approved' }))
+      persist((prev) => ({ ...prev, dependencies: [...prev.dependencies, ...records], changeLog: [...prev.changeLog, ...entries], usingMockData: false }))
       return records
     },
     [persist],
   )
 
+  // Elke wijziging aan een gevolgd veld komt met datum in de historie van de
+  // dependency (van → naar) én als gebeurtenis in de wijzigingenlog: samen de
+  // basis voor doorlooptijden en trendlijnen op de analysepagina.
   const updateDependency = useCallback(
     (id, updates) => {
       const today = new Date().toISOString().slice(0, 10)
-      persist((prev) => ({
-        ...prev,
-        dependencies: prev.dependencies.map((d) => (d.id === id ? { ...d, ...updates, laatst_bijgewerkt: today } : d)),
-        usingMockData: false,
-      }))
+      persist((prev) => {
+        const current = prev.dependencies.find((d) => d.id === id)
+        if (!current) return prev
+        const events = []
+        for (const veld of HISTORIE_VELDEN) {
+          if (!(veld in updates)) continue
+          const van = current[veld] ?? null
+          const naar = updates[veld] ?? null
+          if (van !== naar) events.push({ datum: today, veld, van, naar })
+        }
+        const entry =
+          events.length > 0
+            ? logEntry({
+                teamId: updates.teamId ?? current.teamId,
+                type: 'dependency_updated',
+                dependencyId: id,
+                titel: updates.titel ?? current.titel,
+                details: { velden: events.map((e) => e.veld) },
+              })
+            : null
+        return {
+          ...prev,
+          dependencies: prev.dependencies.map((d) =>
+            d.id === id ? { ...d, ...updates, historie: [...(d.historie ?? []), ...events], laatst_bijgewerkt: today } : d,
+          ),
+          changeLog: entry ? [...prev.changeLog, entry] : prev.changeLog,
+          usingMockData: false,
+        }
+      })
+    },
+    [persist],
+  )
+
+  // Afsluiten i.p.v. verwijderen: het record blijft met zijn historie bewaard
+  // (oplostempo, trend), maar telt niet meer mee in de operationele
+  // weergaven. Heropenen draait dat terug — ook dat is een gebeurtenis.
+  const closeDependency = useCallback(
+    (id) => {
+      const today = new Date().toISOString().slice(0, 10)
+      persist((prev) => {
+        const current = prev.dependencies.find((d) => d.id === id)
+        if (!current || current.gesloten_op) return prev
+        const event = { datum: today, veld: 'gesloten', van: null, naar: today }
+        return {
+          ...prev,
+          dependencies: prev.dependencies.map((d) =>
+            d.id === id ? { ...d, gesloten_op: today, historie: [...(d.historie ?? []), event], laatst_bijgewerkt: today } : d,
+          ),
+          changeLog: [...prev.changeLog, logEntry({ teamId: current.teamId, type: 'dependency_closed', dependencyId: id, titel: current.titel })],
+          usingMockData: false,
+        }
+      })
+    },
+    [persist],
+  )
+
+  const reopenDependency = useCallback(
+    (id) => {
+      const today = new Date().toISOString().slice(0, 10)
+      persist((prev) => {
+        const current = prev.dependencies.find((d) => d.id === id)
+        if (!current || !current.gesloten_op) return prev
+        const event = { datum: today, veld: 'gesloten', van: current.gesloten_op, naar: null }
+        return {
+          ...prev,
+          dependencies: prev.dependencies.map((d) =>
+            d.id === id ? { ...d, gesloten_op: null, historie: [...(d.historie ?? []), event], laatst_bijgewerkt: today } : d,
+          ),
+          changeLog: [...prev.changeLog, logEntry({ teamId: current.teamId, type: 'dependency_reopened', dependencyId: id, titel: current.titel })],
+          usingMockData: false,
+        }
+      })
     },
     [persist],
   )
 
   const deleteDependency = useCallback(
     (id) => {
-      persist((prev) => ({ ...prev, dependencies: prev.dependencies.filter((d) => d.id !== id) }))
+      persist((prev) => {
+        const current = prev.dependencies.find((d) => d.id === id)
+        return {
+          ...prev,
+          dependencies: prev.dependencies.filter((d) => d.id !== id),
+          changeLog: current
+            ? [...prev.changeLog, logEntry({ teamId: current.teamId, type: 'dependency_deleted', dependencyId: id, titel: current.titel })]
+            : prev.changeLog,
+          usingMockData: false,
+        }
+      })
+    },
+    [persist],
+  )
+
+  // Losse gebeurtenis in de wijzigingenlog (bv. een koppelingsverzoek vanaf
+  // de teampagina) — geen review, puur voor de analyse.
+  const logEvent = useCallback(
+    (fields) => {
+      persist((prev) => ({ ...prev, changeLog: [...prev.changeLog, logEntry(fields)] }))
     },
     [persist],
   )
@@ -708,7 +829,11 @@ export function AppProvider({ children }) {
       schemaVersion: state.schemaVersion,
       teams: state.teams,
       activeTeams,
-      dependencies: state.dependencies,
+      dependencies: activeDependencies,
+      alleDependencies: state.dependencies,
+      closeDependency,
+      reopenDependency,
+      logEvent,
       teamWorkflows: state.teamWorkflows,
       teamSnapshots: state.teamSnapshots,
       externalParties: state.externalParties,
@@ -758,6 +883,10 @@ export function AppProvider({ children }) {
     [
       state,
       activeTeams,
+      activeDependencies,
+      closeDependency,
+      reopenDependency,
+      logEvent,
       currentTeamId,
       scope,
       teamName,

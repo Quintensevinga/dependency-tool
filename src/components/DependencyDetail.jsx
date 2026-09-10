@@ -17,6 +17,8 @@ import {
   translateFlowtype,
   translateOplosbaarheid,
   translateAnalyseLabel,
+  translateWachttijd,
+  translateDeadline,
   getCategoryDescription,
 } from '../i18n/labels'
 import { CategoryIcon } from '../data/categoryIcons'
@@ -31,9 +33,34 @@ function Field({ label, value }) {
   )
 }
 
+// Eén historieregel in gewone taal: welk veld, van wat naar wat. Sluiten en
+// heropenen en accepteren zijn geen van/naar-waarden maar gebeurtenissen.
+function historieRegel(e, t, language, teamName) {
+  const vertaal = {
+    status: (v) => translateStatus(v, language),
+    impact: (v) => translateImpact(v, language),
+    frequentie: (v) => translateFrequentie(v, language),
+    categorie: (v) => translateCategorie(v, language),
+    scope: (v) => translateScope(v, language),
+    flowtype: (v) => translateFlowtype(v, language),
+    workflowStap: (v) => translateWorkflowStap(v, language),
+    oplosbaarheid: (v) => translateOplosbaarheid(v, language),
+    wachttijd: (v) => translateWachttijd(v, language),
+    deadline: (v) => translateDeadline(v, language),
+    teamId: (v) => teamName(v),
+  }
+  if (e.veld === 'gesloten') return e.naar ? t('detail.historyClosed') : t('detail.historyReopened')
+  if (e.veld === 'geaccepteerd') return e.naar ? t('detail.historyAccepted') : t('detail.historyUnaccepted')
+  const label = t(e.veld === 'teamId' ? 'form.team' : `form.${e.veld}`)
+  const f = vertaal[e.veld] ?? ((v) => v)
+  const van = e.van == null || e.van === '' ? '—' : f(e.van) || e.van
+  const naar = e.naar == null || e.naar === '' ? '—' : f(e.naar) || e.naar
+  return `${label}: ${van} → ${naar}`
+}
+
 export default function DependencyDetail({ dependency, onClose, onEdit, onDelete, onDuplicate }) {
   const { t, language } = useLanguage()
-  const { teamName, teamWorkflows, updateDependency, externalParties, adminSettings } = useAppContext()
+  const { teamName, teamWorkflows, updateDependency, closeDependency, reopenDependency, externalParties, adminSettings } = useAppContext()
   const panelRef = useRef(null)
   useModalA11y({ open: Boolean(dependency), onClose, containerRef: panelRef })
 
@@ -82,6 +109,9 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
             <span className={`rounded px-2 py-1 text-xs font-medium ${style.badge}`}>{riskLevel}</span>
             {dependency.geaccepteerd && (
               <span className="rounded bg-[#2a5f8a]/10 px-2 py-1 text-xs font-medium text-[#2a5f8a]">{t('detail.acceptedBadge')}</span>
+            )}
+            {dependency.gesloten_op && (
+              <span className="rounded bg-slate-200 px-2 py-1 text-xs font-medium text-slate-600">{t('detail.closedBadge')}</span>
             )}
             <span className="text-xs capitalize text-slate-400">{translateScope(dependency.scope, language)} ·</span>
             <span className="group relative flex items-center gap-1 text-xs text-slate-400 underline decoration-dotted underline-offset-2">
@@ -209,6 +239,22 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
           <Field label={t('detail.mitigatie')} value={dependency.mitigatie} />
           <Field label={t('detail.aangemaaktOp')} value={dependency.aangemaakt_op ?? t('detail.aangemaaktOpOnbekend')} />
           <Field label={t('detail.updated')} value={dependency.laatst_bijgewerkt} />
+          <Field label={t('detail.closedOn')} value={dependency.gesloten_op} />
+          {(dependency.historie?.length ?? 0) > 0 && (
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{t('detail.history')}</div>
+              <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                {[...dependency.historie]
+                  .reverse()
+                  .slice(0, 12)
+                  .map((e, i) => (
+                    <li key={`${e.datum}:${e.veld}:${i}`}>
+                      <span className="text-slate-400">{e.datum}</span> · {historieRegel(e, t, language, teamName)}
+                    </li>
+                  ))}
+              </ul>
+            </div>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 border-t border-slate-200 px-5 py-3">
@@ -236,6 +282,17 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
             }
           >
             {dependency.geaccepteerd ? t('detail.unaccept') : t('detail.accept')}
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (dependency.gesloten_op) reopenDependency(dependency.id)
+              else closeDependency(dependency.id)
+              onClose()
+            }}
+            className="rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            {dependency.gesloten_op ? t('detail.reopen') : t('detail.close')}
           </button>
           <button
             type="button"

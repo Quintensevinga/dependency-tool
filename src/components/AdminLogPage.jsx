@@ -17,17 +17,22 @@ const STATUS_STYLE = {
 // teams zelf te blokkeren — de dependency bestaat al, dit is puur review +
 // (bij een duplicaat) de twee teams aan elkaar koppelen.
 export default function AdminLogPage() {
-  const { changeLog, dependencies, teamName, approveChange, rejectChange, markChangeEdited, updateDependency } = useAppContext()
+  const { changeLog, alleDependencies, teamName, approveChange, rejectChange, markChangeEdited, updateDependency } = useAppContext()
   const { t, language } = useLanguage()
   const [open, setOpen] = useState(false)
   const [editingLogId, setEditingLogId] = useState(null)
 
-  const sorted = [...changeLog].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+  // Alleen de review-entries (aangemaakte dependencies); de losse
+  // gebeurtenissen in de log (wijzigingen, sluitingen, koppelingsverzoeken)
+  // zijn voor de analysepagina, niet voor review.
+  const sorted = changeLog
+    .filter((c) => c.type === 'dependency_created')
+    .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
   const pending = sorted.filter((c) => c.status === 'pending')
   const afgehandeld = sorted.filter((c) => c.status !== 'pending')
 
   function depFor(id) {
-    return dependencies.find((d) => d.id === id)
+    return alleDependencies.find((d) => d.id === id)
   }
 
   function Row({ entry }) {
