@@ -5,6 +5,34 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-10
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
+- **Analyse: rapport te downloaden als markdown-bestand** (Quinten)
+
+  Naast "Kopieer rapport" (platte tekst naar het klembord) staat nu "Download":
+  hetzelfde rapport als markdown, met kopjes per alinea en bullets voor de
+  aanbevelingen. De bestandsnaam draagt het bereik en de dag
+  (dependency-insight-rapport-<team>-<datum>.md), zodat twee downloads naast
+  elkaar te leggen zijn. Downloaden loopt via exportTextAsFile in lib/export.js,
+  dezelfde blob-route als de bestaande JSON-export.
+
+- **Teamnamen in mockdata omgezet naar Marvel-thema** (Quinten)
+
+  Elke naam gekozen op basis van de functie van het team in de keten
+  (bv. Polis → Wakanda voor het kennisrisico-zwaartepunt, Smurfen →
+  S.H.I.E.L.D. voor de IAM/toegangshub). Team-id's en interne
+  referenties (T.*, DEPS_*) blijven ongewijzigd; alleen weergavenamen
+  en prozateksten zijn aangepast. "Polis" als generieke verzekerings-
+  term (polisadministratie, polisstatus, ...) blijft intact.
+
+- **Voorbeelddata verversen bij inhoudelijke wijziging voor bestaande bezoekers** (Quinten)
+
+  MOCK_DATA_VERSION naast SCHEMA_VERSION: wie de site al opende maar nog geen
+  eigen data invoerde (usingMockData: true) krijgt bij een verouderde versie
+  automatisch de nieuwste voorbeelddata i.p.v. vast te blijven zitten op wat
+  ooit geseed is. Echte gebruikersdata blijft altijd ongemoeid. Op 2 gezet
+  zodat dit ook de aankomende Marvel-teamnamen in mockData.js meeneemt.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
 - **Analyse: rapport in lopende tekst, waarschuwingen per geval en 14 extra analyses** (Quinten)
 
   - src/lib/analyseTeksten.js: tekstlaag (nl/en) met sjablonen — rapport in
