@@ -6,56 +6,61 @@
 // een echte organisatie erin. Zie de teamprofielen hieronder voor de bewuste
 // keuzes per team.
 //
-// De keten (intake tot uitbetaling): Tiem (klantcontact & intake) → Polis
-// (polisadministratie) → Superheroes (aanvraag- en claimbeoordeling) → Casio
-// (betaalverwerking & uitkeringen) → Sterke verhalen (rapportage & BI),
-// ondersteund door Equinox (platform & releasekalender), Smurfen (IAM,
-// platform, integraties) en Freggels (test & kwaliteit). Daarin zit bewust:
-// - een cyclus én wederzijds paar aan het eind (Casio ↔ Sterke verhalen:
-//   betaalstatus heen, correctiesignalen terug) — aan het eind, zodat de
-//   gelaagde ketenweergave links-naar-rechts leesbaar blijft;
-// - een output die drie teams afnemen (releasekalender van Equinox, API-
-//   toegang van Smurfen);
-// - meerdere koppelingen op hetzelfde teampaar (Polis → Casio, Smurfen → Polis);
-// - een koppeling die lagen overslaat (Tiem → Casio, klantmelding bij spoed,
-//   langs Polis én Superheroes heen);
+// De keten (intake tot uitbetaling): Fantastic Four (klantcontact & intake)
+// → Wakanda (polisadministratie) → Avengers (aanvraag- en claimbeoordeling)
+// → Stark Industries (betaalverwerking & uitkeringen) → Daily Bugle
+// (rapportage & BI), ondersteund door Asgard (platform & releasekalender),
+// S.H.I.E.L.D. (IAM, platform, integraties) en Nova Corps (test &
+// kwaliteit). Daarin zit bewust:
+// - een cyclus én wederzijds paar aan het eind (Stark Industries ↔ Daily
+//   Bugle: betaalstatus heen, correctiesignalen terug) — aan het eind,
+//   zodat de gelaagde ketenweergave links-naar-rechts leesbaar blijft;
+// - een output die drie teams afnemen (releasekalender van Asgard, API-
+//   toegang van S.H.I.E.L.D.);
+// - meerdere koppelingen op hetzelfde teampaar (Wakanda → Stark Industries,
+//   S.H.I.E.L.D. → Wakanda);
+// - een koppeling die lagen overslaat (Fantastic Four → Stark Industries,
+//   klantmelding bij spoed, langs Wakanda én Avengers heen);
 // - externe input aan het begin (DigiD, BRP), externe partijen midden in de
 //   keten (Belastingdienst, SSD-loket, Security Office) en externe output aan
 //   het eind (bankpartner, toezichthouder, directie);
 // - koppelingsverzoeken in alle statussen: in afwachting op een bestaand item
-//   (Freggels → Equinox), in afwachting om een nieuw item (Casio → Sterke
-//   verhalen) en afgewezen (Freggels → Tiem).
+//   (Nova Corps → Asgard), in afwachting om een nieuw item (Stark Industries
+//   → Daily Bugle) en afgewezen (Nova Corps → Fantastic Four).
 //
 // Teamprofielen:
-// - Tiem: intake, veel Ontwikkelflow, gemengd risicoprofiel.
-// - Polis: groot en applicatierijk (7 applicaties, extra zoekveld), rijke mix,
-//   het kennisrisico-zwaartepunt van de organisatie.
-// - Superheroes: aanvraag- en claimbeoordeling, veel besluitvormings- en
-//   stakeholderafhankelijkheden, één goedgekeurd duplicaat met Casio.
-// - Casio: betaalketen, zwaarste risico's, meeste actief blokkerend.
-// - Sterke verhalen: data en rapportage, veel externe bestemmingen.
-// - Equinox: klein, platform; heeft de uitgebreide analyse (wachttijd,
+// - Fantastic Four: intake, veel Ontwikkelflow, gemengd risicoprofiel.
+// - Wakanda: groot en applicatierijk (7 applicaties, extra zoekveld), rijke
+//   mix, het kennisrisico-zwaartepunt van de organisatie.
+// - Avengers: aanvraag- en claimbeoordeling, veel besluitvormings- en
+//   stakeholderafhankelijkheden, één goedgekeurd duplicaat met Stark
+//   Industries.
+// - Stark Industries: betaalketen, zwaarste risico's, meeste actief
+//   blokkerend.
+// - Daily Bugle: data en rapportage, veel externe bestemmingen.
+// - Asgard: klein, platform; heeft de uitgebreide analyse (wachttijd,
 //   deadline, oplosbaarheid) nog NIET gedaan — "profiel onvolledig" zit hier
 //   geclusterd, niet mechanisch verspreid.
-// - Smurfen: technisch, meeste applicatiekoppelingen, hub voor toegang.
-// - Freggels: test en kwaliteit, refinement/test/acceptatie-zwaartepunt.
+// - S.H.I.E.L.D.: technisch, meeste applicatiekoppelingen, hub voor toegang.
+// - Nova Corps: test en kwaliteit, refinement/test/acceptatie-zwaartepunt.
 //
 // Bewuste uitzonderingen (geen fouten, wel gedocumenteerd):
-// - Tiem 'Kennisbank klantcontact' en Equinox 'Beheerconsole' hebben geen
-//   enkele relatie — test "applicatie bestaat, doet verder niets".
-// - Casio 'Fraudecheck-service' heeft een applicatiekoppeling maar geen
-//   Applicatieflow-dependency: geen lane, dus de lijn is op het canvas
-//   onzichtbaar (wel in Teamgegevens) — bekend gedrag.
+// - Fantastic Four 'Kennisbank klantcontact' en Asgard 'Beheerconsole'
+//   hebben geen enkele relatie — test "applicatie bestaat, doet verder
+//   niets".
+// - Stark Industries 'Fraudecheck-service' heeft een applicatiekoppeling
+//   maar geen Applicatieflow-dependency: geen lane, dus de lijn is op het
+//   canvas onzichtbaar (wel in Teamgegevens) — bekend gedrag.
 // - Drie dependencies zonder flowtype ("Flowtype nog te bepalen") en een
 //   handvol Ontwikkelflow-dependencies zonder werkstap ("Proces-overstijgend")
 //   als hygiënegevallen.
-// - Enkele outputs blijven onbenut (Equinox 'Signalen naar ketenoverzicht',
-//   Tiem 'Releasekandidaat intakeproces', Polis 'Polisstatus-terugkoppeling',
-//   Sterke verhalen 'Rapportagebundel' en 'Kwaliteitsrapportage testdekking'):
-//   normaal, geen foutstatus.
+// - Enkele outputs blijven onbenut (Asgard 'Signalen naar ketenoverzicht',
+//   Fantastic Four 'Releasekandidaat intakeproces', Wakanda
+//   'Polisstatus-terugkoppeling', Daily Bugle 'Rapportagebundel' en
+//   'Kwaliteitsrapportage testdekking'): normaal, geen foutstatus.
 // - 'Leverancier legacy polissysteem' is een geweigerde partij die nog wél
 //   door twee dependencies genoemd wordt (rode waarschuwing in het detail).
-// - Eén goedgekeurd duplicaat (Superheroes + Casio op de leverancier
+// - Eén goedgekeurd duplicaat (Avengers + Stark Industries op de leverancier
 //   regelmotor) bestaat als gekoppeld paar met een gedeelde dedupGroupId.
 //
 // Historie: elke dependency draagt een wijzigingshistorie (status, impact,
@@ -90,14 +95,14 @@ function tijdstipGeleden(dagen, uur = 10) {
 // ---------------------------------------------------------------------------
 
 export const MOCK_TEAMS = [
-  { id: 'team-tiem', naam: 'Team Tiem', actief: true },
-  { id: 'team-polis', naam: 'Team Polis', actief: true },
-  { id: 'team-superheroes', naam: 'Team Superheroes', actief: true },
-  { id: 'team-casio', naam: 'Team Casio', actief: true },
-  { id: 'team-sterke-verhalen', naam: 'Team Sterke verhalen', actief: true },
-  { id: 'team-equinox', naam: 'Team Equinox', actief: true },
-  { id: 'team-smurfen', naam: 'Team Smurfen', actief: true },
-  { id: 'team-freggels', naam: 'Team Freggels', actief: true },
+  { id: 'team-tiem', naam: 'Team Fantastic Four', actief: true },
+  { id: 'team-polis', naam: 'Team Wakanda', actief: true },
+  { id: 'team-superheroes', naam: 'Team Avengers', actief: true },
+  { id: 'team-casio', naam: 'Team Stark Industries', actief: true },
+  { id: 'team-sterke-verhalen', naam: 'Team Daily Bugle', actief: true },
+  { id: 'team-equinox', naam: 'Team Asgard', actief: true },
+  { id: 'team-smurfen', naam: 'Team S.H.I.E.L.D.', actief: true },
+  { id: 'team-freggels', naam: 'Team Nova Corps', actief: true },
 ]
 
 const T = {
@@ -258,10 +263,10 @@ export const MOCK_TEAM_WORKFLOWS = {
       io({ id: 'ti-in-digid', label: 'Ingelogde klant via DigiD', bron_type: 'systeem', applicatieId: 'ti-app-klant', ...extern('party-digid') }),
       io({ id: 'ti-in-telefoon', label: 'Klantvraag via telefoon of chat', bron_type: 'persoon', applicatieId: 'ti-app-klant', punten: ['Piek op maandagochtend', 'Gemiddeld 900 contacten per dag'] }),
       io({ id: 'ti-in-platform', label: 'Platform- en releasekalender', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.equinox, linkedOutputId: 'eq-out-release' }),
-      // Bewust NIET gekoppeld aan de output van Polis: Tiem → Polis → Tiem zou
+      // Bewust NIET gekoppeld aan de output van Wakanda: Fantastic Four → Wakanda → Fantastic Four zou
       // een tweede cyclus zijn, en alles stroomafwaarts van een cyclus belandt
       // in de gelaagde ketenweergave in de "cyclus-laag" (Kahn). De enige
-      // cyclus zit bewust aan het eind: Casio ↔ Sterke verhalen.
+      // cyclus zit bewust aan het eind: Stark Industries ↔ Daily Bugle.
       io({ id: 'ti-in-polisstatus', label: 'Polisstatus-terugkoppeling', bron_type: 'team', applicatieId: 'ti-app-zaak', punten: ['Elke statuswijziging binnen 5 minuten zichtbaar in de zaak'] }),
       io({ id: 'ti-in-api', label: 'Technische API-toegang klantdata', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'ti-app-klant' }),
       io({ id: 'ti-in-refinement', label: 'Refinementvraag vanuit PO', flowtype: 'ontwikkelflow', bron_type: 'rol' }),
@@ -324,20 +329,20 @@ export const MOCK_TEAM_WORKFLOWS = {
     ],
     inputs: [
       io({ id: 'po-in-platform', label: 'Platform- en releasekalender', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.equinox, linkedOutputId: 'eq-out-release' }),
-      io({ id: 'po-in-klantvraag', label: 'Klantvraag vanuit Team Tiem', bron_type: 'team', linkedTeam: T.tiem, linkedOutputId: 'ti-out-klantvraag', applicatieId: 'po-app-klantportaal', punten: ['Bundel bevat zaaknummer en klant-id', 'Onvolledige bundels gaan terug naar Tiem'] }),
-      io({ id: 'po-in-api', label: 'Technische API-toegang (Smurfen)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'po-app-gateway' }),
+      io({ id: 'po-in-klantvraag', label: 'Klantvraag vanuit Team Fantastic Four', bron_type: 'team', linkedTeam: T.tiem, linkedOutputId: 'ti-out-klantvraag', applicatieId: 'po-app-klantportaal', punten: ['Bundel bevat zaaknummer en klant-id', 'Onvolledige bundels gaan terug naar Fantastic Four'] }),
+      io({ id: 'po-in-api', label: 'Technische API-toegang (S.H.I.E.L.D.)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'po-app-gateway' }),
       io({ id: 'po-in-iam', label: 'IAM-rollenset polisbeheer', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-iamrollen', applicatieId: 'po-app-polis' }),
-      io({ id: 'po-in-testbevindingen', label: 'Testbevindingen Freggels', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.freggels, linkedOutputId: 'fr-out-testbevindingen' }),
+      io({ id: 'po-in-testbevindingen', label: 'Testbevindingen Nova Corps', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.freggels, linkedOutputId: 'fr-out-testbevindingen' }),
       io({ id: 'po-in-brp', label: 'Klantgegevens uit BRP', bron_type: 'systeem', applicatieId: 'po-app-klantportaal', ...extern('party-brp'), punten: ['Dagelijkse synchronisatie 04:00', 'Bij afwijking: handmatige controle door beheer'] }),
       io({ id: 'po-in-inkomen', label: 'Inkomensgegevens Belastingdienst', bron_type: 'systeem', applicatieId: 'po-app-polis', ...extern('party-belastingdienst') }),
       io({ id: 'po-in-wijziging', label: 'Wijzigingsverzoek polisvoorwaarden', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-business-verzekeringen') }),
     ],
     outputs: [
-      // Bewust onbenut (zie de toelichting bij Tiem 'ti-in-polisstatus').
+      // Bewust onbenut (zie de toelichting bij Fantastic Four 'ti-in-polisstatus').
       io({ id: 'po-out-polisstatus', label: 'Polisstatus-terugkoppeling', bron_type: 'team', applicatieId: 'po-app-polis' }),
       io({ id: 'po-out-betaalopdracht', label: 'Betaalopdracht polis', bron_type: 'team', applicatieId: 'po-app-premie', punten: ['Alleen op werkdagen', 'Maximaal 2 uur vertraging toegestaan'] }),
       io({ id: 'po-out-mutaties', label: 'Polismutaties voor incasso', bron_type: 'team', applicatieId: 'po-app-mutatie' }),
-      io({ id: 'po-out-aanvraag', label: 'Aanvraagdossier compleet', bron_type: 'team', applicatieId: 'po-app-document', punten: ['Compleet = polis, inkomen en identiteit gecontroleerd', 'Incomplete dossiers blijven bij Polis'] }),
+      io({ id: 'po-out-aanvraag', label: 'Aanvraagdossier compleet', bron_type: 'team', applicatieId: 'po-app-document', punten: ['Compleet = polis, inkomen en identiteit gecontroleerd', 'Incomplete dossiers blijven bij Wakanda'] }),
       // Bewust onbenut.
       io({ id: 'po-out-premiemodel', label: 'Nieuw premiemodel gepubliceerd', bron_type: 'stakeholder', applicatieId: 'po-app-premie' }),
       io({ id: 'po-out-releasekandidaat', label: 'Releasekandidaat polismodule', flowtype: 'ontwikkelflow', bron_type: 'team' }),
@@ -379,14 +384,14 @@ export const MOCK_TEAM_WORKFLOWS = {
       cap('sh-cap5', 'Release-coördinator', 'medior', 1, 'release_overdracht', 'nee'),
     ],
     inputs: [
-      io({ id: 'sh-in-aanvraag', label: 'Aanvraagdossier vanuit Polis', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-aanvraag', applicatieId: 'sh-app-dossier', punten: ['Doorlooptijdnorm: besluit binnen 8 weken na compleet dossier'] }),
-      io({ id: 'sh-in-api', label: 'Technische API-toegang (Smurfen)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'sh-app-beoordeel' }),
+      io({ id: 'sh-in-aanvraag', label: 'Aanvraagdossier vanuit Wakanda', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-aanvraag', applicatieId: 'sh-app-dossier', punten: ['Doorlooptijdnorm: besluit binnen 8 weken na compleet dossier'] }),
+      io({ id: 'sh-in-api', label: 'Technische API-toegang (S.H.I.E.L.D.)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'sh-app-beoordeel' }),
       io({ id: 'sh-in-test', label: 'Testbevindingen beoordelingsketen', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.freggels, linkedOutputId: 'fr-out-testbevindingen' }),
       io({ id: 'sh-in-regels', label: 'Regelrelease van de leverancier', bron_type: 'team', applicatieId: 'sh-app-regels', ...extern('party-regelmotor') }),
       io({ id: 'sh-in-beleid', label: 'Beleidswijziging beoordelingskader', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-business-verzekeringen') }),
     ],
     outputs: [
-      io({ id: 'sh-out-beschikking', label: 'Beschikking (toekenning of afwijzing)', bron_type: 'team', applicatieId: 'sh-app-beoordeel', punten: ['Toekenningen dezelfde dag naar Casio', 'Afwijzingen met motivering naar de klant'] }),
+      io({ id: 'sh-out-beschikking', label: 'Beschikking (toekenning of afwijzing)', bron_type: 'team', applicatieId: 'sh-app-beoordeel', punten: ['Toekenningen dezelfde dag naar Stark Industries', 'Afwijzingen met motivering naar de klant'] }),
       io({ id: 'sh-out-releasekandidaat', label: 'Releasekandidaat beoordelingsmodule', flowtype: 'ontwikkelflow', bron_type: 'team' }),
     ],
     stageNotes: {
@@ -435,11 +440,11 @@ export const MOCK_TEAM_WORKFLOWS = {
     ],
     inputs: [
       io({ id: 'ca-in-platform', label: 'Platform- en releasekalender', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.equinox, linkedOutputId: 'eq-out-release' }),
-      io({ id: 'ca-in-betaalopdracht', label: 'Betaalopdracht vanuit Polis', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-betaalopdracht', applicatieId: 'ca-app-betaal', punten: ['Controle op dubbele opdrachten vóór verwerking'] }),
+      io({ id: 'ca-in-betaalopdracht', label: 'Betaalopdracht vanuit Wakanda', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-betaalopdracht', applicatieId: 'ca-app-betaal', punten: ['Controle op dubbele opdrachten vóór verwerking'] }),
       io({ id: 'ca-in-mutaties', label: 'Polismutaties voor incasso', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-mutaties', applicatieId: 'ca-app-batch' }),
       io({ id: 'ca-in-beschikking', label: 'Beschikking vanuit beoordeling', bron_type: 'team', linkedTeam: T.superheroes, linkedOutputId: 'sh-out-beschikking', applicatieId: 'ca-app-uitkering', punten: ['Alleen toegekende beschikkingen leiden tot betaling', 'Afwijzingen gaan naar klantcommunicatie'] }),
-      io({ id: 'ca-in-melding', label: 'Klantmelding uitkering vanuit intake', bron_type: 'team', linkedTeam: T.tiem, linkedOutputId: 'ti-out-melding', applicatieId: 'ca-app-uitkering', punten: ['Slaat Polis en beoordeling bewust over: directe melding bij spoed'] }),
-      io({ id: 'ca-in-api', label: 'Technische API-toegang (Smurfen)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'ca-app-regel' }),
+      io({ id: 'ca-in-melding', label: 'Klantmelding uitkering vanuit intake', bron_type: 'team', linkedTeam: T.tiem, linkedOutputId: 'ti-out-melding', applicatieId: 'ca-app-uitkering', punten: ['Slaat Wakanda en beoordeling bewust over: directe melding bij spoed'] }),
+      io({ id: 'ca-in-api', label: 'Technische API-toegang (S.H.I.E.L.D.)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'ca-app-regel' }),
       io({ id: 'ca-in-test', label: 'Testbevindingen betaalketen', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.freggels, linkedOutputId: 'fr-out-testbevindingen' }),
       io({ id: 'ca-in-correctie', label: 'Correctiesignalen uit rapportage', bron_type: 'team', linkedTeam: T.sv, linkedOutputId: 'sv-out-correctie', applicatieId: 'ca-app-uitkering' }),
       io({ id: 'ca-in-bank', label: 'Betaalinstructies en retourberichten bank', bron_type: 'systeem', applicatieId: 'ca-app-betaal', ...extern('party-bank') }),
@@ -449,7 +454,7 @@ export const MOCK_TEAM_WORKFLOWS = {
       io({ id: 'ca-out-sepa', label: 'Betaalbestand (SEPA) naar bank', bron_type: 'systeem', applicatieId: 'ca-app-betaal', ...extern('party-bank') }),
       io({ id: 'ca-out-loonaangifte', label: 'Loonaangifte uitkeringen', bron_type: 'systeem', applicatieId: 'ca-app-loon', ...extern('party-belastingdienst') }),
       io({ id: 'ca-out-beschikking', label: 'Uitkeringsbeschikking', bron_type: 'persoon', applicatieId: 'ca-app-uitkering' }),
-      // Koppelingsverzoek om een nieuw item bij Sterke verhalen — wacht op akkoord.
+      // Koppelingsverzoek om een nieuw item bij Daily Bugle — wacht op akkoord.
       io({ id: 'ca-out-statistiek', label: 'Uitkeringsstatistiek per maand', bron_type: 'team', applicatieId: 'ca-app-uitkering', linkedTeam: T.sv, linkNieuw: true, linkStatus: 'voorgesteld' }),
     ],
     stageNotes: {
@@ -485,13 +490,13 @@ export const MOCK_TEAM_WORKFLOWS = {
       cap('sv-cap4', 'Product Owner', 'medior', 1, 'analyse_refinement', 'nee'),
     ],
     inputs: [
-      io({ id: 'sv-in-betaalstatus', label: 'Betaalstatus vanuit Casio', bron_type: 'team', linkedTeam: T.casio, linkedOutputId: 'ca-out-betaalstatus', applicatieId: 'sv-app-dwh', punten: ['Bron voor het uitkeringsdashboard'] }),
+      io({ id: 'sv-in-betaalstatus', label: 'Betaalstatus vanuit Stark Industries', bron_type: 'team', linkedTeam: T.casio, linkedOutputId: 'ca-out-betaalstatus', applicatieId: 'sv-app-dwh', punten: ['Bron voor het uitkeringsdashboard'] }),
       io({ id: 'sv-in-brondata', label: 'Brondata nachtelijke batch', bron_type: 'systeem', applicatieId: 'sv-app-dwh' }),
       io({ id: 'sv-in-vraag', label: 'Rapportagevraag vanuit directie', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-directie') }),
     ],
     outputs: [
       io({ id: 'sv-out-correctie', label: 'Correctiesignalen betalingen', bron_type: 'team', applicatieId: 'sv-app-kwaliteit', punten: ['Wekelijks overzicht van afwijkende betalingen'] }),
-      // Bewust onbenut (zie de toelichting bij Freggels 'fr-in-kwaliteit').
+      // Bewust onbenut (zie de toelichting bij Nova Corps 'fr-in-kwaliteit').
       io({ id: 'sv-out-kwaliteit', label: 'Kwaliteitsrapportage testdekking', flowtype: 'ontwikkelflow', bron_type: 'team', applicatieId: 'sv-app-rapport' }),
       io({ id: 'sv-out-toezicht', label: 'Toezichtrapportage (kwartaal)', bron_type: 'stakeholder', applicatieId: 'sv-app-rapport', ...extern('party-toezicht') }),
       io({ id: 'sv-out-dashboard', label: 'Managementdashboard update', bron_type: 'stakeholder', applicatieId: 'sv-app-dashboard', ...extern('party-directie') }),
@@ -609,20 +614,20 @@ export const MOCK_TEAM_WORKFLOWS = {
       cap('fr-cap4', 'Business analist', 'medior', 1, 'analyse_refinement', 'nee'),
     ],
     inputs: [
-      // Bewust NIET gekoppeld aan de output van Sterke verhalen: die zit in de
-      // cyclus met Casio, en een koppeling vanuit die cyclus naar Freggels zou
-      // via Freggels → Polis → Superheroes → Casio de hele keten in de
+      // Bewust NIET gekoppeld aan de output van Daily Bugle: die zit in de
+      // cyclus met Stark Industries, en een koppeling vanuit die cyclus naar Nova Corps zou
+      // via Nova Corps → Wakanda → Avengers → Stark Industries de hele keten in de
       // "cyclus-laag" van de gelaagde weergave trekken (Kahn: alles stroom-
       // afwaarts van een cyclus blijft onverwerkt). Losse input = normaal.
       io({ id: 'fr-in-kwaliteit', label: 'Kwaliteitsrapportage testdekking', flowtype: 'ontwikkelflow', bron_type: 'team' }),
       io({ id: 'fr-in-testverzoek', label: 'Testverzoek vanuit ketenteam', flowtype: 'ontwikkelflow', bron_type: 'team' }),
-      // Koppelingsverzoek op een bestaand item van Equinox — wacht op akkoord.
+      // Koppelingsverzoek op een bestaand item van Asgard — wacht op akkoord.
       io({ id: 'fr-in-releasekalender', label: 'Releasekalender voor testplanning', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.equinox, linkedOutputId: 'eq-out-release', linkStatus: 'voorgesteld' }),
       io({ id: 'fr-in-externtest', label: 'Externe testcapaciteit (piekperiodes)', flowtype: 'ontwikkelflow', bron_type: 'team', ...extern('party-testteam') }),
     ],
     outputs: [
       io({ id: 'fr-out-testbevindingen', label: 'Testbevindingen acceptatie', flowtype: 'ontwikkelflow', bron_type: 'team', applicatieId: 'fr-app-signalering', punten: ['Bevindingen binnen 24 uur na testrun', 'Blokkerende bevindingen direct telefonisch'] }),
-      // Koppelingsverzoek om een nieuw item bij Tiem — afgewezen.
+      // Koppelingsverzoek om een nieuw item bij Fantastic Four — afgewezen.
       io({ id: 'fr-out-testrapport', label: 'Testrapport per release', flowtype: 'ontwikkelflow', bron_type: 'team', applicatieId: 'fr-app-signalering', linkedTeam: T.tiem, linkNieuw: true, linkStatus: 'afgewezen' }),
       io({ id: 'fr-out-signalering', label: 'Signaleringsdrempels ketentest', bron_type: 'team', applicatieId: 'fr-app-signalering' }),
     ],
@@ -639,13 +644,13 @@ export const MOCK_TEAM_WORKFLOWS = {
 // ---------------------------------------------------------------------------
 // Elk record staat volledig uitgeschreven (flowtype, werkstap of applicaties,
 // effect op flow, wachttijd, deadline, oplosbaarheid) — geen half ingevulde
-// profielen, behalve bij Equinox (bewust, zie teamprofielen). `aangemaakt` en
+// profielen, behalve bij Asgard (bewust, zie teamprofielen). `aangemaakt` en
 // `bijgewerkt` zijn dagen geleden; bijgewerkt ligt nooit vóór aangemaakt.
 // Risiconiveaus (lib/risk.js: impact × frequentie + statuscorrectie): Laag komt
 // het vaakst voor, dan Gemiddeld, dan Hoog; Kritiek is schaars en ontstaat
 // alleen bij zwaar × structureel × actief blokkerend. Observaties zijn bewust
-// getriggerd: Polis én Casio hebben elk drie externe dependencies op het CAB
-// (gelijkspel), Polis heeft het kennisrisico-zwaartepunt, en 'actief
+// getriggerd: Wakanda én Stark Industries hebben elk drie externe dependencies op het CAB
+// (gelijkspel), Wakanda heeft het kennisrisico-zwaartepunt, en 'actief
 // blokkerend' is over alle acht teams verspreid.
 
 const DEP_DEFAULTS = {
@@ -761,7 +766,7 @@ function finalize(raw) {
 }
 
 // ============================================================
-// Team Tiem — klantcontact & intake: veel Ontwikkelflow, gemengd profiel
+// Team Fantastic Four — klantcontact & intake: veel Ontwikkelflow, gemengd profiel
 // ============================================================
 const DEPS_TIEM = [
   {
@@ -823,7 +828,7 @@ const DEPS_TIEM = [
   },
   {
     id: 'ti-dep-07', teamId: T.tiem, categorie: 'Omgevingsafhankelijkheid',
-    titel: 'Acceptatieomgeving intake wordt gedeeld met Polis',
+    titel: 'Acceptatieomgeving intake wordt gedeeld met Wakanda',
     toelichting: 'Beide teams testen in dezelfde acceptatieomgeving; een deploy van de één zet de test van de ander stil.',
     impact: 'zwaar', frequentie: 'regelmatig', status: 'actief blokkerend',
     workflowStap: 'acceptatie', effectOpFlow: 'blokkade',
@@ -878,12 +883,12 @@ const DEPS_TIEM = [
   },
   {
     id: 'ti-dep-13', teamId: T.tiem, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'API-toegang klantdata loopt via de gateway van Smurfen',
-    toelichting: 'Elke nieuwe klantdata-koppeling vraagt een client-id en configuratie op de API-gateway van Team Smurfen.',
+    titel: 'API-toegang klantdata loopt via de gateway van S.H.I.E.L.D.',
+    toelichting: 'Elke nieuwe klantdata-koppeling vraagt een client-id en configuratie op de API-gateway van Team S.H.I.E.L.D..',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['ti-app-klant'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Smurfen'), aangemaakt: 330, bijgewerkt: 33,
+    ...team('Team S.H.I.E.L.D.'), aangemaakt: 330, bijgewerkt: 33,
   },
   {
     id: 'ti-dep-14', teamId: T.tiem, scope: 'extern', categorie: 'Data-afhankelijkheid',
@@ -988,7 +993,7 @@ const DEPS_TIEM = [
 ]
 
 // ============================================================
-// Team Polis — groot, applicatierijk, kennisrisico-zwaartepunt, 3× CAB
+// Team Wakanda — groot, applicatierijk, kennisrisico-zwaartepunt, 3× CAB
 // ============================================================
 const DEPS_POLIS = [
   {
@@ -1061,11 +1066,11 @@ const DEPS_POLIS = [
   {
     id: 'po-dep-08', teamId: T.polis, scope: 'extern', categorie: 'Data-afhankelijkheid',
     titel: 'Testdata voor premieberekeningsengine ontbreekt',
-    toelichting: 'Team Freggels levert de geanonimiseerde testsets; voor premieberekening bestaat nog geen set met randgevallen.',
+    toelichting: 'Team Nova Corps levert de geanonimiseerde testsets; voor premieberekening bestaat nog geen set met randgevallen.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'actief blokkerend',
     workflowStap: 'testen', effectOpFlow: 'niet_startklaar',
     wachttijd: 'dagen', deadline: 'interne_afspraak', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Freggels'), aangemaakt: 150, bijgewerkt: 9,
+    ...team('Team Nova Corps'), aangemaakt: 150, bijgewerkt: 9,
   },
   {
     id: 'po-dep-09', teamId: T.polis, categorie: 'Proces-/workflow-afhankelijkheid',
@@ -1078,8 +1083,8 @@ const DEPS_POLIS = [
   },
   {
     id: 'po-dep-10', teamId: T.polis, categorie: 'Rol-afhankelijkheid',
-    titel: 'Testcoördinator gedeeld met Freggels',
-    toelichting: 'De testcoördinator werkt voor beide teams; de ketentest van Freggels krijgt in de praktijk voorrang.',
+    titel: 'Testcoördinator gedeeld met Nova Corps',
+    toelichting: 'De testcoördinator werkt voor beide teams; de ketentest van Nova Corps krijgt in de praktijk voorrang.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'testen', effectOpFlow: 'contextswitch',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
@@ -1096,8 +1101,8 @@ const DEPS_POLIS = [
   },
   {
     id: 'po-dep-12', teamId: T.polis, categorie: 'Omgevingsafhankelijkheid',
-    titel: 'Acceptatieomgeving polis wordt gedeeld met Tiem',
-    toelichting: 'Dezelfde acceptatieomgeving als het intake-team; deploys van Tiem zetten de polis-acceptatietest stil.',
+    titel: 'Acceptatieomgeving polis wordt gedeeld met Fantastic Four',
+    toelichting: 'Dezelfde acceptatieomgeving als het intake-team; deploys van Fantastic Four zetten de polis-acceptatietest stil.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'acceptatie', effectOpFlow: 'blokkade',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
@@ -1106,7 +1111,7 @@ const DEPS_POLIS = [
   {
     id: 'po-dep-13', teamId: T.polis, categorie: 'Overig intern',
     titel: 'Onduidelijk wie eigenaar is van batchverwerking',
-    toelichting: 'Het is niet formeel belegd wie verantwoordelijk is voor de nachtelijke mutatiebatch richting Casio.',
+    toelichting: 'Het is niet formeel belegd wie verantwoordelijk is voor de nachtelijke mutatiebatch richting Stark Industries.',
     impact: 'beperkt', frequentie: 'soms', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['po-app-mutatie'], effectOpFlow: 'onduidelijkheid',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
@@ -1115,7 +1120,7 @@ const DEPS_POLIS = [
   {
     id: 'po-dep-14', teamId: T.polis, categorie: 'Overig intern',
     titel: 'Nog te beoordelen: nieuwe fraudecheck-koppeling',
-    toelichting: 'Casio wil de fraudecheck-service ook op polismutaties laten draaien; impact nog niet beoordeeld.',
+    toelichting: 'Stark Industries wil de fraudecheck-service ook op polismutaties laten draaien; impact nog niet beoordeeld.',
     impact: 'klein', frequentie: 'eenmalig', status: 'bekend risico',
     flowtype: null, effectOpFlow: '',
     wachttijd: 'geen', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
@@ -1251,21 +1256,21 @@ const DEPS_POLIS = [
   },
   {
     id: 'po-dep-29', teamId: T.polis, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'API-toegang klantdata afhankelijk van Team Smurfen',
-    toelichting: 'Elke nieuwe koppeling van klantportaal of gateway vraagt configuratie op het platform van Smurfen.',
+    titel: 'API-toegang klantdata afhankelijk van Team S.H.I.E.L.D.',
+    toelichting: 'Elke nieuwe koppeling van klantportaal of gateway vraagt configuratie op het platform van S.H.I.E.L.D..',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['po-app-gateway', 'po-app-klantportaal'], effectOpFlow: 'blokkade',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Smurfen'), aangemaakt: 330, bijgewerkt: 33,
+    ...team('Team S.H.I.E.L.D.'), aangemaakt: 330, bijgewerkt: 33,
   },
   {
     id: 'po-dep-30', teamId: T.polis, scope: 'extern', categorie: 'Kennis-afhankelijkheid extern',
-    titel: 'Rapportagevalidatie afhankelijk van kennis bij Sterke verhalen',
-    toelichting: 'Alleen Sterke verhalen kan controleren of polisrapportages kloppen; Polis kan de acceptatie niet zelf afronden.',
+    titel: 'Rapportagevalidatie afhankelijk van kennis bij Daily Bugle',
+    toelichting: 'Alleen Daily Bugle kan controleren of polisrapportages kloppen; Wakanda kan de acceptatie niet zelf afronden.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'acceptatie', effectOpFlow: 'extra_afstemming',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Sterke verhalen'), aangemaakt: 140, bijgewerkt: 28,
+    ...team('Team Daily Bugle'), aangemaakt: 140, bijgewerkt: 28,
   },
   {
     id: 'po-dep-31', teamId: T.polis, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
@@ -1296,7 +1301,7 @@ const DEPS_POLIS = [
   },
   {
     id: 'po-dep-34', teamId: T.polis, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
-    titel: 'Leesrechten archiefservice voor Sterke verhalen liepen via IAM',
+    titel: 'Leesrechten archiefservice voor Daily Bugle liepen via IAM',
     toelichting: 'Elke BI-medewerker moest apart leesrechten op het archief aanvragen.',
     impact: 'klein', frequentie: 'soms', status: 'gemitigeerd',
     flowtype: 'applicatieflow', applicatieIds: ['po-app-archief'], effectOpFlow: 'wachten',
@@ -1307,7 +1312,7 @@ const DEPS_POLIS = [
 ]
 
 // ============================================================
-// Team Superheroes — aanvraag- en claimbeoordeling: besluitvorming, stakeholders
+// Team Avengers — aanvraag- en claimbeoordeling: besluitvorming, stakeholders
 // ============================================================
 const DEPS_SUPERHEROES = [
   {
@@ -1332,7 +1337,7 @@ const DEPS_SUPERHEROES = [
   {
     id: 'sh-dep-03', teamId: T.superheroes, categorie: 'Proces-/workflow-afhankelijkheid',
     titel: 'Dossierviewer toont oude versie bij gelijktijdige mutatie',
-    toelichting: 'Als Polis het dossier muteert tijdens de beoordeling, ziet de beoordelaar de oude versie.',
+    toelichting: 'Als Wakanda het dossier muteert tijdens de beoordeling, ziet de beoordelaar de oude versie.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sh-app-dossier'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
@@ -1358,13 +1363,13 @@ const DEPS_SUPERHEROES = [
   },
   {
     id: 'sh-dep-06', teamId: T.superheroes, scope: 'extern', categorie: 'Data-afhankelijkheid',
-    titel: 'Incomplete aanvraagdossiers uit Polis kosten dubbele beoordelingstijd',
-    toelichting: 'Een op de vijf dossiers komt zonder inkomensgegevens binnen en gaat terug naar Polis.',
+    titel: 'Incomplete aanvraagdossiers uit Wakanda kosten dubbele beoordelingstijd',
+    toelichting: 'Een op de vijf dossiers komt zonder inkomensgegevens binnen en gaat terug naar Wakanda.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sh-app-dossier'], effectOpFlow: 'herwerk',
     wachttijd: 'dagen', deadline: 'interne_afspraak', oplosbaarheid: 'meerdere_teams',
-    actieAfspraak: 'Definitie van een compleet dossier is met Polis vastgelegd.',
-    ...team('Team Polis'), aangemaakt: 130, bijgewerkt: 6,
+    actieAfspraak: 'Definitie van een compleet dossier is met Wakanda vastgelegd.',
+    ...team('Team Wakanda'), aangemaakt: 130, bijgewerkt: 6,
   },
   {
     id: 'sh-dep-07', teamId: T.superheroes, categorie: 'Overig intern',
@@ -1424,12 +1429,12 @@ const DEPS_SUPERHEROES = [
   },
   {
     id: 'sh-dep-13', teamId: T.superheroes, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'API-toegang tot klantdata loopt via Smurfen',
-    toelichting: 'De beoordelingsapplicatie haalt klantdata via de API-gateway van Smurfen; nieuwe velden vragen daar configuratie.',
+    titel: 'API-toegang tot klantdata loopt via S.H.I.E.L.D.',
+    toelichting: 'De beoordelingsapplicatie haalt klantdata via de API-gateway van S.H.I.E.L.D.; nieuwe velden vragen daar configuratie.',
     impact: 'duidelijk', frequentie: 'structureel', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sh-app-beoordeel'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Smurfen'), aangemaakt: 200, bijgewerkt: 60,
+    ...team('Team S.H.I.E.L.D.'), aangemaakt: 200, bijgewerkt: 60,
   },
   {
     id: 'sh-dep-14', teamId: T.superheroes, scope: 'extern', categorie: 'Wetgevingsafhankelijkheid',
@@ -1474,13 +1479,13 @@ const DEPS_SUPERHEROES = [
     impact: 'beperkt', frequentie: 'regelmatig', status: 'actief blokkerend',
     flowtype: 'applicatieflow', applicatieIds: ['sh-app-beoordeel'], effectOpFlow: 'anders',
     wachttijd: 'geen', deadline: 'interne_afspraak', oplosbaarheid: 'teamlid',
-    actieAfspraak: 'Dashboard doorlooptijd wordt door Sterke verhalen opgeleverd.',
+    actieAfspraak: 'Dashboard doorlooptijd wordt door Daily Bugle opgeleverd.',
     aangemaakt: 60, bijgewerkt: 9,
   },
 ]
 
 // ============================================================
-// Team Casio — betaalverwerking & uitkeringen: zwaarste risico's, 3× CAB
+// Team Stark Industries — betaalverwerking & uitkeringen: zwaarste risico's, 3× CAB
 // ============================================================
 const DEPS_CASIO = [
   {
@@ -1669,21 +1674,21 @@ const DEPS_CASIO = [
   },
   {
     id: 'ca-dep-21', teamId: T.casio, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'Toegang tot claimdata via de gateway van Smurfen',
-    toelichting: 'Uitkeringsservice en regelservice halen claimdata via de API-gateway; nieuwe velden vragen configuratie bij Smurfen.',
+    titel: 'Toegang tot claimdata via de gateway van S.H.I.E.L.D.',
+    toelichting: 'Uitkeringsservice en regelservice halen claimdata via de API-gateway; nieuwe velden vragen configuratie bij S.H.I.E.L.D..',
     impact: 'duidelijk', frequentie: 'structureel', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering', 'ca-app-regel'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Smurfen'), aangemaakt: 340, bijgewerkt: 34,
+    ...team('Team S.H.I.E.L.D.'), aangemaakt: 340, bijgewerkt: 34,
   },
   {
     id: 'ca-dep-22', teamId: T.casio, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
-    titel: 'Correctiesignalen van Sterke verhalen komen zonder prioriteit binnen',
+    titel: 'Correctiesignalen van Daily Bugle komen zonder prioriteit binnen',
     toelichting: 'De wekelijkse correctielijst maakt geen onderscheid tussen spoed en regulier.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering'], effectOpFlow: 'onduidelijkheid',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Sterke verhalen'), aangemaakt: 80, bijgewerkt: 16,
+    ...team('Team Daily Bugle'), aangemaakt: 80, bijgewerkt: 16,
   },
   {
     id: 'ca-dep-23', teamId: T.casio, scope: 'extern', categorie: 'Capaciteit specialistisch team',
@@ -1770,7 +1775,7 @@ const DEPS_CASIO = [
 ]
 
 // ============================================================
-// Team Sterke verhalen — rapportage & BI: veel externe bestemmingen
+// Team Daily Bugle — rapportage & BI: veel externe bestemmingen
 // ============================================================
 const DEPS_SV = [
   {
@@ -1858,12 +1863,12 @@ const DEPS_SV = [
   },
   {
     id: 'sv-dep-10', teamId: T.sv, scope: 'extern', categorie: 'Kennis-afhankelijkheid extern',
-    titel: 'Betaalstatusdefinities alleen bekend bij Casio',
-    toelichting: 'Wat een statuscode in het betaalstatusbericht precies betekent, weet alleen Casio; rapportages worden daarop nagevraagd.',
+    titel: 'Betaalstatusdefinities alleen bekend bij Stark Industries',
+    toelichting: 'Wat een statuscode in het betaalstatusbericht precies betekent, weet alleen Stark Industries; rapportages worden daarop nagevraagd.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sv-app-dwh'], effectOpFlow: 'extra_afstemming',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Casio'), aangemaakt: 220, bijgewerkt: 30,
+    ...team('Team Stark Industries'), aangemaakt: 220, bijgewerkt: 30,
   },
   {
     id: 'sv-dep-11', teamId: T.sv, scope: 'extern', categorie: 'Capaciteit specialistisch team',
@@ -1922,7 +1927,7 @@ const DEPS_SV = [
   {
     id: 'sv-dep-17', teamId: T.sv, scope: 'extern', categorie: 'Omgevingsafhankelijkheid',
     titel: 'Rapportageomgeving deelt rekencapaciteit met de ketentest',
-    toelichting: 'Tijdens de ketentest van Freggels vertragen de rapportages merkbaar.',
+    toelichting: 'Tijdens de ketentest van Nova Corps vertragen de rapportages merkbaar.',
     impact: 'beperkt', frequentie: 'soms', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sv-app-rapport'], effectOpFlow: 'vertraging',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'team_overstijgend', geaccepteerd: true,
@@ -1930,12 +1935,12 @@ const DEPS_SV = [
   },
   {
     id: 'sv-dep-18', teamId: T.sv, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'API-toegang bronsystemen via de gateway van Smurfen',
-    toelichting: 'Alle bronsystemen worden via de API-gateway ontsloten; een nieuwe bron vraagt eerst een client-id bij Smurfen.',
+    titel: 'API-toegang bronsystemen via de gateway van S.H.I.E.L.D.',
+    toelichting: 'Alle bronsystemen worden via de API-gateway ontsloten; een nieuwe bron vraagt eerst een client-id bij S.H.I.E.L.D..',
     impact: 'duidelijk', frequentie: 'structureel', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sv-app-dwh'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Smurfen'), aangemaakt: 330, bijgewerkt: 90,
+    ...team('Team S.H.I.E.L.D.'), aangemaakt: 330, bijgewerkt: 90,
   },
   {
     id: 'sv-dep-19', teamId: T.sv, scope: 'extern', categorie: 'Wetgevingsafhankelijkheid',
@@ -1958,8 +1963,8 @@ const DEPS_SV = [
   },
   {
     id: 'sv-dep-21', teamId: T.sv, categorie: 'Data-afhankelijkheid',
-    titel: 'Correctiesignalen naar Casio worden niet teruggekoppeld',
-    toelichting: 'Het team hoort niet of Casio de gesignaleerde afwijkingen heeft opgepakt; dezelfde signalen komen elke week terug.',
+    titel: 'Correctiesignalen naar Stark Industries worden niet teruggekoppeld',
+    toelichting: 'Het team hoort niet of Stark Industries de gesignaleerde afwijkingen heeft opgepakt; dezelfde signalen komen elke week terug.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'actief blokkerend',
     flowtype: 'applicatieflow', applicatieIds: ['sv-app-kwaliteit'], effectOpFlow: 'onduidelijkheid',
     wachttijd: 'dagen', deadline: 'interne_afspraak', oplosbaarheid: 'meerdere_teams',
@@ -1986,7 +1991,7 @@ const DEPS_SV = [
 ]
 
 // ============================================================
-// Team Equinox — platform & releasekalender: klein; uitgebreide analyse
+// Team Asgard — platform & releasekalender: klein; uitgebreide analyse
 // (wachttijd/deadline/oplosbaarheid) bewust nog NIET ingevuld
 // ============================================================
 const DEPS_EQUINOX = [
@@ -2076,11 +2081,11 @@ const DEPS_EQUINOX = [
   },
   {
     id: 'eq-dep-11', teamId: T.equinox, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'Monitoringsignalen van Smurfen komen zonder context binnen',
+    titel: 'Monitoringsignalen van S.H.I.E.L.D. komen zonder context binnen',
     toelichting: 'De notificatieservice ontvangt platformalerts zonder aanduiding van het getroffen team.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['eq-app-notif'], effectOpFlow: 'onduidelijkheid',
-    ...team('Team Smurfen'), aangemaakt: 110, bijgewerkt: 22,
+    ...team('Team S.H.I.E.L.D.'), aangemaakt: 110, bijgewerkt: 22,
   },
   {
     id: 'eq-dep-12', teamId: T.equinox, categorie: 'Proces-/workflow-afhankelijkheid',
@@ -2141,7 +2146,7 @@ const DEPS_EQUINOX = [
 ]
 
 // ============================================================
-// Team Smurfen — IAM, platform, integraties: technisch, hub voor toegang
+// Team S.H.I.E.L.D. — IAM, platform, integraties: technisch, hub voor toegang
 // ============================================================
 const DEPS_SMURFEN = [
   {
@@ -2329,21 +2334,21 @@ const DEPS_SMURFEN = [
   },
   {
     id: 'sm-dep-21', teamId: T.smurfen, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
-    titel: 'Polis vraagt API-toegang zonder vaste intake',
+    titel: 'Wakanda vraagt API-toegang zonder vaste intake',
     toelichting: 'Verzoeken om nieuwe API-routes komen via chat en e-mail binnen, zonder prioriteit of context.',
     impact: 'beperkt', frequentie: 'structureel', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sm-app-api'], effectOpFlow: 'contextswitch',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Polis'), aangemaakt: 160, bijgewerkt: 20,
+    ...team('Team Wakanda'), aangemaakt: 160, bijgewerkt: 20,
   },
   {
     id: 'sm-dep-22', teamId: T.smurfen, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'Testautomatisering van Freggels draait op de productiepipeline',
-    toelichting: 'De testruns van Freggels delen de runners met productie-deploys en vertragen die.',
+    titel: 'Testautomatisering van Nova Corps draait op de productiepipeline',
+    toelichting: 'De testruns van Nova Corps delen de runners met productie-deploys en vertragen die.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sm-app-ci'], effectOpFlow: 'vertraging',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Freggels'), aangemaakt: 120, bijgewerkt: 28,
+    ...team('Team Nova Corps'), aangemaakt: 120, bijgewerkt: 28,
   },
   {
     id: 'sm-dep-23', teamId: T.smurfen, scope: 'extern', categorie: 'Wetgevingsafhankelijkheid',
@@ -2375,8 +2380,8 @@ const DEPS_SMURFEN = [
   },
   {
     id: 'sm-dep-26', teamId: T.smurfen, categorie: 'Rol-afhankelijkheid',
-    titel: 'Security officer deelt tijd met Casio',
-    toelichting: 'De security officer werkt voor beide teams; hardening-checks van Casio gaan voor.',
+    titel: 'Security officer deelt tijd met Stark Industries',
+    toelichting: 'De security officer werkt voor beide teams; hardening-checks van Stark Industries gaan voor.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'release_overdracht', effectOpFlow: 'contextswitch',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
@@ -2403,7 +2408,7 @@ const DEPS_SMURFEN = [
 ]
 
 // ============================================================
-// Team Freggels — test & kwaliteit: refinement/test/acceptatie-zwaartepunt
+// Team Nova Corps — test & kwaliteit: refinement/test/acceptatie-zwaartepunt
 // ============================================================
 const DEPS_FREGGELS = [
   {
@@ -2455,8 +2460,8 @@ const DEPS_FREGGELS = [
   },
   {
     id: 'fr-dep-06', teamId: T.freggels, categorie: 'Technische afhankelijkheid',
-    titel: 'Testautomatiseringsframework breekt bij elke UI-wijziging van Polis',
-    toelichting: 'De geautomatiseerde tests hangen aan schermelementen die Polis regelmatig verandert.',
+    titel: 'Testautomatiseringsframework breekt bij elke UI-wijziging van Wakanda',
+    toelichting: 'De geautomatiseerde tests hangen aan schermelementen die Wakanda regelmatig verandert.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['fr-app-testauto'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
@@ -2537,30 +2542,30 @@ const DEPS_FREGGELS = [
   },
   {
     id: 'fr-dep-15', teamId: T.freggels, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'Testautomatisering draait op de pipeline van Smurfen',
-    toelichting: 'Elke wijziging in de pipeline van Smurfen kan de geautomatiseerde tests breken.',
+    titel: 'Testautomatisering draait op de pipeline van S.H.I.E.L.D.',
+    toelichting: 'Elke wijziging in de pipeline van S.H.I.E.L.D. kan de geautomatiseerde tests breken.',
     impact: 'duidelijk', frequentie: 'structureel', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['fr-app-testauto'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Smurfen'), aangemaakt: 250, bijgewerkt: 55,
+    ...team('Team S.H.I.E.L.D.'), aangemaakt: 250, bijgewerkt: 55,
   },
   {
     id: 'fr-dep-16', teamId: T.freggels, scope: 'extern', categorie: 'Kennis-afhankelijkheid extern',
-    titel: 'Betaalregels alleen te toetsen met kennis van Casio',
-    toelichting: 'Of een betaaluitkomst klopt, kan alleen een developer van Casio beoordelen.',
+    titel: 'Betaalregels alleen te toetsen met kennis van Stark Industries',
+    toelichting: 'Of een betaaluitkomst klopt, kan alleen een developer van Stark Industries beoordelen.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'testen', effectOpFlow: 'extra_afstemming',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Casio'), aangemaakt: 170, bijgewerkt: 26,
+    ...team('Team Stark Industries'), aangemaakt: 170, bijgewerkt: 26,
   },
   {
     id: 'fr-dep-17', teamId: T.freggels, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
-    titel: 'Polis levert testscenario’s te laat aan',
+    titel: 'Wakanda levert testscenario’s te laat aan',
     toelichting: 'Scenario’s voor de polismodule komen vaak pas op de dag van de ketentest.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'analyse_refinement', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
-    ...team('Team Polis'), aangemaakt: 140, bijgewerkt: 18,
+    ...team('Team Wakanda'), aangemaakt: 140, bijgewerkt: 18,
   },
   {
     id: 'fr-dep-18', teamId: T.freggels, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
@@ -2814,7 +2819,7 @@ const DEPS_GESLOTEN = [
   afgehandeld({
     id: 'sm-gesl-01', teamId: T.smurfen, categorie: 'Technische afhankelijkheid',
     titel: 'Certificaatrotatie API-gateway brak koppelingen van drie teams',
-    toelichting: 'Een onaangekondigde rotatie zette Polis, Casio en Tiem een ochtend stil.',
+    toelichting: 'Een onaangekondigde rotatie zette Wakanda, Stark Industries en Fantastic Four een ochtend stil.',
     impact: 'zwaar', frequentie: 'eenmalig',
     flowtype: 'applicatieflow', applicatieIds: ['sm-app-api'], effectOpFlow: 'blokkade',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
@@ -2823,13 +2828,13 @@ const DEPS_GESLOTEN = [
   }),
   afgehandeld({
     id: 'sm-gesl-02', teamId: T.smurfen, scope: 'extern', categorie: 'Technische afhankelijkheid',
-    titel: 'Logservice liep vol door debug-logging van Freggels',
+    titel: 'Logservice liep vol door debug-logging van Nova Corps',
     toelichting: 'Een testrun met debug-logging vulde de logopslag in één nacht.',
     impact: 'duidelijk', frequentie: 'eenmalig',
     flowtype: 'applicatieflow', applicatieIds: ['sm-app-log'], effectOpFlow: 'vertraging',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
     mitigatie: 'Logniveau per team begrensd.',
-    ...team('Team Freggels'), aangemaakt: 140, gemitigeerd: 130, gesloten: 115,
+    ...team('Team Nova Corps'), aangemaakt: 140, gemitigeerd: 130, gesloten: 115,
   }),
   afgehandeld({
     id: 'sm-gesl-03', teamId: T.smurfen, categorie: 'Omgevingsafhankelijkheid',
@@ -2899,21 +2904,21 @@ export const MOCK_DEPENDENCIES = RAW_MOCK_DEPENDENCIES.map(finalize)
 
 // ---------------------------------------------------------------------------
 // Admin-wijzigingenlog: alle vier statussen, inclusief een duplicaatmelding
-// (Tiem en Casio registreerden elk een SSD-aanvraag op hetzelfde loket) en
-// het goedgekeurde duplicaat Superheroes/Casio op de leverancier regelmotor.
+// (Fantastic Four en Stark Industries registreerden elk een SSD-aanvraag op hetzelfde loket) en
+// het goedgekeurde duplicaat Avengers/Stark Industries op de leverancier regelmotor.
 // ---------------------------------------------------------------------------
 
 // Handmatige review-entries (de admin-logpagina): alle vier statussen,
-// inclusief een duplicaatmelding (Tiem en Casio registreerden elk een
+// inclusief een duplicaatmelding (Fantastic Four en Stark Industries registreerden elk een
 // SSD-aanvraag op hetzelfde loket) en het goedgekeurde duplicaat
-// Superheroes/Casio op de leverancier regelmotor.
+// Avengers/Stark Industries op de leverancier regelmotor.
 const REVIEW_LOG = [
   { id: 'log-1', timestamp: tijdstipGeleden(1, 9), teamId: T.freggels, type: 'dependency_created', dependencyId: 'fr-dep-21', titel: 'Signaleringsservice mist koppeling met de releasekalender', duplicateOfId: null, status: 'pending' },
   { id: 'log-2', timestamp: tijdstipGeleden(2, 14), teamId: T.casio, type: 'dependency_created', dependencyId: 'ca-dep-28', titel: 'Fraudecheck-pilot leest productiedata zonder anonimisering', duplicateOfId: null, status: 'pending' },
   { id: 'log-3', timestamp: tijdstipGeleden(3, 11), teamId: T.tiem, type: 'dependency_created', dependencyId: 'ti-dep-23', titel: 'SSD-aanvraag extra opslag gespreksopnames wacht al een maand', duplicateOfId: 'ca-dep-26', status: 'pending' },
   { id: 'log-4', timestamp: tijdstipGeleden(6, 16), teamId: T.superheroes, type: 'dependency_created', dependencyId: 'sh-dep-09', titel: 'Leverancier regelmotor levert regelreleases later dan afgesproken', duplicateOfId: 'ca-dep-14', status: 'approved' },
   { id: 'log-5', timestamp: tijdstipGeleden(9, 10), teamId: T.polis, type: 'dependency_created', dependencyId: 'po-dep-33', titel: 'SSD-aanvraag database-uitbreiding polisadministratie wacht op capaciteit', duplicateOfId: null, status: 'edited' },
-  { id: 'log-6', timestamp: tijdstipGeleden(12, 15), teamId: T.sv, type: 'dependency_created', dependencyId: 'sv-dep-21', titel: 'Correctiesignalen naar Casio worden niet teruggekoppeld', duplicateOfId: null, status: 'rejected' },
+  { id: 'log-6', timestamp: tijdstipGeleden(12, 15), teamId: T.sv, type: 'dependency_created', dependencyId: 'sv-dep-21', titel: 'Correctiesignalen naar Stark Industries worden niet teruggekoppeld', duplicateOfId: null, status: 'rejected' },
   { id: 'log-7', timestamp: tijdstipGeleden(14, 9), teamId: T.smurfen, type: 'dependency_created', dependencyId: 'sm-dep-27', titel: 'Nog te beoordelen: zero-trust netwerkmodel', duplicateOfId: null, status: 'approved' },
 ]
 
@@ -2956,5 +2961,5 @@ export const MOCK_CHANGE_LOG = [...REVIEW_LOG, ...LINK_LOG, ...afgeleideLog(RAW_
 
 // De uitgebreide analyse staat in de demo aan: de demo laat zo meteen
 // flowverlies, urgentie, kwadranten en de labels 'stil risico', 'verouderd'
-// en 'quick win' zien (en bij Equinox 'profiel onvolledig').
+// en 'quick win' zien (en bij Asgard 'profiel onvolledig').
 export const MOCK_ADMIN_SETTINGS = { uitgebreideAnalyse: true }

@@ -246,8 +246,8 @@
               <button type="button" class="linkbtn" id="team-toggle">Selecteer meerdere teams</button>
             </div>
             <select class="inp" id="team-single">
-              <option>Team Polis</option><option>Team Casio</option><option>Team Equinox</option>
-              <option>Team Tiem</option><option>Team Freggels</option><option>Team Smurfen</option>
+              <option>Team Wakanda</option><option>Team Stark Industries</option><option>Team Asgard</option>
+              <option>Team Fantastic Four</option><option>Team Nova Corps</option><option>Team S.H.I.E.L.D.</option>
             </select>
             <div class="cond" id="team-multi">
               <p class="hint" style="margin-top:0">Voor welke teams wil je deze dependency aanmaken?</p>
@@ -295,7 +295,7 @@
               <option>Extern specialistenteam Infra</option>
               <option>Inkoop &amp; Contractmanagement</option>
               <option>Business opdrachtgever Klantcontact</option>
-              <option>Team Smurfen</option>
+              <option>Team S.H.I.E.L.D.</option>
               <option value="__anders">Anders, namelijk…</option>
             </select>
             <div class="cond" id="f-bron-anders" style="margin-top:.4rem">
@@ -747,9 +747,9 @@
   })
 
   // ---- meerdere teams ----
-  const TEAMS = ['Team Polis','Team Casio','Team Equinox','Team Tiem','Team Freggels','Team Sterke verhalen','Team Smurfen']
+  const TEAMS = ['Team Wakanda','Team Stark Industries','Team Asgard','Team Fantastic Four','Team Nova Corps','Team Daily Bugle','Team S.H.I.E.L.D.']
   let multi = false
-  const gekozenTeams = new Set(['Team Polis'])
+  const gekozenTeams = new Set(['Team Wakanda'])
 
   function tekenTeams(){
     document.getElementById('team-list').innerHTML = TEAMS.map(t =>
