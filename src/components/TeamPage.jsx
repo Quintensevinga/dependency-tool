@@ -148,8 +148,10 @@ function IoNode({ data }) {
   const isInput = data.kind === 'input'
   return (
     <div
-      className="relative w-44 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.05)]"
-      style={data.bronColor ? { borderLeftColor: data.bronColor, borderLeftWidth: 3 } : undefined}
+      className={`relative w-44 rounded-lg border px-3 py-2 shadow-[0_1px_2px_rgba(15,23,42,0.05)] ${
+        data.ghost ? 'cursor-pointer border-dashed border-amber-400 bg-amber-50/60' : 'border-slate-200 bg-white'
+      }`}
+      style={data.bronColor && !data.ghost ? { borderLeftColor: data.bronColor, borderLeftWidth: 3 } : undefined}
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0.35 }} />
       <div className="flex items-center justify-between gap-1">
@@ -168,10 +170,16 @@ function IoNode({ data }) {
       {data.linkLabel && <div className="mt-0.5 truncate text-[10px] text-slate-400">{data.linkLabel}</div>}
       {/* Alleen de niet-definitieve koppelingsstatussen op de kaart zelf —
           een geaccepteerde koppeling is de normale toestand. */}
-      {(data.linkStatus === 'voorgesteld' || data.linkStatus === 'afgewezen') && (
-        <div className={`mt-0.5 inline-flex rounded px-1 py-[1px] text-[9px] font-semibold ${LINK_STATUS_CHIP[data.linkStatus]}`}>
-          {data.linkStatusLabel}
-        </div>
+      {data.requestLabel ? (
+        // Koppelingsverzoek van een ander team: schaduwkaart (nieuw item) of
+        // badge op het bestaande item — klik opent accepteren/afwijzen.
+        <div className="mt-0.5 inline-flex rounded bg-amber-100 px-1 py-[1px] text-[9px] font-semibold text-amber-800">{data.requestLabel}</div>
+      ) : (
+        (data.linkStatus === 'voorgesteld' || data.linkStatus === 'afgewezen') && (
+          <div className={`mt-0.5 inline-flex rounded px-1 py-[1px] text-[9px] font-semibold ${LINK_STATUS_CHIP[data.linkStatus]}`}>
+            {data.linkStatusLabel}
+          </div>
+        )
       )}
       {/* Compacte flowcontext direct op de kaart — hoort dit bij Applicatieflow of
           Ontwikkelflow, en bij een applicatie of Overstijgend — i.p.v. alleen
@@ -1180,6 +1188,13 @@ function computeWorkflowLayout(
         meta: ioMetaLabel(item),
         linkStatus: item.linkStatus,
         linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+        ghost: Boolean(item._ghostRequest),
+        request: item._ghostRequest ?? item._pendingRequest ?? null,
+        requestLabel: item._ghostRequest
+          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
+          : item._pendingRequest
+            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
+            : '',
       },
       draggable: true,
     })
@@ -1207,6 +1222,13 @@ function computeWorkflowLayout(
         meta: ioMetaLabel(item),
         linkStatus: item.linkStatus,
         linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+        ghost: Boolean(item._ghostRequest),
+        request: item._ghostRequest ?? item._pendingRequest ?? null,
+        requestLabel: item._ghostRequest
+          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
+          : item._pendingRequest
+            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
+            : '',
       },
       draggable: true,
     })
@@ -1234,6 +1256,13 @@ function computeWorkflowLayout(
         meta: ioMetaLabel(item),
         linkStatus: item.linkStatus,
         linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+        ghost: Boolean(item._ghostRequest),
+        request: item._ghostRequest ?? item._pendingRequest ?? null,
+        requestLabel: item._ghostRequest
+          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
+          : item._pendingRequest
+            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
+            : '',
       },
       draggable: true,
     })
@@ -1261,6 +1290,13 @@ function computeWorkflowLayout(
         meta: ioMetaLabel(item),
         linkStatus: item.linkStatus,
         linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+        ghost: Boolean(item._ghostRequest),
+        request: item._ghostRequest ?? item._pendingRequest ?? null,
+        requestLabel: item._ghostRequest
+          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
+          : item._pendingRequest
+            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
+            : '',
       },
       draggable: true,
     })
@@ -2194,8 +2230,57 @@ function PuntenEditor({ items, onChange, t }) {
   )
 }
 
+function RequestActions({ onAccept, onReject, t }) {
+  return (
+    <span className="flex shrink-0 gap-1.5">
+      <button type="button" onClick={onAccept} className="rounded-md bg-[#2a5f8a] px-2 py-0.5 text-[11px] font-medium text-white hover:bg-[#1f4a6c]">
+        {t('teampage.linkRequestAccept')}
+      </button>
+      <button type="button" onClick={onReject} className="rounded-md border border-slate-300 px-2 py-0.5 text-[11px] font-medium text-slate-600 hover:bg-slate-50">
+        {t('teampage.linkRequestReject')}
+      </button>
+    </span>
+  )
+}
+
+// Eén rij in de Input-/Output-lijst. Een koppelingsverzoek van een ander team
+// staat er ook tussen: als schaduwrij (nieuw item, nog niet van ons) of als
+// badge op het bestaande item waaraan gekoppeld wil worden — met accepteren/
+// afwijzen ter plekke, zodat je niet naar een apart vak hoeft te zoeken.
+function IoListRow({ item, summary, onOpen, onAccept, onReject, t }) {
+  const ghost = item._ghostRequest
+  const pending = item._pendingRequest
+  if (ghost) {
+    return (
+      <li className="flex flex-wrap items-center gap-2 py-2 text-sm">
+        <span className="min-w-0 flex-1 truncate italic text-slate-600">{item.label || '—'}</span>
+        <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+          {t('teampage.requestProposedBy', { team: ghost.proposerNaam })}
+        </span>
+        <RequestActions onAccept={() => onAccept(ghost)} onReject={() => onReject(ghost)} t={t} />
+      </li>
+    )
+  }
+  return (
+    <li className="flex flex-wrap items-center gap-2">
+      <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-2 py-2 text-left text-sm hover:bg-slate-50">
+        <span className="min-w-0 flex-1 truncate text-slate-700">{item.label || '—'}</span>
+        {summary && <span className="max-w-[55%] shrink-0 truncate text-xs text-slate-400">{summary}</span>}
+      </button>
+      {pending && (
+        <>
+          <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+            {t('teampage.requestForItem', { team: pending.proposerNaam })}
+          </span>
+          <RequestActions onAccept={() => onAccept(pending)} onReject={() => onReject(pending)} t={t} />
+        </>
+      )}
+    </li>
+  )
+}
+
 // Verzoeken van andere teams om een input/output aan dit team te koppelen —
-// bewust een opvallende kaart boven de tabbladen i.p.v. verstopt in een
+// bewust een opvallende kaart bovenaan de pagina i.p.v. verstopt in een
 // lijst: wie op deze teampagina komt moet meteen zien dat er iets op akkoord
 // wacht. Accepteren/afwijzen loopt via AppContext (acceptLinkRequest).
 function LinkRequestsPanel({ requests, workflow, teamName, onAccept, onReject, t }) {
@@ -3206,6 +3291,51 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     return list
   }, [teamWorkflows, teamId])
 
+  function handleAcceptRequest(req) {
+    acceptLinkRequest(teamId, req.teamId, req.kind, req.item.id)
+  }
+  function handleRejectRequest(req) {
+    rejectLinkRequest(teamId, req.teamId, req.kind, req.item.id)
+  }
+
+  // Verzoeken zichtbaar op de plek waar je kijkt, niet alleen in een apart
+  // vak: een verzoek om een nieuw item wordt een schaduwkaart in de
+  // betreffende kolom (canvas én lijst); een verzoek op een bestaand item
+  // markeert dat item zelf. Een output-verzoek van team A wordt bij ons een
+  // input, en andersom.
+  const { canvasInputs, canvasOutputs } = useMemo(() => {
+    const byTarget = new Map()
+    const ghostInputs = []
+    const ghostOutputs = []
+    for (const req of incomingLinkRequests) {
+      const proposerNaam = teamName(req.teamId)
+      const ourKind = req.kind === 'output' ? 'input' : 'output'
+      const targetId = req.kind === 'output' ? req.item.linkedInputId : req.item.linkedOutputId
+      const targetList = ourKind === 'input' ? workflow.inputs : workflow.outputs
+      const target = targetId ? targetList.find((i) => i.id === targetId) : null
+      if (target) {
+        byTarget.set(target.id, { ...req, proposerNaam })
+        continue
+      }
+      const ghost = {
+        ...emptyIoItem(ourKind),
+        id: `verzoek:${req.teamId}:${req.item.id}`,
+        label: req.item.label,
+        flowtype: req.item.flowtype,
+        bron_type: 'team',
+        linkedTeam: req.teamId,
+        _ghostRequest: { ...req, proposerNaam },
+      }
+      if (ourKind === 'input') ghostInputs.push(ghost)
+      else ghostOutputs.push(ghost)
+    }
+    const decorate = (list) => list.map((i) => (byTarget.has(i.id) ? { ...i, _pendingRequest: byTarget.get(i.id) } : i))
+    return {
+      canvasInputs: [...decorate(workflow.inputs), ...ghostInputs],
+      canvasOutputs: [...decorate(workflow.outputs), ...ghostOutputs],
+    }
+  }, [incomingLinkRequests, workflow.inputs, workflow.outputs, teamName])
+
   const applicatieflowSectionRef = useRef(null)
   const onOpenApplicatieflow = useCallback(() => {
     setBottomSectionTab('teamgegevens')
@@ -3229,8 +3359,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   )
 
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
-    workflow.inputs,
-    workflow.outputs,
+    canvasInputs,
+    canvasOutputs,
     resolveLinkLabel,
     workflow.layout,
     workflow.annotations,
@@ -3468,6 +3598,42 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
       }
     }
     if (node.type === 'ioItem') {
+      // Koppelingsverzoek van een ander team (schaduwkaart of gemarkeerd
+      // item): accepteren/afwijzen rechtstreeks vanuit het paneel.
+      const request = node.data.request
+      if (request) {
+        const becomes = node.data.ghost
+          ? node.data.kind === 'input'
+            ? t('teampage.requestBecomesInput')
+            : t('teampage.requestBecomesOutput')
+          : t('teampage.requestLinksToItem', { target: node.data.label || '—' })
+        return {
+          typeLabel: t('teampage.focusTypeRequest'),
+          title: request.item.label || '—',
+          meta: [
+            { label: t('teampage.requestFromTeam'), value: request.proposerNaam },
+            { label: t('teampage.requestBecomes'), value: becomes },
+            { label: t('teampage.focusFlowcontext'), value: node.data.meta },
+          ],
+          actions: [
+            {
+              label: t('teampage.linkRequestAccept'),
+              primary: true,
+              onClick: () => {
+                handleAcceptRequest(request)
+                setCanvasFocus(null)
+              },
+            },
+            {
+              label: t('teampage.linkRequestReject'),
+              onClick: () => {
+                handleRejectRequest(request)
+                setCanvasFocus(null)
+              },
+            },
+          ],
+        }
+      }
       const items = node.data.kind === 'input' ? workflow.inputs : workflow.outputs
       const item = items.find((i) => i.id === node.data.itemId)
       const save = node.data.kind === 'input' ? updateInput : updateOutput
@@ -3671,6 +3837,19 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     <div className="space-y-4" ref={containerRef}>
       {(
         <>
+          {/* Bovenaan de pagina, vóór het canvas: wie hier binnenkomt moet
+              meteen zien dat er een koppelingsverzoek op akkoord wacht. De
+              verzoeken staan daarnaast ook op het canvas en in de lijst. */}
+          {incomingLinkRequests.length > 0 && !isFullscreen && (
+            <LinkRequestsPanel
+              requests={incomingLinkRequests}
+              workflow={workflow}
+              teamName={teamName}
+              onAccept={handleAcceptRequest}
+              onReject={handleRejectRequest}
+              t={t}
+            />
+          )}
           <div
             className={
               isFullscreen
@@ -4112,15 +4291,31 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                         )}
                         {content.punten && <PuntenEditor items={content.punten.items} onChange={content.punten.onChange} t={t} />}
                       </div>
-                      {content.onAction && (
-                        <div className="shrink-0 border-t border-slate-100 px-4 py-3">
-                          <button
-                            type="button"
-                            onClick={content.onAction}
-                            className="w-full rounded-md bg-[#2a5f8a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1f4a6c]"
-                          >
-                            {content.actionLabel}
-                          </button>
+                      {(content.onAction || content.actions?.length > 0) && (
+                        <div className="flex shrink-0 flex-col gap-2 border-t border-slate-100 px-4 py-3">
+                          {content.actions?.map((action) => (
+                            <button
+                              key={action.label}
+                              type="button"
+                              onClick={action.onClick}
+                              className={
+                                action.primary
+                                  ? 'w-full rounded-md bg-[#2a5f8a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1f4a6c]'
+                                  : 'w-full rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50'
+                              }
+                            >
+                              {action.label}
+                            </button>
+                          ))}
+                          {content.onAction && (
+                            <button
+                              type="button"
+                              onClick={content.onAction}
+                              className="w-full rounded-md bg-[#2a5f8a] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#1f4a6c]"
+                            >
+                              {content.actionLabel}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -4236,17 +4431,6 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
               onClose={() => setStageNoteTarget(null)}
               t={t}
               language={language}
-            />
-          )}
-
-          {incomingLinkRequests.length > 0 && (
-            <LinkRequestsPanel
-              requests={incomingLinkRequests}
-              workflow={workflow}
-              teamName={teamName}
-              onAccept={(req) => acceptLinkRequest(teamId, req.teamId, req.kind, req.item.id)}
-              onReject={(req) => rejectLinkRequest(teamId, req.teamId, req.kind, req.item.id)}
-              t={t}
             />
           )}
 
@@ -4523,25 +4707,21 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   }
                 >
                   <p className="mb-2 text-xs text-slate-400">{t('teampage.inputsTitle')}</p>
-                  {workflow.inputs.length === 0 ? (
+                  {canvasInputs.length === 0 ? (
                     <p className="text-xs text-slate-400">{t('teampage.ioEmpty')}</p>
                   ) : (
                     <ul className="divide-y divide-slate-100">
-                      {workflow.inputs.map((item) => {
-                        const summary = ioItemSummary(item, 'input', teams, teamWorkflows, workflow.applications, teamName, language, t)
-                        return (
-                          <li key={item.id}>
-                            <button
-                              type="button"
-                              onClick={() => setCanvasIoTarget({ kind: 'input', item })}
-                              className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
-                            >
-                              <span className="min-w-0 flex-1 truncate text-slate-700">{item.label || '—'}</span>
-                              {summary && <span className="max-w-[55%] shrink-0 truncate text-xs text-slate-400">{summary}</span>}
-                            </button>
-                          </li>
-                        )
-                      })}
+                      {canvasInputs.map((item) => (
+                        <IoListRow
+                          key={item.id}
+                          item={item}
+                          summary={item._ghostRequest ? '' : ioItemSummary(item, 'input', teams, teamWorkflows, workflow.applications, teamName, language, t)}
+                          onOpen={() => setCanvasIoTarget({ kind: 'input', item })}
+                          onAccept={handleAcceptRequest}
+                          onReject={handleRejectRequest}
+                          t={t}
+                        />
+                      ))}
                     </ul>
                   )}
                 </TeamDataBlock>
@@ -4564,25 +4744,21 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   }
                 >
                   <p className="mb-2 text-xs text-slate-400">{t('teampage.outputsTitle')}</p>
-                  {workflow.outputs.length === 0 ? (
+                  {canvasOutputs.length === 0 ? (
                     <p className="text-xs text-slate-400">{t('teampage.ioEmpty')}</p>
                   ) : (
                     <ul className="divide-y divide-slate-100">
-                      {workflow.outputs.map((item) => {
-                        const summary = ioItemSummary(item, 'output', teams, teamWorkflows, workflow.applications, teamName, language, t)
-                        return (
-                          <li key={item.id}>
-                            <button
-                              type="button"
-                              onClick={() => setCanvasIoTarget({ kind: 'output', item })}
-                              className="flex w-full items-center gap-2 py-2 text-left text-sm hover:bg-slate-50"
-                            >
-                              <span className="min-w-0 flex-1 truncate text-slate-700">{item.label || '—'}</span>
-                              {summary && <span className="max-w-[55%] shrink-0 truncate text-xs text-slate-400">{summary}</span>}
-                            </button>
-                          </li>
-                        )
-                      })}
+                      {canvasOutputs.map((item) => (
+                        <IoListRow
+                          key={item.id}
+                          item={item}
+                          summary={item._ghostRequest ? '' : ioItemSummary(item, 'output', teams, teamWorkflows, workflow.applications, teamName, language, t)}
+                          onOpen={() => setCanvasIoTarget({ kind: 'output', item })}
+                          onAccept={handleAcceptRequest}
+                          onReject={handleRejectRequest}
+                          t={t}
+                        />
+                      ))}
                     </ul>
                   )}
                 </TeamDataBlock>
