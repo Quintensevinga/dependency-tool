@@ -3,6 +3,122 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Merge origin/main: ketenherontwerp en teampagina-lanes samengevoegd met de auditfixes** (Quinten)
+
+  De andere sessie herschreef intussen het Ketenoverzicht (ELK-layout,
+  ingeklapte kaarten, bundels, stapel-tabs) en de teampagina-lanes. Conflicten
+  in ChainOverview, TeamPage en PannableFlowCanvas.
+
+  Aanpak per bestand:
+  - ChainOverview: het herontwerp is de basis. Daarop opnieuw aangebracht wat
+    daar nog niet in zat: namen van teams buiten de selectie in plaats van hun
+    id, kleur per output-item bij fan-out naar meerdere teams, een onderschrift
+    dat alle gekoppelde teams noemt, hub-statistieken die alleen geselecteerde
+    teams tellen, partijdetail beperkt tot kaarten op het canvas, de lege staat
+    alleen bij een echt leeg canvas, en de teamselectie via useTeamSelection.
+    De resetKey op useMergedLayout is vervallen: kaarten zijn niet meer
+    versleepbaar, ELK bepaalt de posities.
+  - TeamPage: beide zijden repareerden T4 onafhankelijk. De check op
+    laneGeometry uit main is nauwkeuriger dan mijn fallback op accent, dus die
+    blijft en de fallback is weg.
+  - PannableFlowCanvas: nodesConnectable en nodesDraggable zijn beide nu een
+    prop.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-audit-repair-9d9832** (Quinten)
+
+- **Audit: dode code weg, handleiding gecorrigeerd, i18n-controlescript** (Quinten)
+
+  - TabSelector en ConfidentialityBadge werden nergens gebruikt.
+  - De gebruikshandleiding beschreef een "+ Nieuwe categorie toevoegen"-optie die
+    niet bestaat; de categorielijst is vast en scope-afhankelijk. De PDF is nog
+    niet opnieuw gegenereerd.
+  - scripts/check-i18n.mjs vergelijkt de nl- en en-sleutels en meldt dynamische
+    sleutels die handmatig nalopen vragen.
+  - docs/audit-2026-09-10.md is het overdrachtsrapport van de audit.
+
+- **Audit: teampagina gerepareerd** (Quinten)
+
+  - Versleepte posities werden nooit bewaard: de afsluitende change van reactflow
+    komt zonder positie, dus de opslagcheck ging nooit af.
+  - "Slim ordenen" deed niets voor nodes die in de sessie versleept waren.
+  - Volledig scherm lag boven elk detailpaneel, formulier en item-modal; die
+    openden onzichtbaar achter het vlak.
+  - Applicatieflow-lijnen hingen aan een node zonder banner en verdwenen zodra een
+    team een applicatiegerelateerde dependency had. Team Wakanda toonde nul van
+    zes lijnen, nu acht.
+  - Presentatievelden van een verzoek werden via het item-formulier opgeslagen,
+    waardoor een verzoek zichtbaar bleef en dubbel geaccepteerd kon worden.
+  - Admin-sectie "Dependencies" uit maakte Teamgegevens onbereikbaar, de toggle
+    "Ontwikkelflow" deed niets, en het applicatie-zoekveld bleef filteren nadat
+    het veld verdween.
+  - De rijcomponenten stonden binnen TeamPage en remountten bij elke
+    state-wijziging; ze staan nu op moduleniveau met een stabiel ctx-object.
+
+- **Audit: Analyse gerepareerd** (Quinten)
+
+  - Trend en vergelijking negeerden sluit- en heropen-gebeurtenissen: een
+    heropende dependency telde als open in zijn gesloten periode en sluitingen
+    ontbraken in "gesloten per week".
+  - De constatering "review oud" rendereerde logregels als dependencies, met een
+    nep-badge en een onzinnige rapportzin.
+  - "Wie blokkeert wie" klopte niet onder een teamfilter: het gefilterde team kon
+    nooit veroorzaker zijn.
+  - De analyse negeerde de admin-toggle "uitgebreide analyse".
+  - Gearchiveerde teams telden mee, blokkerende dagen ondertelden dependencies
+    die al blokkerend werden aangemaakt, en een klik in "Gedeelde applicaties"
+    zonder dependencies deed niets.
+
+- **Audit: Heatmap, Relatiekaart, Matrix en Ketenoverzicht gerepareerd** (Quinten)
+
+  - Relatiekaart: de handles stonden boven en onder de blokjes terwijl de layout
+    links/rechts is, dus alle lijnen liepen dwars door de blokjes en een
+    gemarkeerde lijn ving klikken op teamblokjes weg.
+  - Team naar team slepen opende het formulier met een team-id als categorie.
+  - De lijst onder de kaart was een momentopname: verwijderde en gesloten
+    dependencies bleven staan en de teller klopte niet.
+  - Archiveren tijdens een open weergave werkte niet door; de nieuwe hook
+    useTeamSelection leidt de selectie per render af uit team.actief.
+  - Ketenoverzicht: het risicofilter en de scope-toggle deden niets zichtbaars,
+    team-ids stonden in "van/naar", een output naar meerdere teams kreeg de kleur
+    van alleen de laatste lijn, en versleepte kaarten bleven na focuswissel staan.
+  - De Relatiekaart zoomde bij zestien categorieen zo ver uit dat de labels
+    onleesbaar waren; er is nu een leesbaarheidsvloer en de kaart begint op de
+    bovenste rij.
+  - Enkelvoud in het aria-label van een heatmapcel.
+
+- **Audit: formulier, detailpaneel, instellingen en zijbalk gerepareerd** (Quinten)
+
+  - Scope wisselen van Keten naar Team liet de partij- of teamverwijzing op het
+    record staan; deadlineTekst en een partij-id zonder naam bleven ook hangen.
+  - De risico-uitleg klopte niet bij de ondergrens: 1 x 1 - 2 werd zonder
+    toelichting 1.
+  - Hernoemen startte met een verouderde naam en zette bij blur een eerdere
+    hernoeming terug.
+  - De wijzigingenlog-badge telde reviews van verwijderde dependencies mee.
+  - "Wis teampagina" kon een gearchiveerd team raken, een importfout toonde de
+    ruwe JSON-parsemelding en de blokkeermelding noemde ketenkoppelingen niet.
+  - Hardgecodeerd Nederlands "Ander voorbeeld" ook in de Engelse UI.
+  - Kier tussen de zijbalk en het Instellingen-paneel overbrugd: de muis
+    erdoorheen kon een auto-hide-zijbalk laten dichtklappen.
+
+- **Audit: kern van opslag, context en app-shell gerepareerd** (Quinten)
+
+  - JSON-export bevatte alleen open dependencies, waardoor een teruggezette
+    back-up het tabblad "Gesloten" en de sluitingshistorie verloor.
+  - "+ Nieuwe dependency" met meerdere teams maakte één record met een restveld
+    extraTeamIds in plaats van één record per team.
+  - Het detailpaneel vanuit Matrix, Netwerk of Analyse toonde een momentopname,
+    waardoor "Accepteer" niets leek te doen.
+  - De teampagina bleef open als "Onbekend team" na wissen of importeren.
+  - Escape sloot het onderliggende paneel in plaats van het bovenste; a11y houdt
+    nu een stapel bij en kent een optie trapFocus: false voor inline panelen.
+  - deleteTeam en archiveTeam lazen hun uitkomst uit de setState-updater.
+  - Onparseerbare datums lieten de analyse crashen; usingMockData, de teamteller
+    en een leeg admin-wachtwoord zaten er ook naast.
+  - Eenzijdig loskoppelen liet de ketenlijn vanuit het andere team staan.
+  - Een dependency met een teamId dat naar geen enkel team wijst krijgt een
+    placeholder-team, in plaats van in geen enkele weergave zichtbaar te zijn.
+
 - **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
 
   # Conflicts:
