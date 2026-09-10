@@ -243,15 +243,21 @@ const elk = new ELK()
 // interne administratie (nodeInternals). Levert null zolang nog niet elke
 // node van de graaf gemeten is — dan wacht ChainCanvas op de volgende ronde
 // (useNodesInitialized). Handle-posities zijn t.o.v. de node, ongeschaald.
-function measureNodes(nodeInternals, graph) {
+function measureNodes(nodeInternals, dims, graph) {
   const sizes = new Map()
   for (const node of graph.nodes) {
     const internal = nodeInternals.get(node.id)
-    // Zonder handleBounds is een node nog niet écht gemeten (React Flow zet
-    // maat en handles in één keer); dan liever wachten dan met gegokte
-    // handle-posities lay-outen.
+    // Maat uit onze eigen `dims` (gevuld uit React Flow's dimensions-changes),
+    // NIET uit nodeInternals: React Flow bouwt zijn interne administratie bij
+    // elke nieuwe nodes-array opnieuw op uit de node-objecten zelf, waardoor
+    // een gemeten breedte/hoogte daar weer verdwijnt zodra wij een nieuwe
+    // array doorgeven — precies wat deze effect-ronde zelf veroorzaakt. Alleen
+    // handleBounds overleeft die herbouw wél, dus die komt hier nog uit de
+    // interne administratie. Zonder handleBounds is de node nog niet écht
+    // gemeten; dan liever wachten dan met gegokte handle-posities lay-outen.
     const bounds = internal?.[internalsSymbol]?.handleBounds
-    if (!internal?.width || !internal?.height || !bounds) return null
+    const size = dims.get(node.id)
+    if (!size?.width || !size?.height || !bounds) return null
     const handles = new Map()
     for (const handle of [...(bounds?.source ?? []), ...(bounds?.target ?? [])]) {
       if (!handle.id) continue
@@ -261,7 +267,7 @@ function measureNodes(nodeInternals, graph) {
         side: handle.position === Position.Right ? 'EAST' : 'WEST',
       })
     }
-    sizes.set(node.id, { width: internal.width, height: internal.height, handles })
+    sizes.set(node.id, { width: size.width, height: size.height, handles })
   }
   return sizes
 }
@@ -302,7 +308,7 @@ function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
 
   useEffect(() => {
     if (!nodesInitialized || graph.nodes.length === 0) return
-    const sizes = measureNodes(store.getState().nodeInternals, graph)
+    const sizes = measureNodes(store.getState().nodeInternals, dims, graph)
     if (!sizes) return
     // Alleen het laatste verzoek telt: een oudere lay-out die later klaar is
     // (ELK is asynchroon) mag een nieuwere niet overschrijven.
@@ -327,12 +333,14 @@ function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
     () =>
       nodes.map((n) => {
         const position = layout.positions.get(n.id)
-        // Maten alleen meegeven aan een node die al een positie heeft, dus al
-        // gemeten én gelay-out is. Een (opnieuw) toegevoegde node mag géén
-        // oude maat uit `dims` krijgen: React Flow zou 'm dan als gemeten
-        // beschouwen, de echte meting overslaan (zelfde maat = geen update) en
-        // zijn handles nooit registreren — met lijnen die nooit verschijnen.
-        const size = position ? dims.get(n.id) : null
+        // Gemeten maat altijd meegeven zodra we 'm kennen, ook vóór de eerste
+        // lay-out: React Flow leest breedte/hoogte bij elke nieuwe nodes-array
+        // terug uit de node-objecten, dus zonder dit verliest het zijn eigen
+        // meting weer — en dan tekent het (stilzwijgend) geen enkele lijn meer
+        // en kwam de lay-out zelf nooit op gang (kaarten bleven op 0,0 staan).
+        // Een nog niet gemeten node heeft geen `dims`-entry en krijgt dus ook
+        // geen maat: de eerste, échte meting van React Flow blijft zo intact.
+        const size = dims.get(n.id)
         const withSize = size ? { ...n, width: size.width, height: size.height } : n
         return position ? { ...withSize, position } : { ...withSize, position: { x: 0, y: 0 }, style: { ...n.style, opacity: 0 } }
       }),
