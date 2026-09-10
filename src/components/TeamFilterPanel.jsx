@@ -47,7 +47,9 @@ function AllNoneFooter({ onSelectAll, onSelectNone, t }) {
 
 function CheckboxGroup({ title, options, selected, onToggle, renderLabel, renderDot, footer, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
-  const narrowed = selected.length > 0 && selected.length < options.length
+  // Ook 'niets geselecteerd' (Geen) is een actief filter — op het ingeklapte
+  // paneel is dit stipje de enige aanwijzing waarom de weergave leeg is.
+  const narrowed = selected.length < options.length
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -108,11 +110,9 @@ export default function TeamFilterPanel({
   const [collapsed, setCollapsed] = useState(false)
 
   const anyNarrowed =
-    (selected.length > 0 && selected.length < teams.length) ||
-    (riskLevels.length > 0 && riskLevels.length < RISK_LEVELS.length) ||
-    [workflowStap, effectOpFlow].some(
-      (group) => group && group.selected.length > 0 && group.selected.length < group.options.length,
-    )
+    selected.length < teams.length ||
+    riskLevels.length < RISK_LEVELS.length ||
+    [workflowStap, effectOpFlow].some((group) => group && group.selected.length < group.options.length)
 
   if (collapsed) {
     return (

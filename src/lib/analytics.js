@@ -63,14 +63,33 @@ const HERLEIDBARE_VELDEN = ['status', 'impact', 'frequentie', 'categorie', 'scop
 // record zonder aanmaakdatum (oude data) telt als altijd bestaand.
 export function stateAt(dep, datum) {
   if (dep.aangemaakt_op && dep.aangemaakt_op > datum) return null
-  if (dep.gesloten_op && dep.gesloten_op <= datum) return null
   const historie = dep.historie ?? []
+  // Gesloten óp die datum? De sluit-/heropen-gebeurtenissen tot en met de
+  // datum zijn leidend (laatste gebeurtenis een sluiting = dicht); alleen een
+  // record zonder zulke gebeurtenissen valt terug op de huidige gesloten_op.
+  // Zonder dit telde een gesloten-en-later-heropende dependency ook in zijn
+  // gesloten periode als open.
+  const sluitingen = historie.filter((e) => e.veld === 'gesloten' && e.datum <= datum)
+  if (sluitingen.length > 0) {
+    if (sluitingen[sluitingen.length - 1].naar) return null
+  } else if (dep.gesloten_op && dep.gesloten_op <= datum) {
+    return null
+  }
   const result = { ...dep }
   for (const veld of HERLEIDBARE_VELDEN) {
     const later = historie.filter((e) => e.veld === veld && e.datum > datum)
     if (later.length > 0) result[veld] = later[0].van
   }
   return result
+}
+
+// Alle sluitdatums van een dependency: elke sluit-gebeurtenis uit de
+// historie (ook een sluiting die later weer is heropend telt als sluiting in
+// die week); zonder gebeurtenissen valt de huidige gesloten_op terug.
+export function sluitDatums(dep) {
+  const events = (dep.historie ?? []).filter((e) => e.veld === 'gesloten' && e.naar).map((e) => e.naar)
+  if (events.length > 0) return events
+  return dep.gesloten_op ? [dep.gesloten_op] : []
 }
 
 // Wekelijkse reeks (oud → nu): open dependencies per status en per niveau,
@@ -97,7 +116,7 @@ export function trendReeks(deps, { weken = 26, vandaag = new Date() } = {}) {
       perNiveau,
       scoreSom,
       nieuw: deps.filter((d) => d.aangemaakt_op && d.aangemaakt_op > weekStart && d.aangemaakt_op <= datum).length,
-      gesloten: deps.filter((d) => d.gesloten_op && d.gesloten_op > weekStart && d.gesloten_op <= datum).length,
+      gesloten: deps.reduce((n, d) => n + sluitDatums(d).filter((s) => s > weekStart && s <= datum).length, 0),
     })
   }
   return punten
@@ -136,8 +155,13 @@ export function doorlooptijden(deps, { vandaag = new Date() } = {}) {
     const historie = dep.historie ?? []
     const mitigatie = historie.find((e) => e.veld === 'status' && e.naar === 'gemitigeerd')
     let blokkerendDagen = 0
-    let start = null
-    for (const e of historie.filter((x) => x.veld === 'status')) {
+    // Al blokkerend bij aanmaak (de startstatus is de 'van' van de eerste
+    // statuswijziging, anders de huidige status): dan loopt de blokkerende
+    // periode vanaf de aanmaakdatum, niet pas vanaf een latere escalatie.
+    const statusEvents = historie.filter((x) => x.veld === 'status')
+    const startStatus = statusEvents.length > 0 ? statusEvents[0].van : dep.status
+    let start = startStatus === 'actief blokkerend' && dep.aangemaakt_op ? dep.aangemaakt_op : null
+    for (const e of statusEvents) {
       if (e.naar === 'actief blokkerend' && start === null) start = e.datum
       if (e.van === 'actief blokkerend' && start !== null) {
         blokkerendDagen += dagenTussen(start, e.datum)
@@ -558,7 +582,7 @@ export function flowverliesSommen(open, teams, partijen) {
 // Datakwaliteit en beheer
 // ---------------------------------------------------------------------------
 
-export function hygiene({ open, alle, teamWorkflows, externalParties, teams }) {
+export function hygiene({ open, alle, teamWorkflows, externalParties, teams, uitgebreideAnalyse = true }) {
   const partijIds = new Set(externalParties.map((p) => p.id))
   const geweigerd = new Set(externalParties.filter((p) => p.status === 'geweigerd').map((p) => p.id))
   const teamNamen = new Set(teams.map((tm) => tm.naam.trim().toLowerCase()))
@@ -568,8 +592,15 @@ export function hygiene({ open, alle, teamWorkflows, externalParties, teams }) {
   const extern = new Set(CATEGORIES_EXTERN)
   const checks = [
     { key: 'flowtype', records: open.filter((d) => !d.flowtype) },
-    { key: 'profiel', records: open.filter((d) => !d.wachttijd || !d.deadline || !d.oplosbaarheid) },
-    { key: 'deadlineTekst', records: open.filter((d) => DEADLINE_TEKST_VERPLICHT.includes(d.deadline) && !d.deadlineTekst?.trim()) },
+    // Profielvelden (wachttijd/deadline/oplosbaarheid) bestaan alleen bij de
+    // uitgebreide analyse; staat die uit, dan kán niemand ze invullen en is
+    // 'onvolledig' geen hygiëneprobleem.
+    ...(uitgebreideAnalyse
+      ? [
+          { key: 'profiel', records: open.filter((d) => !d.wachttijd || !d.deadline || !d.oplosbaarheid) },
+          { key: 'deadlineTekst', records: open.filter((d) => DEADLINE_TEKST_VERPLICHT.includes(d.deadline) && !d.deadlineTekst?.trim()) },
+        ]
+      : []),
     { key: 'categorieScope', records: open.filter((d) => (d.scope === 'intern' && !intern.has(d.categorie)) || (d.scope === 'extern' && !extern.has(d.categorie))) },
     { key: 'externZonderPartij', records: open.filter((d) => d.scope === 'extern' && !d.geraaktPartijId && !d.geraaktTeamId && !teamNamen.has((d.geraakte_team_extern ?? '').trim().toLowerCase())) },
     { key: 'partijOnbekend', records: open.filter((d) => d.geraaktPartijId && !partijIds.has(d.geraaktPartijId)) },
@@ -1055,7 +1086,7 @@ export function signalen({ open, teams, keten, port, kennis, partijen, doorloop,
 
 // Elke regel: sleutel, ernst, en de records die 'm triggeren. De tekst hoort
 // bij de pagina (per taal); hier alleen de feiten.
-export function constateringen({ open, teams, teamWorkflows, externalParties, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, proj }) {
+export function constateringen({ open, teams, teamWorkflows, externalParties, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, proj, uitgebreideAnalyse = true }) {
   const regels = []
   const push = (key, ernst, records, meta = {}) => {
     if (records.length > 0) regels.push({ key, ernst, aantal: records.length, records, ...meta })
@@ -1078,7 +1109,8 @@ export function constateringen({ open, teams, teamWorkflows, externalParties, ke
   push('faseZonderCapaciteit', 'laag', werkstapBelasting(open, teamWorkflows).filter((w) => w.deps >= 3 && w.personen === 0), { fasen: werkstapBelasting(open, teamWorkflows).filter((w) => w.deps >= 3 && w.personen === 0).map((w) => w.stage) })
   push('reviewOud', 'laag', registratie.openReview.filter((c) => c.leeftijd > 7))
   push('gemitigeerdZonderTekst', 'laag', port.gemitigeerdZonderTekst)
-  push('profielOnvolledig', 'laag', port.kwadranten.onvolledig)
+  // Zie hygiene(): zonder uitgebreide analyse zijn de profielvelden niet in te vullen.
+  if (uitgebreideAnalyse) push('profielOnvolledig', 'laag', port.kwadranten.onvolledig)
   // Ontwikkeling en levensloop.
   const verslechterdHoog = (verandering?.verslechterd ?? []).filter((r) => riskLevelRank(r.naarNiveau) >= riskLevelRank('Hoog'))
   push('verslechterd', 'midden', verslechterdHoog.map((r) => r.dep), { rijen: verslechterdHoog })
@@ -1102,7 +1134,10 @@ export function constateringen({ open, teams, teamWorkflows, externalParties, ke
 }
 
 // Eén aanroep die alles berekent; de pagina memoiseert dit op de state.
-export function analyseer({ teams, alleDependencies, teamWorkflows, externalParties, changeLog, vandaag = new Date(), teamFilter = null }) {
+// uitgebreideAnalyse: de admin-toggle voor flowverlies/urgentie (zie
+// DEFAULT_ADMIN_SETTINGS in storage.js) — staat die uit, dan blijven de
+// regels en aanbevelingen over de profielvelden achterwege.
+export function analyseer({ teams, alleDependencies, teamWorkflows, externalParties, changeLog, vandaag = new Date(), teamFilter = null, uitgebreideAnalyse = true }) {
   const alle = teamFilter ? alleDependencies.filter((d) => d.teamId === teamFilter) : alleDependencies
   const teamsInScope = teamFilter ? teams.filter((tm) => tm.id === teamFilter) : teams
   const open = alle.filter((d) => !d.gesloten_op)
@@ -1121,7 +1156,19 @@ export function analyseer({ teams, alleDependencies, teamWorkflows, externalPart
   const verandering = scoreVerandering(alle, { dagen: 30, vandaag })
   const overgangen = statusOvergangen(alle)
   const ketenrisico = ketenRisico({ teams, teamWorkflows, openAlle }).filter((k) => teamsInScope.some((tm) => tm.id === k.teamId))
-  const wederzijdsParen = wederzijds(teamOpTeam(openAlle, teams).rijen).filter((w) => !teamFilter || w.a === teamFilter || w.b === teamFilter)
+  // Wie blokkeert wie altijd over álle open dependencies: de dependencies die
+  // een team bij anderen veroorzaakt staan op de records van die andere
+  // teams, en vielen onder een teamfilter weg — het gefilterde team kon zo
+  // nooit veroorzaker zijn. Met filter blijven alleen de paren over waar het
+  // team aan een van beide kanten staat, plus zijn eigen balansregel.
+  const teamOpTeamAlle = teamOpTeam(openAlle, teams)
+  const teamOpTeamScope = teamFilter
+    ? {
+        rijen: teamOpTeamAlle.rijen.filter((r) => r.veroorzaker === teamFilter || r.getroffen === teamFilter),
+        balans: teamOpTeamAlle.balans.filter((b) => b.teamId === teamFilter),
+      }
+    : teamOpTeamAlle
+  const wederzijdsParen = wederzijds(teamOpTeamAlle.rijen).filter((w) => !teamFilter || w.a === teamFilter || w.b === teamFilter)
   const slapend = slapendeTeams(changeLog, teamsInScope, { dagen: 60, vandaag })
   const duplicaten = dubbeleRegistraties(openAlle).filter((g) => !teamFilter || g.teams.includes(teamFilter))
   const gedeeld = gedeeldeApplicaties(openAlle, teamWorkflows, teamFilter)
@@ -1130,6 +1177,7 @@ export function analyseer({ teams, alleDependencies, teamWorkflows, externalPart
   const scorekaart = teamScorekaart({ teams, alle: alleDependencies, open: openAlleTeams, kennis: kennisConcentratie(openAlleTeams, teamWorkflows, teams), vandaag })
   return {
     teamFilter,
+    uitgebreideAnalyse,
     teams,
     teamsInScope,
     open,
@@ -1154,15 +1202,15 @@ export function analyseer({ teams, alleDependencies, teamWorkflows, externalPart
     doorloopPerTeam: teamsInScope.map((tm) => ({ teamId: tm.id, ...doorlooptijdSamenvatting(doorloop.filter((r) => r.dep.teamId === tm.id)) })),
     hotspots: hotspots(open, teamsInScope),
     partijen,
-    teamOpTeam: teamOpTeam(open, teams),
+    teamOpTeam: teamOpTeamScope,
     kennis,
     keten,
     werkstappen: werkstapBelasting(open, wfInScope),
     proces: procesOverstijgend(open),
     flowverlies: flowverliesSommen(open, teamsInScope, partijen),
-    hygiene: hygiene({ open, alle, teamWorkflows: wfInScope, externalParties, teams }),
+    hygiene: hygiene({ open, alle, teamWorkflows: wfInScope, externalParties, teams, uitgebreideAnalyse }),
     registratie,
-    constateringen: constateringen({ open, teams: teamsInScope, teamWorkflows: wfInScope, externalParties, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, proj }),
+    constateringen: constateringen({ open, teams: teamsInScope, teamWorkflows: wfInScope, externalParties, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, proj, uitgebreideAnalyse }),
     signalen: signalen({ open, teams: teamsInScope, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, externalParties, vandaag }),
   }
 }

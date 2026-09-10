@@ -8,7 +8,19 @@ const FOCUSABLE_SELECTOR =
 // - sluit het paneel bij Escape (en alleen dít paneel — zie stopImmediatePropagation)
 // - houdt Tab/Shift+Tab binnen het paneel (focus-trap)
 // - geeft focus terug aan het element dat het paneel opende, bij sluiten
-export function useModalA11y({ open, onClose, containerRef }) {
+// Stapel van geopende panelen: alleen het bovenste (laatst geopende) paneel
+// reageert op Escape. Document-listeners vuren in registratievolgorde, dus
+// zonder deze stapel sloot Escape in een formulier dat vanuit het
+// Instellingen-paneel geopend was (Admin → Wijzigingenlog → Bewerken) éérst
+// het buitenste paneel — en daarmee ongevraagd ook het formulier, zonder de
+// gebruikelijke 'wijzigingen weggooien?'-vraag.
+const openPanels = []
+
+// trapFocus: false voor een inline paneel (bv. de selectielijst onder de
+// Relatiekaart) — dat krijgt wél Escape-om-te-sluiten en focus bij openen,
+// maar geen focus-trap: een sectie in de pagina is geen modal, en Tab moet
+// gewoon verder de pagina in kunnen.
+export function useModalA11y({ open, onClose, containerRef, trapFocus = true }) {
   const triggerRef = useRef(null)
   // onClose komt bij de meeste aanroepers (bv. DependencyForm) elke render
   // opnieuw binnen als een nieuwe inline functie. Die niet rechtstreeks als
@@ -24,6 +36,8 @@ export function useModalA11y({ open, onClose, containerRef }) {
     if (!open) return undefined
 
     triggerRef.current = document.activeElement
+    const panel = {}
+    openPanels.push(panel)
 
     const container = containerRef.current
     const focusTimer = window.setTimeout(() => {
@@ -33,6 +47,9 @@ export function useModalA11y({ open, onClose, containerRef }) {
 
     function handleKeyDown(e) {
       if (e.key === 'Escape') {
+        // Niet het bovenste paneel: laat de Escape over aan het paneel dat
+        // wél bovenop ligt (zie openPanels hierboven).
+        if (openPanels[openPanels.length - 1] !== panel) return
         // stopPropagation voorkomt niet dat ándere keydown-luisteraars op
         // hetzelfde document-object ook vuren (die zijn niet in een
         // ouder/kind-relatie met elkaar, dus propagatie is niet het
@@ -44,7 +61,7 @@ export function useModalA11y({ open, onClose, containerRef }) {
         onCloseRef.current?.()
         return
       }
-      if (e.key === 'Tab') {
+      if (e.key === 'Tab' && trapFocus) {
         const node = containerRef.current
         if (!node) return
         const focusableEls = Array.from(node.querySelectorAll(FOCUSABLE_SELECTOR)).filter(
@@ -76,7 +93,9 @@ export function useModalA11y({ open, onClose, containerRef }) {
     return () => {
       window.clearTimeout(focusTimer)
       document.removeEventListener('keydown', handleKeyDown)
+      const index = openPanels.indexOf(panel)
+      if (index >= 0) openPanels.splice(index, 1)
       triggerRef.current?.focus?.()
     }
-  }, [open, containerRef])
+  }, [open, containerRef, trapFocus])
 }

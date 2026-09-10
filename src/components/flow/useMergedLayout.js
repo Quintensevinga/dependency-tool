@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { applyNodeChanges } from 'reactflow'
 
 // Herbruikbaar patroon: herberekent een layout (nodes/edges/eventuele extra
@@ -11,8 +11,14 @@ import { applyNodeChanges } from 'reactflow'
 // overlappende nodes tot gevolg. `computeLayout` moet een zuivere functie zijn
 // die `{ nodes, edges, ...extra }` teruggeeft en wordt aangeroepen als
 // `computeLayout(...deps)`.
-export function useMergedLayout(computeLayout, deps) {
+// `resetKey` (optioneel): zodra die waarde verandert, vervallen ook de
+// handmatig versleepte posities — bv. bij het Ketenoverzicht wanneer een
+// ander focusteam wordt gekozen: de kolomindeling is dan een compleet andere
+// tekening, en een kaart die in de vorige tekening was versleept zou anders
+// op zijn oude plek over de nieuwe kolommen heen blijven staan.
+export function useMergedLayout(computeLayout, deps, { resetKey } = {}) {
   const [layout, setLayout] = useState(() => computeLayout(...deps))
+  const resetKeyRef = useRef(resetKey)
 
   // `deps` is doorgegeven door de aanroeper en bepaalt zelf wanneer herberekend
   // moet worden — de linter kan de inhoud van die dynamische array niet
@@ -22,11 +28,13 @@ export function useMergedLayout(computeLayout, deps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     const fresh = computeLayout(...deps)
+    const keepMoved = resetKeyRef.current === resetKey
+    resetKeyRef.current = resetKey
     setLayout((prev) => {
       const prevById = new Map(prev.nodes.map((n) => [n.id, n]))
       const mergedNodes = fresh.nodes.map((n) => {
         const prevNode = prevById.get(n.id)
-        return prevNode?.moved ? { ...n, position: prevNode.position, moved: true } : n
+        return keepMoved && prevNode?.moved ? { ...n, position: prevNode.position, moved: true } : n
       })
       return { ...fresh, nodes: mergedNodes }
     })

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { BaseEdge, Handle, Position, ReactFlowProvider, getSmoothStepPath, useReactFlow, useNodesInitialized } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
@@ -1796,7 +1796,10 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
       update({ bron_type: 'team', ...(teamMode === 'intern' ? clearParty : clearLink) })
       return
     }
-    update({ bron_type: next, ...clearLink })
+    // 'Nog niet bepaald' (leeg) laat ook een eventuele partij los — anders
+    // bleef die onzichtbaar aan het item hangen (lijstsamenvatting,
+    // ketenoverzicht) en kwam bij de volgende bewerking het type weer terug.
+    update({ bron_type: next, ...clearLink, ...(next === '' ? clearParty : {}) })
   }
   function chooseTeamMode(mode) {
     setTeamMode(mode)
@@ -2573,6 +2576,147 @@ function LinkRequestsPanel({ requests, workflow, teamName, onAccept, onReject, t
   )
 }
 
+// DependencyRow/StageGroupedDeps/FlatDeps staan bewust op moduleniveau: als
+// geneste functiecomponenten binnen TeamPage kregen ze bij elke state-wijziging
+// een nieuwe identiteit, waardoor React elke rij unmountte en opnieuw aanmaakte
+// — merkbaar als focusverlies in de applicatie-select en als onnodige
+// rendercycli in lijsten van tientallen dependencies. Alles wat ze uit de
+// pagina nodig hebben komt via één stabiel ctx-object (rowContext in TeamPage),
+// zodat de memo hieronder daadwerkelijk iets oplevert.
+const DependencyRow = memo(function DependencyRow({ dep, showAppPicker, ctx }) {
+  const { t, language, uitgebreideAnalyse, applications, onSelect, onAddApplicatie, onRemoveApplicatie } = ctx
+  const risk = calculateRisk(dep)
+  const style = riskStyle(risk.level)
+  const flowverlies = uitgebreideAnalyse ? berekenFlowverlies(dep) : null
+  return (
+    <li className="py-2">
+      <button
+        type="button"
+        onClick={() => onSelect(dep)}
+        className="flex w-full items-center gap-2 text-left text-sm hover:bg-slate-50"
+      >
+        <CategoryIcon categorie={dep.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <span className="flex-1 truncate text-slate-700">{dep.titel}</span>
+        <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
+        <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
+        {flowverlies && (
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${riskStyle(flowverlies.level).badge}`}
+            title={t('teampage.flowverliesHint')}
+          >
+            {t('teampage.flowverliesShort')}: {translateRiskLevel(flowverlies.level, language)}
+          </span>
+        )}
+      </button>
+      {(dep.status || dep.actieAfspraak) && (
+        <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-[11px] text-slate-400">
+          {dep.status && <span className="shrink-0">{translateStatus(dep.status, language)}</span>}
+          {dep.status && dep.actieAfspraak && <span aria-hidden="true">·</span>}
+          {dep.actieAfspraak && <span className="truncate">{dep.actieAfspraak}</span>}
+        </div>
+      )}
+      {showAppPicker && applications.length > 0 && (() => {
+        const linkedIds = dep.applicatieIds ?? []
+        const linkedApps = linkedIds.map((id) => applications.find((a) => a.id === id)).filter(Boolean)
+        const unlinkedApps = applications.filter((a) => !linkedIds.includes(a.id))
+        return (
+          <div className="mt-1 flex flex-wrap items-center gap-1 pl-5" title={t('teampage.appLabelHint')}>
+            {linkedApps.length === 0 ? (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{t('teampage.appOverstijgend')}</span>
+            ) : (
+              linkedApps.map((app) => (
+                <span
+                  key={app.id}
+                  className="inline-flex items-center gap-1 rounded-full bg-[#2a5f8a]/10 px-2 py-0.5 text-[11px] font-medium text-[#2a5f8a]"
+                >
+                  {app.naam || '—'}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveApplicatie(dep, app.id)}
+                    aria-label={t('teampage.appChipRemove', { naam: app.naam || '—' })}
+                    className="leading-none text-[#2a5f8a]/60 hover:text-[#2a5f8a]"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            )}
+            {unlinkedApps.length > 0 && (
+              <select
+                value=""
+                onChange={(e) => onAddApplicatie(dep, e.target.value)}
+                aria-label={t('teampage.appChipAdd')}
+                className="rounded border-none bg-transparent py-0 pl-0 pr-3 text-[11px] text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2a5f8a]"
+              >
+                <option value="">{t('teampage.appChipAdd')}</option>
+                {unlinkedApps.map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.naam || '—'}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )
+      })()}
+    </li>
+  )
+})
+// Weergave voor de Ontwikkelflow-lijst, gegroepeerd per workflowstap (+ een
+// 'Proces-overstijgend'-restgroep voor legacy/incomplete data zonder
+// herleidbare stap — zelfde term als het canvas gebruikt voor diezelfde
+// groep). Uitsluitend voor Ontwikkelflow: Applicatieflow-dependencies
+// groeperen op applicatie, niet op workflowstap (zie FlatDeps hieronder).
+function StageGroupedDeps({ deps, showAppPicker, ctx }) {
+  const { t, language } = ctx
+  return (
+    <>
+      {WORKFLOW_STAGES.map((stage) => {
+        const stageDeps = deps.filter((d) => WORKFLOW_STAP_TO_STAGE[d.workflowStap] === stage)
+        if (stageDeps.length === 0) return null
+        return (
+          <div key={stage} className="mb-2">
+            <div className="mb-1 text-[11px] font-medium text-slate-400">{translateWorkflowStage(stage, language)}</div>
+            <ul className="divide-y divide-slate-100">
+              {stageDeps.map((dep) => (
+                <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} ctx={ctx} />
+              ))}
+            </ul>
+          </div>
+        )
+      })}
+      {(() => {
+        const noStage = deps.filter((d) => !WORKFLOW_STAP_TO_STAGE[d.workflowStap])
+        if (noStage.length === 0) return null
+        return (
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] font-medium text-slate-400">{t('teampage.procesOverstijgend')}</div>
+            <ul className="divide-y divide-slate-100">
+              {noStage.map((dep) => (
+                <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} ctx={ctx} />
+              ))}
+            </ul>
+          </div>
+        )
+      })()}
+    </>
+  )
+}
+
+// Vlakke lijst zonder subgroepering — voor Applicatieflow-dependencies
+// (al gegroepeerd op applicatie door de aanroeper zelf): een tweede,
+// workflowstap-gebaseerde onderverdeling zou daar geen betekenis hebben en
+// 'Applicatieflow heeft geen workflowstap' weer ondermijnen.
+function FlatDeps({ deps, showAppPicker, ctx }) {
+  return (
+    <ul className="divide-y divide-slate-100">
+      {deps.map((dep) => (
+        <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} ctx={ctx} />
+      ))}
+    </ul>
+  )
+}
+
 function TeamDataBlock({ title, count, open, onToggle, action, children, blockRef }) {
   return (
     <div ref={blockRef} className="py-3 first:pt-0 last:pb-0">
@@ -3018,6 +3162,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     teamWorkflows,
     updateTeamWorkflow,
     removeApplicationEverywhere,
+    unlinkCounterparts,
     addDependency,
     addDependencies,
     updateDependency,
@@ -3056,6 +3201,15 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
   const [splitApplicaties, setSplitApplicaties] = useState(true)
+  // Het zoekveld voor applicaties bestaat alleen bij 'Split per applicatie'
+  // met meer dan vier applicaties; verdwijnt het veld, dan mag zijn tekst
+  // niet stilzwijgend blijven filteren.
+  // (teamWorkflows uit de context i.p.v. `workflow`: die const staat verderop
+  // en is hier nog niet geïnitialiseerd.)
+  const appFilterVisible = splitApplicaties && (teamWorkflows[teamId]?.applications ?? []).length > 4
+  useEffect(() => {
+    if (!appFilterVisible) setAppFilterQuery('')
+  }, [appFilterVisible])
   // Welke Applicatieflow-lanes op het canvas zijn ingeklapt — puur presentatie,
   // niet bewaard, zodat teams met veel applicaties de stapel compact kunnen
   // houden zonder een onleesbare muur aan lanes.
@@ -3254,9 +3408,10 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     !showApplicaties ||
     !showCapaciteit ||
     !showWorkflowfasen
-  const weergaveActive = depFiltersActive || viewTogglesActive
+  const weergaveActive = depFiltersActive || viewTogglesActive || appFilterQuery.trim() !== ''
   function clearWeergave() {
     clearDepFilters()
+    setAppFilterQuery('')
     setShowIO(true)
     setShowOverstijgend(true)
     setShowGeaccepteerd(true)
@@ -3324,7 +3479,13 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // Dependencies en Teamgegevens stonden onder elkaar — bij een team met veel
   // input/output/capaciteit moest je helemaal naar beneden scrollen om bij
   // Teamgegevens te komen. Nu twee tabs op dezelfde plek, Dependencies default.
-  const [bottomSectionTab, setBottomSectionTab] = useState('dependencies')
+  // Zonder Dependencies-sectie (Admin) is Teamgegevens het enige tabblad —
+  // de tabkeuze zit ín de kaarten, dus zonder deze terugval was er dan
+  // helemaal geen kaart (en geen tab om naar Teamgegevens te komen).
+  const [bottomSectionTab, setBottomSectionTab] = useState(adminSections.dependencies ? 'dependencies' : 'teamgegevens')
+  useEffect(() => {
+    if (!adminSections.dependencies) setBottomSectionTab('teamgegevens')
+  }, [adminSections.dependencies])
   const acceptedDeps = useMemo(() => filteredTeamDependencies.filter((d) => d.geaccepteerd), [filteredTeamDependencies])
   const visibleTeamDependencies = useMemo(
     () => (depTab === 'gesloten' ? [] : filteredTeamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd'))),
@@ -3349,148 +3510,38 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     [visibleTeamDependencies],
   )
 
-  function addApplicatieId(dep, appId) {
-    if (!appId) return
-    const current = dep.applicatieIds ?? []
-    if (current.includes(appId)) return
-    updateDependency(dep.id, { applicatieIds: [...current, appId] })
-  }
-  function removeApplicatieId(dep, appId) {
-    updateDependency(dep.id, { applicatieIds: (dep.applicatieIds ?? []).filter((id) => id !== appId) })
-  }
+  // useCallback i.p.v. gewone functiedeclaraties: deze twee zitten in
+  // rowContext hieronder, dat stabiel moet blijven wil de memo op
+  // DependencyRow effect hebben.
+  const addApplicatieId = useCallback(
+    (dep, appId) => {
+      if (!appId) return
+      const current = dep.applicatieIds ?? []
+      if (current.includes(appId)) return
+      updateDependency(dep.id, { applicatieIds: [...current, appId] })
+    },
+    [updateDependency],
+  )
+  const removeApplicatieId = useCallback(
+    (dep, appId) => {
+      updateDependency(dep.id, { applicatieIds: (dep.applicatieIds ?? []).filter((id) => id !== appId) })
+    },
+    [updateDependency],
+  )
 
-  function DependencyRow({ dep, showAppPicker }) {
-    const risk = calculateRisk(dep)
-    const style = riskStyle(risk.level)
-    const flowverlies = adminSettings.uitgebreideAnalyse ? berekenFlowverlies(dep) : null
-    return (
-      <li className="py-2">
-        <button
-          type="button"
-          onClick={() => setSelectedDependency(dep)}
-          className="flex w-full items-center gap-2 text-left text-sm hover:bg-slate-50"
-        >
-          <CategoryIcon categorie={dep.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-          <span className="flex-1 truncate text-slate-700">{dep.titel}</span>
-          <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
-          <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
-          {flowverlies && (
-            <span
-              className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${riskStyle(flowverlies.level).badge}`}
-              title={t('teampage.flowverliesHint')}
-            >
-              {t('teampage.flowverliesShort')}: {translateRiskLevel(flowverlies.level, language)}
-            </span>
-          )}
-        </button>
-        {(dep.status || dep.actieAfspraak) && (
-          <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-[11px] text-slate-400">
-            {dep.status && <span className="shrink-0">{translateStatus(dep.status, language)}</span>}
-            {dep.status && dep.actieAfspraak && <span aria-hidden="true">·</span>}
-            {dep.actieAfspraak && <span className="truncate">{dep.actieAfspraak}</span>}
-          </div>
-        )}
-        {showAppPicker && workflow.applications.length > 0 && (() => {
-          const linkedIds = dep.applicatieIds ?? []
-          const linkedApps = linkedIds.map((id) => workflow.applications.find((a) => a.id === id)).filter(Boolean)
-          const unlinkedApps = workflow.applications.filter((a) => !linkedIds.includes(a.id))
-          return (
-            <div className="mt-1 flex flex-wrap items-center gap-1 pl-5" title={t('teampage.appLabelHint')}>
-              {linkedApps.length === 0 ? (
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{t('teampage.appOverstijgend')}</span>
-              ) : (
-                linkedApps.map((app) => (
-                  <span
-                    key={app.id}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#2a5f8a]/10 px-2 py-0.5 text-[11px] font-medium text-[#2a5f8a]"
-                  >
-                    {app.naam || '—'}
-                    <button
-                      type="button"
-                      onClick={() => removeApplicatieId(dep, app.id)}
-                      aria-label={t('teampage.appChipRemove', { naam: app.naam || '—' })}
-                      className="leading-none text-[#2a5f8a]/60 hover:text-[#2a5f8a]"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))
-              )}
-              {unlinkedApps.length > 0 && (
-                <select
-                  value=""
-                  onChange={(e) => addApplicatieId(dep, e.target.value)}
-                  aria-label={t('teampage.appChipAdd')}
-                  className="rounded border-none bg-transparent py-0 pl-0 pr-3 text-[11px] text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2a5f8a]"
-                >
-                  <option value="">{t('teampage.appChipAdd')}</option>
-                  {unlinkedApps.map((app) => (
-                    <option key={app.id} value={app.id}>
-                      {app.naam || '—'}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )
-        })()}
-      </li>
-    )
-  }
+  const rowContext = useMemo(
+    () => ({
+      t,
+      language,
+      uitgebreideAnalyse: adminSettings.uitgebreideAnalyse,
+      applications: workflow.applications,
+      onSelect: setSelectedDependency,
+      onAddApplicatie: addApplicatieId,
+      onRemoveApplicatie: removeApplicatieId,
+    }),
+    [t, language, adminSettings.uitgebreideAnalyse, workflow.applications, addApplicatieId, removeApplicatieId],
+  )
 
-  // Weergave voor de Ontwikkelflow-lijst, gegroepeerd per workflowstap (+ een
-  // 'Proces-overstijgend'-restgroep voor legacy/incomplete data zonder
-  // herleidbare stap — zelfde term als het canvas gebruikt voor diezelfde
-  // groep). Uitsluitend voor Ontwikkelflow: Applicatieflow-dependencies
-  // groeperen op applicatie, niet op workflowstap (zie FlatDeps hieronder).
-  function StageGroupedDeps({ deps, showAppPicker }) {
-    return (
-      <>
-        {WORKFLOW_STAGES.map((stage) => {
-          const stageDeps = deps.filter((d) => WORKFLOW_STAP_TO_STAGE[d.workflowStap] === stage)
-          if (stageDeps.length === 0) return null
-          return (
-            <div key={stage} className="mb-2">
-              <div className="mb-1 text-[11px] font-medium text-slate-400">{translateWorkflowStage(stage, language)}</div>
-              <ul className="divide-y divide-slate-100">
-                {stageDeps.map((dep) => (
-                  <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
-                ))}
-              </ul>
-            </div>
-          )
-        })}
-        {(() => {
-          const noStage = deps.filter((d) => !WORKFLOW_STAP_TO_STAGE[d.workflowStap])
-          if (noStage.length === 0) return null
-          return (
-            <div className="mb-2">
-              <div className="mb-1 text-[11px] font-medium text-slate-400">{t('teampage.procesOverstijgend')}</div>
-              <ul className="divide-y divide-slate-100">
-                {noStage.map((dep) => (
-                  <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
-                ))}
-              </ul>
-            </div>
-          )
-        })()}
-      </>
-    )
-  }
-
-  // Vlakke lijst zonder subgroepering — voor Applicatieflow-dependencies
-  // (al gegroepeerd op applicatie door de aanroeper zelf): een tweede,
-  // workflowstap-gebaseerde onderverdeling zou daar geen betekenis hebben en
-  // 'Applicatieflow heeft geen workflowstap' weer ondermijnen.
-  function FlatDeps({ deps, showAppPicker }) {
-    return (
-      <ul className="divide-y divide-slate-100">
-        {deps.map((dep) => (
-          <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
-        ))}
-      </ul>
-    )
-  }
 
   // "Teamgegevens" bundelt Applicaties/Applicatieverbindingen/Input/Output/
   // Capaciteit in losse, standaard dichte blokjes — elk blok houdt zijn eigen
@@ -3607,6 +3658,9 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     [filteredTeamDependencies, showGeaccepteerd],
   )
 
+  // Zie handleSmartOrder: telt op bij 'Slim ordenen' en laat useMergedLayout
+  // alle handmatig versleepte posities vergeten.
+  const [layoutResetKey, setLayoutResetKey] = useState(0)
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     canvasInputs,
     canvasOutputs,
@@ -3629,7 +3683,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     viewFilters,
     setAppDetailId,
     workflow.stageNotes,
-  ])
+    layoutResetKey,
+  ], { resetKey: layoutResetKey })
 
   // Signaal voor 'de zichtbare canvas-inhoud is veranderd, fit opnieuw' —
   // canvasWidth/-Height zijn de eigen, berekende afmetingen van de layout
@@ -3701,9 +3756,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
       dependencyMarker: showDependencies,
       applicatieflowBanner: showApplicaties,
       capacityBadge: showCapaciteit,
-      stage: showWorkflowfasen,
+      // Admin-sectie 'Ontwikkelflow' uit = de fasereeks van het canvas af,
+      // net als de andere sectietoggles; de gebruikerstoggle komt daar bovenop.
+      stage: showWorkflowfasen && adminSections.ontwikkelflow,
     }),
-    [showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen],
+    [showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen, adminSections.ontwikkelflow],
   )
   const filteredNodes = useMemo(() => {
     if (Object.values(canvasTypeFilters).every(Boolean)) return displayNodes
@@ -3715,14 +3772,32 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     return displayEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
   }, [displayEdges, filteredNodes, displayNodes])
 
+  // Laatst bekende sleeppositie per node: reactflow stuurt tijdens het slepen
+  // position-changes mét positie (dragging: true), maar de afsluitende change
+  // (dragging: false) komt zónder positie — de vroegere check op 'positie én
+  // dragging false' ging daardoor nooit af, en een versleepte node stond na
+  // herladen weer op zijn berekende plek.
+  const dragPositionsRef = useRef(new Map())
   function handleNodesChange(changes) {
     onNodesChange(changes)
-    const finished = changes.filter((c) => c.type === 'position' && c.position && c.dragging === false)
-    if (finished.length > 0) {
-      const nextLayout = { ...workflow.layout }
-      for (const c of finished) nextLayout[c.id] = c.position
-      patch({ layout: nextLayout })
+    const nextLayout = { ...workflow.layout }
+    let changed = false
+    for (const c of changes) {
+      if (c.type !== 'position') continue
+      if (c.dragging && c.position) {
+        dragPositionsRef.current.set(c.id, c.position)
+        continue
+      }
+      if (c.dragging === false) {
+        const position = c.position ?? dragPositionsRef.current.get(c.id)
+        dragPositionsRef.current.delete(c.id)
+        if (position) {
+          nextLayout[c.id] = position
+          changed = true
+        }
+      }
     }
+    if (changed) patch({ layout: nextLayout })
   }
 
   function addAnnotation(kind, extra = {}) {
@@ -3992,6 +4067,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     patch({ inputs: workflow.inputs.map((i) => (i.id === id ? { ...i, ...fields } : i)) })
   }
   function removeInput(id) {
+    unlinkCounterparts(teamId, 'input', id)
     patch({ inputs: workflow.inputs.filter((i) => i.id !== id) })
   }
 
@@ -4002,6 +4078,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     patch({ outputs: workflow.outputs.map((o) => (o.id === id ? { ...o, ...fields } : o)) })
   }
   function removeOutput(id) {
+    unlinkCounterparts(teamId, 'output', id)
     patch({ outputs: workflow.outputs.filter((o) => o.id !== id) })
   }
 
@@ -4045,6 +4122,10 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // een gebruiker-gestuurde actie, geen automatische herordening.
   function handleSmartOrder() {
     patch({ layout: {} })
+    // Ook de niet-bewaarde, alleen in de canvas-state onthouden sleepposities
+    // loslaten (useMergedLayout houdt die anders vast) — zonder dit deed de
+    // knop niets voor nodes die in deze sessie versleept waren.
+    setLayoutResetKey((k) => k + 1)
   }
 
   // Eén keer opgebouwd, tweemaal hergebruikt: dezelfde tab-knoppen staan nu
@@ -4102,7 +4183,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
           <div
             className={
               isFullscreen
-                ? 'fixed inset-0 top-0 left-0 z-[100] h-screen w-screen flex flex-col overflow-hidden bg-white p-4'
+                // z-[45]: boven de vaste topbar (z-40) en zijbalk (z-30), maar
+                // ónder de dialogen (z-50 en hoger: detailpaneel, formulieren,
+                // item-modals) — met een hogere laag openden die in volledig-
+                // schermmodus onzichtbaar achter dit vlak.
+                ? 'fixed inset-0 top-0 left-0 z-[45] h-screen w-screen flex flex-col overflow-hidden bg-white p-4'
                 : 'flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
             }
             // Vast berekend i.p.v. een losse vh-percentage op alleen het canvas:
@@ -4353,7 +4438,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                       className="h-8 w-48 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
                     />
                   )}
-                  {splitApplicaties && workflow.applications.length > 4 && (
+                  {appFilterVisible && (
                     <input
                       value={appFilterQuery}
                       onChange={(e) => setAppFilterQuery(e.target.value)}
@@ -4379,7 +4464,9 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                         { key: 'showDependencies', label: t('teampage.viewFilterShowDependencies'), value: showDependencies, onChange: setShowDependencies },
                         { key: 'showApplicaties', label: t('teampage.viewFilterShowApplicaties'), value: showApplicaties, onChange: setShowApplicaties },
                         { key: 'showCapaciteit', label: t('teampage.viewFilterShowCapaciteit'), value: showCapaciteit, onChange: setShowCapaciteit },
-                        { key: 'showWorkflowfasen', label: t('teampage.viewFilterShowWorkflowfasen'), value: showWorkflowfasen, onChange: setShowWorkflowfasen },
+                        ...(adminSections.ontwikkelflow
+                          ? [{ key: 'showWorkflowfasen', label: t('teampage.viewFilterShowWorkflowfasen'), value: showWorkflowfasen, onChange: setShowWorkflowfasen }]
+                          : []),
                       ]}
                       flowtypeFilter={flowtypeFilter}
                       setFlowtypeFilter={setFlowtypeFilter}
@@ -4424,6 +4511,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     edges={filteredEdges}
                     nodeTypes={nodeTypes}
                     edgeTypes={edgeTypes}
+                    // Geen onConnect op dit canvas: lijnen leg je via de
+                    // item-/applicatieformulieren, niet door te slepen — zonder
+                    // deze prop kon je een verbindingslijn trekken die bij
+                    // loslaten gewoon verdween.
+                    nodesConnectable={false}
                     onNodesChange={handleNodesChange}
                     onNodeClick={handleNodeClick}
                     onPaneClick={() => setCanvasFocus(null)}
@@ -4635,7 +4727,23 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 const isNew = !canvasIoTarget.item
                 // Nieuwe/gewijzigde koppeling naar een ander team wordt een
                 // verzoek aan dat team — zie withLinkStatus.
-                const draft = withLinkStatus(rawDraft, canvasIoTarget.item)
+                // De canvas-/lijstitems dragen presentatievelden (_pendingRequest,
+                // _ghostRequest) die nooit in het record thuishoren — anders bleef
+                // een verzoek na akkoord 'voor altijd' in beeld staan.
+                const { _pendingRequest: _pending, _ghostRequest: _ghost, ...cleanDraft } = rawDraft
+                const draft = withLinkStatus(cleanDraft, canvasIoTarget.item)
+                // Koppeling gewijzigd of losgelaten: ook de terugverwijzing bij het
+                // andere team opruimen, anders bleef de ketenlijn vanuit dat team
+                // staan (resolveChainEdges leest de input-kant).
+                const original = canvasIoTarget.item
+                if (
+                  original?.linkedTeam &&
+                  (original.linkedTeam !== draft.linkedTeam ||
+                    (original.linkedOutputId ?? '') !== (draft.linkedOutputId ?? '') ||
+                    (original.linkedInputId ?? '') !== (draft.linkedInputId ?? ''))
+                ) {
+                  unlinkCounterparts(teamId, canvasIoTarget.kind, original.id)
+                }
                 // Nieuw verzoek (of opnieuw ingediend na wijziging): als
                 // gebeurtenis in de wijzigingenlog voor de analyse.
                 if (draft.linkStatus === 'voorgesteld' && draft.linkVoorgesteldOp && draft.linkVoorgesteldOp !== (canvasIoTarget.item?.linkVoorgesteldOp ?? '')) {
@@ -4803,7 +4911,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 <p className="mb-1.5 mt-0.5 text-[11px] text-slate-400">{t('teampage.flowtypeUndeterminedHint')}</p>
                 <ul className="divide-y divide-slate-100">
                   {legacyFlowDeps.map((dep) => (
-                    <DependencyRow key={dep.id} dep={dep} showAppPicker={false} />
+                    <DependencyRow key={dep.id} dep={dep} showAppPicker={false} ctx={rowContext} />
                   ))}
                 </ul>
               </div>
@@ -4814,7 +4922,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t('teampage.flowtypeOntwikkelflow')} · {ontwikkelflowDeps.length}
                 </h4>
-                <StageGroupedDeps deps={ontwikkelflowDeps} showAppPicker />
+                <StageGroupedDeps deps={ontwikkelflowDeps} showAppPicker ctx={rowContext} />
               </div>
             )}
 
@@ -4834,7 +4942,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     return (
                       <div key={app.id} className="mb-3 rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
                         <div className="mb-1.5 text-xs font-semibold text-slate-600">{app.naam || '—'}</div>
-                        <FlatDeps deps={appDeps} showAppPicker />
+                        <FlatDeps deps={appDeps} showAppPicker ctx={rowContext} />
                       </div>
                     )
                   })}
@@ -4844,7 +4952,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   return (
                     <div className="mb-3 rounded-lg border border-dashed border-slate-200 p-2.5">
                       <div className="mb-1.5 text-xs font-semibold text-slate-500">{t('teampage.appOverstijgend')}</div>
-                      <FlatDeps deps={unlabeled} showAppPicker />
+                      <FlatDeps deps={unlabeled} showAppPicker ctx={rowContext} />
                     </div>
                   )
                 })()}

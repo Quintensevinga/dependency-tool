@@ -24,7 +24,7 @@ function LanguageToggle() {
 }
 
 export default function Header({ onNewDependency }) {
-  const { teams, activeTeams, dependencies } = useAppContext()
+  const { activeTeams, dependencies } = useAppContext()
   const { t } = useLanguage()
 
   const criticalCount = dependencies.filter((d) => calculateRisk(d).level === 'Kritiek').length
@@ -50,7 +50,7 @@ export default function Header({ onNewDependency }) {
               <span className="text-[11px] text-slate-400">{t('stats.critical')}</span>
             </div>
             <div className="flex items-baseline gap-1.5">
-              <span className="text-[15px] font-bold text-white">{teams.length}</span>
+              <span className="text-[15px] font-bold text-white">{activeTeams.length}</span>
               <span className="text-[11px] text-slate-400">{t('nav.teams')}</span>
             </div>
           </div>

@@ -236,6 +236,10 @@ function TeamRow({ team, active, onNavigateToTeam }) {
             title={t('settings.rename')}
             onClick={(e) => {
               e.stopPropagation()
+              // Vanuit de actuele naam starten (de rij blijft gemount, dus de
+              // useState-startwaarde kan na een hernoeming via Instellingen
+              // verouderd zijn — en zou bij blur die oude naam terugzetten).
+              setValue(team.naam)
               setEditing(true)
             }}
             className="rounded p-1 text-slate-300 hover:bg-white/15 hover:text-white"
@@ -468,7 +472,12 @@ export default function Sidebar({
           // nav's eigen breedte uitsteekt werd anders behandeld als scrollbare
           // inhoud van nav zelf, waardoor nav automatisch wegscrolde zodra het
           // paneel focus kreeg en het paneel grotendeels onzichtbaar werd.
-          <div className={collapsed ? 'fixed bottom-3 left-[68px] z-50' : 'fixed bottom-3 left-[232px] z-50'}>
+          // De wrapper begint exact op de rechterrand van <nav> (56px smal /
+          // 224px breed) en duwt het paneel met padding op zijn plek. Zonder
+          // die overbrugging zat er een kier van 8-12px tussen nav en paneel:
+          // een auto-hide-zijbalk kreeg daar mouseleave en klapte dicht
+          // terwijl de muis onderweg was naar het paneel.
+          <div className={collapsed ? 'fixed bottom-3 left-14 z-50 pl-3' : 'fixed bottom-3 left-56 z-50 pl-2'}>
             <SettingsPanel onClose={() => setSettingsOpen(false)} onExportPng={onExportPng} />
           </div>
         )}

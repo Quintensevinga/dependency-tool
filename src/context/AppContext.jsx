@@ -93,13 +93,35 @@ export function AppProvider({ children }) {
   // overschrijven doordat ze allebei van dezelfde, inmiddels verouderde
   // snapshot uitgaan. persist zelf heeft daardoor ook geen dependency op
   // state meer nodig — 'm stabiel over de hele levensduur van de provider.
+  // Laatst bekende state, ook buiten React's render-cyclus om: voor acties
+  // die vóór hun state-update al een uitkomst moeten teruggeven (deleteTeam)
+  // zonder erop te vertrouwen dat React de updater synchroon uitvoert.
+  const stateRef = useRef(initialState)
+
   const persist = useCallback((updater) => {
     setState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
-      lastSaveOkRef.current = saveState(next)
+      if (next !== prev) lastSaveOkRef.current = saveState(next)
+      stateRef.current = next
       return next
     })
   }, [])
+
+  // Variant voor alle inhoudelijke wijzigingen buiten de dependencies om
+  // (teams, teamworkflows, partijen, momentopnamen, review): zodra de data
+  // afwijkt van de demodata is het eigen data — de dependency-acties zetten
+  // usingMockData al zelf op false, deze helper doet dat voor de rest, zodat
+  // 'Terug naar mockdata' in Instellingen ook na een canvas- of teamwijziging
+  // beschikbaar komt.
+  const persistData = useCallback(
+    (updater) => {
+      persist((prev) => {
+        const next = updater(prev)
+        return next === prev ? prev : { ...next, usingMockData: false }
+      })
+    },
+    [persist],
+  )
 
   // Ná elke state-wijziging (niet ín de setState-updater zelf, zie de noot
   // hierboven) de laatst bekende opslag-uitkomst doorzetten naar UI-state.
@@ -135,7 +157,7 @@ export function AppProvider({ children }) {
       if (!trimmed) return null
       let newId = null
       const today = new Date().toISOString().slice(0, 10)
-      persist((prev) => {
+      persistData((prev) => {
         const existingIds = new Set(prev.teams.map((t) => t.id))
         const id = uniqueSlug(trimmed, existingIds)
         newId = id
@@ -150,7 +172,7 @@ export function AppProvider({ children }) {
       if (newId) setCurrentTeamId(newId)
       return newId
     },
-    [persist],
+    [persistData],
   )
 
   const renameTeam = useCallback(
@@ -158,36 +180,35 @@ export function AppProvider({ children }) {
       const trimmed = naam.trim()
       if (!trimmed) return
       const today = new Date().toISOString().slice(0, 10)
-      persist((prev) => ({
+      persistData((prev) => ({
         ...prev,
         teams: prev.teams.map((t) => (t.id === id ? { ...t, naam: trimmed, updatedAt: today } : t)),
       }))
     },
-    [persist],
+    [persistData],
   )
 
   const archiveTeam = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      let nextTeams = null
-      persist((prev) => {
-        nextTeams = prev.teams.map((t) => (t.id === id ? { ...t, actief: false, updatedAt: today } : t))
-        return { ...prev, teams: nextTeams }
-      })
-      setCurrentTeamId((prevCurrent) => (prevCurrent === id ? firstActiveTeamId(nextTeams.filter((t) => t.id !== id)) : prevCurrent))
+      persistData((prev) => ({
+        ...prev,
+        teams: prev.teams.map((t) => (t.id === id ? { ...t, actief: false, updatedAt: today } : t)),
+      }))
+      setCurrentTeamId((prevCurrent) => (prevCurrent === id ? firstActiveTeamId(stateRef.current.teams.filter((t) => t.id !== id)) : prevCurrent))
     },
-    [persist],
+    [persistData],
   )
 
   const unarchiveTeam = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      persist((prev) => ({
+      persistData((prev) => ({
         ...prev,
         teams: prev.teams.map((t) => (t.id === id ? { ...t, actief: true, updatedAt: today } : t)),
       }))
     },
-    [persist],
+    [persistData],
   )
 
   // Retourneert true bij succes, false als het team nog dependencies heeft
@@ -197,39 +218,36 @@ export function AppProvider({ children }) {
   // In beide gevallen moet de UI archiveren aanbieden i.p.v. verwijderen.
   const deleteTeam = useCallback(
     (id) => {
-      let blocked = false
-      let nextTeams = null
-      persist((prev) => {
-        const depInUse = prev.dependencies.some((d) => d.teamId === id)
-        const referencedByWorkflow = teamsReferencingViaWorkflow(prev.teamWorkflows, id).length > 0
-        if (depInUse || referencedByWorkflow) {
-          blocked = true
-          return prev
-        }
+      // Blokkade vooraf bepalen op de laatst bekende state (stateRef) i.p.v.
+      // op een uitkomst die pas in de updater ontstaat: React voert die
+      // updater niet gegarandeerd synchroon uit, en dan zou 'verwijderd' als
+      // antwoord teruggaan terwijl het team er nog is.
+      const isBlocked = (s) => s.dependencies.some((d) => d.teamId === id) || teamsReferencingViaWorkflow(s.teamWorkflows, id).length > 0
+      if (isBlocked(stateRef.current)) return false
+      persistData((prev) => {
+        if (isBlocked(prev)) return prev
         const teamWorkflows = { ...prev.teamWorkflows }
         delete teamWorkflows[id]
         const teamSnapshots = { ...prev.teamSnapshots }
         delete teamSnapshots[id]
-        nextTeams = prev.teams.filter((t) => t.id !== id)
-        return { ...prev, teams: nextTeams, teamWorkflows, teamSnapshots }
+        return { ...prev, teams: prev.teams.filter((t) => t.id !== id), teamWorkflows, teamSnapshots }
       })
-      if (blocked) return false
-      setCurrentTeamId((prevCurrent) => (prevCurrent === id ? firstActiveTeamId(nextTeams) : prevCurrent))
+      setCurrentTeamId((prevCurrent) => (prevCurrent === id ? firstActiveTeamId(stateRef.current.teams.filter((t) => t.id !== id)) : prevCurrent))
       return true
     },
-    [persist],
+    [persistData],
   )
 
   // --- teamworkflow (teampagina: workflowbord, applicatieflow, momentopnamen) ---
 
   const updateTeamWorkflow = useCallback(
     (teamId, patch) => {
-      persist((prev) => {
+      persistData((prev) => {
         const current = prev.teamWorkflows[teamId] ?? emptyTeamWorkflow()
         return { ...prev, teamWorkflows: { ...prev.teamWorkflows, [teamId]: { ...current, ...patch } } }
       })
     },
-    [persist],
+    [persistData],
   )
 
   // Verwijdert een applicatie én alle verwijzingen ernaar. Bewust één actie:
@@ -279,7 +297,7 @@ export function AppProvider({ children }) {
   // MAX_SNAPSHOTS_PER_TEAM per team — de oudste rolt er automatisch uit.
   const saveSnapshot = useCallback(
     (teamId, naam) => {
-      persist((prev) => {
+      persistData((prev) => {
         const workflow = prev.teamWorkflows[teamId] ?? emptyTeamWorkflow()
         const existing = prev.teamSnapshots[teamId] ?? []
         const snapshot = {
@@ -296,20 +314,20 @@ export function AppProvider({ children }) {
         return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
       })
     },
-    [persist],
+    [persistData],
   )
 
   const renameSnapshot = useCallback(
     (teamId, snapshotId, naam) => {
       const trimmed = naam.trim()
       if (!trimmed) return
-      persist((prev) => {
+      persistData((prev) => {
         const existing = prev.teamSnapshots[teamId] ?? []
         const next = existing.map((s) => (s.id === snapshotId ? { ...s, naam: trimmed } : s))
         return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
       })
     },
-    [persist],
+    [persistData],
   )
 
   // Zie B-12: vóór het overschrijven van de live workflow wordt automatisch
@@ -317,7 +335,7 @@ export function AppProvider({ children }) {
   // omkeerbaar blijft (zelf ook weer terug te zetten).
   const restoreSnapshot = useCallback(
     (teamId, snapshotId) => {
-      persist((prev) => {
+      persistData((prev) => {
         const existing = prev.teamSnapshots[teamId] ?? []
         const snapshot = existing.find((s) => s.id === snapshotId)
         if (!snapshot) return prev
@@ -336,17 +354,17 @@ export function AppProvider({ children }) {
         }
       })
     },
-    [persist],
+    [persistData],
   )
 
   const deleteSnapshot = useCallback(
     (teamId, snapshotId) => {
-      persist((prev) => {
+      persistData((prev) => {
         const next = (prev.teamSnapshots[teamId] ?? []).filter((s) => s.id !== snapshotId)
         return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
       })
     },
-    [persist],
+    [persistData],
   )
 
   // --- externe partijen (centrale, admin-beheerde lijst) ---
@@ -371,10 +389,10 @@ export function AppProvider({ children }) {
         updatedAt: today,
         voorgesteldDoorTeamId: teamId,
       }
-      persist((prev) => ({ ...prev, externalParties: [...prev.externalParties, party] }))
+      persistData((prev) => ({ ...prev, externalParties: [...prev.externalParties, party] }))
       return id
     },
-    [persist],
+    [persistData],
   )
 
   const renameExternalParty = useCallback(
@@ -382,23 +400,23 @@ export function AppProvider({ children }) {
       const trimmed = naam.trim()
       if (!trimmed) return
       const today = new Date().toISOString().slice(0, 10)
-      persist((prev) => ({
+      persistData((prev) => ({
         ...prev,
         externalParties: prev.externalParties.map((p) => (p.id === id ? { ...p, naam: trimmed, updatedAt: today } : p)),
       }))
     },
-    [persist],
+    [persistData],
   )
 
   const approveExternalParty = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      persist((prev) => ({
+      persistData((prev) => ({
         ...prev,
         externalParties: prev.externalParties.map((p) => (p.id === id ? { ...p, status: 'actief', updatedAt: today } : p)),
       }))
     },
-    [persist],
+    [persistData],
   )
 
   // Weigeren verwijdert het record niet: verwijzingen vanuit dependencies of
@@ -408,12 +426,12 @@ export function AppProvider({ children }) {
   const rejectExternalParty = useCallback(
     (id) => {
       const today = new Date().toISOString().slice(0, 10)
-      persist((prev) => ({
+      persistData((prev) => ({
         ...prev,
         externalParties: prev.externalParties.map((p) => (p.id === id ? { ...p, status: 'geweigerd', updatedAt: today } : p)),
       }))
     },
-    [persist],
+    [persistData],
   )
 
   // Retourneert true bij succes, false als de partij nog ergens aan
@@ -422,7 +440,7 @@ export function AppProvider({ children }) {
   const deleteExternalParty = useCallback(
     (id) => {
       let blocked = false
-      persist((prev) => {
+      persistData((prev) => {
         const inUse =
           prev.dependencies.some((d) => d.geraaktPartijId === id) ||
           Object.values(prev.teamWorkflows).some(
@@ -436,7 +454,7 @@ export function AppProvider({ children }) {
       })
       return !blocked
     },
-    [persist],
+    [persistData],
   )
 
   // --- cross-team koppelingsverzoeken (input/output gekoppeld aan een ander team) ---
@@ -575,12 +593,43 @@ export function AppProvider({ children }) {
     [persist],
   )
 
+  // Maakt de tegenhanger-verwijzingen bij ándere teams los zodra een
+  // input-/outputitem zijn koppeling verliest (koppeling gewijzigd of
+  // verwijderd, of het item zelf verwijderd): een input elders die nog naar
+  // deze output wees, of een output elders die nog naar deze input terugwees.
+  // Zonder dit bleef de ketenlijn vanuit het andere team gewoon staan —
+  // resolveChainEdges leest de input-kant, en die wist van niets.
+  const unlinkCounterparts = useCallback(
+    (teamId, kind, itemId) => {
+      persistData((prev) => {
+        const teamWorkflows = { ...prev.teamWorkflows }
+        let changed = false
+        const clearLink = (item) => ({ ...item, linkedTeam: '', linkedOutputId: '', linkedInputId: '', linkNieuw: false, linkStatus: '', linkBesluitOp: '' })
+        for (const [otherId, wf] of Object.entries(prev.teamWorkflows)) {
+          if (otherId === teamId) continue
+          const key = kind === 'output' ? 'inputs' : 'outputs'
+          const refField = kind === 'output' ? 'linkedOutputId' : 'linkedInputId'
+          const items = wf[key] ?? []
+          if (!items.some((i) => i.linkedTeam === teamId && i[refField] === itemId)) continue
+          teamWorkflows[otherId] = { ...wf, [key]: items.map((i) => (i.linkedTeam === teamId && i[refField] === itemId ? clearLink(i) : i)) }
+          changed = true
+        }
+        return changed ? { ...prev, teamWorkflows } : prev
+      })
+    },
+    [persistData],
+  )
+
   // --- dependencies ---
 
   const addDependency = useCallback(
     (dependency) => {
       const today = new Date().toISOString().slice(0, 10)
-      const record = { ...dependency, id: generateId(), laatst_bijgewerkt: today, aangemaakt_op: today, historie: [], gesloten_op: null }
+      // extraTeamIds is formulierstate ('meerdere teams' in DependencyForm);
+      // de aanroeper maakt daar losse records van (addDependencies) en het
+      // veld hoort nooit in een opgeslagen record terecht te komen.
+      const { extraTeamIds: _extraTeamIds, ...fields } = dependency
+      const record = { ...fields, id: generateId(), laatst_bijgewerkt: today, aangemaakt_op: today, historie: [], gesloten_op: null }
       persist((prev) => {
         const duplicate = findPotentialDuplicate(record, prev.dependencies)
         const entry = logEntry({
@@ -611,7 +660,7 @@ export function AppProvider({ children }) {
   const addDependencies = useCallback(
     (deps) => {
       const now = new Date().toISOString().slice(0, 10)
-      const records = deps.map((dependency) => ({
+      const records = deps.map(({ extraTeamIds: _extraTeamIds, ...dependency }) => ({
         ...dependency,
         id: generateId(),
         laatst_bijgewerkt: now,
@@ -745,7 +794,7 @@ export function AppProvider({ children }) {
   // gekoppeld via dedupGroupId.
   const approveChange = useCallback(
     (logId) => {
-      persist((prev) => {
+      persistData((prev) => {
         const entry = prev.changeLog.find((c) => c.id === logId)
         if (!entry) return prev
         let dependencies = prev.dependencies
@@ -768,14 +817,14 @@ export function AppProvider({ children }) {
         return { ...prev, dependencies, changeLog }
       })
     },
-    [persist],
+    [persistData],
   )
 
   const rejectChange = useCallback(
     (logId) => {
-      persist((prev) => ({ ...prev, changeLog: prev.changeLog.map((c) => (c.id === logId ? { ...c, status: 'rejected' } : c)) }))
+      persistData((prev) => ({ ...prev, changeLog: prev.changeLog.map((c) => (c.id === logId ? { ...c, status: 'rejected' } : c)) }))
     },
-    [persist],
+    [persistData],
   )
 
   // Wordt aangeroepen nadat de admin de dependency zelf heeft aangepast via
@@ -783,21 +832,28 @@ export function AppProvider({ children }) {
   // de status van de log-entry, verandert geen data.
   const markChangeEdited = useCallback(
     (logId) => {
-      persist((prev) => ({ ...prev, changeLog: prev.changeLog.map((c) => (c.id === logId ? { ...c, status: 'edited' } : c)) }))
+      persistData((prev) => ({ ...prev, changeLog: prev.changeLog.map((c) => (c.id === logId ? { ...c, status: 'edited' } : c)) }))
     },
-    [persist],
+    [persistData],
   )
 
   // --- data-beheer ---
 
+  // resetToEmpty/resetToMockData schrijven zelf al weg; de extra saveState
+  // hier levert alleen de uitkomst (gelukt of niet) op voor de
+  // opslagwaarschuwing — anders bleef een mislukte reset-opslag onzichtbaar.
   const clearAllData = useCallback(() => {
     const next = resetToEmpty()
+    lastSaveOkRef.current = saveState(next)
+    stateRef.current = next
     setState(next)
     setCurrentTeamId(null)
   }, [])
 
   const loadMockData = useCallback(() => {
     const next = resetToMockData()
+    lastSaveOkRef.current = saveState(next)
+    stateRef.current = next
     setState(next)
     setCurrentTeamId(firstActiveTeamId(next.teams))
   }, [])
@@ -808,6 +864,11 @@ export function AppProvider({ children }) {
     validateImportShape(imported)
     const next = migrateState(imported)
     const ok = saveState(next)
+    // Ook de ref bijwerken: het effect hierboven zet saveError na elke
+    // state-wijziging opnieuw vanuit lastSaveOkRef, en zou een mislukte
+    // import-opslag anders meteen weer verbergen.
+    lastSaveOkRef.current = ok
+    stateRef.current = next
     setState(next)
     setCurrentTeamId(firstActiveTeamId(next.teams))
     setSaveError(!ok)
@@ -869,6 +930,7 @@ export function AppProvider({ children }) {
       importState,
       updateTeamWorkflow,
       removeApplicationEverywhere,
+      unlinkCounterparts,
       acceptLinkRequest,
       rejectLinkRequest,
       saveSnapshot,
@@ -905,6 +967,7 @@ export function AppProvider({ children }) {
       importState,
       updateTeamWorkflow,
       removeApplicationEverywhere,
+      unlinkCounterparts,
       acceptLinkRequest,
       rejectLinkRequest,
       saveSnapshot,
