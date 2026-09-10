@@ -3,6 +3,28 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Ketenoverzicht: alleen nog de focusweergave** (Quinten)
+
+  De geaggregeerde "Ketenflow"-modus en de schakelaar ernaartoe zijn weg. Het
+  ketenoverzicht opent meteen in de focusweergave, met als standaard het team
+  waarvan de voorwaartse keten de meeste andere teams raakt — zo staat er bij
+  het openen zoveel mogelijk keten in beeld i.p.v. een leeg canvas. Een eigen
+  keuze via het menu of een klik op een teamkaart wint daarvan; valt die keuze
+  uit het teamfilter, dan schuift de weergave terug naar het standaardteam.
+
+  Verwijderd: computeChainOverviewLayout, de teamkaart met hover/pin-uitklap
+  (TeamHeaderNode), de bijbehorende layerTeamsByChain/aggregateChainLinks-
+  aanroepen en de teksten die alleen die modus gebruikte.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Koppelingsverzoek zichtbaar bij het ontvangende team: bovenaan, op het canvas en in de lijst** (Quinten)
+
+  Het verzoek stond alleen in een kaart onder het canvas, buiten beeld. Nu:
+  kaart bovenaan de teampagina; op het canvas een schaduwkaart (nieuw item)
+  of een badge op het bestaande item; in de Input-/Output-lijst een rij met
+  Accepteren/Afwijzen; en in het focuspaneel dezelfde twee acties.
+
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
 - **Input/output-formulier: één leidende vraag met afhankelijke vervolgvelden** (Quinten)
