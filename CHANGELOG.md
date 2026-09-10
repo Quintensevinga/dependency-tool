@@ -2,6 +2,27 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-10
+- **Merge pull request #1 from Quintensevinga/claude/dependency-insight-mockdata-dfc292** (Quintensevinga)
+
+  Externe partijen in Ketenoverzicht, goedkeuring cross-team koppelinge…
+
+- **Externe partijen in Ketenoverzicht, goedkeuring cross-team koppelingen, opsomming bij lijnen** (Quinten)
+
+  - Ketenoverzicht: externe partijen (uit input/output-items én dependencies) als
+    kaartjes naast de keten, in Ketenflow en Focusmodus, met toggle, klik-
+    uitlichting en detailvak per partij of lijn.
+  - Cross-team input/output-koppelingen kennen nu een goedkeuringsstatus
+    (voorgesteld/geaccepteerd/afgewezen) en de optie "nieuw item voorstellen";
+    het andere team ziet een Koppelingsverzoeken-kaart en accepteert of wijst
+    af. Bestaande koppelingen tellen als geaccepteerd. Gestippelde ketenlijn
+    zolang er geen akkoord is.
+  - Teamcanvas: klik op een applicatiekoppeling of input/output-lijn opent een
+    bewerkbare opsomming (punten); hover toont ze, net als het Ketenoverzicht.
+  - Mock-loader neemt externe partijen, wijzigingenlog, admin-instellingen,
+    aantekeningen, fasenotities en applicatiedetails uit de seed mee; JSON-
+    export bevat nu ook partijen en log. Schemaversie 5.
+
 ## 2026-09-03
 - **Focusmodus: koppeling zelf-column loste dwars-door-kaart-bug op, badge weg** (Lars Hoogland)
 
