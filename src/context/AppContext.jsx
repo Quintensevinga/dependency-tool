@@ -426,6 +426,132 @@ export function AppProvider({ children }) {
     [persist],
   )
 
+  // --- cross-team koppelingsverzoeken (input/output gekoppeld aan een ander team) ---
+  // Een koppeling die team B legt naar team A verschijnt bij A als verzoek
+  // (linkStatus 'voorgesteld' op het item van B). Accepteren maakt 'm
+  // definitief — en maakt, als B om een nieuw tegenhanger-item vroeg
+  // (linkNieuw), dat item meteen bij A aan, teruggekoppeld naar B. Zo hoeft
+  // één overdracht maar één keer geregistreerd te worden i.p.v. door beide
+  // teams los (de duplicaten die dit systeem moet voorkomen).
+
+  function blankCounterpart(kind, proposer, proposerTeamId) {
+    return {
+      id: generateId(),
+      label: proposer.label,
+      flowtype: proposer.flowtype ?? '',
+      // Tegenhanger van een teamkoppeling komt per definitie van/naar een team.
+      bron_type: 'team',
+      linkedTeam: proposerTeamId,
+      linkedOutputId: kind === 'input' ? proposer.id : '',
+      linkedInputId: kind === 'output' ? proposer.id : '',
+      applicatieId: '',
+      externalTeam: '',
+      externalPartyId: '',
+      linkStatus: 'geaccepteerd',
+      linkNieuw: false,
+      punten: [],
+    }
+  }
+
+  const acceptLinkRequest = useCallback(
+    (targetTeamId, proposerTeamId, kind, itemId) => {
+      persist((prev) => {
+        const proposerWf = prev.teamWorkflows[proposerTeamId]
+        const targetWf = prev.teamWorkflows[targetTeamId] ?? emptyTeamWorkflow()
+        if (!proposerWf) return prev
+        const item = (kind === 'input' ? proposerWf.inputs : proposerWf.outputs).find((i) => i.id === itemId)
+        if (!item || item.linkedTeam !== targetTeamId) return prev
+
+        if (kind === 'input') {
+          // B's input wil A's output: bestaand output-item koppelen (en, als
+          // dat nog vrij is, terugverwijzen naar B), anders een nieuw output
+          // bij A aanmaken.
+          const existing = item.linkedOutputId ? targetWf.outputs.find((o) => o.id === item.linkedOutputId) : null
+          let outputs = targetWf.outputs
+          let outputId = existing?.id
+          if (!existing) {
+            const nieuw = blankCounterpart('output', item, proposerTeamId)
+            outputId = nieuw.id
+            outputs = [...targetWf.outputs, nieuw]
+          } else if (!existing.linkedTeam) {
+            outputs = targetWf.outputs.map((o) =>
+              o.id === existing.id ? { ...o, linkedTeam: proposerTeamId, linkedInputId: item.id, linkStatus: 'geaccepteerd' } : o,
+            )
+          }
+          const inputs = proposerWf.inputs.map((i) =>
+            i.id === itemId ? { ...i, linkedOutputId: outputId, linkNieuw: false, linkStatus: 'geaccepteerd' } : i,
+          )
+          return {
+            ...prev,
+            teamWorkflows: {
+              ...prev.teamWorkflows,
+              [proposerTeamId]: { ...proposerWf, inputs },
+              [targetTeamId]: { ...targetWf, outputs },
+            },
+            usingMockData: false,
+          }
+        }
+
+        // A's output wil B's input: de input van B krijgt (of houdt) de echte
+        // koppeling — dat is de kant waar het ketenoverzicht de lijn uit
+        // herleidt (resolveChainEdges) — de output van A markeert alleen dat
+        // het verzoek is geaccepteerd.
+        const existing = item.linkedInputId ? targetWf.inputs.find((i) => i.id === item.linkedInputId) : null
+        let inputs = targetWf.inputs
+        let inputId = existing?.id
+        if (!existing) {
+          const nieuw = blankCounterpart('input', item, proposerTeamId)
+          inputId = nieuw.id
+          inputs = [...targetWf.inputs, nieuw]
+        } else {
+          inputs = targetWf.inputs.map((i) =>
+            i.id === existing.id
+              ? { ...i, linkedTeam: proposerTeamId, linkedOutputId: item.id, linkNieuw: false, linkStatus: 'geaccepteerd' }
+              : i,
+          )
+        }
+        const outputs = proposerWf.outputs.map((o) =>
+          o.id === itemId ? { ...o, linkedInputId: inputId, linkNieuw: false, linkStatus: 'geaccepteerd' } : o,
+        )
+        return {
+          ...prev,
+          teamWorkflows: {
+            ...prev.teamWorkflows,
+            [proposerTeamId]: { ...proposerWf, outputs },
+            [targetTeamId]: { ...targetWf, inputs },
+          },
+          usingMockData: false,
+        }
+      })
+    },
+    [persist],
+  )
+
+  // Afwijzen laat het item van het voorstellende team staan, met de status
+  // erop — dat team ziet zo waarom er geen ketenlijn is en kan de koppeling
+  // aanpassen (wat 'm automatisch weer als nieuw verzoek indient).
+  const rejectLinkRequest = useCallback(
+    (targetTeamId, proposerTeamId, kind, itemId) => {
+      persist((prev) => {
+        const wf = prev.teamWorkflows[proposerTeamId]
+        if (!wf) return prev
+        const key = kind === 'input' ? 'inputs' : 'outputs'
+        return {
+          ...prev,
+          teamWorkflows: {
+            ...prev.teamWorkflows,
+            [proposerTeamId]: {
+              ...wf,
+              [key]: wf[key].map((i) => (i.id === itemId && i.linkedTeam === targetTeamId ? { ...i, linkStatus: 'afgewezen' } : i)),
+            },
+          },
+          usingMockData: false,
+        }
+      })
+    },
+    [persist],
+  )
+
   // --- dependencies ---
 
   const addDependency = useCallback(
@@ -618,6 +744,8 @@ export function AppProvider({ children }) {
       importState,
       updateTeamWorkflow,
       removeApplicationEverywhere,
+      acceptLinkRequest,
+      rejectLinkRequest,
       saveSnapshot,
       renameSnapshot,
       restoreSnapshot,
@@ -648,6 +776,8 @@ export function AppProvider({ children }) {
       importState,
       updateTeamWorkflow,
       removeApplicationEverywhere,
+      acceptLinkRequest,
+      rejectLinkRequest,
       saveSnapshot,
       renameSnapshot,
       restoreSnapshot,

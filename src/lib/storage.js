@@ -1,9 +1,18 @@
-import { MOCK_TEAMS, MOCK_DEPENDENCIES, MOCK_TEAM_WORKFLOWS } from '../data/mockData'
-import { WORKFLOW_STAGES, BRON_TYPES, EXTERNAL_PARTY_STATUS } from '../data/constants'
+import {
+  MOCK_TEAMS,
+  MOCK_DEPENDENCIES,
+  MOCK_TEAM_WORKFLOWS,
+  MOCK_EXTERNAL_PARTIES,
+  MOCK_CHANGE_LOG,
+  MOCK_ADMIN_SETTINGS,
+} from '../data/mockData'
+import { WORKFLOW_STAGES, BRON_TYPES, EXTERNAL_PARTY_STATUS, LINK_STATUS } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
 export const STORAGE_KEY = 'dependency-insight:v1'
-export const SCHEMA_VERSION = 4
+// 5: input-/output-items kennen linkStatus/linkNieuw/punten, applicatie-
+// koppelingen kennen punten (zie migrateIoItem/migrateConnection).
+export const SCHEMA_VERSION = 5
 
 export const MAX_SNAPSHOTS_PER_TEAM = 10
 
@@ -288,15 +297,46 @@ function migrateCapacityRow(row) {
   return { ...rest, rol: functieId ?? '' }
 }
 
+// Vrije opsomming (korte punten) bij een lijn op het teamcanvas — alleen
+// echte, niet-lege tekstregels blijven staan.
+function sanitizePunten(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw.filter((p) => typeof p === 'string' && p.trim())
+}
+
+// Cross-team koppeling van een input-/output-item. Een al bestaande, opgeloste
+// koppeling (linkedTeam + een item-id) telt als 'geaccepteerd': retroactief
+// om akkoord vragen zou elke bestaande ketenlijn in oudere data/exports plots
+// op 'wacht op akkoord' zetten. Alleen nieuwe koppelingen (via de teampagina)
+// starten als verzoek — zie LINK_STATUS in constants.js.
+function migrateIoItem(item) {
+  if (!item || typeof item !== 'object') return item
+  const hasLink = Boolean(item.linkedTeam && (item.linkedOutputId || item.linkedInputId))
+  const linkStatus = LINK_STATUS.includes(item.linkStatus) ? item.linkStatus : hasLink ? 'geaccepteerd' : ''
+  return { ...item, punten: sanitizePunten(item.punten), linkStatus, linkNieuw: item.linkNieuw === true }
+}
+
+function migrateConnection(conn) {
+  if (!conn || typeof conn !== 'object') return conn
+  return { ...conn, punten: sanitizePunten(conn.punten) }
+}
+
 function migrateTeamWorkflows(rawWorkflows, teams) {
   const source = rawWorkflows && typeof rawWorkflows === 'object' ? rawWorkflows : {}
   const result = {}
   for (const team of teams) {
     const workflow =
       source[team.id] && typeof source[team.id] === 'object' ? { ...emptyTeamWorkflow(), ...source[team.id] } : emptyTeamWorkflow()
+    const applicatieflow = {
+      ...emptyApplicatieflow(),
+      ...(workflow.applicatieflow && typeof workflow.applicatieflow === 'object' ? workflow.applicatieflow : {}),
+    }
     result[team.id] = {
       ...workflow,
       capacity: (workflow.capacity ?? []).map(migrateCapacityRow),
+      inputs: (workflow.inputs ?? []).map(migrateIoItem),
+      outputs: (workflow.outputs ?? []).map(migrateIoItem),
+      applicatieflow: { ...applicatieflow, connecties: (applicatieflow.connecties ?? []).map(migrateConnection) },
       stageNotes: sanitizeStageNotes(workflow.stageNotes),
     }
   }
@@ -401,6 +441,9 @@ function emptyState() {
 function applyMockTeamWorkflows(state) {
   const nameToId = new Map(state.teams.map((t) => [t.naam, t.id]))
   const teamWorkflows = { ...state.teamWorkflows }
+  // Teamverwijzingen in de seed zijn leesbare teamnamen; een onbekende naam
+  // wordt leeg i.p.v. als kapotte verwijzing door te sijpelen.
+  const mapTeamRef = (ref) => (ref ? (nameToId.get(ref) ?? '') : '')
 
   for (const [teamNaam, seed] of Object.entries(MOCK_TEAM_WORKFLOWS)) {
     const teamId = nameToId.get(teamNaam)
@@ -417,15 +460,18 @@ function applyMockTeamWorkflows(state) {
         risico_bij_uitval: row.risico_bij_uitval ?? '',
         risico_toelichting: row.risico_toelichting ?? '',
       })),
-      inputs: (seed.inputs ?? []).map((item) => ({
-        ...item,
-        linkedTeam: item.linkedTeam ? (nameToId.get(item.linkedTeam) ?? '') : '',
-      })),
-      outputs: seed.outputs ?? [],
+      // Zelfde normalisatie als een echte import (migrateIoItem): bestaande
+      // koppelingen tellen als geaccepteerd, punten/linkNieuw krijgen defaults.
+      inputs: (seed.inputs ?? []).map((item) => migrateIoItem({ ...item, linkedTeam: mapTeamRef(item.linkedTeam) })),
+      outputs: (seed.outputs ?? []).map((item) => migrateIoItem({ ...item, linkedTeam: mapTeamRef(item.linkedTeam) })),
       layout: seed.layout ?? {},
+      annotations: seed.annotations ?? [],
+      annotationEdges: seed.annotationEdges ?? [],
+      stageNotes: sanitizeStageNotes(seed.stageNotes),
       applicatieflow: {
         ...emptyApplicatieflow(),
-        connecties: seed.applicatieflowConnecties ?? [],
+        connecties: (seed.applicatieflowConnecties ?? []).map(migrateConnection),
+        details: seed.applicatieflowDetails ?? {},
       },
     }
   }
@@ -437,6 +483,9 @@ function mockState() {
   const base = migrateState({
     teams: MOCK_TEAMS,
     dependencies: MOCK_DEPENDENCIES,
+    externalParties: MOCK_EXTERNAL_PARTIES,
+    changeLog: MOCK_CHANGE_LOG,
+    adminSettings: MOCK_ADMIN_SETTINGS ?? undefined,
     usingMockData: true,
   })
   return applyMockTeamWorkflows(base)

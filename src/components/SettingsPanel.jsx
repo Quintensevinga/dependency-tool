@@ -434,6 +434,7 @@ export default function SettingsPanel({ onClose, onExportPng }) {
     adminSettings,
     updateAdminSettings,
     externalParties,
+    changeLog,
     addExternalParty,
     renameExternalParty,
     approveExternalParty,
@@ -485,7 +486,10 @@ export default function SettingsPanel({ onClose, onExportPng }) {
 
   function handleExportJson() {
     exportDataAsJson(
-      { teams, dependencies, teamWorkflows, teamSnapshots, usingMockData, schemaVersion, adminSettings },
+      // Externe partijen en wijzigingenlog horen bij de export: zonder die
+      // twee verloor een back-up/overdracht stilzwijgend de partij-
+      // goedkeuringen en de admin-log (import las ze wél al).
+      { teams, dependencies, teamWorkflows, teamSnapshots, externalParties, changeLog, usingMockData, schemaVersion, adminSettings },
       `dependency-insight-export-${Date.now()}.json`,
     )
   }
