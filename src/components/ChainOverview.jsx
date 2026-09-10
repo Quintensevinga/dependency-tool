@@ -194,6 +194,9 @@ function buildExternalPartyGraph(teamWorkflows, dependencies, externalParties, t
   }
   for (const dep of dependencies) {
     if (!dep.teamId) continue
+    // Een ander team in deze tool als veroorzaker (op id, of op exact
+    // matchende naam) is geen externe partij.
+    if (dep.geraaktTeamId) continue
     const naam = typeof dep.geraakte_team_extern === 'string' ? dep.geraakte_team_extern.trim() : ''
     if (!dep.geraaktPartijId && (!naam || teamNames.has(naam.toLowerCase()))) continue
     const party = resolve(dep.geraaktPartijId, naam, '')

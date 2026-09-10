@@ -239,6 +239,13 @@ function migrateDependency(raw, teamsState) {
     // met vandaag-als-fallback wordt gewerkt, en sorteert 'm tussen de andere
     // records i.p.v. altijd onderaan/bovenaan te dwingen.
     laatst_bijgewerkt: typeof raw.laatst_bijgewerkt === 'string' ? raw.laatst_bijgewerkt : todayIso(),
+    // Team-als-veroorzaker ook op id (niet alleen op naam): expliciet
+    // meegegeven, anders afgeleid uit een exact matchende teamnaam, zodat
+    // analyses nooit op naam hoeven te matchen. Nooit geraden bij twijfel.
+    geraaktTeamId:
+      typeof raw.geraaktTeamId === 'string' && teamsState.existingIds.has(raw.geraaktTeamId)
+        ? raw.geraaktTeamId
+        : (typeof rest.geraakte_team_extern === 'string' && teamsState.nameToId.get(rest.geraakte_team_extern.trim())) || null,
     oplosbaarheid: typeof raw.oplosbaarheid === 'string' ? raw.oplosbaarheid : '',
     wachttijd: typeof raw.wachttijd === 'string' ? raw.wachttijd : '',
     deadline: typeof raw.deadline === 'string' ? raw.deadline : '',
@@ -440,13 +447,15 @@ function emptyState() {
 // dus geen aparte name->id-tabel nodig buiten wat hier lokaal wordt opgebouwd.
 function applyMockTeamWorkflows(state) {
   const nameToId = new Map(state.teams.map((t) => [t.naam, t.id]))
+  const idSet = new Set(state.teams.map((t) => t.id))
   const teamWorkflows = { ...state.teamWorkflows }
-  // Teamverwijzingen in de seed zijn leesbare teamnamen; een onbekende naam
-  // wordt leeg i.p.v. als kapotte verwijzing door te sijpelen.
-  const mapTeamRef = (ref) => (ref ? (nameToId.get(ref) ?? '') : '')
+  // Teamverwijzingen in de seed mogen een team-id of een leesbare teamnaam
+  // zijn; een onbekende verwijzing wordt leeg i.p.v. als kapotte verwijzing
+  // door te sijpelen.
+  const mapTeamRef = (ref) => (ref ? (idSet.has(ref) ? ref : (nameToId.get(ref) ?? '')) : '')
 
-  for (const [teamNaam, seed] of Object.entries(MOCK_TEAM_WORKFLOWS)) {
-    const teamId = nameToId.get(teamNaam)
+  for (const [teamKey, seed] of Object.entries(MOCK_TEAM_WORKFLOWS)) {
+    const teamId = mapTeamRef(teamKey)
     if (!teamId) continue
     teamWorkflows[teamId] = {
       ...emptyTeamWorkflow(),

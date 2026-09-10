@@ -47,6 +47,12 @@ for (const dep of dependencies) {
   if (dep.geraaktPartijId && !partyIds.has(dep.geraaktPartijId)) {
     report('dependency.geraaktPartijId', `${dep.id} (${dep.titel}) → onbekende partij ${dep.geraaktPartijId}`)
   }
+  if (dep.geraaktTeamId && !teamIds.has(dep.geraaktTeamId)) {
+    report('dependency.geraaktTeamId', `${dep.id} (${dep.titel}) → onbekend team ${dep.geraaktTeamId}`)
+  }
+  if (dep.dedupGroupId && !dependencies.some((d) => d.id !== dep.id && d.dedupGroupId === dep.dedupGroupId)) {
+    report('dependency.dedupGroupId', `${dep.id} (${dep.titel}) → dedupGroupId ${dep.dedupGroupId} zonder tegenhanger`)
+  }
   const apps = appIdsFor(dep.teamId)
   for (const appId of dep.applicatieIds ?? []) {
     if (!apps.has(appId)) report('dependency.applicatieIds', `${dep.id} (${dep.titel}) → onbekende applicatie ${appId} bij team ${dep.teamId}`)

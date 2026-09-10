@@ -136,7 +136,9 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   // of externe vrije tekst. Bij bewerken van een bestaande dependency wiens
   // waarde toevallig exact een huidige teamnaam is, start de toggle al op
   // "Bestaand team" met dat team voorgeselecteerd.
-  const matchedGeraaktTeam = teams.find((tm) => (teamLabels[tm.id] ?? tm.naam) === initialFormRef.current.geraakte_team_extern)
+  const matchedGeraaktTeam =
+    teams.find((tm) => tm.id === initialFormRef.current.geraaktTeamId) ??
+    teams.find((tm) => (teamLabels[tm.id] ?? tm.naam) === initialFormRef.current.geraakte_team_extern)
   const [geraaktMode, setGeraaktMode] = useState(matchedGeraaktTeam ? 'team' : 'extern')
   // Team(s) start als simpele dropdown voor het gangbare geval (één team);
   // "Selecteer meerdere teams" schakelt pas dan om naar de volledige,
@@ -218,8 +220,15 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     if (form.scope === 'intern') {
       delete payload.geraakte_team_extern
       delete payload.geraaktPartijId
+      delete payload.geraaktTeamId
     } else if (geraaktMode === 'team') {
       payload.geraaktPartijId = ''
+      // Team-als-veroorzaker ook op id vastleggen (naast de naam die de
+      // canvasvisualisatie en observaties gebruiken), zodat analyses nooit
+      // op naam hoeven te matchen.
+      payload.geraaktTeamId = selectedGeraaktTeamId || ''
+    } else {
+      payload.geraaktTeamId = ''
     }
     // Bij geraaktMode 'extern' blijft geraakte_team_extern gevuld met de
     // partijnaam (zie handlePartijChange) — dat houdt de bestaande "Externe

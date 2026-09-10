@@ -22,7 +22,7 @@ Open daarna de URL die in de terminal verschijnt (meestal `http://localhost:5173
 ## Data en privacy
 
 - Alle data wordt lokaal opgeslagen in de browser (localStorage) — er wordt niets naar een server verstuurd.
-- De app start met fictieve demo-data (7 teams). Via het tandwiel-icoon (Instellingen) kun je alle data wissen en desgewenst teruggaan naar de demo-data.
+- De app start met fictieve demo-data (8 teams in één keten, ruim 190 dependencies, een register van externe partijen en een gevulde wijzigingenlog). Via het tandwiel-icoon (Instellingen) kun je alle data wissen en desgewenst teruggaan naar de demo-data.
 - Het datamodel bevat bewust geen namen van personen, alleen rol-aanduidingen.
 
 ## Admin-afscherming (geen echte beveiliging)
