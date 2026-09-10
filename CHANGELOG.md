@@ -5,6 +5,15 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-10
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
+- **Koppelingsverzoek zichtbaar bij het ontvangende team: bovenaan, op het canvas en in de lijst** (Quinten)
+
+  Het verzoek stond alleen in een kaart onder het canvas, buiten beeld. Nu:
+  kaart bovenaan de teampagina; op het canvas een schaduwkaart (nieuw item)
+  of een badge op het bestaande item; in de Input-/Output-lijst een rij met
+  Accepteren/Afwijzen; en in het focuspaneel dezelfde twee acties.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
 - **Input/output-formulier: één leidende vraag met afhankelijke vervolgvelden** (Quinten)
 
   "Van wie of wat komt dit?" (input) of "Naar wie of wat gaat dit?" (output)
