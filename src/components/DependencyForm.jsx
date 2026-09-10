@@ -218,9 +218,13 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     const [teamId, ...extraTeamIds] = teamIds
     const payload = { ...rest, teamId }
     if (form.scope === 'intern') {
-      delete payload.geraakte_team_extern
-      delete payload.geraaktPartijId
-      delete payload.geraaktTeamId
+      // Expliciet leegmaken i.p.v. de sleutels weglaten: bij bewerken merget
+      // updateDependency het payload over het bestaande record, dus een
+      // weggelaten sleutel liet de oude partij-/teamverwijzing gewoon staan
+      // (en bleef zo zichtbaar in het ketenoverzicht en de analyse).
+      payload.geraakte_team_extern = ''
+      payload.geraaktPartijId = ''
+      payload.geraaktTeamId = ''
     } else if (geraaktMode === 'team') {
       payload.geraaktPartijId = ''
       // Team-als-veroorzaker ook op id vastleggen (naast de naam die de
@@ -237,6 +241,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     // Applicatieflow kent geen workflowstap — nooit opslaan, ook niet als het
     // veld door een eerdere flowtype-keuze nog een waarde had.
     if (form.flowtype === 'applicatieflow') payload.workflowStap = ''
+    // De deadline-toelichting hoort alleen bij een vaste datum/harde deadline;
+    // het veld verdwijnt uit beeld bij een andere keuze, maar de eerder
+    // getypte tekst bleef anders stil in het record hangen.
+    if (!DEADLINE_TEKST_VERPLICHT.includes(payload.deadline)) payload.deadlineTekst = ''
     if (extraTeamIds.length > 0) payload.extraTeamIds = extraTeamIds
     onSave(payload)
   }
@@ -467,7 +475,14 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                       setGeraaktMode(mode)
                       if (mode === 'extern') {
                         setSelectedGeraaktTeamId('')
-                        update('geraakte_team_extern', '')
+                        // Terug naar 'Extern' met een nog gekoppelde partij: de
+                        // naam weer uit die partij halen i.p.v. leeg laten —
+                        // anders werd het record opgeslagen met wél een
+                        // partij-id maar zonder naam.
+                        setForm((f) => ({
+                          ...f,
+                          geraakte_team_extern: externalParties.find((p) => p.id === f.geraaktPartijId)?.naam ?? '',
+                        }))
                       } else if (selectedGeraaktTeamId) {
                         update('geraakte_team_extern', teamLabels[selectedGeraaktTeamId] ?? '')
                       } else {
@@ -587,6 +602,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 onBlur={() => markTouched('impact')}
                 translate={translateImpact}
                 language={language}
+                t={t}
                 required
               />
               {touched.impact && <FieldError id="err-impact" message={errors.impact} />}
@@ -601,6 +617,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 onBlur={() => markTouched('frequentie')}
                 translate={translateFrequentie}
                 language={language}
+                t={t}
                 required
               />
               {touched.frequentie && <FieldError id="err-frequentie" message={errors.frequentie} />}
@@ -614,6 +631,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 onChange={(v) => update('wachttijd', v)}
                 translate={translateWachttijd}
                 language={language}
+                t={t}
               />
 
               {/* Wat voor soort verlies het is, heeft alleen betekenis als er
@@ -647,6 +665,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 onChange={(v) => update('deadline', v)}
                 translate={translateDeadline}
                 language={language}
+                t={t}
               />
               {DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && (
                 <div>
@@ -672,6 +691,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 onBlur={() => markTouched('status')}
                 translate={translateStatus}
                 language={language}
+                t={t}
                 required
               />
               {touched.status && <FieldError id="err-status" message={errors.status} />}
@@ -687,6 +707,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                   onChange={(v) => update('oplosbaarheid', v)}
                   translate={translateOplosbaarheid}
                   language={language}
+                  t={t}
                 >
                   <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
                 </SegmentedField>

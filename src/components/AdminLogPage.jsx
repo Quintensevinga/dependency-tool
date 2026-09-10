@@ -25,8 +25,11 @@ export default function AdminLogPage() {
   // Alleen de review-entries (aangemaakte dependencies); de losse
   // gebeurtenissen in de log (wijzigingen, sluitingen, koppelingsverzoeken)
   // zijn voor de analysepagina, niet voor review.
+  // Alleen entries waarvan de dependency nog bestaat: een inmiddels
+  // verwijderde dependency valt niet meer te reviewen (Row rendert 'm ook
+  // niet), en telde voorheen wél nog mee in het rode teller-badge.
   const sorted = changeLog
-    .filter((c) => c.type === 'dependency_created')
+    .filter((c) => c.type === 'dependency_created' && alleDependencies.some((d) => d.id === c.dependencyId))
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
   const pending = sorted.filter((c) => c.status === 'pending')
   const afgehandeld = sorted.filter((c) => c.status !== 'pending')

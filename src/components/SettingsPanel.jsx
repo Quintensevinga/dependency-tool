@@ -13,7 +13,9 @@ import AdminLogPage from './AdminLogPage'
 // zelf tenminste niet als kale tekst in de broncode/repository. Zie
 // .env.example en de README voor uitleg. 'ww' blijft de terugval zodat dit
 // blijft werken zonder dat iedereen een .env-bestand hoeft aan te maken.
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD ?? 'ww'
+// || i.p.v. ??: een leeg gelaten VITE_ADMIN_PASSWORD= in .env zou anders een
+// leeg wachtwoord opleveren, waarmee Admin zonder invoer ontgrendelt.
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'ww'
 
 // Structuur voor de Admin-toggles: welke pagina's en secties zijn er, en hoe
 // heten ze. Bewust hier als platte config i.p.v. door het volledige i18n-
@@ -169,7 +171,17 @@ function ManageRow({ item, onRename, onArchive, onUnarchive, onDelete, blockedMe
         {!item.actief && <span className="ml-1.5 rounded bg-slate-100 px-1 py-0.5 text-[10px] font-medium normal-case text-slate-500 no-underline">{t('settings.archived')}</span>}
       </span>
       <span className="flex shrink-0 items-center gap-0.5">
-        <IconButton label={t('settings.rename')} onClick={() => setEditing(true)}>
+        <IconButton
+          label={t('settings.rename')}
+          onClick={() => {
+            // Altijd vanuit de actuele naam starten: deze rij blijft gemount
+            // (key = id), dus een eerdere useState-startwaarde kan verouderd
+            // zijn na een hernoeming elders — en zou bij blur die oude naam
+            // weer terugzetten.
+            setValue(item.naam)
+            setEditing(true)
+          }}
+        >
           <EditIcon />
         </IconButton>
         {item.actief ? (
@@ -336,7 +348,13 @@ function PartyRow({ item, onRename, onApprove, onReject, onDelete, blockedMessag
             </button>
           </>
         )}
-        <IconButton label={t('settings.rename')} onClick={() => setEditing(true)}>
+        <IconButton
+          label={t('settings.rename')}
+          onClick={() => {
+            setValue(item.naam)
+            setEditing(true)
+          }}
+        >
           <EditIcon />
         </IconButton>
         <IconButton label={t('settings.delete')} onClick={handleDelete} danger>
@@ -422,7 +440,7 @@ function PartySection({ items, onAdd, onRename, onApprove, onReject, onDelete })
 
 export default function SettingsPanel({ onClose, onExportPng }) {
   const {
-    dependencies,
+    alleDependencies,
     teams,
     teamWorkflows,
     teamSnapshots,
@@ -451,6 +469,11 @@ export default function SettingsPanel({ onClose, onExportPng }) {
   const [confirmingReset, setConfirmingReset] = useState(false)
   const activeTeams = teams.filter((tm) => tm.actief)
   const [clearTeamId, setClearTeamId] = useState('')
+  // De gekozen teampagina om te wissen moet een actief team zijn: is het
+  // gekozen team intussen (hierboven, in 'Teams beheren') gearchiveerd, dan
+  // toonde de keuzelijst het eerste actieve team terwijl de wisknop stil
+  // nog op het gearchiveerde team stond.
+  const effectiveClearTeamId = activeTeams.some((tm) => tm.id === clearTeamId) ? clearTeamId : (activeTeams[0]?.id ?? '')
   const [confirmingClearTeam, setConfirmingClearTeam] = useState(false)
   const [importError, setImportError] = useState('')
   const fileInputRef = useRef(null)
@@ -495,7 +518,11 @@ export default function SettingsPanel({ onClose, onExportPng }) {
       // Externe partijen en wijzigingenlog horen bij de export: zonder die
       // twee verloor een back-up/overdracht stilzwijgend de partij-
       // goedkeuringen en de admin-log (import las ze wél al).
-      { teams, dependencies, teamWorkflows, teamSnapshots, externalParties, changeLog, usingMockData, schemaVersion, adminSettings },
+      // alleDependencies (incl. gesloten) i.p.v. de operationele lijst: een
+      // back-up die de gesloten records met hun historie weglaat, is geen
+      // back-up — na terugzetten waren het tabblad 'Gesloten' en de
+      // sluitingshistorie op de analysepagina leeg.
+      { teams, dependencies: alleDependencies, teamWorkflows, teamSnapshots, externalParties, changeLog, usingMockData, schemaVersion, adminSettings },
       `dependency-insight-export-${Date.now()}.json`,
     )
   }
@@ -508,7 +535,10 @@ export default function SettingsPanel({ onClose, onExportPng }) {
       const parsed = await readJsonFile(file)
       importState(parsed)
     } catch (err) {
-      setImportError(err instanceof Error ? err.message : t('settings.importGenericError'))
+      // Een JSON-parsefout (SyntaxError) is voor de gebruiker onleesbaar
+      // ("Unexpected token…"); de eigen validatiefouten (validateImportShape)
+      // zijn juist bewust in gewone taal geschreven en mogen wél door.
+      setImportError(err instanceof Error && !(err instanceof SyntaxError) ? err.message : t('settings.importGenericError'))
     }
     e.target.value = ''
   }
@@ -604,7 +634,7 @@ export default function SettingsPanel({ onClose, onExportPng }) {
               </label>
               <select
                 id="clear-team-select"
-                value={clearTeamId || activeTeams[0].id}
+                value={effectiveClearTeamId}
                 onChange={(e) => {
                   setClearTeamId(e.target.value)
                   setConfirmingClearTeam(false)
@@ -629,14 +659,14 @@ export default function SettingsPanel({ onClose, onExportPng }) {
                 <div className="space-y-2">
                   <p className="text-xs text-slate-500">
                     {t('teampage.clearConfirm', {
-                      team: activeTeams.find((tm) => tm.id === (clearTeamId || activeTeams[0].id))?.naam ?? '',
+                      team: activeTeams.find((tm) => tm.id === effectiveClearTeamId)?.naam ?? '',
                     })}
                   </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
                       onClick={() => {
-                        updateTeamWorkflow(clearTeamId || activeTeams[0].id, emptyTeamWorkflow())
+                        updateTeamWorkflow(effectiveClearTeamId, emptyTeamWorkflow())
                         setConfirmingClearTeam(false)
                       }}
                       className="flex-1 rounded-md bg-[#9a3b2e] px-3 py-2 text-xs font-medium text-white hover:bg-[#7f2f24]"
