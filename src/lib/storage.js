@@ -17,6 +17,20 @@ export const STORAGE_KEY = 'dependency-insight:v1'
 // wijzigingenlog kent naast review-entries ook losse gebeurtenissen.
 export const SCHEMA_VERSION = 6
 
+// Los van SCHEMA_VERSION: die volgt de datastructuur, dit volgt de inhoud
+// van de meegeleverde voorbeelddata (data/mockData.js). Ophogen bij een
+// inhoudelijke wijziging (nieuwe teams/namen, extra historie, ...) zorgt dat
+// iemand die de site al opende maar nog nooit eigen data invoerde
+// (usingMockData: true) bij het volgende bezoek automatisch de nieuwe
+// voorbeelddata krijgt i.p.v. vast te blijven zitten op wat ooit geseed is.
+// Raakt echte gebruikersdata (usingMockData: false) nooit — zie loadState().
+// Belangrijk: dit werkt alleen als een volgende inhoudelijke wijziging aan
+// mockData.js (bv. een teamnaam-hernoeming vanuit een andere branch) dit
+// getal ook echt ophoogt bij het mergen — anders detecteert dit mechanisme
+// niets en blijven bestaande usingMockData-bezoekers alsnog op oude inhoud.
+// 1: 8-teams demodataset met wijzigingshistorie (historie) en analysepagina.
+export const MOCK_DATA_VERSION = 1
+
 export const MAX_SNAPSHOTS_PER_TEAM = 10
 
 export { slugify, uniqueSlug }
@@ -574,6 +588,16 @@ export function loadState() {
   try {
     const parsed = JSON.parse(rawText)
     const migrated = migrateState(parsed)
+    // Onaangeraakte voorbeelddata verversen naar de nieuwste inhoud i.p.v.
+    // vast te blijven zitten op wat ooit geseed is — zie MOCK_DATA_VERSION.
+    // Zodra iemand zelf iets wijzigt zet AppContext usingMockData blijvend
+    // op false, dus dit raakt nooit eigen ingevoerde data.
+    const savedMockVersion = typeof parsed.mockDataVersion === 'number' ? parsed.mockDataVersion : 0
+    if (migrated.usingMockData && savedMockVersion < MOCK_DATA_VERSION) {
+      const refreshed = mockState()
+      saveState(refreshed)
+      return { state: refreshed, corrupted: false }
+    }
     // Schrijf gemigreerde data direct terug zodat oude localStorage-data
     // maar één keer gemigreerd hoeft te worden.
     if (parsed.schemaVersion !== SCHEMA_VERSION) saveState(migrated)
@@ -603,7 +627,10 @@ export function clearCorruptRawData() {
 // maar bewaart hem niet, zonder dat iemand dat merkt.
 export function saveState(state) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION }))
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION, mockDataVersion: MOCK_DATA_VERSION }),
+    )
     return true
   } catch (err) {
     console.error('Opslaan naar localStorage is mislukt:', err)
