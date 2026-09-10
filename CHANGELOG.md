@@ -3,6 +3,36 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-10
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: leeg canvas verholpen — lay-out liep vast op zijn eigen maatmeting** (Quinten)
+
+  Alle kaarten bleven op 0,0 staan omdat de ELK-lay-out nooit startte. Oorzaak
+  was een impasse tussen twee dingen die elkaar opheffen:
+
+  React Flow bouwt zijn interne node-administratie bij ELKE nieuwe nodes-array
+  opnieuw op uit de node-objecten zelf. Een gemeten breedte/hoogte die daar
+  alleen intern stond, verdween daardoor weer zodra ChainCanvas een nieuwe array
+  doorgaf — en dat deed het juist naar aanleiding van diezelfde meting. De
+  lay-out-effect las de maat uit die (net leeggemaakte) administratie, gaf het
+  op, en niets mat opnieuw: de afmeting van de kaart was immers niet veranderd,
+  dus de ResizeObserver zweeg. Alleen handleBounds overleeft die herbouw, dus
+  useNodesInitialized werd wél true — het effect stopte een stap later.
+
+  De maat komt nu uit de eigen `dims`-map (gevuld uit React Flow's eigen
+  dimensions-changes, en dus onafhankelijk van die herbouw), en wordt ook altijd
+  op de nodes teruggezet zodra hij bekend is, zodat React Flow zijn edges blijft
+  tekenen. handleBounds blijft uit de interne administratie komen. Een nog niet
+  gemeten node krijgt géén maat mee, zodat de eerste echte meting intact blijft;
+  een kaart die verdwijnt en terugkomt wordt hoe dan ook opnieuw gemeten, want
+  useUpdateNodeInternals (aangeroepen door beide node-componenten) forceert dat.
+
+  Geverifieerd door de meting handmatig te forceren zoals een zichtbaar tabblad
+  dat doet: vóór de fix bleven de afmetingen weg en stonden alle 7 kaarten op
+  0,0; erna houden ze hun maat, staat geen enkele kaart meer op 0,0 en tekenen
+  alle lijnen. Ook na focuswissel, kaartselectie en diepte 1 ↔ 3 (dat laatste
+  voegt eerder verwijderde kaarten opnieuw toe) blijft dat zo.
+
 - **Merge origin/main: ketenherontwerp en teampagina-lanes samengevoegd met de auditfixes** (Quinten)
 
   De andere sessie herschreef intussen het Ketenoverzicht (ELK-layout,
