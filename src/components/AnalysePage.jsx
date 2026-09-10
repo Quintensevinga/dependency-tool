@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
-import { analyseer, trendReeks, NIVEAUS } from '../lib/analytics'
+import { analyseer, trendReeks, NIVEAUS, LEEFTIJD_KLASSEN } from '../lib/analytics'
+import { signaalZin, constateringZin, bouwRapport, rapportAlsTekst } from '../lib/analyseTeksten'
 import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
 import {
@@ -49,6 +50,107 @@ const TEKST = {
     escalatiesN: '{{n}} escalaties',
     kindInput: 'Input',
     kindOutput: 'Output',
+    sRapport: 'Rapport',
+    sWaarschuwingen: 'Waarschuwingen',
+    rapportUitleg: 'Lopende tekst uit dezelfde cijfers: samenvatting, ontwikkeling, risico, teams, keten, applicaties, datakwaliteit en aanbevelingen. Volgt het teamfilter.',
+    rapportKopieer: 'Kopieer rapport',
+    rapportGekopieerd: 'Gekopieerd',
+    rapportTitel: 'Rapport dependencies',
+    waarschuwingenUitleg: 'Eén zin per geval, gesorteerd op ernst en zwaarte. Klik om het detail of de teampagina te openen.',
+    waarschuwingenGeen: 'Geen waarschuwingen.',
+    toonAlle: 'Toon alle {{n}}',
+    toonMinder: 'Toon minder',
+    navSpring: 'Spring naar',
+    cVerslechterd: 'In 30 dagen gestegen naar Hoog of Kritiek',
+    cTeruggevallen: 'Mitigatie hield geen stand',
+    cSluimerend: 'Sluimerend: hoog of kritiek, ouder dan een half jaar, zonder afspraak',
+    cGeaccepteerdHoog: 'Geparkeerd (geaccepteerd) maar Hoog of Kritiek',
+    cGemitigeerdNietGesloten: 'Al meer dan 90 dagen gemitigeerd maar niet afgesloten',
+    cHeropend: 'Heropend na sluiting',
+    cBacklogGroei: 'De voorraad groeit: meer nieuw dan gesloten',
+    cKetenRisicoHoog: 'Veel blokkerend of hoog risico bij directe toeleveranciers: {{teams}}',
+    cWederzijds: 'Wederzijdse afhankelijkheid tussen teams: {{paren}}',
+    cGedeeldeApp: 'Applicatie via de keten gekoppeld aan meerdere andere teams: {{apps}}',
+    cSlapendTeam: 'Al 60 dagen niets geregistreerd: {{teams}}',
+    cDubbeleRegistratie: 'Zelfde dependency door meer teams apart vastgelegd',
+    kVerandering: 'Verslechterd en verbeterd (30 dagen)',
+    uVerandering: 'Score van 30 dagen geleden (replay) tegenover nu; alleen dependencies die toen al bestonden.',
+    verslechterd: 'Verslechterd',
+    verbeterd: 'Verbeterd',
+    kProjectie: 'Projectie',
+    uProjectie: 'Lineaire doortrekking van de laatste 13 weken: gemiddeld nieuw en gesloten per week. Geen model, alleen tempo.',
+    pNieuwPerWeek: 'Nieuw per week',
+    pGeslotenPerWeek: 'Gesloten per week',
+    pNetto: 'Netto per week',
+    pOverHorizon: 'Open over 13 weken',
+    pWekenTotLeeg: 'Weken tot voorraad leeg',
+    kOvergangen: 'Statusovergangen',
+    uOvergangen: 'Alle statuswijzigingen uit de historie, van en naar. Daaronder: mitigaties die niet standhielden en heropeningen.',
+    van: 'Van',
+    naar: 'Naar',
+    teruggevallen: 'Mitigatie hield geen stand',
+    heropend: 'Heropend',
+    kLeeftijd: 'Leeftijdsverdeling',
+    uLeeftijd: 'Dagen sinds aanmaak van de open dependencies, in klassen; gemiddelde en mediaan per team.',
+    gemiddeld: 'Gem.',
+    mediaan: 'Mediaan',
+    totaal: 'Totaal',
+    kLevensloop: 'Sluimerend, geparkeerd en niet afgesloten',
+    uLevensloop: 'Sluimerend: bekend risico op Hoog of Kritiek, ouder dan 180 dagen, zonder afspraak. Geparkeerd: geaccepteerd maar Hoog of Kritiek. Niet afgesloten: langer dan 90 dagen gemitigeerd.',
+    sluimerend: 'Sluimerend',
+    geparkeerdHoog: 'Geparkeerd maar hoog',
+    nietAfgesloten: 'Gemitigeerd, niet afgesloten',
+    kScorekaart: 'Teamscorekaart',
+    uScorekaart: 'Alle teams naast elkaar, ongeacht het teamfilter; de onderste rij is het gemiddelde per team. Δ30 = verandering in open dependencies t.o.v. 30 dagen geleden.',
+    open: 'Open',
+    hoogPlus: 'Hoog+',
+    kritiekKort: 'Kritiek',
+    gemScoreKort: 'Gem. score',
+    verouderdPct: 'Verouderd',
+    afspraakPct: 'Met afspraak',
+    delta30: 'Δ30',
+    gesloten90: 'Gesloten 90d',
+    kennisScore: 'Kennis',
+    gemiddeldPerTeam: 'Gemiddeld per team',
+    kPareto: 'Concentratie (top 3)',
+    uPareto: 'Welk aandeel de drie grootste voor hun rekening nemen, en per team de grootste categorie.',
+    top3Partijen: 'Partijen',
+    top3Categorieen: 'Categorieën',
+    top3Teams: 'Teams',
+    topCategoriePerTeam: 'Grootste categorie per team',
+    vanTotaal: 'van {{n}}',
+    kKetenRisico: 'Ketenrisico stroomopwaarts en -afwaarts',
+    uKetenRisico: 'Via geaccepteerde koppelingen: van hoeveel teams een team input krijgt (direct en verder), hoeveel blokkerende en hoge dependencies die directe toeleveranciers (TL) open hebben, en hoeveel teams het zelf stroomafwaarts raakt. Bevestigd = eigen dependencies die zo’n toeleverancier als veroorzaker noemen.',
+    direct: 'Direct',
+    stroomop: 'Stroomop',
+    stroomaf: 'Stroomaf',
+    blokTL: 'Blokkerend bij TL',
+    hoogTL: 'Hoog+ bij TL',
+    bevestigd: 'Bevestigd',
+    kWederzijds: 'Wederzijdse afhankelijkheden',
+    uWederzijds: 'Teamparen die dependencies op elkaar hebben geregistreerd.',
+    geenWederzijds: 'Geen wederzijdse afhankelijkheden.',
+    kKaart: 'Kaartvolledigheid per team',
+    uKaart: 'Inputs verklaard (koppeling of partij), outputs afgenomen of extern, applicaties met ingevuld uitvalrisico, koppelingen met punten. Volledigheid = gemiddelde van die percentages.',
+    inputsVerklaard: 'Inputs verklaard',
+    outputsVerklaard: 'Outputs verklaard',
+    appsDetail: 'Apps met detail',
+    koppelingenPunten: 'Koppelingen met punten',
+    notities: 'Notities',
+    volledigheid: 'Volledigheid',
+    kGedeeld: 'Gedeelde applicaties',
+    uGedeeld: 'Applicaties die via een geaccepteerde ketenkoppeling (output met applicatie naar input met applicatie) aan andere teams hangen, met de eigen dependencies erop.',
+    andereTeams: 'Andere teams',
+    geenGedeeld: 'Geen applicaties met ketenkoppelingen naar andere teams.',
+    kSlapend: 'Laatste activiteit per team',
+    uSlapend: 'Laatste logregel per team; meer dan 60 dagen stil geldt als slapend.',
+    laatsteActiviteit: 'Laatste activiteit',
+    dagenStil: 'Dagen stil',
+    slapend: 'Slapend',
+    kDuplicaten: 'Dubbele registraties',
+    uDuplicaten: 'Groepen dependencies die door meer dan één team apart zijn vastgelegd (dedup-groep).',
+    geenDuplicaten: 'Geen dubbele registraties.',
+    nooit: 'nooit',
     // secties
     sOverzicht: 'Overzicht',
     sConstateringen: 'Constateringen',
@@ -293,6 +395,107 @@ const TEKST = {
     escalatiesN: '{{n}} escalations',
     kindInput: 'Input',
     kindOutput: 'Output',
+    sRapport: 'Report',
+    sWaarschuwingen: 'Warnings',
+    rapportUitleg: 'Running text from the same numbers: summary, development, risk, teams, chain, applications, data quality and recommendations. Follows the team filter.',
+    rapportKopieer: 'Copy report',
+    rapportGekopieerd: 'Copied',
+    rapportTitel: 'Dependency report',
+    waarschuwingenUitleg: 'One sentence per case, sorted by severity and weight. Click to open the detail or the team page.',
+    waarschuwingenGeen: 'No warnings.',
+    toonAlle: 'Show all {{n}}',
+    toonMinder: 'Show fewer',
+    navSpring: 'Jump to',
+    cVerslechterd: 'Rose to High or Critical in 30 days',
+    cTeruggevallen: 'Mitigation did not hold',
+    cSluimerend: 'Dormant: high or critical, older than six months, without agreement',
+    cGeaccepteerdHoog: 'Parked (accepted) but High or Critical',
+    cGemitigeerdNietGesloten: 'Mitigated for more than 90 days but not closed',
+    cHeropend: 'Reopened after closure',
+    cBacklogGroei: 'The backlog is growing: more new than closed',
+    cKetenRisicoHoog: 'Much blocking or high risk at direct suppliers: {{teams}}',
+    cWederzijds: 'Mutual dependency between teams: {{paren}}',
+    cGedeeldeApp: 'Application linked to several other teams via the chain: {{apps}}',
+    cSlapendTeam: 'Nothing registered for 60 days: {{teams}}',
+    cDubbeleRegistratie: 'Same dependency registered separately by several teams',
+    kVerandering: 'Worsened and improved (30 days)',
+    uVerandering: 'Score of 30 days ago (replay) against now; only dependencies that existed then.',
+    verslechterd: 'Worsened',
+    verbeterd: 'Improved',
+    kProjectie: 'Projection',
+    uProjectie: 'Linear extrapolation of the last 13 weeks: average new and closed per week. No model, only pace.',
+    pNieuwPerWeek: 'New per week',
+    pGeslotenPerWeek: 'Closed per week',
+    pNetto: 'Net per week',
+    pOverHorizon: 'Open in 13 weeks',
+    pWekenTotLeeg: 'Weeks until backlog empty',
+    kOvergangen: 'Status transitions',
+    uOvergangen: 'All status changes from the history, from and to. Below: mitigations that did not hold and reopenings.',
+    van: 'From',
+    naar: 'To',
+    teruggevallen: 'Mitigation did not hold',
+    heropend: 'Reopened',
+    kLeeftijd: 'Age distribution',
+    uLeeftijd: 'Days since creation of the open dependencies, in classes; average and median per team.',
+    gemiddeld: 'Avg.',
+    mediaan: 'Median',
+    totaal: 'Total',
+    kLevensloop: 'Dormant, parked and not closed',
+    uLevensloop: 'Dormant: known risk at High or Critical, older than 180 days, without agreement. Parked: accepted but High or Critical. Not closed: mitigated for more than 90 days.',
+    sluimerend: 'Dormant',
+    geparkeerdHoog: 'Parked but high',
+    nietAfgesloten: 'Mitigated, not closed',
+    kScorekaart: 'Team scorecard',
+    uScorekaart: 'All teams side by side, regardless of the team filter; the bottom row is the average per team. Δ30 = change in open dependencies vs. 30 days ago.',
+    open: 'Open',
+    hoogPlus: 'High+',
+    kritiekKort: 'Critical',
+    gemScoreKort: 'Avg. score',
+    verouderdPct: 'Stale',
+    afspraakPct: 'With agreement',
+    delta30: 'Δ30',
+    gesloten90: 'Closed 90d',
+    kennisScore: 'Knowledge',
+    gemiddeldPerTeam: 'Average per team',
+    kPareto: 'Concentration (top 3)',
+    uPareto: 'The share the three largest account for, and the largest category per team.',
+    top3Partijen: 'Parties',
+    top3Categorieen: 'Categories',
+    top3Teams: 'Teams',
+    topCategoriePerTeam: 'Largest category per team',
+    vanTotaal: 'of {{n}}',
+    kKetenRisico: 'Chain risk upstream and downstream',
+    uKetenRisico: 'Via accepted links: from how many teams a team receives input (direct and beyond), how many blocking and high dependencies those direct suppliers (S) have open, and how many teams it affects downstream itself. Confirmed = own dependencies naming such a supplier as the cause.',
+    direct: 'Direct',
+    stroomop: 'Upstream',
+    stroomaf: 'Downstream',
+    blokTL: 'Blocking at S',
+    hoogTL: 'High+ at S',
+    bevestigd: 'Confirmed',
+    kWederzijds: 'Mutual dependencies',
+    uWederzijds: 'Team pairs that registered dependencies on each other.',
+    geenWederzijds: 'No mutual dependencies.',
+    kKaart: 'Map completeness per team',
+    uKaart: 'Inputs explained (link or party), outputs consumed or external, applications with outage risk filled in, links with points. Completeness = average of those percentages.',
+    inputsVerklaard: 'Inputs explained',
+    outputsVerklaard: 'Outputs explained',
+    appsDetail: 'Apps with detail',
+    koppelingenPunten: 'Links with points',
+    notities: 'Notes',
+    volledigheid: 'Completeness',
+    kGedeeld: 'Shared applications',
+    uGedeeld: 'Applications that hang on other teams through an accepted chain link (output with application to input with application), with their own dependencies.',
+    andereTeams: 'Other teams',
+    geenGedeeld: 'No applications with chain links to other teams.',
+    kSlapend: 'Last activity per team',
+    uSlapend: 'Last log entry per team; more than 60 days quiet counts as dormant.',
+    laatsteActiviteit: 'Last activity',
+    dagenStil: 'Days quiet',
+    slapend: 'Dormant',
+    kDuplicaten: 'Duplicate registrations',
+    uDuplicaten: 'Groups of dependencies registered separately by more than one team (dedup group).',
+    geenDuplicaten: 'No duplicate registrations.',
+    nooit: 'never',
     sOverzicht: 'Overview',
     sConstateringen: 'Findings',
     sTrends: 'Trends',
@@ -518,9 +721,9 @@ function vul(sjabloon, vars) {
 
 // --- bouwstenen ---------------------------------------------------------
 
-function Sectie({ titel, children }) {
+function Sectie({ id, titel, children }) {
   return (
-    <section className="space-y-3">
+    <section id={id} className="scroll-mt-4 space-y-3">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">{titel}</h2>
       {children}
     </section>
@@ -761,6 +964,109 @@ function Uitklap({ label, aantal, children }) {
   )
 }
 
+const ERNST_LABEL = { hoog: 'ernstHoog', midden: 'ernstMidden', laag: 'ernstLaag' }
+
+function Waarschuwingen({ signalen, ctx, onSelect, onNavigateToTeam, tx }) {
+  const [alle, setAlle] = useState(false)
+  if (signalen.length === 0) return <p className="text-xs text-slate-400">{tx('waarschuwingenGeen')}</p>
+  const zichtbaar = alle ? signalen : signalen.slice(0, 25)
+  return (
+    <div>
+      <ul className="divide-y divide-slate-100">
+        {zichtbaar.map((s, i) => {
+          const dep = s.params?.dep
+          const teamId = s.params?.teamId ?? s.params?.teamIdA
+          const klik = dep ? () => onSelect(dep) : teamId ? () => onNavigateToTeam(teamId) : null
+          return (
+            <li key={`${s.key}:${dep?.id ?? teamId ?? i}`}>
+              <button type="button" disabled={!klik} onClick={klik ?? undefined} className="flex w-full items-start gap-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent">
+                <span className={`mt-px shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${ERNST_STIJL[s.ernst]}`}>{tx(ERNST_LABEL[s.ernst])}</span>
+                <span className="text-slate-700">{signaalZin(s, ctx)}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      {signalen.length > 25 && (
+        <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
+          {alle ? tx('toonMinder') : tx('toonAlle', { n: signalen.length })}
+        </button>
+      )}
+    </div>
+  )
+}
+
+function Rapport({ rapport, titel, tx }) {
+  const [gekopieerd, setGekopieerd] = useState(false)
+  const kopieer = async () => {
+    try {
+      await navigator.clipboard.writeText(rapportAlsTekst(rapport, titel))
+      setGekopieerd(true)
+      setTimeout(() => setGekopieerd(false), 2000)
+    } catch {
+      // Klembord niet beschikbaar (bv. zonder https): dan blijft de knop gewoon staan.
+    }
+  }
+  const laatste = rapport[rapport.length - 1]?.kop
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] leading-relaxed text-slate-400">{tx('rapportUitleg')}</p>
+        <button type="button" onClick={kopieer} className="shrink-0 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50">
+          {gekopieerd ? tx('rapportGekopieerd') : tx('rapportKopieer')}
+        </button>
+      </div>
+      <div className="mt-3 gap-8 lg:columns-2">
+        {rapport.map((s) => (
+          <div key={s.kop} className="mb-4 break-inside-avoid">
+            <h3 className="text-sm font-semibold text-slate-800">{s.kop}</h3>
+            {s.kop === laatste ? (
+              <ul className="mt-1 list-disc space-y-1 pl-4 text-[13px] leading-relaxed text-slate-700">
+                {s.zinnen.map((z) => (
+                  <li key={z}>{z}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-1 text-[13px] leading-relaxed text-slate-700">{s.zinnen.join(' ')}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+const SECTIES = [
+  ['an-overzicht', 'sOverzicht'],
+  ['an-rapport', 'sRapport'],
+  ['an-waarschuwingen', 'sWaarschuwingen'],
+  ['an-constateringen', 'sConstateringen'],
+  ['an-trends', 'sTrends'],
+  ['an-risico', 'sRisico'],
+  ['an-verdeling', 'sVerdeling'],
+  ['an-concentratie', 'sConcentratie'],
+  ['an-keten', 'sKeten'],
+  ['an-proces', 'sProces'],
+  ['an-flowverlies', 'sFlowverlies'],
+  ['an-doorloop', 'sDoorloop'],
+  ['an-kwaliteit', 'sKwaliteit'],
+  ['an-beheer', 'sBeheer'],
+]
+
+function SectieNav({ tx }) {
+  const spring = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  return (
+    <nav className="flex flex-wrap items-center gap-1.5 text-[11px]" aria-label={tx('navSpring')}>
+      <span className="mr-1 text-slate-400">{tx('navSpring')}</span>
+      {SECTIES.map(([id, key]) => (
+        <button key={id} type="button" onClick={() => spring(id)} className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-slate-600 hover:border-slate-400 hover:text-slate-800">
+          {tx(key)}
+        </button>
+      ))}
+    </nav>
+  )
+}
+
 // --- de pagina ------------------------------------------------------------
 
 export default function AnalysePage({ onSelect, onNavigateToTeam }) {
@@ -792,10 +1098,15 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
       apps: (c.apps ?? []).map((s) => `${s.app.naam} (${teamName(s.teamId)})`).join(', '),
       teams: (c.teams ?? []).map((id) => teamName(id)).join(', '),
       fasen: (c.fasen ?? []).map((s) => translateWorkflowStage(s, language)).join(', '),
+      paren: (c.paren ?? []).map((w) => `${teamName(w.a)} ↔ ${teamName(w.b)}`).join(', '),
     }
     return tx(key, vars)
   }
   const stageLabel = (s) => translateWorkflowStage(s, language)
+  const ctx = useMemo(() => ({ language, teamName }), [language, teamName])
+  const rapport = useMemo(() => bouwRapport(a, ctx), [a, ctx])
+  const constateringZinnen = useMemo(() => Object.fromEntries(a.constateringen.map((c) => [c.key, constateringZin(c, ctx)])), [a, ctx])
+  const rapportTitel = `${tx('rapportTitel')} · ${teamFilter ? teamName(teamFilter) : tx('alleTeams')}`
 
   return (
     <div className="space-y-8 pb-8">
@@ -829,7 +1140,9 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </div>
 
-      <Sectie titel={tx('sOverzicht')}>
+      <SectieNav tx={tx} />
+
+      <Sectie id="an-overzicht" titel={tx('sOverzicht')}>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <Tegel label={tx('tOpen')} waarde={a.open.length} delta={delta('open')} sub={tx('vsToen')} />
           <Tegel label={tx('tKritiek')} waarde={a.port.perNiveau.Kritiek} delta={delta('kritiek')} sub={tx('vsToen')} kleur={riskStyle('Kritiek').hex} />
@@ -846,7 +1159,17 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sConstateringen')}>
+      <Sectie id="an-rapport" titel={tx('sRapport')}>
+        <Rapport rapport={rapport} titel={rapportTitel} tx={tx} />
+      </Sectie>
+
+      <Sectie id="an-waarschuwingen" titel={tx('sWaarschuwingen')}>
+        <Kaart titel={`${tx('sWaarschuwingen')} · ${a.signalen.length}`} uitleg={tx('waarschuwingenUitleg')}>
+          <Waarschuwingen signalen={a.signalen} ctx={ctx} onSelect={onSelect} onNavigateToTeam={onNavigateToTeam} tx={tx} />
+        </Kaart>
+      </Sectie>
+
+      <Sectie id="an-constateringen" titel={tx('sConstateringen')}>
         <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           {a.constateringen.length === 0 ? (
             <p className="text-xs text-slate-400">{tx('cGeen')}</p>
@@ -857,9 +1180,13 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                   <details>
                     <summary className="flex cursor-pointer items-center gap-2 text-xs">
                       <span className="rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase">{tx(`ernst${c.ernst.charAt(0).toUpperCase()}${c.ernst.slice(1)}`)}</span>
-                      <span className="min-w-0 flex-1">{constateringTekst(c)}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block">{constateringTekst(c)}</span>
+                        {constateringZinnen[c.key] && <span className="mt-0.5 block text-[11px] font-normal leading-relaxed opacity-80">{constateringZinnen[c.key]}</span>}
+                      </span>
                       <span className="shrink-0 rounded bg-white/70 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums">{c.aantal}</span>
                     </summary>
+                    {c.key !== 'backlogGroei' && (
                     <div className="mt-2 rounded-md bg-white p-2">
                       {c.records[0]?.titel !== undefined ? (
                         <DepLijst deps={c.records} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} />
@@ -893,6 +1220,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                         </ul>
                       )}
                     </div>
+                    )}
                   </details>
                 </li>
               ))}
@@ -901,7 +1229,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sTrends')}>
+      <Sectie id="an-trends" titel={tx('sTrends')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kOpenStatus')} uitleg={tx('uOpenStatus')}>
             <Lijnen
@@ -924,10 +1252,63 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
           <Kaart titel={tx('kScore')} uitleg={tx('uScore')}>
             <Lijnen punten={trend} reeksen={[{ label: tx('kScore'), kleur: '#7a5c8a', waarden: trend.map((p) => p.scoreSom) }]} />
           </Kaart>
+          <Kaart titel={tx('kVerandering')} uitleg={tx('uVerandering')}>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  {tx('verslechterd')} · {a.verandering.verslechterd.length}
+                </div>
+                <DepLijst deps={a.verandering.verslechterd.map((r) => r.dep)} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} extra={(d) => { const r = a.verandering.verslechterd.find((x) => x.dep.id === d.id); return `${r.van} → ${r.naar}` }} />
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  {tx('verbeterd')} · {a.verandering.verbeterd.length}
+                </div>
+                <DepLijst deps={a.verandering.verbeterd.map((r) => r.dep)} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} extra={(d) => { const r = a.verandering.verbeterd.find((x) => x.dep.id === d.id); return `${r.van} → ${r.naar}` }} />
+              </div>
+            </div>
+          </Kaart>
+          <Kaart titel={tx('kProjectie')} uitleg={tx('uProjectie')}>
+            {a.proj ? (
+              <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                <Tegel label={tx('pNieuwPerWeek')} waarde={a.proj.nieuwPerWeek} />
+                <Tegel label={tx('pGeslotenPerWeek')} waarde={a.proj.geslotenPerWeek} />
+                <Tegel label={tx('pNetto')} waarde={a.proj.nettoPerWeek > 0 ? `+${a.proj.nettoPerWeek}` : a.proj.nettoPerWeek} kleur={a.proj.nettoPerWeek > 0 ? '#c1552c' : undefined} />
+                <Tegel label={tx('pOverHorizon')} waarde={a.proj.openOverHorizon} sub={`${tx('open')}: ${a.proj.openNu}`} />
+                <Tegel label={tx('pWekenTotLeeg')} waarde={a.proj.wekenTotLeeg ?? '—'} />
+              </div>
+            ) : (
+              <p className="text-xs text-slate-400">{tx('geenData')}</p>
+            )}
+          </Kaart>
+          <Kaart titel={tx('kOvergangen')} uitleg={tx('uOvergangen')} breed>
+            <div className="grid gap-3 md:grid-cols-3">
+              <Tabel
+                kolommen={[
+                  { key: 'van', label: tx('van') },
+                  { key: 'naar', label: tx('naar') },
+                  { key: 'aantal', label: tx('aantal'), rechts: true },
+                ]}
+                rijen={a.overgangen.matrix.map((r) => ({ key: `${r.van}>${r.naar}`, van: translateStatus(r.van, language), naar: translateStatus(r.naar, language), aantal: r.aantal }))}
+              />
+              <div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  {tx('teruggevallen')} · {a.overgangen.teruggevallen.length}
+                </div>
+                <DepLijst deps={a.overgangen.teruggevallen.map((r) => r.dep)} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={5} extra={(d) => a.overgangen.teruggevallen.find((r) => r.dep.id === d.id)?.datum} />
+              </div>
+              <div>
+                <div className="mb-1 text-xs font-semibold text-slate-700">
+                  {tx('heropend')} · {a.overgangen.heropend.length}
+                </div>
+                <DepLijst deps={a.overgangen.heropend.map((r) => r.dep)} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={5} extra={(d) => a.overgangen.heropend.find((r) => r.dep.id === d.id)?.datum} />
+              </div>
+            </div>
+          </Kaart>
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sRisico')}>
+      <Sectie id="an-risico" titel={tx('sRisico')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kKwadranten')} uitleg={tx('uKwadranten')} breed>
             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
@@ -998,10 +1379,37 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
           <Kaart titel={tx('kTop')} uitleg={tx('uTop')}>
             <DepLijst deps={a.port.top} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={15} extra={(d) => calculateRisk(d).score} />
           </Kaart>
+          <Kaart titel={tx('kLeeftijd')} uitleg={tx('uLeeftijd')}>
+            <Tabel
+              kolommen={[
+                { key: 'team', label: tx('team') },
+                ...LEEFTIJD_KLASSEN.map((k) => ({ key: k.key, label: k.key, rechts: true })),
+                { key: 'gem', label: tx('gemiddeld'), rechts: true },
+                { key: 'med', label: tx('mediaan'), rechts: true },
+              ]}
+              rijen={[
+                ...a.leeftijd.perTeam.filter((r) => r.aantal > 0).map((r) => ({ key: r.teamId, team: teamName(r.teamId), ...r.klassen, gem: r.gemiddeld ?? '—', med: r.mediaan ?? '—', onClick: () => onNavigateToTeam(r.teamId) })),
+                { key: 'totaal', team: <b>{tx('totaal')}</b>, ...a.leeftijd.totaal.klassen, gem: a.leeftijd.totaal.gemiddeld ?? '—', med: a.leeftijd.totaal.mediaan ?? '—' },
+              ]}
+            />
+          </Kaart>
+          <Kaart titel={tx('kLevensloop')} uitleg={tx('uLevensloop')}>
+            <div className="space-y-2">
+              <Uitklap label={tx('sluimerend')} aantal={a.port.sluimerend.length}>
+                <DepLijst deps={a.port.sluimerend} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} />
+              </Uitklap>
+              <Uitklap label={tx('geparkeerdHoog')} aantal={a.port.geaccepteerdHoog.length}>
+                <DepLijst deps={a.port.geaccepteerdHoog} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} />
+              </Uitklap>
+              <Uitklap label={tx('nietAfgesloten')} aantal={a.port.gemitigeerdNietGesloten.length}>
+                <DepLijst deps={a.port.gemitigeerdNietGesloten.map((r) => r.dep)} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} extra={(d) => tx('dagen', { n: a.port.gemitigeerdNietGesloten.find((r) => r.dep.id === d.id)?.dagen ?? 0 })} />
+              </Uitklap>
+            </div>
+          </Kaart>
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sVerdeling')}>
+      <Sectie id="an-verdeling" titel={tx('sVerdeling')}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Kaart titel={tx('kNiveau')} uitleg={tx('uVerdeling')}>
             <Balken rijen={NIVEAUS.map((n) => ({ label: translateRiskLevel(n, language), waarde: a.port.perNiveau[n], kleur: riskStyle(n).hex }))} />
@@ -1046,7 +1454,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sConcentratie')}>
+      <Sectie id="an-concentratie" titel={tx('sConcentratie')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kPartijen')} uitleg={tx('uPartijen')} breed>
             <Tabel
@@ -1132,10 +1540,97 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
               }))}
             />
           </Kaart>
+          <Kaart titel={tx('kScorekaart')} uitleg={tx('uScorekaart')} breed>
+            <Tabel
+              kolommen={[
+                { key: 'team', label: tx('team') },
+                { key: 'open', label: tx('open'), rechts: true },
+                { key: 'delta30', label: tx('delta30'), rechts: true },
+                { key: 'hoogPlus', label: tx('hoogPlus'), rechts: true },
+                { key: 'kritiek', label: tx('kritiekKort'), rechts: true },
+                { key: 'blokkerend', label: tx('blokkerend'), rechts: true },
+                { key: 'gemScore', label: tx('gemScoreKort'), rechts: true },
+                { key: 'verouderdPct', label: tx('verouderdPct'), rechts: true },
+                { key: 'afspraakPct', label: tx('afspraakPct'), rechts: true },
+                { key: 'flowverlies', label: tx('flowverlies'), rechts: true },
+                { key: 'gesloten90', label: tx('gesloten90'), rechts: true },
+                { key: 'kennisScore', label: tx('kennisScore'), rechts: true },
+              ]}
+              rijen={[
+                ...a.scorekaart.rijen.map((r) => ({
+                  key: r.teamId,
+                  team: r.teamId === teamFilter ? <b>{teamName(r.teamId)}</b> : teamName(r.teamId),
+                  open: r.open,
+                  delta30: r.delta30 > 0 ? `+${r.delta30}` : r.delta30,
+                  hoogPlus: r.hoogPlus,
+                  kritiek: r.kritiek,
+                  blokkerend: r.blokkerend,
+                  gemScore: r.gemScore ?? '—',
+                  verouderdPct: r.verouderdPct === null ? '—' : `${r.verouderdPct}%`,
+                  afspraakPct: r.afspraakPct === null ? '—' : `${r.afspraakPct}%`,
+                  flowverlies: r.flowverlies,
+                  gesloten90: r.gesloten90,
+                  kennisScore: r.kennisScore,
+                  onClick: () => onNavigateToTeam(r.teamId),
+                })),
+                {
+                  key: 'gemiddeld',
+                  team: <span className="text-slate-400">{tx('gemiddeldPerTeam')}</span>,
+                  open: a.scorekaart.gemiddeld.open ?? '—',
+                  delta30: a.scorekaart.gemiddeld.delta30 ?? '—',
+                  hoogPlus: a.scorekaart.gemiddeld.hoogPlus ?? '—',
+                  kritiek: a.scorekaart.gemiddeld.kritiek ?? '—',
+                  blokkerend: a.scorekaart.gemiddeld.blokkerend ?? '—',
+                  gemScore: a.scorekaart.gemiddeld.gemScore ?? '—',
+                  verouderdPct: a.scorekaart.gemiddeld.verouderdPct === null ? '—' : `${a.scorekaart.gemiddeld.verouderdPct}%`,
+                  afspraakPct: a.scorekaart.gemiddeld.afspraakPct === null ? '—' : `${a.scorekaart.gemiddeld.afspraakPct}%`,
+                  flowverlies: a.scorekaart.gemiddeld.flowverlies ?? '—',
+                  gesloten90: a.scorekaart.gemiddeld.gesloten90 ?? '—',
+                  kennisScore: a.scorekaart.gemiddeld.kennisScore ?? '—',
+                },
+              ]}
+            />
+          </Kaart>
+          <Kaart titel={tx('kPareto')} uitleg={tx('uPareto')} breed>
+            <div className="grid gap-3 md:grid-cols-4">
+              {[
+                ['top3Partijen', a.concentratie.partijen, (naam) => naam],
+                ['top3Categorieen', a.concentratie.categorieen, (naam) => translateCategorie(naam, language)],
+                ['top3Teams', a.concentratie.teams, (naam) => teamName(naam)],
+              ].map(([label, c, naam]) => (
+                <div key={label} className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-xs font-semibold text-slate-700">{tx(label)}</span>
+                    <span className="text-lg font-semibold tabular-nums text-slate-800">{c.aandeel}%</span>
+                  </div>
+                  <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                    {c.top.map((r) => (
+                      <li key={r.naam} className="flex justify-between gap-2">
+                        <span className="truncate">{naam(r.naam)}</span>
+                        <span className="tabular-nums">{r.aantal}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-1 text-[10px] text-slate-400">{tx('vanTotaal', { n: c.totaal })}</div>
+                </div>
+              ))}
+              <div className="rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
+                <div className="text-xs font-semibold text-slate-700">{tx('topCategoriePerTeam')}</div>
+                <ul className="mt-1 space-y-0.5 text-xs text-slate-600">
+                  {a.concentratie.perTeamTopCategorie.filter((r) => r.categorie).map((r) => (
+                    <li key={r.teamId} className="flex justify-between gap-2">
+                      <span className="truncate">{teamName(r.teamId)} · {translateCategorie(r.categorie, language)}</span>
+                      <span className="shrink-0 tabular-nums">{r.aandeel}%</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </Kaart>
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sKeten')}>
+      <Sectie id="an-keten" titel={tx('sKeten')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kKetenTeams')} uitleg={tx('uKetenTeams')}>
             <Tabel
@@ -1247,10 +1742,61 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
               }))}
             />
           </Kaart>
+          <Kaart titel={tx('kKetenRisico')} uitleg={tx('uKetenRisico')} breed>
+            <Tabel
+              kolommen={[
+                { key: 'team', label: tx('team') },
+                { key: 'direct', label: tx('direct'), rechts: true },
+                { key: 'stroomop', label: tx('stroomop'), rechts: true },
+                { key: 'stroomaf', label: tx('stroomaf'), rechts: true },
+                { key: 'blok', label: tx('blokTL'), rechts: true },
+                { key: 'hoog', label: tx('hoogTL'), rechts: true },
+                { key: 'bevestigd', label: tx('bevestigd'), rechts: true },
+              ]}
+              rijen={a.ketenrisico.map((r) => ({ key: r.teamId, team: teamName(r.teamId), direct: r.direct, stroomop: r.stroomopwaarts, stroomaf: r.stroomafwaarts, blok: r.directBlokkerend, hoog: r.directHoog, bevestigd: r.bevestigd, onClick: () => onNavigateToTeam(r.teamId) }))}
+            />
+          </Kaart>
+          <Kaart titel={tx('kWederzijds')} uitleg={tx('uWederzijds')}>
+            {a.wederzijds.length === 0 ? (
+              <p className="text-xs text-slate-400">{tx('geenWederzijds')}</p>
+            ) : (
+              <div className="space-y-2">
+                {a.wederzijds.map((w) => (
+                  <Uitklap key={`${w.a}|${w.b}`} label={`${teamName(w.a)} ↔ ${teamName(w.b)} · ${w.aNaarB} / ${w.bNaarA}`} aantal={w.deps.length}>
+                    <DepLijst deps={w.deps} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} />
+                  </Uitklap>
+                ))}
+              </div>
+            )}
+          </Kaart>
+          <Kaart titel={tx('kKaart')} uitleg={tx('uKaart')}>
+            <Tabel
+              kolommen={[
+                { key: 'team', label: tx('team') },
+                { key: 'inputs', label: tx('inputsVerklaard'), rechts: true },
+                { key: 'outputs', label: tx('outputsVerklaard'), rechts: true },
+                { key: 'apps', label: tx('appsDetail'), rechts: true },
+                { key: 'punten', label: tx('koppelingenPunten'), rechts: true },
+                { key: 'notities', label: tx('notities'), rechts: true },
+                { key: 'volledigheid', label: tx('volledigheid'), rechts: true },
+              ]}
+              rijen={a.kaart.map((r) => ({
+                key: r.teamId,
+                team: teamName(r.teamId),
+                inputs: `${r.inGekoppeld + r.inExtern}/${r.inputs}`,
+                outputs: `${r.uitAfgenomen + r.uitExtern}/${r.outputs}`,
+                apps: `${r.appsMetDetail}/${r.apps}`,
+                punten: `${r.metPunten}/${r.koppelingen}`,
+                notities: r.notities,
+                volledigheid: r.volledigheid === null ? '—' : `${r.volledigheid}%`,
+                onClick: () => onNavigateToTeam(r.teamId),
+              }))}
+            />
+          </Kaart>
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sProces')}>
+      <Sectie id="an-proces" titel={tx('sProces')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kWerkstappen')} uitleg={tx('uWerkstappen')}>
             <Tabel
@@ -1287,10 +1833,23 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
               ))}
             </div>
           </Kaart>
+          <Kaart titel={tx('kGedeeld')} uitleg={tx('uGedeeld')} breed>
+            <Tabel
+              kolommen={[
+                { key: 'team', label: tx('team') },
+                { key: 'app', label: tx('applicatie') },
+                { key: 'uitval', label: tx('uitval') },
+                { key: 'deps', label: tx('deps'), rechts: true },
+                { key: 'teams', label: tx('andereTeams') },
+              ]}
+              rijen={a.gedeeld.map((g) => ({ key: `${g.teamId}:${g.app.id}`, team: teamName(g.teamId), app: g.app.naam || '—', uitval: g.risico ? '●' : '○', deps: g.deps.length, teams: g.andereTeams.map((id) => teamName(id)).join(', '), onClick: () => onSelect(g.deps[0]) }))}
+              leeg={tx('geenGedeeld')}
+            />
+          </Kaart>
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sFlowverlies')}>
+      <Sectie id="an-flowverlies" titel={tx('sFlowverlies')}>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           <Kaart titel={tx('kFlowTeam')} uitleg={tx('uFlow')}>
             <Balken rijen={a.flowverlies.perTeam.map((r) => ({ label: teamName(r.teamId), waarde: r.som, tekst: `${r.som}${r.onvolledig ? ` (${r.onvolledig} ${tx('onvolledig')})` : ''}`, kleur: WARM }))} />
@@ -1304,7 +1863,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sDoorloop')}>
+      <Sectie id="an-doorloop" titel={tx('sDoorloop')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kDoorloop')} uitleg={tx('uDoorloop')} breed>
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
@@ -1364,7 +1923,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sKwaliteit')}>
+      <Sectie id="an-kwaliteit" titel={tx('sKwaliteit')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kChecks')} uitleg={tx('uChecks')}>
             <div className="space-y-2">
@@ -1405,7 +1964,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
         </div>
       </Sectie>
 
-      <Sectie titel={tx('sBeheer')}>
+      <Sectie id="an-beheer" titel={tx('sBeheer')}>
         <div className="grid gap-3 lg:grid-cols-2">
           <Kaart titel={tx('kRegistratie')} uitleg={tx('uRegistratie')}>
             <Staven
@@ -1448,6 +2007,30 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
               rijen={a.registratie.openReview.map((c) => ({ key: c.id, team: teamName(c.teamId), titel: c.titel, leeftijd: c.leeftijd }))}
               leeg={tx('geenData')}
             />
+          </Kaart>
+          <Kaart titel={tx('kSlapend')} uitleg={tx('uSlapend')}>
+            <Tabel
+              kolommen={[
+                { key: 'team', label: tx('team') },
+                { key: 'laatste', label: tx('laatsteActiviteit') },
+                { key: 'dagen', label: tx('dagenStil'), rechts: true },
+                { key: 'slapend', label: tx('slapend') },
+              ]}
+              rijen={a.slapend.map((r) => ({ key: r.teamId, team: teamName(r.teamId), laatste: r.laatste ?? tx('nooit'), dagen: r.dagenStil ?? '—', slapend: r.slapend ? '●' : '○', onClick: () => onNavigateToTeam(r.teamId) }))}
+            />
+          </Kaart>
+          <Kaart titel={tx('kDuplicaten')} uitleg={tx('uDuplicaten')}>
+            {a.duplicaten.length === 0 ? (
+              <p className="text-xs text-slate-400">{tx('geenDuplicaten')}</p>
+            ) : (
+              <div className="space-y-2">
+                {a.duplicaten.map((g) => (
+                  <Uitklap key={g.groep} label={g.deps[0].titel} aantal={g.deps.length}>
+                    <DepLijst deps={g.deps} onSelect={onSelect} teamName={teamName} language={language} tx={tx} max={6} />
+                  </Uitklap>
+                ))}
+              </div>
+            )}
           </Kaart>
         </div>
       </Sectie>

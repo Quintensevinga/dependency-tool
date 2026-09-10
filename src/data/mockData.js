@@ -704,6 +704,10 @@ function historieVoor(raw) {
     }
     const hogerImpact = hoger(IMPACT_VOLGORDE, impact)
     if (hogerImpact && h % 4 === 0) events.push({ dagen: laatste, veld: 'impact', van: hogerImpact, naar: impact })
+  } else if (status === 'actief blokkerend' && span > 90 && h % 7 === 0) {
+    // Mitigatie die geen stand hield: eerst gemitigeerd, daarna toch blokkerend.
+    events.push({ dagen: tussen(0.3), veld: 'status', van: 'bekend risico', naar: 'gemitigeerd' })
+    events.push({ dagen: laatste, veld: 'status', van: 'gemitigeerd', naar: 'actief blokkerend' })
   } else if (status === 'actief blokkerend') {
     events.push({ dagen: laatste, veld: 'status', van: 'bekend risico', naar: 'actief blokkerend' })
     const lagerImpact = lager(IMPACT_VOLGORDE, impact)
@@ -731,15 +735,21 @@ function afgehandeld(fields) {
 }
 
 function finalize(raw) {
-  const { aangemaakt = 180, bijgewerkt = 30, gesloten = null, historie, ...rest } = raw
-  const events = (historie ?? historieVoor(raw))
-    .map((e) => ({
-      datum: dagenGeleden(e.dagen),
-      veld: e.veld,
-      van: e.van ?? null,
-      naar: e.veld === 'gesloten' && e.naar === true ? dagenGeleden(e.dagen) : (e.naar ?? null),
-    }))
-    .sort((a, b) => a.datum.localeCompare(b.datum))
+  const { aangemaakt = 180, bijgewerkt = 30, gesloten = null, heropend = null, historie, ...rest } = raw
+  const events = (historie ?? historieVoor(raw)).map((e) => ({
+    datum: dagenGeleden(e.dagen),
+    veld: e.veld,
+    van: e.van ?? null,
+    naar: e.veld === 'gesloten' && e.naar === true ? dagenGeleden(e.dagen) : (e.naar ?? null),
+  }))
+  // Eerder afgesloten en later heropend: twee 'gesloten'-events, zoals de
+  // app ze zelf schrijft (naar = sluitdatum, daarna van = sluitdatum, naar = null).
+  if (heropend) {
+    const sluitDatum = dagenGeleden(heropend.gesloten)
+    events.push({ datum: sluitDatum, veld: 'gesloten', van: null, naar: sluitDatum })
+    events.push({ datum: dagenGeleden(heropend.heropend), veld: 'gesloten', van: sluitDatum, naar: null })
+  }
+  events.sort((a, b) => a.datum.localeCompare(b.datum))
   return {
     ...DEP_DEFAULTS,
     ...rest,
@@ -762,7 +772,7 @@ const DEPS_TIEM = [
     workflowStap: 'ontwikkeling_configuratie', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
     actieAfspraak: 'Pair programming op alle koppelingswijzigingen; kennisdocument in Q4.',
-    aangemaakt: 380, bijgewerkt: 25,
+    aangemaakt: 380, bijgewerkt: 25, heropend: { gesloten: 150, heropend: 40 },
   },
   {
     id: 'ti-dep-02', teamId: T.tiem, categorie: 'Proces-/workflow-afhankelijkheid',
@@ -1128,7 +1138,7 @@ const DEPS_POLIS = [
     flowtype: 'applicatieflow', applicatieIds: ['po-app-klantportaal'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
     mitigatie: 'Synchronisatie van dagelijks naar elk uur gezet.',
-    aangemaakt: 330, bijgewerkt: 60,
+    aangemaakt: 330, bijgewerkt: 60, heropend: { gesloten: 200, heropend: 70 },
   },
   {
     id: 'po-dep-17', teamId: T.polis, categorie: 'Proces-/workflow-afhankelijkheid',
@@ -2926,6 +2936,9 @@ function afgeleideLog(rawDeps, reviewIds) {
     const events = raw.historie ?? historieVoor(raw)
     if ((raw.aangemaakt ?? 180) <= 60 && !reviewIds.has(raw.id)) {
       entries.push({ id: `log-${raw.id}-aangemaakt`, timestamp: tijdstipGeleden(raw.aangemaakt, uur), teamId: raw.teamId, type: 'dependency_created', dependencyId: raw.id, titel: raw.titel, duplicateOfId: null, status: 'approved' })
+    }
+    if (raw.heropend && raw.heropend.heropend <= 120) {
+      entries.push({ id: `log-${raw.id}-heropend`, timestamp: tijdstipGeleden(raw.heropend.heropend, uur), teamId: raw.teamId, type: 'dependency_reopened', dependencyId: raw.id, titel: raw.titel })
     }
     for (const e of events) {
       if (e.dagen > 120) continue

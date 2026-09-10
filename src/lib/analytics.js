@@ -222,8 +222,26 @@ export function portfolio(open, { vandaag = new Date() } = {}) {
     deadlines: open
       .filter((d) => DEADLINE_TEKST_VERPLICHT.includes(d.deadline))
       .sort((a, b) => (a.deadline === 'harde_deadline' ? -1 : 1) - (b.deadline === 'harde_deadline' ? -1 : 1)),
+    // Sluimerend: bekend risico op Hoog/Kritiek, ouder dan een half jaar, zonder afspraak.
+    sluimerend: risks
+      .filter(({ dep, risk }) => dep.status === 'bekend risico' && riskLevelRank(risk.level) >= riskLevelRank('Hoog') && dep.aangemaakt_op && dagenTussen(dep.aangemaakt_op, nu) > 180 && !dep.actieAfspraak?.trim())
+      .map((r) => r.dep),
+    geaccepteerdHoog: risks.filter(({ dep, risk }) => dep.geaccepteerd && riskLevelRank(risk.level) >= riskLevelRank('Hoog')).map((r) => r.dep),
+    // Gemitigeerd maar na 90 dagen nog niet afgesloten (datum uit de historie).
+    gemitigeerdNietGesloten: open
+      .filter((d) => d.status === 'gemitigeerd')
+      .map((d) => ({ dep: d, datum: mitigatieDatum(d) }))
+      .filter((r) => r.datum && dagenTussen(r.datum, nu) > 90)
+      .map((r) => ({ dep: r.dep, dagen: dagenTussen(r.datum, nu) }))
+      .sort((a, b) => b.dagen - a.dagen),
     top: risks.sort((a, b) => b.risk.score - a.risk.score).slice(0, 15).map((r) => r.dep),
   }
+}
+
+// Laatste statuswijziging naar gemitigeerd, of null.
+function mitigatieDatum(dep) {
+  const events = (dep.historie ?? []).filter((e) => e.veld === 'status' && e.naar === 'gemitigeerd')
+  return events.length > 0 ? events[events.length - 1].datum : null
 }
 
 // Score per rij over twee assen (team × categorie), met per cel het aantal
@@ -625,12 +643,419 @@ export function registratieGedrag(changeLog, teams, { weken = 12, vandaag = new 
 }
 
 // ---------------------------------------------------------------------------
+// Ontwikkeling: score-verandering, leeftijd, statusovergangen, projectie
+// ---------------------------------------------------------------------------
+
+// Per open dependency de risicoscore van N dagen geleden tegenover nu
+// (replay via stateAt); alleen dependencies die toen al bestonden.
+export function scoreVerandering(alle, { dagen = 30, vandaag = new Date() } = {}) {
+  const toen = dagenGeledenIso(dagen, vandaag)
+  const rijen = []
+  for (const dep of alle) {
+    if (dep.gesloten_op) continue
+    const vorige = stateAt(dep, toen)
+    if (!vorige) continue
+    const van = calculateRisk(vorige)
+    const naar = calculateRisk(dep)
+    if (van.score === naar.score) continue
+    rijen.push({ dep, van: van.score, naar: naar.score, vanNiveau: van.level, naarNiveau: naar.level, delta: naar.score - van.score })
+  }
+  return {
+    dagen,
+    verslechterd: rijen.filter((r) => r.delta > 0).sort((a, b) => b.delta - a.delta || b.naar - a.naar),
+    verbeterd: rijen.filter((r) => r.delta < 0).sort((a, b) => a.delta - b.delta || b.van - a.van),
+  }
+}
+
+export const LEEFTIJD_KLASSEN = [
+  { key: '0-30', tot: 30 },
+  { key: '31-90', tot: 90 },
+  { key: '91-180', tot: 180 },
+  { key: '181-365', tot: 365 },
+  { key: '>365', tot: Infinity },
+]
+
+// Dagen sinds aanmaak van de open dependencies, in klassen, totaal en per team.
+export function leeftijdsverdeling(open, teams, { vandaag = new Date() } = {}) {
+  const nu = isoDag(vandaag)
+  const leeftijd = (d) => (d.aangemaakt_op ? dagenTussen(d.aangemaakt_op, nu) : null)
+  const rij = (deps) => {
+    const klassen = Object.fromEntries(LEEFTIJD_KLASSEN.map((k) => [k.key, 0]))
+    let onbekend = 0
+    for (const d of deps) {
+      const n = leeftijd(d)
+      if (n === null) onbekend += 1
+      else klassen[LEEFTIJD_KLASSEN.find((k) => n <= k.tot).key] += 1
+    }
+    const lijst = deps.map(leeftijd)
+    return { aantal: deps.length, klassen, onbekend, gemiddeld: gemiddelde(lijst), mediaan: mediaan(lijst) }
+  }
+  return { totaal: rij(open), perTeam: teams.map((tm) => ({ teamId: tm.id, ...rij(open.filter((d) => d.teamId === tm.id)) })) }
+}
+
+// Statusovergangen uit de historie: van→naar geteld, mitigaties die niet
+// standhielden (gemitigeerd → weer open, en nu nog niet gemitigeerd) en
+// heropeningen na sluiting.
+export function statusOvergangen(alle) {
+  const matrix = new Map()
+  const teruggevallen = []
+  const heropend = []
+  for (const dep of alle) {
+    for (const e of dep.historie ?? []) {
+      if (e.veld === 'status' && e.van && e.naar) {
+        const key = `${e.van}→${e.naar}`
+        matrix.set(key, (matrix.get(key) ?? 0) + 1)
+        if (e.van === 'gemitigeerd' && !dep.gesloten_op && dep.status !== 'gemitigeerd') teruggevallen.push({ dep, datum: e.datum, naar: e.naar })
+      }
+      if (e.veld === 'gesloten' && e.van && !e.naar) heropend.push({ dep, datum: e.datum })
+    }
+  }
+  const laatstePerDep = (rijen) => {
+    const gezien = new Set()
+    return rijen
+      .sort((a, b) => b.datum.localeCompare(a.datum))
+      .filter((r) => {
+        if (gezien.has(r.dep.id)) return false
+        gezien.add(r.dep.id)
+        return true
+      })
+  }
+  return {
+    matrix: [...matrix]
+      .map(([k, aantal]) => {
+        const [van, naar] = k.split('→')
+        return { van, naar, aantal }
+      })
+      .sort((a, b) => b.aantal - a.aantal),
+    teruggevallen: laatstePerDep(teruggevallen),
+    heropend: laatstePerDep(heropend),
+  }
+}
+
+// Lineaire doortrekking van de laatste N weken: gemiddeld nieuw en gesloten
+// per week, en wat dat over de horizon betekent. Geen model, alleen tempo.
+export function projectie(trend, { weken = 13, horizon = 13 } = {}) {
+  const recent = trend.slice(-weken)
+  if (recent.length === 0) return null
+  const som = (k) => recent.reduce((s, p) => s + p[k], 0)
+  const nieuwPerWeek = som('nieuw') / recent.length
+  const geslotenPerWeek = som('gesloten') / recent.length
+  const netto = nieuwPerWeek - geslotenPerWeek
+  const openNu = trend[trend.length - 1].open
+  const r1 = (n) => Math.round(n * 10) / 10
+  return {
+    weken,
+    horizon,
+    nieuwPerWeek: r1(nieuwPerWeek),
+    geslotenPerWeek: r1(geslotenPerWeek),
+    nettoPerWeek: r1(netto),
+    openNu,
+    openOverHorizon: Math.max(0, Math.round(openNu + netto * horizon)),
+    wekenTotLeeg: geslotenPerWeek > 0 ? Math.round(openNu / geslotenPerWeek) : null,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Keten: stroomopwaarts risico, wederzijdse afhankelijkheid, kaartvolledigheid
+// ---------------------------------------------------------------------------
+
+// BFS over teamniveau; geeft Map teamId → afstand (start zelf uitgesloten).
+function bereik(start, buren) {
+  const afstand = new Map()
+  const queue = [[start, 0]]
+  while (queue.length > 0) {
+    const [node, d] = queue.shift()
+    for (const next of buren.get(node) ?? []) {
+      if (next === start || afstand.has(next)) continue
+      afstand.set(next, d + 1)
+      queue.push([next, d + 1])
+    }
+  }
+  return afstand
+}
+
+// Wat komt er via geaccepteerde koppelingen van stroomopwaarts binnen: hoeveel
+// teams leveren (direct en verder), hoeveel blokkerende en hoge dependencies
+// die directe toeleveranciers open hebben, en hoeveel teams een team zelf
+// stroomafwaarts raakt. `bevestigd` = eigen dependencies die een
+// stroomopwaarts team als veroorzaker noemen (kaart en praktijk stemmen overeen).
+export function ketenRisico({ teams, teamWorkflows, openAlle }) {
+  const edges = resolveChainEdges(teamWorkflows).filter((e) => e.status !== 'voorgesteld' && e.sourceTeam && e.targetTeam && e.sourceTeam !== e.targetTeam)
+  const op = new Map(teams.map((tm) => [tm.id, new Set()]))
+  const af = new Map(teams.map((tm) => [tm.id, new Set()]))
+  for (const e of edges) {
+    op.get(e.targetTeam)?.add(e.sourceTeam)
+    af.get(e.sourceTeam)?.add(e.targetTeam)
+  }
+  const naamNaarId = new Map(teams.map((tm) => [tm.naam.trim().toLowerCase(), tm.id]))
+  const isHoog = (d) => riskLevelRank(calculateRisk(d).level) >= riskLevelRank('Hoog')
+  const isBlok = (d) => d.status === 'actief blokkerend'
+  return teams
+    .map((tm) => {
+      const stroomop = bereik(tm.id, op)
+      const stroomaf = bereik(tm.id, af)
+      const direct = [...(op.get(tm.id) ?? [])]
+      const directDeps = openAlle.filter((d) => direct.includes(d.teamId))
+      const ketenDeps = openAlle.filter((d) => stroomop.has(d.teamId))
+      const eigen = openAlle.filter((d) => d.teamId === tm.id)
+      const bevestigd = eigen.filter((d) => {
+        const cause = d.geraaktTeamId ?? naamNaarId.get((d.geraakte_team_extern ?? '').trim().toLowerCase()) ?? null
+        return cause && stroomop.has(cause)
+      })
+      return {
+        teamId: tm.id,
+        direct: direct.length,
+        directTeams: direct,
+        stroomopwaarts: stroomop.size,
+        stroomafwaarts: stroomaf.size,
+        directBlokkerend: directDeps.filter(isBlok).length,
+        directHoog: directDeps.filter(isHoog).length,
+        ketenBlokkerend: ketenDeps.filter(isBlok).length,
+        ketenHoog: ketenDeps.filter(isHoog).length,
+        bevestigd: bevestigd.length,
+        deps: directDeps.filter((d) => isBlok(d) || isHoog(d)).sort((a, b) => calculateRisk(b).score - calculateRisk(a).score),
+      }
+    })
+    .sort((a, b) => b.directBlokkerend + b.directHoog - (a.directBlokkerend + a.directHoog) || b.stroomafwaarts - a.stroomafwaarts)
+}
+
+// Teamparen die dependencies op elkaar hebben (uit de wie-blokkeert-wie-rijen).
+export function wederzijds(rijen) {
+  const map = new Map(rijen.map((r) => [`${r.veroorzaker}|${r.getroffen}`, r]))
+  const gezien = new Set()
+  const paren = []
+  for (const r of rijen) {
+    const terug = map.get(`${r.getroffen}|${r.veroorzaker}`)
+    if (!terug) continue
+    const key = [r.veroorzaker, r.getroffen].sort().join('|')
+    if (gezien.has(key)) continue
+    gezien.add(key)
+    paren.push({ a: r.veroorzaker, b: r.getroffen, aNaarB: r.aantal, bNaarA: terug.aantal, deps: [...r.deps, ...terug.deps] })
+  }
+  return paren.sort((x, y) => y.aNaarB + y.bNaarA - (x.aNaarB + x.bNaarA))
+}
+
+// Hoe compleet is de kaart van een team: inputs verklaard (koppeling of
+// partij), outputs afgenomen of extern, applicaties met detail, koppelingen
+// met punten. Volledigheid = gemiddelde van die percentages.
+export function kaartVolledigheid({ teams, teamWorkflows }) {
+  const edges = resolveChainEdges(teamWorkflows).filter((e) => e.status !== 'voorgesteld')
+  const geconsumeerd = new Set(edges.map((e) => `${e.sourceTeam}:${e.sourceOutputId}`))
+  const pct = (n, tot) => (tot > 0 ? Math.round((n / tot) * 100) : null)
+  const geaccepteerd = (i) => i.linkedTeam && i.linkStatus !== 'voorgesteld' && i.linkStatus !== 'afgewezen'
+  return teams
+    .map((tm) => {
+      const wf = teamWorkflows[tm.id] ?? {}
+      const inputs = wf.inputs ?? []
+      const outputs = wf.outputs ?? []
+      const gekoppeld = inputs.filter(geaccepteerd)
+      const inExtern = inputs.filter((i) => !i.linkedTeam && (i.externalPartyId || i.externalTeam)).length
+      const inVoorgesteld = inputs.filter((i) => i.linkedTeam && i.linkStatus === 'voorgesteld').length
+      const inLos = inputs.length - gekoppeld.length - inExtern - inVoorgesteld
+      const afgenomen = (o) => geconsumeerd.has(`${tm.id}:${o.id}`)
+      const uitAfgenomen = outputs.filter(afgenomen).length
+      const uitExtern = outputs.filter((o) => !afgenomen(o) && (o.externalPartyId || o.externalTeam)).length
+      const uitVoorgesteld = outputs.filter((o) => !afgenomen(o) && !(o.externalPartyId || o.externalTeam) && o.linkedTeam && o.linkStatus === 'voorgesteld').length
+      const uitOnbenut = outputs.length - uitAfgenomen - uitExtern - uitVoorgesteld
+      const metPunten = gekoppeld.filter((i) => {
+        const bron = (teamWorkflows[i.linkedTeam]?.outputs ?? []).find((o) => o.id === i.linkedOutputId)
+        return (i.punten ?? []).length > 0 || (bron?.punten ?? []).length > 0
+      }).length
+      const apps = wf.applications ?? []
+      const details = wf.applicatieflow?.details ?? {}
+      const appsMetDetail = apps.filter((a) => details[a.id]?.risico_bij_uitval).length
+      const notities = Object.values(wf.stageNotes ?? {}).filter((n) => (typeof n === 'string' ? n.trim() : n)).length + (wf.annotations ?? []).length
+      const onderdelen = [pct(gekoppeld.length + inExtern, inputs.length), pct(uitAfgenomen + uitExtern, outputs.length), pct(appsMetDetail, apps.length), pct(metPunten, gekoppeld.length)].filter((n) => n !== null)
+      return {
+        teamId: tm.id,
+        inputs: inputs.length,
+        inGekoppeld: gekoppeld.length,
+        inExtern,
+        inLos,
+        inVoorgesteld,
+        outputs: outputs.length,
+        uitAfgenomen,
+        uitExtern,
+        uitOnbenut,
+        uitVoorgesteld,
+        koppelingen: gekoppeld.length,
+        metPunten,
+        apps: apps.length,
+        appsMetDetail,
+        capaciteit: (wf.capacity ?? []).length,
+        notities,
+        volledigheid: onderdelen.length > 0 ? Math.round(onderdelen.reduce((s, n) => s + n, 0) / onderdelen.length) : null,
+      }
+    })
+    .sort((a, b) => (b.volledigheid ?? -1) - (a.volledigheid ?? -1))
+}
+
+// ---------------------------------------------------------------------------
+// Concentratie, scorekaart, gedeelde applicaties, slapende teams, duplicaten
+// ---------------------------------------------------------------------------
+
+// Pareto-achtig: welk aandeel nemen de drie grootste voor hun rekening.
+export function concentratie({ open, partijen, teams }) {
+  const top = (rijen, totaal, n = 3) => {
+    const lijst = [...rijen].sort((a, b) => b.aantal - a.aantal)
+    const kop = lijst.slice(0, n)
+    const som = kop.reduce((s, r) => s + r.aantal, 0)
+    return { top: kop, aandeel: totaal > 0 ? Math.round((som / totaal) * 100) : 0, totaal }
+  }
+  const partijDeps = partijen.reduce((s, p) => s + p.deps.length, 0)
+  return {
+    partijen: top(partijen.map((p) => ({ naam: p.naam, aantal: p.deps.length })), partijDeps),
+    categorieen: top([...tel(open, (d) => d.categorie)].map(([naam, aantal]) => ({ naam, aantal })), open.length),
+    teams: top(teams.map((tm) => ({ naam: tm.id, aantal: open.filter((d) => d.teamId === tm.id).length })), open.length),
+    perTeamTopCategorie: teams.map((tm) => {
+      const deps = open.filter((d) => d.teamId === tm.id)
+      const [categorie, aantal] = [...tel(deps, (d) => d.categorie)].sort((a, b) => b[1] - a[1])[0] ?? [null, 0]
+      return { teamId: tm.id, categorie, aantal, aandeel: deps.length > 0 ? Math.round((aantal / deps.length) * 100) : 0 }
+    }),
+  }
+}
+
+// Eén rij per team met de kerncijfers, plus het gemiddelde over de teams.
+export function teamScorekaart({ teams, alle, open, kennis, vandaag = new Date() }) {
+  const toen = dagenGeledenIso(30, vandaag)
+  const grens90 = dagenGeledenIso(90, vandaag)
+  const rijen = teams.map((tm) => {
+    const deps = open.filter((d) => d.teamId === tm.id)
+    const eigenAlle = alle.filter((d) => d.teamId === tm.id)
+    const risks = deps.map((d) => calculateRisk(d))
+    const nietGemitigeerd = deps.filter((d) => d.status !== 'gemitigeerd')
+    const metAfspraak = nietGemitigeerd.filter((d) => d.actieAfspraak?.trim()).length
+    const openToen = eigenAlle.map((d) => stateAt(d, toen)).filter(Boolean).length
+    return {
+      teamId: tm.id,
+      open: deps.length,
+      hoogPlus: risks.filter((r) => riskLevelRank(r.level) >= riskLevelRank('Hoog')).length,
+      kritiek: risks.filter((r) => r.level === 'Kritiek').length,
+      blokkerend: deps.filter((d) => d.status === 'actief blokkerend').length,
+      gemScore: gemiddelde(risks.map((r) => r.score)),
+      verouderdPct: deps.length > 0 ? Math.round((deps.filter((d) => isVerouderd(d)).length / deps.length) * 100) : null,
+      afspraakPct: nietGemitigeerd.length > 0 ? Math.round((metAfspraak / nietGemitigeerd.length) * 100) : null,
+      flowverlies: deps.reduce((s, d) => s + (berekenFlowverlies(d)?.score ?? 0), 0),
+      delta30: deps.length - openToen,
+      gesloten90: eigenAlle.filter((d) => d.gesloten_op && d.gesloten_op >= grens90).length,
+      kennisScore: kennis.find((k) => k.teamId === tm.id)?.score ?? 0,
+    }
+  })
+  const velden = ['open', 'hoogPlus', 'kritiek', 'blokkerend', 'gemScore', 'verouderdPct', 'afspraakPct', 'flowverlies', 'delta30', 'gesloten90', 'kennisScore']
+  const gemiddeld = Object.fromEntries(velden.map((v) => [v, gemiddelde(rijen.map((r) => r[v]))]))
+  return { rijen: rijen.sort((a, b) => b.hoogPlus - a.hoogPlus || b.open - a.open), gemiddeld }
+}
+
+// Applicaties die via een geaccepteerde ketenkoppeling aan andere teams
+// hangen: een output mét applicatie gekoppeld aan een input mét applicatie
+// (of andersom). Applicaties zijn per team; dit is de enige route waarlangs
+// een applicatie meerdere teams raakt. `deps` = eigen dependencies erop.
+export function gedeeldeApplicaties(openAlle, teamWorkflows, teamFilter = null) {
+  const edges = resolveChainEdges(teamWorkflows).filter((e) => e.status !== 'voorgesteld' && e.sourceTeam && e.targetTeam && e.sourceTeam !== e.targetTeam)
+  const item = (teamId, soort, id) => (teamWorkflows[teamId]?.[soort] ?? []).find((i) => i.id === id)
+  const rijen = []
+  for (const [teamId, wf] of Object.entries(teamWorkflows)) {
+    if (teamFilter && teamId !== teamFilter) continue
+    for (const app of wf.applications ?? []) {
+      const partners = new Set()
+      for (const e of edges) {
+        if (e.sourceTeam === teamId && item(teamId, 'outputs', e.sourceOutputId)?.applicatieId === app.id) partners.add(e.targetTeam)
+        if (e.targetTeam === teamId && item(teamId, 'inputs', e.targetInputId)?.applicatieId === app.id) partners.add(e.sourceTeam)
+      }
+      if (partners.size === 0) continue
+      const deps = openAlle.filter((d) => d.teamId === teamId && (d.applicatieIds ?? []).includes(app.id))
+      rijen.push({ teamId, app, deps, andereTeams: [...partners], risico: wf.applicatieflow?.details?.[app.id]?.risico_bij_uitval === 'ja' })
+    }
+  }
+  return rijen.sort((x, y) => y.andereTeams.length - x.andereTeams.length || y.deps.length - x.deps.length)
+}
+
+// Teams zonder enige logregel in N dagen.
+export function slapendeTeams(changeLog, teams, { dagen = 60, vandaag = new Date() } = {}) {
+  return teams
+    .map((tm) => {
+      const laatste =
+        changeLog
+          .filter((c) => c.teamId === tm.id)
+          .map((c) => new Date(c.timestamp).getTime())
+          .filter((n) => !Number.isNaN(n))
+          .sort((a, b) => b - a)[0] ?? null
+      const dagenStil = laatste ? Math.round((vandaag.getTime() - laatste) / DAG_MS) : null
+      return { teamId: tm.id, laatste: laatste ? isoDag(new Date(laatste)) : null, dagenStil, slapend: dagenStil === null || dagenStil > dagen, grens: dagen }
+    })
+    .sort((a, b) => (b.dagenStil ?? Infinity) - (a.dagenStil ?? Infinity))
+}
+
+// Dezelfde dependency door meer dan één team vastgelegd (dedupGroupId).
+export function dubbeleRegistraties(open) {
+  return [...groepeer(open.filter((d) => d.dedupGroupId), (d) => d.dedupGroupId)]
+    .map(([groep, deps]) => ({ groep, deps, teams: [...new Set(deps.map((d) => d.teamId))] }))
+    .filter((g) => g.deps.length > 1)
+}
+
+// ---------------------------------------------------------------------------
+// Signalen: waarschuwingen per record, geprioriteerd
+// ---------------------------------------------------------------------------
+
+// Eén regel per geval (dependency, verzoek, applicatie, team, partij), met
+// de feiten die de zin nodig heeft. De tekst zelf hoort bij de pagina.
+export function signalen({ open, teams, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, externalParties, vandaag = new Date() }) {
+  const nu = isoDag(vandaag)
+  const lijst = []
+  const add = (key, ernst, prioriteit, params) => lijst.push({ key, ernst, prioriteit, params })
+  const nietBijgewerkt = (d) => (d.laatst_bijgewerkt ? dagenTussen(d.laatst_bijgewerkt, nu) : null)
+  const sluimerend = new Set(port.sluimerend.map((d) => d.id))
+  const stil = new Set(port.stilRisico.map((d) => d.id))
+  const geparkeerd = new Set(port.geaccepteerdHoog.map((d) => d.id))
+  for (const d of open) {
+    const r = calculateRisk(d)
+    const hoog = riskLevelRank(r.level) >= riskLevelRank('Hoog')
+    const geenAfspraak = !d.actieAfspraak?.trim()
+    const blok = doorloop.find((x) => x.dep.id === d.id)?.blokkerendDagen ?? 0
+    if (r.level === 'Kritiek' && geenAfspraak) add('kritiekZonderAfspraak', 'hoog', 100 + r.score, { dep: d, score: r.score, status: d.status })
+    if (d.deadline === 'harde_deadline' && geenAfspraak && d.status !== 'gemitigeerd') add('hardeDeadlineZonderAfspraak', 'hoog', 90 + r.score, { dep: d, deadlineTekst: d.deadlineTekst })
+    if (d.status === 'actief blokkerend' && blok > 60) add('langBlokkerend', 'hoog', 80 + Math.min(blok, 300) / 10, { dep: d, dagen: blok })
+    if (d.status === 'actief blokkerend' && isVerouderd(d)) add('blokkerendVerouderd', 'hoog', 75 + r.score, { dep: d, dagen: nietBijgewerkt(d) })
+    if (hoog && geenAfspraak && isVerouderd(d) && d.status !== 'gemitigeerd') add('hoogVerouderd', 'midden', 60 + r.score, { dep: d, niveau: r.level, dagen: nietBijgewerkt(d) })
+    if (sluimerend.has(d.id)) add('sluimerend', 'midden', 55 + r.score, { dep: d, niveau: r.level, dagen: dagenTussen(d.aangemaakt_op, nu) })
+    if (stil.has(d.id)) add('stilRisico', 'midden', 40 + (berekenFlowverlies(d)?.score ?? 0), { dep: d, niveau: r.level, flowverlies: berekenFlowverlies(d)?.level })
+    if (geparkeerd.has(d.id)) add('geaccepteerdHoog', 'laag', 30 + r.score, { dep: d, niveau: r.level })
+    if (d.geraaktPartijId) {
+      const p = externalParties.find((x) => x.id === d.geraaktPartijId)
+      if (p?.status === 'geweigerd') add('partijGeweigerd', 'midden', 50, { dep: d, partij: p.naam })
+    }
+  }
+  for (const r of verandering.verslechterd) add('verslechterd', riskLevelRank(r.naarNiveau) >= riskLevelRank('Hoog') ? 'midden' : 'laag', 45 + r.delta, { dep: r.dep, van: r.van, naar: r.naar, vanNiveau: r.vanNiveau, naarNiveau: r.naarNiveau })
+  for (const r of overgangen.teruggevallen) add('teruggevallen', 'midden', 50, { dep: r.dep, datum: r.datum, status: r.dep.status })
+  for (const r of overgangen.heropend) if (!r.dep.gesloten_op) add('heropend', 'laag', 20, { dep: r.dep, datum: r.datum })
+  for (const r of port.gemitigeerdNietGesloten) add('gemitigeerdNietGesloten', 'laag', 15 + r.dagen / 10, { dep: r.dep, dagen: r.dagen })
+  for (const v of keten.verzoeken) if ((v.leeftijd ?? 0) > 14) add('verzoekOud', 'midden', 40 + v.leeftijd, { teamId: v.teamId, label: v.item.label, doelTeamId: v.item.linkedTeam, dagen: v.leeftijd })
+  for (const c of registratie.openReview) if (c.leeftijd > 7) add('reviewOud', 'laag', 20 + c.leeftijd, { teamId: c.teamId, titel: c.titel, dagen: c.leeftijd })
+  for (const s of keten.spof) if (!s.risico && s.last >= 6) add('spofZonderDetail', 'laag', 25 + s.last, { teamId: s.teamId, app: s.app.naam, last: s.last })
+  for (const g of gedeeld) if (g.andereTeams.length >= 2) add('gedeeldeApp', 'laag', 20 + g.andereTeams.length, { teamId: g.teamId, app: g.app.naam, teamIds: g.andereTeams, deps: g.deps.length })
+  for (const k of kennis) if (k.kennisHoog >= 2 || (k.kennisHoog >= 1 && k.risicoRijen >= 2)) add('kennisBusFactor', 'midden', 50 + k.score, { teamId: k.teamId, kennisHoog: k.kennisHoog, risicoRijen: k.risicoRijen, score: k.score })
+  for (const kr of ketenrisico) if (kr.directBlokkerend + kr.directHoog >= 5) add('ketenRisico', 'midden', 45 + kr.directBlokkerend + kr.directHoog, { teamId: kr.teamId, n: kr.direct, blokkerend: kr.directBlokkerend, hoog: kr.directHoog })
+  const hubs = partijen.filter((p) => p.aantalTeams >= Math.max(3, Math.ceil(teams.length * 0.5)))
+  for (const p of hubs) add('partijHub', 'midden', 40 + p.deps.length, { partij: p.naam, teams: p.aantalTeams, totaal: teams.length, deps: p.deps.length, blokkerend: p.blokkerend })
+  for (const w of wederzijdsParen) add('wederzijds', 'laag', 25 + w.aNaarB + w.bNaarA, { teamIdA: w.a, teamIdB: w.b, aNaarB: w.aNaarB, bNaarA: w.bNaarA })
+  for (const s of slapend) if (s.slapend) add('slapendTeam', 'laag', 30 + (s.dagenStil ?? 999) / 10, { teamId: s.teamId, dagen: s.dagenStil })
+  for (const g of duplicaten) add('dubbeleRegistratie', 'laag', 20 + g.deps.length, { dep: g.deps[0], teamIds: g.teams })
+  for (const tm of teams) {
+    const eigen = open.filter((d) => d.teamId === tm.id)
+    const ver = eigen.filter((d) => isVerouderd(d)).length
+    if (eigen.length >= 5 && ver / eigen.length > 0.4) add('teamVerouderd', 'midden', 45 + ver, { teamId: tm.id, verouderd: ver, totaal: eigen.length, pct: Math.round((ver / eigen.length) * 100) })
+  }
+  const volgorde = { hoog: 0, midden: 1, laag: 2 }
+  return lijst.sort((a, b) => volgorde[a.ernst] - volgorde[b.ernst] || b.prioriteit - a.prioriteit)
+}
+
+// ---------------------------------------------------------------------------
 // Constateringen (regelgebaseerde waarschuwingen)
 // ---------------------------------------------------------------------------
 
 // Elke regel: sleutel, ernst, en de records die 'm triggeren. De tekst hoort
 // bij de pagina (per taal); hier alleen de feiten.
-export function constateringen({ open, teams, teamWorkflows, externalParties, keten, port, kennis, partijen, doorloop, registratie }) {
+export function constateringen({ open, teams, teamWorkflows, externalParties, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, proj }) {
   const regels = []
   const push = (key, ernst, records, meta = {}) => {
     if (records.length > 0) regels.push({ key, ernst, aantal: records.length, records, ...meta })
@@ -654,6 +1079,24 @@ export function constateringen({ open, teams, teamWorkflows, externalParties, ke
   push('reviewOud', 'laag', registratie.openReview.filter((c) => c.leeftijd > 7))
   push('gemitigeerdZonderTekst', 'laag', port.gemitigeerdZonderTekst)
   push('profielOnvolledig', 'laag', port.kwadranten.onvolledig)
+  // Ontwikkeling en levensloop.
+  const verslechterdHoog = (verandering?.verslechterd ?? []).filter((r) => riskLevelRank(r.naarNiveau) >= riskLevelRank('Hoog'))
+  push('verslechterd', 'midden', verslechterdHoog.map((r) => r.dep), { rijen: verslechterdHoog })
+  push('teruggevallen', 'midden', (overgangen?.teruggevallen ?? []).map((r) => r.dep))
+  push('sluimerend', 'midden', port.sluimerend)
+  push('geaccepteerdHoog', 'laag', port.geaccepteerdHoog)
+  push('gemitigeerdNietGesloten', 'laag', port.gemitigeerdNietGesloten.map((r) => r.dep))
+  push('heropend', 'laag', (overgangen?.heropend ?? []).filter((r) => !r.dep.gesloten_op).map((r) => r.dep))
+  if (proj && proj.nettoPerWeek >= 0.5) push('backlogGroei', 'midden', [proj], { proj })
+  // Keten, applicaties, teams.
+  const zwaarBelast = (ketenrisico ?? []).filter((k) => k.directBlokkerend + k.directHoog >= 5)
+  push('ketenRisicoHoog', 'midden', zwaarBelast, { teams: zwaarBelast.map((k) => k.teamId) })
+  push('wederzijds', 'laag', (wederzijdsParen ?? []).flatMap((w) => w.deps), { paren: wederzijdsParen ?? [] })
+  const gedeeldBreed = (gedeeld ?? []).filter((g) => g.andereTeams.length >= 2)
+  push('gedeeldeApp', 'laag', gedeeldBreed.map((g) => g.app), { apps: gedeeldBreed })
+  const stil = (slapend ?? []).filter((s) => s.slapend)
+  push('slapendTeam', 'laag', stil, { teams: stil.map((s) => s.teamId) })
+  push('dubbeleRegistratie', 'laag', (duplicaten ?? []).flatMap((g) => g.deps), { groepen: duplicaten ?? [] })
   const volgorde = { hoog: 0, midden: 1, laag: 2 }
   return regels.sort((a, b) => volgorde[a.ernst] - volgorde[b.ernst] || b.aantal - a.aantal)
 }
@@ -673,12 +1116,39 @@ export function analyseer({ teams, alleDependencies, teamWorkflows, externalPart
   const keten = ketenKengetallen({ teams, teamWorkflows, open, openAlle, vandaag, teamFilter })
   const doorloop = doorlooptijden(alle, { vandaag })
   const registratie = registratieGedrag(teamFilter ? changeLog.filter((c) => c.teamId === teamFilter) : changeLog, teamsInScope, { vandaag })
+  const trend = trendReeks(alle, { weken: 26, vandaag })
+  const proj = projectie(trend)
+  const verandering = scoreVerandering(alle, { dagen: 30, vandaag })
+  const overgangen = statusOvergangen(alle)
+  const ketenrisico = ketenRisico({ teams, teamWorkflows, openAlle }).filter((k) => teamsInScope.some((tm) => tm.id === k.teamId))
+  const wederzijdsParen = wederzijds(teamOpTeam(openAlle, teams).rijen).filter((w) => !teamFilter || w.a === teamFilter || w.b === teamFilter)
+  const slapend = slapendeTeams(changeLog, teamsInScope, { dagen: 60, vandaag })
+  const duplicaten = dubbeleRegistraties(openAlle).filter((g) => !teamFilter || g.teams.includes(teamFilter))
+  const gedeeld = gedeeldeApplicaties(openAlle, teamWorkflows, teamFilter)
+  // Scorekaart altijd over alle teams, zodat een team zich kan vergelijken.
+  const openAlleTeams = alleDependencies.filter((d) => !d.gesloten_op)
+  const scorekaart = teamScorekaart({ teams, alle: alleDependencies, open: openAlleTeams, kennis: kennisConcentratie(openAlleTeams, teamWorkflows, teams), vandaag })
   return {
+    teamFilter,
+    teams,
+    teamsInScope,
     open,
     alle,
     port,
-    trend: trendReeks(alle, { weken: 26, vandaag }),
+    trend,
     vergelijking: vergelijking(alle, { dagen: 30, vandaag }),
+    proj,
+    verandering,
+    leeftijd: leeftijdsverdeling(open, teamsInScope, { vandaag }),
+    overgangen,
+    ketenrisico,
+    wederzijds: wederzijdsParen,
+    kaart: kaartVolledigheid({ teams: teamsInScope, teamWorkflows }),
+    concentratie: concentratie({ open, partijen, teams: teamsInScope }),
+    scorekaart,
+    gedeeld,
+    slapend,
+    duplicaten,
     doorloop,
     doorloopSamenvatting: doorlooptijdSamenvatting(doorloop),
     doorloopPerTeam: teamsInScope.map((tm) => ({ teamId: tm.id, ...doorlooptijdSamenvatting(doorloop.filter((r) => r.dep.teamId === tm.id)) })),
@@ -692,6 +1162,7 @@ export function analyseer({ teams, alleDependencies, teamWorkflows, externalPart
     flowverlies: flowverliesSommen(open, teamsInScope, partijen),
     hygiene: hygiene({ open, alle, teamWorkflows: wfInScope, externalParties, teams }),
     registratie,
-    constateringen: constateringen({ open, teams: teamsInScope, teamWorkflows: wfInScope, externalParties, keten, port, kennis, partijen, doorloop, registratie }),
+    constateringen: constateringen({ open, teams: teamsInScope, teamWorkflows: wfInScope, externalParties, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, proj }),
+    signalen: signalen({ open, teams: teamsInScope, keten, port, kennis, partijen, doorloop, registratie, verandering, overgangen, ketenrisico, wederzijdsParen, slapend, duplicaten, gedeeld, externalParties, vandaag }),
   }
 }
