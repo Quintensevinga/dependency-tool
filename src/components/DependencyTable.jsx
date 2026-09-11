@@ -16,9 +16,9 @@ import {
 import FloatingTooltip from './FloatingTooltip'
 import { CategoryIcon } from '../data/categoryIcons'
 
-// Gedeelde dependency-tabel: dezelfde kolommen/hover-tooltip als het
-// Matrix-overzicht, herbruikt door de Relatiekaart-pagina zodat een selectie
-// daar (team/categorie/koppeling) in exact dezelfde vorm getoond wordt.
+// Gedeelde dependency-tabel: dezelfde kolommen/hover-tooltip op elke plek
+// waar een lijst dependencies getoond wordt (Heatmap-selectie, teampagina),
+// zodat zo'n lijst overal in exact dezelfde vorm verschijnt.
 export default function DependencyTable({ dependencies, onSelect, showTeamColumn = true, emptyLabel, onTeamClick }) {
   const { teamName } = useAppContext()
   const { t, language } = useLanguage()
@@ -27,7 +27,7 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
   const rows = dependencies.map((dependency) => ({ dependency, risk: calculateRisk(dependency) }))
 
   if (rows.length === 0) {
-    return <div className="px-4 py-10 text-center text-sm text-slate-400">{emptyLabel ?? t('matrix.empty')}</div>
+    return <div className="px-4 py-10 text-center text-sm text-slate-400">{emptyLabel ?? t('tabel.empty')}</div>
   }
 
   return (
@@ -35,20 +35,20 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
       <table className="min-w-full text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
-            {showTeamColumn && <th className="px-5 py-2.5 font-medium">{t('matrix.col.team')}</th>}
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.titel')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.categorie')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.workflowstap')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.effectOpFlow')}</th>
+            {showTeamColumn && <th className="px-5 py-2.5 font-medium">{t('tabel.col.team')}</th>}
+            <th className="px-5 py-2.5 font-medium">{t('tabel.col.titel')}</th>
+            <th className="px-5 py-2.5 font-medium">{t('tabel.col.categorie')}</th>
+            <th className="px-5 py-2.5 font-medium">{t('tabel.col.workflowstap')}</th>
+            <th className="px-5 py-2.5 font-medium">{t('tabel.col.effectOpFlow')}</th>
             {/* Impact en frequentie zijn de twee ingrediënten van de
                 risicoscore die rechts al vastgepind staat, en de hover-tooltip
                 toont de hele berekening. Op smallere schermen duwden ze juist
                 de kolommen met eigen informatie (workflowstap, effect, status)
                 buiten beeld; daar wegen ze het minst. */}
-            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('matrix.col.impact')}</th>
-            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('matrix.col.frequentie')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('matrix.col.status')}</th>
-            <th className="sticky right-0 border-l border-slate-200 bg-white px-5 py-2.5 font-medium">{t('matrix.col.risico')}</th>
+            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('tabel.col.impact')}</th>
+            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('tabel.col.frequentie')}</th>
+            <th className="px-5 py-2.5 font-medium">{t('tabel.col.status')}</th>
+            <th className="sticky right-0 border-l border-slate-200 bg-white px-5 py-2.5 font-medium">{t('tabel.col.risico')}</th>
           </tr>
         </thead>
         <tbody>

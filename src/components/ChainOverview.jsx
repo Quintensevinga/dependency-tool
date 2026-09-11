@@ -914,10 +914,10 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   const { teams, dependencies, teamWorkflows, teamLabels, externalParties } = useAppContext()
   const { t } = useLanguage()
   // Gearchiveerde teams staan standaard uit, zelfde gedrag als de
-  // netwerkweergave — blijven wel aan te vinken voor historische data.
+  // heatmap — blijven wel aan te vinken voor historische data.
   const { selectedTeamIds, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams)
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
-  // Lokale scope-filter, zelfde opzet als Netwerkweergave: standaard 'alle'
+  // Lokale scope-filter, zelfde opzet als de Heatmap: standaard 'alle'
   // zodat het ketenoverzicht zoals voorheen Teamniveau + Ketenniveau gemengd
   // toont, met de optie om te versmallen.
   const [scope, setScope] = useState('alle')
@@ -1536,7 +1536,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               onClick={clearSelection}
               className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
             >
-              {t('graph.selectionClear')}
+              {t('selectie.wissen')}
             </button>
           </div>
         )}

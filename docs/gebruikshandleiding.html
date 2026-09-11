@@ -168,17 +168,16 @@
 <h2>Inhoud</h2>
 <ol>
   <li><a href="#h1">Basisnavigatie</a></li>
-  <li><a href="#h2">Matrix-overzicht</a></li>
-  <li><a href="#h3">Netwerkweergave</a></li>
-  <li><a href="#h4">Ketenoverzicht</a></li>
-  <li><a href="#h5">Een dependency toevoegen of bewerken</a></li>
-  <li><a href="#h6">Team-navigatie</a></li>
-  <li><a href="#h7">Teampagina — workflow</a></li>
-  <li><a href="#h8">Teampagina — applicaties en input/output</a></li>
-  <li><a href="#h9">Teampagina — capaciteit</a></li>
-  <li><a href="#h10">Teampagina — aantekeningen (Miro-achtig)</a></li>
-  <li><a href="#h11">Instellingen &amp; privacy</a></li>
-  <li><a href="#h12">Analyse</a></li>
+  <li><a href="#h2">Heatmap</a></li>
+  <li><a href="#h3">Ketenoverzicht</a></li>
+  <li><a href="#h4">Een dependency toevoegen of bewerken</a></li>
+  <li><a href="#h5">Team-navigatie</a></li>
+  <li><a href="#h6">Teampagina — workflow</a></li>
+  <li><a href="#h7">Teampagina — applicaties en input/output</a></li>
+  <li><a href="#h8">Teampagina — capaciteit</a></li>
+  <li><a href="#h9">Teampagina — aantekeningen (Miro-achtig)</a></li>
+  <li><a href="#h10">Instellingen &amp; privacy</a></li>
+  <li><a href="#h11">Analyse</a></li>
 </ol>
 </div>
 
@@ -186,45 +185,34 @@
 <section class="chapter" id="h1">
   <h2><span class="num">1</span>Basisnavigatie</h2>
   <p class="lead">Elk scherm deelt dezelfde koptekst — dit is het startpunt voor alle functionaliteit.</p>
-  <img class="shot" src="img/01-netwerkweergave.png">
+  <img class="shot" src="img/01-heatmap.png">
   <ul>
-    <li><b>☰ Hamburgermenu</b> — open de teamlijst en navigeer naar een teampagina.</li>
-    <li><b>Teamniveau / Ketenniveau</b> — schakel de matrix en risico-badges tussen interne (team) en externe (keten) dependencies.</li>
+    <li><b>Zijbalk</b> — de weergaven bovenaan, daaronder de teamlijst waarmee je naar een teampagina navigeert. Met de twee knoppen erboven klap je de zijbalk in tot iconen of laat je hem automatisch wegschuiven.</li>
+    <li><b>Teamniveau / Ketenniveau / Alles</b> — beperk de weergave tot interne (team) of externe (keten) dependencies, of toon ze allebei.</li>
     <li><b>+ Nieuwe dependency</b> — open het formulier om een dependency toe te voegen.</li>
     <li><b>NL / EN</b> — wissel de taal van de hele applicatie.</li>
-    <li><b>⚙ Instellingen</b> — export/import, mockdata, alles wissen (hoofdstuk 11).</li>
-    <li>Vier tabbladen: <b>Matrix-overzicht</b>, <b>Netwerkweergave</b>, <b>Ketenoverzicht</b> en <b>Analyse</b> (hoofdstuk 12) — elk hoofdstuk hieronder behandelt er één.</li>
+    <li><b>Instellingen &amp; privacy</b> (onderaan de zijbalk) — export/import, mockdata, alles wissen (hoofdstuk 10).</li>
+    <li>Drie weergaven: <b>Heatmap</b>, <b>Ketenoverzicht</b> en <b>Analyse</b> (hoofdstuk 11) — elk hoofdstuk hieronder behandelt er één.</li>
   </ul>
 </section>
 
-<!-- ===================== 2. MATRIX ===================== -->
+<!-- ===================== 2. HEATMAP ===================== -->
 <section class="chapter" id="h2">
-  <h2><span class="num">2</span>Matrix-overzicht</h2>
-  <p class="lead">Een sorteerbare, filterbare lijst van alle dependencies — het startpunt voor een gedetailleerde blik.</p>
-  <img class="shot" src="img/02-matrix-overzicht.png">
+  <h2><span class="num">2</span>Heatmap</h2>
+  <p class="lead">Het startscherm: teams tegen categorieën, in één beeld. Handig om te zien waar risico zich ophoopt.</p>
   <ul>
-    <li>Filter op <b>team</b> en <b>risiconiveau</b> via het paneel rechts.</li>
-    <li>Sorteer op risicoscore (hoog→laag / laag→hoog) of op laatst bijgewerkt.</li>
-    <li>Klik op een rij voor het volledige detailpaneel (hoofdstuk 5).</li>
-    <li>Onderaan: een <b>samenvatting</b> (kritieke dependencies, hoogste kennis-risico) en <b>belangrijkste observaties</b>, automatisch afgeleid uit de data.</li>
+    <li>Elke <b>rij</b> is een team, elke <b>kolom</b> een categorie. Het getal in een cel is het aantal open dependencies; de kleur is het hoogste risico daarbinnen. Een lege cel betekent: geen dependencies in die combinatie — geen foutstatus.</li>
+    <li>Beweeg over een cel voor de verdeling over de risiconiveaus; de rest van de tabel dimt zodat de cel eruit springt. Hetzelfde geldt voor een hele rij of kolom via de kop.</li>
+    <li><b>Klik</b> op een cel, een teamnaam of een kolomkop voor de bijbehorende dependencies in een tabel eronder. Klik daarin een regel aan voor het volledige detailpaneel (hoofdstuk 4), of op een teamnaam om naar die teampagina te gaan. Escape of "Wis selectie" sluit de tabel weer.</li>
+    <li>Filter rechts op <b>team</b>, <b>risiconiveau</b> en <b>workflowstap</b>, en bovenaan op team- of ketenniveau. Gearchiveerde teams staan standaard uit maar blijven aan te vinken.</li>
+    <li>Geaccepteerde (bewust afgehandelde) dependencies tellen hier niet mee — die blijven wel staan op de teampagina.</li>
+    <li><b>Toon categorie-uitleg</b> onderaan klapt de lijst met categorie-iconen open.</li>
   </ul>
 </section>
 
-<!-- ===================== 3. NETWERKWEERGAVE ===================== -->
+<!-- ===================== 3. KETENOVERZICHT ===================== -->
 <section class="chapter" id="h3">
-  <h2><span class="num">3</span>Netwerkweergave</h2>
-  <p class="lead">Een visueel, sleepbaar netwerk van teams en categorieën — handig om clusters van risico te herkennen.</p>
-  <ul>
-    <li>Elk blokje is <b>sleepbaar</b> (Miro-achtig); posities worden onthouden.</li>
-    <li><b>Sleep vanaf een team</b> naar een categorieblokje om direct een nieuwe, voorgevulde dependency aan te maken.</li>
-    <li>Klik op een categorie in de legenda onderaan om alle bijbehorende verbindingen te markeren.</li>
-    <li>Klik op een team- of categorieblokje voor een lijst van onderliggende dependencies.</li>
-  </ul>
-</section>
-
-<!-- ===================== 4. KETENOVERZICHT ===================== -->
-<section class="chapter" id="h4">
-  <h2><span class="num">4</span>Ketenoverzicht</h2>
+  <h2><span class="num">3</span>Ketenoverzicht</h2>
   <p class="lead">Toont hoe teams elkaars werk als input/output doorgeven — de "keten" achter de dependencies.</p>
   <img class="shot" src="img/03-ketenoverzicht.png">
   <ul>
@@ -232,15 +220,15 @@
     <li>In rust toont alleen het focusteam al zijn input- en outputblokjes; de andere teams zijn ingeklapt tot titel, tellers en hoogste risico. Elke kolom is één stap verder in de keten. De indeling wordt volledig berekend (kaarten zijn niet versleepbaar) en lijnen lopen om de kaarten heen, nooit erdoorheen.</li>
     <li>Gekleurde lijnen zijn koppelingen op itemniveau; een grijze lijn met teller bundelt alle koppelingen tussen twee ingeklapte teams (een amber punt op de teller = minstens één verzoek wacht nog op akkoord). Klik op een kaart om die uit te klappen — de buren tonen dan alleen de items die eraan hangen — of op een lijn om de onderliggende koppelingen te zien. De focus verleggen doe je via <b>Focus op dit team</b> in het detailvak.</li>
     <li><b>Externe partijen</b> (systemen, leveranciers, CAB, …) zitten als stapel-tab onder elke kaart: links bronnen en afhankelijkheden, rechts ontvangers. Klik op de tab voor de lijst en op een partij om haar als hub in de keten te zetten, met een lijn naar elk team dat ze raakt. Het vinkje "Externe partijen" verbergt dit alles.</li>
-    <li>Een lijn tussen een output- en inputblokje is een <b>expliciete koppeling</b>, gelegd op de teampagina (hoofdstuk 8) — nooit automatisch geraden.</li>
+    <li>Een lijn tussen een output- en inputblokje is een <b>expliciete koppeling</b>, gelegd op de teampagina (hoofdstuk 7) — nooit automatisch geraden.</li>
     <li>Losse (nog niet gekoppelde) blokjes zijn normaal — geen foutstatus.</li>
     <li>Zelfde team- en risicofilters als de andere weergaven.</li>
   </ul>
 </section>
 
-<!-- ===================== 5. DEPENDENCY FORM ===================== -->
-<section class="chapter" id="h5">
-  <h2><span class="num">5</span>Een dependency toevoegen of bewerken</h2>
+<!-- ===================== 4. DEPENDENCY FORM ===================== -->
+<section class="chapter" id="h4">
+  <h2><span class="num">4</span>Een dependency toevoegen of bewerken</h2>
   <p class="lead">Hetzelfde formulier voor aanmaken en bewerken, bereikbaar via "+ Nieuwe dependency" of vanuit een detailpaneel.</p>
   <img class="shot" src="img/05-nieuwe-dependency-formulier.png">
   <table class="fieldtable">
@@ -254,9 +242,9 @@
   <img class="shot" src="img/06-dependency-detail.png">
 </section>
 
-<!-- ===================== 6. TEAM NAV ===================== -->
-<section class="chapter" id="h6">
-  <h2><span class="num">6</span>Team-navigatie</h2>
+<!-- ===================== 5. TEAM NAV ===================== -->
+<section class="chapter" id="h5">
+  <h2><span class="num">5</span>Team-navigatie</h2>
   <p class="lead">Via het hamburgermenu (☰) bereik je de teampagina van elk team.</p>
   <img class="shot" src="img/04-team-navigatie.png">
   <ul>
@@ -266,36 +254,36 @@
   </ul>
 </section>
 
-<!-- ===================== 7. TEAMPAGINA WORKFLOW ===================== -->
-<section class="chapter" id="h7">
-  <h2><span class="num">7</span>Teampagina — workflow</h2>
+<!-- ===================== 6. TEAMPAGINA WORKFLOW ===================== -->
+<section class="chapter" id="h6">
+  <h2><span class="num">6</span>Teampagina — workflow</h2>
   <p class="lead">Een vaste, kleurgecodeerde fasereeks (analyse/refinement t/m beheer/nazorg) met een sleepbaar Miro-achtig canvas.</p>
   <img class="shot" src="img/07-teampagina-workflow.png">
   <ul>
     <li>Input komt binnen links, stroomt door de fases, en verlaat het team rechts als output.</li>
-    <li>Capaciteit (hoofdstuk 9) en dependencies met een ingevulde workflow-fase verschijnen automatisch als badges onder de betreffende fase.</li>
-    <li>Bovenaan: de aantekeningen-toolbar (hoofdstuk 10).</li>
+    <li>Capaciteit (hoofdstuk 8) en dependencies met een ingevulde workflow-fase verschijnen automatisch als badges onder de betreffende fase.</li>
+    <li>Bovenaan: de aantekeningen-toolbar (hoofdstuk 9).</li>
     <li><b>Wis teampagina</b> (rechtsboven) reset de hele workflow van dit team — dependencies blijven bestaan.</li>
   </ul>
 </section>
 
-<!-- ===================== 8. APPLICATIES + IO ===================== -->
-<section class="chapter" id="h8">
-  <h2><span class="num">8</span>Teampagina — applicaties en input/output</h2>
+<!-- ===================== 7. APPLICATIES + IO ===================== -->
+<section class="chapter" id="h7">
+  <h2><span class="num">7</span>Teampagina — applicaties en input/output</h2>
   <p class="lead">Drie lijsten die precies vastleggen wat het team beheert en hoe werk in- en uitstroomt.</p>
   <img class="shot" src="img/08-teampagina-applicaties-io.png">
   <ul>
     <li><b>Applicaties in beheer/ontwikkeling</b> — welke systemen dit team draaiende houdt.</li>
     <li><b>Input</b> — hoe werk binnenkomt; optioneel een <b>bron</b> (team/rol/persoon/systeem/omgeving/stakeholder), die het blokje op het canvas kleurt.</li>
     <li><b>Output</b> — wat het team oplevert.</li>
-    <li>Een input kan <b>expliciet gekoppeld</b> worden aan de output van een ander team — dit vult automatisch het ketenoverzicht (hoofdstuk 4).</li>
+    <li>Een input kan <b>expliciet gekoppeld</b> worden aan de output van een ander team — dit vult automatisch het ketenoverzicht (hoofdstuk 3).</li>
     <li>Met <b>Split per applicatie</b> aan staat een input-/outputitem dat aan een applicatie gekoppeld is op de hoogte van de eigen lane van die applicatie, i.p.v. gecentreerd over de hele Applicatieflow-zone — de lijn ernaartoe loopt zo nooit meer over een andere lane of chip heen. Koppelingen tussen applicaties (uit de Applicatieflow-vragenlijst) lopen als een 'bus' door de lege gang links van de lanes, om diezelfde reden.</li>
   </ul>
 </section>
 
-<!-- ===================== 9. CAPACITEIT ===================== -->
-<section class="chapter" id="h9">
-  <h2><span class="num">9</span>Teampagina — capaciteit</h2>
+<!-- ===================== 8. CAPACITEIT ===================== -->
+<section class="chapter" id="h8">
+  <h2><span class="num">8</span>Teampagina — capaciteit</h2>
   <p class="lead">Wie zit er in het team, en wat gebeurt er als deze persoon wegvalt?</p>
   <img class="shot" src="img/09-teampagina-capaciteit.png">
   <ul>
@@ -307,24 +295,24 @@
   </ul>
 </section>
 
-<!-- ===================== 10. MIRO TOOLBAR ===================== -->
-<section class="chapter" id="h10">
-  <h2><span class="num">10</span>Teampagina — aantekeningen (Miro-achtig)</h2>
+<!-- ===================== 9. MIRO TOOLBAR ===================== -->
+<section class="chapter" id="h9">
+  <h2><span class="num">9</span>Teampagina — aantekeningen (Miro-achtig)</h2>
   <p class="lead">Vrije aantekeningen bovenop de vaste workflow, voor context die niet in een veld past.</p>
   <img class="shot" src="img/11-miro-toolbar.png">
   <ul>
     <li><b>+ Notitie</b> — een gekleurd tekstvak, direct te bewerken.</li>
     <li><b>+ Rechthoek / + Cirkel / + Ruit</b> — vormen met korte labeltekst.</li>
     <li><b>🖇 Lijn</b> — activeer, klik daarna twee elementen om ze te verbinden.</li>
-    <li>Kleurkeuze per element — dezelfde kleuren als de "bron"-codering bij input-items (hoofdstuk 8), zodat aantekeningen en input dezelfde beeldtaal spreken.</li>
+    <li>Kleurkeuze per element — dezelfde kleuren als de "bron"-codering bij input-items (hoofdstuk 7), zodat aantekeningen en input dezelfde beeldtaal spreken.</li>
     <li>Verwijderen via het ✕-knopje dat verschijnt bij het aanwijzen van een element.</li>
   </ul>
 </section>
 
-<!-- ===================== 11. INSTELLINGEN ===================== -->
-<section class="chapter" id="h11">
-  <h2><span class="num">11</span>Instellingen &amp; privacy</h2>
-  <p class="lead">Bereikbaar via het tandwiel-icoon rechtsboven.</p>
+<!-- ===================== 10. INSTELLINGEN ===================== -->
+<section class="chapter" id="h10">
+  <h2><span class="num">10</span>Instellingen &amp; privacy</h2>
+  <p class="lead">Bereikbaar via "Instellingen &amp; privacy" onderaan de zijbalk.</p>
   <img class="shot" src="img/12-instellingen.png">
   <ul>
     <li>Alle data blijft <b>lokaal in de browser</b> — er wordt niets naar een server verstuurd.</li>
@@ -335,9 +323,9 @@
   </ul>
 </section>
 
-<!-- ===================== 12. ANALYSE ===================== -->
-<section class="chapter" id="h12">
-  <h2><span class="num">12</span>Analyse</h2>
+<!-- ===================== 11. ANALYSE ===================== -->
+<section class="chapter" id="h11">
+  <h2><span class="num">11</span>Analyse</h2>
   <p class="lead">Eén pagina die alles uit de data haalt wat erin zit: metrieken, trends, constateringen en hygiënecontroles. Bewust zo volledig mogelijk — schrap wat je niet gebruikt.</p>
   <ul>
     <li><b>Filters</b> bovenaan: een team (alles wordt dan tot dat team teruggebracht, inclusief keten en applicaties) en de periode van de trendgrafieken (13, 26 of 52 weken).</li>

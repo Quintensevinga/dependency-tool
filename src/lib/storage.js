@@ -95,15 +95,13 @@ export const DEFAULT_ADMIN_SETTINGS = {
   // code nodig — zie src/lib/analysis.js.
   uitgebreideAnalyse: false,
   pages: {
-    matrix: true,
-    netwerk: true,
+    heatmap: true,
     keten: true,
     team: true,
     analyse: true,
   },
   sections: {
-    matrix: { samenvattingskaarten: true, keyObservations: true, tabel: true, filters: true },
-    netwerk: { heatmap: true, relatiekaart: true, categorieUitleg: true, selectiepaneel: true, filters: true },
+    heatmap: { categorieUitleg: true, selectiepaneel: true, filters: true },
     keten: { filters: true, legenda: true },
     team: {
       applicatieflow: true,
@@ -132,7 +130,15 @@ const FREQUENTIE_MIGRATIE = { incidenteel: 'soms' }
 
 export function migrateAdminSettings(raw) {
   const source = raw && typeof raw === 'object' ? raw : {}
-  const pages = { ...DEFAULT_ADMIN_SETTINGS.pages, ...(source.pages && typeof source.pages === 'object' ? source.pages : {}) }
+  // Per bekende sleutel overnemen i.p.v. een spread van het hele opgeslagen
+  // object: pagina's die niet meer bestaan (Matrix-overzicht, Netwerkweergave)
+  // bleven anders als losse sleutel in de state en in elke nieuwe JSON-export
+  // hangen — zelfde regel als de sections-lus hieronder al hanteerde.
+  const savedPages = source.pages && typeof source.pages === 'object' ? source.pages : {}
+  const pages = {}
+  for (const [pageKey, fallback] of Object.entries(DEFAULT_ADMIN_SETTINGS.pages)) {
+    pages[pageKey] = typeof savedPages[pageKey] === 'boolean' ? savedPages[pageKey] : fallback
+  }
   const sections = {}
   for (const [pageKey, defaults] of Object.entries(DEFAULT_ADMIN_SETTINGS.sections)) {
     const savedPage = source.sections?.[pageKey]
