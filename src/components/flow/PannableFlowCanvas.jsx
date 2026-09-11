@@ -2,8 +2,8 @@ import ReactFlow, { Background, Controls, MiniMap } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 // Gedeelde 'Miro-achtige' canvasconfiguratie (pan/zoom/knoppen) voor elk
-// sleepbaar React Flow-overzicht in de app (netwerkweergave, teampagina,
-// ketenoverzicht). De aanroeper blijft eigenaar van de omringende div,
+// sleepbaar React Flow-overzicht in de app (ketenoverzicht, teampagina).
+// De aanroeper blijft eigenaar van de omringende div,
 // hoogte, tooltips en zij-panelen — dit component is puur de `<ReactFlow>`
 // zelf met de vaste navigatie-instellingen.
 export default function PannableFlowCanvas({

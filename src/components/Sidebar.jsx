@@ -3,26 +3,6 @@ import SettingsPanel from './SettingsPanel'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 
-function MatrixIcon() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-      <rect x="4" y="4" width="7" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="13" y="4" width="7" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="4" y="13" width="7" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="13" y="13" width="7" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  )
-}
-function NetworkIcon() {
-  return (
-    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
-      <circle cx="6" cy="7" r="2.4" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="6" cy="17" r="2.4" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="18" cy="12" r="2.4" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M8.2 8.2 15.8 11M8.2 15.8 15.8 13" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  )
-}
 function ChainIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
@@ -47,11 +27,6 @@ function HeatmapIcon() {
   )
 }
 
-// Platte navigatielijst i.p.v. Netwerkweergave met geneste Heatmap/Relatiekaart-
-// subtabs: Heatmap en Relatiekaart zijn nu evenwaardige top-level items, in de
-// door de gebruiker gevraagde volgorde. 'graphMode' bepaalt zowel welke
-// GraphView-modus als de actieve/hoogtelichte status; 'tab' bepaalt welk
-// hoofdtabblad (activeTab in App.jsx) actief wordt.
 function AnalyseIcon() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
@@ -60,12 +35,12 @@ function AnalyseIcon() {
   )
 }
 
+// Platte navigatielijst: elk item is één hoofdtabblad (activeTab in App.jsx),
+// in de door de gebruiker gevraagde volgorde.
 const NAV_ITEMS = [
-  { key: 'heatmap', tab: 'graph', graphMode: 'heatmap', icon: HeatmapIcon, labelKey: 'graph.mode.heatmap' },
-  { key: 'bipartite', tab: 'graph', graphMode: 'bipartite', icon: NetworkIcon, labelKey: 'graph.mode.bipartite' },
-  { key: 'matrix', tab: 'matrix', graphMode: null, icon: MatrixIcon, labelKey: 'tab.matrix' },
-  { key: 'chain', tab: 'chain', graphMode: null, icon: ChainIcon, labelKey: 'tab.chain' },
-  { key: 'analyse', tab: 'analyse', graphMode: null, icon: AnalyseIcon, labelKey: 'tab.analyse' },
+  { key: 'heatmap', tab: 'heatmap', icon: HeatmapIcon, labelKey: 'tab.heatmap' },
+  { key: 'chain', tab: 'chain', icon: ChainIcon, labelKey: 'tab.chain' },
+  { key: 'analyse', tab: 'analyse', icon: AnalyseIcon, labelKey: 'tab.analyse' },
 ]
 
 function SettingsIcon() {
@@ -303,17 +278,7 @@ function TeamsSection({ activeTeamId, onNavigateToTeam }) {
   )
 }
 
-export default function Sidebar({
-  activeTab,
-  onTabChange,
-  onExportPng,
-  onNavigateToTeam,
-  activeTeamId,
-  graphViewMode,
-  onGraphViewModeChange,
-  mode,
-  onModeChange,
-}) {
+export default function Sidebar({ activeTab, onTabChange, onExportPng, onNavigateToTeam, activeTeamId, mode, onModeChange }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { t } = useLanguage()
   const { adminSettings } = useAppContext()
@@ -349,9 +314,7 @@ export default function Sidebar({
   // Admin-toggles filteren de navigatie i.p.v. de losse view-componenten elk
   // voor zich te laten checken of ze zelf nog wel getoond mogen worden.
   const visibleNavItems = NAV_ITEMS.filter((item) => {
-    if (item.key === 'heatmap') return adminSettings.pages.netwerk && adminSettings.sections.netwerk.heatmap
-    if (item.key === 'bipartite') return adminSettings.pages.netwerk && adminSettings.sections.netwerk.relatiekaart
-    if (item.key === 'matrix') return adminSettings.pages.matrix
+    if (item.key === 'heatmap') return adminSettings.pages.heatmap !== false
     if (item.key === 'chain') return adminSettings.pages.keten
     if (item.key === 'analyse') return adminSettings.pages.analyse !== false
     return true
@@ -425,15 +388,13 @@ export default function Sidebar({
 
       {visibleNavItems.map((item) => {
         const Icon = item.icon
-        const active = item.graphMode ? activeTab === 'graph' && graphViewMode === item.graphMode : activeTab === item.tab
         return (
           <RailButton
             key={item.key}
-            active={active}
+            active={activeTab === item.tab}
             title={t(item.labelKey)}
             label={t(item.labelKey)}
             onClick={() => {
-              if (item.graphMode) onGraphViewModeChange(item.graphMode)
               onTabChange(item.tab)
               afterNavigate()
             }}

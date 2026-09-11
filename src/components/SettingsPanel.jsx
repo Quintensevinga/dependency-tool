@@ -23,23 +23,10 @@ const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'ww'
 // paneel is) — wel gewoon NL/EN, alleen niet via strings.js.
 const ADMIN_PAGE_CONFIG = [
   {
-    key: 'matrix',
-    labelNl: 'Matrix-overzicht',
-    labelEn: 'Matrix overview',
+    key: 'heatmap',
+    labelNl: 'Heatmap',
+    labelEn: 'Heatmap',
     sections: [
-      { key: 'samenvattingskaarten', labelNl: 'Samenvattingskaarten', labelEn: 'Summary cards' },
-      { key: 'keyObservations', labelNl: 'Belangrijkste observaties', labelEn: 'Key observations' },
-      { key: 'tabel', labelNl: 'Tabel', labelEn: 'Table' },
-      { key: 'filters', labelNl: 'Filters', labelEn: 'Filters' },
-    ],
-  },
-  {
-    key: 'netwerk',
-    labelNl: 'Netwerkweergave',
-    labelEn: 'Network view',
-    sections: [
-      { key: 'heatmap', labelNl: 'Heatmap', labelEn: 'Heatmap' },
-      { key: 'relatiekaart', labelNl: 'Relatiekaart', labelEn: 'Relation map' },
       { key: 'categorieUitleg', labelNl: 'Categorie-uitleg', labelEn: 'Category legend' },
       { key: 'selectiepaneel', labelNl: 'Selectiepaneel', labelEn: 'Selection panel' },
       { key: 'filters', labelNl: 'Filters', labelEn: 'Filters' },

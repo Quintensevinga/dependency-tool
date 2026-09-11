@@ -37,8 +37,7 @@ html, body {
 
 /* Teamcanvas: reskin ReactFlow's default controls/minimap chrome so they
    read as part of the app instead of the library default look. Scoped to
-   .teamcanvas-flow so other ReactFlow canvases (Relatiekaart, Ketenoverzicht)
-   are unaffected. */
+   .teamcanvas-flow so the Ketenoverzicht canvas is unaffected. */
 .teamcanvas-flow.react-flow {
   background: #e8edf2;
 }

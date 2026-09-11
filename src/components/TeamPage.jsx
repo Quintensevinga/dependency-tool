@@ -3066,7 +3066,7 @@ function DepFiltersDropdown({
 
           <div className="mt-2.5">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('matrix.col.status')}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('tabel.col.status')}</span>
               <button type="button" onClick={() => setStatusFilter(new Set(STATUS_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
                 {t('filter.selectAll')}
               </button>
@@ -3218,7 +3218,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [showIO, setShowIO] = useState(true)
   const [showOverstijgend, setShowOverstijgend] = useState(true)
   // Standaard aan: geaccepteerde afhankelijkheden blijven op het teamcanvas
-  // staan (ze zijn wel uit de organisatiebrede Netwerkweergave gefilterd).
+  // staan (ze zijn wel uit de organisatiebrede Heatmap gefilterd).
   const [showGeaccepteerd, setShowGeaccepteerd] = useState(true)
   const [riskFilterOn, setRiskFilterOn] = useState(false)
   const [showExternalTeams, setShowExternalTeams] = useState(false)
@@ -3695,7 +3695,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const canvasFitKey = `${nodes.length}:${canvasWidth}:${canvasHeight}:${splitApplicaties}`
 
   // Lijnen worden pas duidelijk als niet-gerelateerde relaties wegvallen
-  // zodra je iets aanwijst — zelfde hover-dim-patroon als GraphView.jsx
+  // zodra je iets aanwijst — zelfde hover-dim-patroon als HeatmapView.jsx
   // (hoverNodeId + een lichte stijl-laag over de edges, los van de layout-
   // berekening zelf zodat hoveren geen herberekening van nodes triggert).
   const [hoverNodeId, setHoverNodeId] = useState(null)
@@ -4492,7 +4492,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             </div>
 
             {/* Canvas + focuspaneel als flex-rij (zelfde dockingpatroon als
-                TeamFilterPanel naast GraphView) — het paneel is een vaste-
+                TeamFilterPanel naast HeatmapView) — het paneel is een vaste-
                 breedte zijkolom die alleen verschijnt zodra canvasFocus
                 gezet is, i.p.v. een overlay bovenop het canvas. flex-1 laat
                 deze rij precies de ruimte vullen die de omsluitende kaart nog
