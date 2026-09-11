@@ -33,7 +33,6 @@ import { fitViewAvoidingCorner } from '../lib/flowFit'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useTeamSelection } from '../lib/useTeamSelection'
 import TeamFilterPanel from './TeamFilterPanel'
-import ScopeToggle from './ScopeToggle'
 
 function highestRisk(deps) {
   let best = { level: 'Laag', score: 0 }
@@ -199,6 +198,87 @@ function externalEdgeData(p, teamNaam, direction, refs) {
   return { external: true, partyKey: p.key, partyNaam: p.naam, teamNaam, direction, refs }
 }
 
+// Legenda rechtsboven ín het canvas: een knopje dat een kaartje met de
+// lijnsoorten en klikacties open- en dichtklapt. De voorbeeldlijntjes
+// gebruiken exact dezelfde kleuren en streepjespatronen als de echte lijnen
+// (CONNECTION_COLORS, AGG_COLOR, EXT_COLOR, PENDING_EDGE_STYLE,
+// BACK_EDGE_STYLE), zodat de legenda nooit uit de pas loopt met de tekening.
+function LegendLine({ color, dash, width = 2, opacity = 1 }) {
+  return (
+    <svg width="34" height="12" viewBox="0 0 34 12" aria-hidden="true" className="shrink-0">
+      <path d="M1 6H29" stroke={color} strokeWidth={width} strokeDasharray={dash} strokeLinecap="round" opacity={opacity} />
+      <path d="M27 2.5L32 6L27 9.5" stroke={color} strokeWidth={1.5} fill="none" strokeLinecap="round" strokeLinejoin="round" opacity={opacity} />
+    </svg>
+  )
+}
+
+function ChainLegend() {
+  const { t } = useLanguage()
+  const [open, setOpen] = useState(false)
+  const rows = [
+    { key: 'legendItemLink', sample: <LegendLine color={CONNECTION_COLORS[0]} /> },
+    {
+      key: 'legendBundle',
+      sample: (
+        <span className="relative inline-flex shrink-0 items-center">
+          <LegendLine color={AGG_COLOR} />
+          <span className="absolute left-[9px] top-[-3px] rounded-full border border-slate-300 bg-white px-1 text-[8px] font-semibold leading-[11px] text-slate-600">3</span>
+        </span>
+      ),
+    },
+    { key: 'legendPending', sample: <LegendLine color={CONNECTION_COLORS[0]} dash={PENDING_EDGE_STYLE.strokeDasharray} /> },
+    { key: 'legendBackflow', sample: <LegendLine color={CONNECTION_COLORS[1]} dash={BACK_EDGE_STYLE.strokeDasharray} /> },
+    { key: 'legendPartyItem', sample: <LegendLine color={EXT_COLOR} width={1.5} /> },
+    { key: 'legendPartyDependency', sample: <LegendLine color={EXT_COLOR} width={1.5} dash={BACK_EDGE_STYLE.strokeDasharray} opacity={0.7} /> },
+    {
+      key: 'legendFocus',
+      sample: <span className="inline-block h-3 w-[34px] shrink-0 rounded border-2 border-[#2a5f8a] bg-white" aria-hidden="true" />,
+    },
+    {
+      key: 'legendStack',
+      sample: (
+        <span className="inline-flex w-[34px] shrink-0 justify-center" aria-hidden="true">
+          <span className="inline-flex h-3 items-center gap-0.5 rounded-b border-2 border-t-0 border-[#5c6b8a]/40 bg-slate-50 px-1 text-[8px] font-bold leading-none text-[#3f4a63]">
+            {stackGlyph}
+          </span>
+        </span>
+      ),
+    },
+  ]
+  return (
+    <div className="flex flex-col items-end gap-1.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium shadow-md backdrop-blur-sm ${
+          open ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white' : 'border-slate-200 bg-white/95 text-slate-600 hover:bg-white'
+        }`}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
+          <path d="M12 11v6M12 7.5v.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        {t('chain.legendButton')}
+      </button>
+      {open && (
+        <div className="w-[268px] rounded-lg border border-slate-200 bg-white/95 px-3 py-2.5 text-[11px] text-slate-600 shadow-md backdrop-blur-sm">
+          <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('chain.legendTitle')}</div>
+          <ul className="space-y-1.5">
+            {rows.map((row) => (
+              <li key={row.key} className="flex items-start gap-2">
+                <span className="mt-[2px] inline-flex shrink-0">{row.sample}</span>
+                <span>{t(`chain.${row.key}`)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-2 border-t border-slate-100 pt-1.5 text-[10px] text-slate-500">{t('chain.legendClicks')}</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Zwevende toolbar linksonder ín het canvas (zelfde plek en uiterlijk als op
 // de teampagina, zie TeamCanvasToolbar): uitzoomen, inzoomen, passend maken.
 // Doet ook de automatische fit zodra er een nieuwe lay-out staat (elke
@@ -235,6 +315,22 @@ function ChainCanvasToolbar({ fitKey }) {
     const id = window.setTimeout(fit, 200)
     return () => window.clearTimeout(id)
   }, [fitKey, fit])
+
+  // En bij het resizen van het venster zelf (het canvas groeit/krimpt mee
+  // met de vensterhoogte) — gedebouncet, 'resize' vuurt tientallen keren per
+  // seconde.
+  useEffect(() => {
+    let id
+    const handleResize = () => {
+      window.clearTimeout(id)
+      id = window.setTimeout(fit, 150)
+    }
+    window.addEventListener('resize', handleResize)
+    return () => {
+      window.clearTimeout(id)
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [fit])
 
   const btnClass = 'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700'
   return (
@@ -1181,10 +1277,6 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   // heatmap — blijven wel aan te vinken voor historische data.
   const { selectedTeamIds, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams)
   const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
-  // Lokale scope-filter, zelfde opzet als de Heatmap: standaard 'alle'
-  // zodat het ketenoverzicht zoals voorheen Teamniveau + Ketenniveau gemengd
-  // toont, met de optie om te versmallen.
-  const [scope, setScope] = useState('alle')
 
   const filteredTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
 
@@ -1264,17 +1356,19 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     // aangevinkt zou anders elk team zonder dependencies gedimd raken.
     const riskFilterActive = selectedRiskLevels.length < RISK_LEVELS.length
     const result = {}
+    // Team- én ketenniveau samen: dit is het ketenoverzicht, een scope-
+    // schakelaar voegde hier niets toe.
     for (const team of visibleTeams) {
-      const inScope = dependencies.filter((d) => d.teamId === team.id && (scope === 'alle' || d.scope === scope))
-      const deps = inScope.filter((d) => selectedRiskLevels.includes(calculateRisk(d).level))
+      const all = dependencies.filter((d) => d.teamId === team.id)
+      const deps = all.filter((d) => selectedRiskLevels.includes(calculateRisk(d).level))
       result[team.id] = {
         ...highestRisk(deps),
         count: deps.length,
-        dimmed: riskFilterActive && deps.length === 0 && inScope.length > 0,
+        dimmed: riskFilterActive && deps.length === 0 && all.length > 0,
       }
     }
     return result
-  }, [visibleTeams, dependencies, selectedRiskLevels, scope])
+  }, [visibleTeams, dependencies, selectedRiskLevels])
 
   // Externe partijen: één keer verzameld uit alle teams/dependencies; de
   // graafopbouw filtert zelf op de zichtbare teams.
@@ -1473,10 +1567,6 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     setStackReturn(null)
   }
 
-  const teamFilterActive = selectedTeamIds.length < teams.length
-  const riskFilterActive = selectedRiskLevels.length < RISK_LEVELS.length
-  const partyFilterActive = !showFocusParties || !showOtherParties || hiddenPartyKeys.size > 0
-  const anyFilterActive = teamFilterActive || riskFilterActive || partyFilterActive
   const teamNaam = (teamId) => teamLabels[teamId] ?? teams.find((tm) => tm.id === teamId)?.naam ?? teamId
 
   // Het team-focusmenu leeft op het canvas zelf (als zwevend paneel, zie
@@ -1715,20 +1805,40 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     }
   }
 
+  // Het canvas vult de hele resterende vensterhoogte: van zijn eigen
+  // bovenrand tot de onderrand van het venster, minus het detailvak zodra dat
+  // open staat (dat blijft dan óók in beeld, zonder paginascroll). Gemeten
+  // i.p.v. een vaste calc(100vh - N): wat erboven staat verschilt per
+  // situatie, en het detailvak wisselt van hoogte per selectie. Ondergrens
+  // voor kleine schermen; dan scrolt de pagina gewoon.
+  const canvasBoxRef = useRef(null)
+  const detailBoxRef = useRef(null)
+  const [canvasHeight, setCanvasHeight] = useState(560)
+  const detailOpen = Boolean(detail)
+  useEffect(() => {
+    const update = () => {
+      const box = canvasBoxRef.current
+      // Geen venster (nog) gemeten — bv. een verborgen tabblad — dan de
+      // vorige waarde laten staan i.p.v. op de ondergrens te vallen.
+      if (!box || !window.innerHeight) return
+      const top = box.getBoundingClientRect().top
+      const detailHeight = detailBoxRef.current ? detailBoxRef.current.getBoundingClientRect().height + 8 : 0
+      // 24px = de pb-6 van <main> (App.jsx).
+      setCanvasHeight(Math.max(480, Math.floor(window.innerHeight - top - detailHeight - 24)))
+    }
+    update()
+    window.addEventListener('resize', update)
+    const observer = new ResizeObserver(update)
+    if (detailBoxRef.current) observer.observe(detailBoxRef.current)
+    return () => {
+      window.removeEventListener('resize', update)
+      observer.disconnect()
+    }
+  }, [detailOpen])
+
   return (
     <div className="flex items-start gap-4">
       <div className="min-w-0 flex-1 space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2">
-            {anyFilterActive && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
-                {t('filter.active')}
-              </span>
-            )}
-          </div>
-          <ScopeToggle scope={scope} onChange={setScope} />
-        </div>
-
         {/* Leeg-melding alleen als de tekening écht leeg zou zijn: geen andere
             kaart en geen enkele lijn. Een team met alleen een nog niet
             geaccepteerd verzoek (gestippelde lijn) of alleen externe partijen
@@ -1746,10 +1856,7 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           </div>
         ) : (
           <ReactFlowProvider>
-            <div
-              className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
-              style={{ height: 'max(560px, calc(100vh - 280px))' }}
-            >
+            <div ref={canvasBoxRef} className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm" style={{ height: canvasHeight }}>
               <ChainCanvas
                 graph={graph}
                 nodes={displayNodes}
@@ -1800,13 +1907,16 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 onPaneClick={clearSelection}
               >
                 <Panel position="top-left">{focusPicker}</Panel>
+                <Panel position="top-right">
+                  <ChainLegend />
+                </Panel>
               </ChainCanvas>
             </div>
           </ReactFlowProvider>
         )}
 
         {detail && (
-          <div className="flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
+          <div ref={detailBoxRef} className="flex items-start justify-between gap-3 rounded-lg border border-[#2a5f8a]/25 bg-[#2a5f8a]/5 px-4 py-2.5">
             <div className="min-w-0 flex-1 text-xs">{detail}</div>
             <button
               type="button"

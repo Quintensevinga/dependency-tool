@@ -20,6 +20,7 @@ const TeamPage = lazy(() => import('./components/TeamPage'))
 import { exportElementAsPng } from './lib/export'
 import { getCorruptRawData, clearCorruptRawData } from './lib/storage'
 import { buildDuplicatePrefill } from './lib/duplicateDependency'
+import { pathForNav, navFromPath } from './lib/routes'
 
 // Bewust géén silent no-op als een pagina via Admin uitgezet is (bv. een
 // verweesde teampagina-navigatie of een handmatige URL/state-restore): een
@@ -74,8 +75,11 @@ function AppContent() {
     dismissCorruptedNotice,
   } = useAppContext()
   const { t } = useLanguage()
+  // De URL wint van de bewaarde navigatiestatus: een gedeelde of ververste
+  // link (/ketenoverzicht, /team/<id>) opent die pagina; een onbekend of
+  // leeg pad valt terug op de laatst bewaarde pagina (zie lib/routes.js).
   const [activeTab, setActiveTab] = useState(() => {
-    const restored = loadNavState().activeTab
+    const restored = navFromPath(window.location.pathname)?.activeTab ?? loadNavState().activeTab
     return ['heatmap', 'chain', 'analyse'].includes(restored) ? restored : 'heatmap'
   })
   // Drie standen i.p.v. alleen open/smal: 'open' (breed, vast), 'icons'
@@ -84,7 +88,8 @@ function AppContent() {
   // zelfde gedrag als de vorige boolean.
   const [sidebarMode, setSidebarMode] = useState('open')
   const [teamPageTeamId, setTeamPageTeamId] = useState(() => {
-    const restored = loadNavState().teamPageTeamId
+    const fromUrl = navFromPath(window.location.pathname)
+    const restored = fromUrl ? fromUrl.teamPageTeamId : loadNavState().teamPageTeamId
     // Het bewaarde team-id moet nog wel bestaan — een team dat in een andere
     // sessie verwijderd is, mag nooit naar een kapotte teampagina navigeren
     // (zelfde "nooit een foutstatus voor onvolledige/rommelige data"-
@@ -105,6 +110,43 @@ function AppContent() {
   useEffect(() => {
     localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, teamPageTeamId }))
   }, [activeTab, teamPageTeamId])
+
+  // URL volgt de navigatiestatus: elke wissel van pagina is een nieuwe
+  // history-entry (pushState), zodat terug/vooruit in de browser werkt. De
+  // allereerste synchronisatie en een wijziging die zélf uit terug/vooruit
+  // komt (popstate) vervangen alleen het huidige pad, anders zou elke
+  // terug-stap weer een nieuwe entry maken en kwam je nooit meer terug.
+  const urlSyncRef = useRef({ initial: true, fromPop: false })
+  useEffect(() => {
+    const path = pathForNav({ activeTab, teamPageTeamId })
+    const sync = urlSyncRef.current
+    if (window.location.pathname !== path) {
+      if (sync.initial || sync.fromPop) window.history.replaceState(null, '', path)
+      else window.history.pushState(null, '', path)
+    }
+    sync.initial = false
+    sync.fromPop = false
+  }, [activeTab, teamPageTeamId])
+  useEffect(() => {
+    function handlePop() {
+      const nav = navFromPath(window.location.pathname)
+      if (!nav) return
+      urlSyncRef.current.fromPop = true
+      if (nav.teamPageTeamId) {
+        if (teams.some((tm) => tm.id === nav.teamPageTeamId)) setTeamPageTeamId(nav.teamPageTeamId)
+      } else {
+        setTeamPageTeamId(null)
+        setActiveTab(nav.activeTab)
+      }
+      // Leverde de popstate geen statuswijziging op (zelfde pagina), dan
+      // loopt het sync-effect hierboven niet en moet de vlag hier weer uit.
+      window.setTimeout(() => {
+        urlSyncRef.current.fromPop = false
+      }, 0)
+    }
+    window.addEventListener('popstate', handlePop)
+    return () => window.removeEventListener('popstate', handlePop)
+  }, [teams])
 
   // Een geopende teampagina hoort bij een bestaand team: na 'Wis alle data'
   // of een JSON-import (beide vervangen de hele teamlijst) zou de pagina
