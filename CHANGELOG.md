@@ -5,6 +5,40 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-11
 - **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
 
+- **Ketenoverzicht: weergave hele keten / één team / meerdere teams, filterpaneel weg** (Quinten)
+
+  De canvasbalk linksboven begint nu met een driestanden-keuze i.p.v. alleen
+  'Focus op team':
+  - Hele keten (standaard bij openen): elk actief team ingeklapt, in
+    ketenvolgorde, met alle koppelingen en de externe partijen erbij.
+  - Eén team: de dropdown 'Kies een team…' (gemarkeerd zolang er niets
+    gekozen is, met hint; tot die tijd staat de hele keten in beeld), daarna
+    de keten vanaf dat team met de dieptemeter.
+  - Meerdere teams: een teamkiezer met vinkjes en Alles/Geen; begint met alle
+    teams aangevinkt. Zonder enig team blijft de balk in het lege vak staan.
+  Elke stand heeft een eigen adres (/ketenoverzicht, /ketenoverzicht/team,
+  /ketenoverzicht/<id>, /ketenoverzicht/teams/<id>,<id>) en is een history-
+  entry; App bewaart de weergave als één object (lib/routes.js:
+  sanitizeChainView valideert URL en localStorage tegen de bestaande teams).
+
+  Het filterpaneel rechts is van dit scherm af: alle actieve teams doen mee,
+  de externe partijen regel je via het menu 'Partijen' op de canvasbalk (de
+  paneelgroep daarvoor is uit TeamFilterPanel gehaald). De uitklapmenu's
+  sluiten nu ook bij een klik op het canvas: React Flow's d3-zoom stopt de
+  mousedown op de pane vóór 'ie bij document aankomt, dus de
+  'klik-erbuiten'-luisteraar hangt nu in de capture-fase. Ingeklapte kaarten
+  tonen alleen nog hun in/uit-tellers, geen risicolabel meer.
+
+  Geverifieerd in de browser: openen → hele keten (8 kaarten, 23 partijen,
+  geen paneel, geen risicolabel); Eén team → /ketenoverzicht/team met
+  placeholder en markering → keuze → /ketenoverzicht/team-…, focuskaart
+  volledig, dieptemeter zichtbaar; Meerdere teams → /ketenoverzicht/teams/…,
+  één uitvinken → 7 kaarten, menu blijft open, Geen → leeg vak met balk,
+  Alles herstelt; partijenmenu sluit op klik op het canvas; terug/vooruit
+  door de standen; directe URL met twee teams → twee kaarten.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
 - **Ketenoverzicht: focusteam kiezen bij openen, partijenbediening op twee plekken, risicofilter weg** (Quinten)
 
   Bij het openen leek er al een team gekozen (de langste keten werd stil
