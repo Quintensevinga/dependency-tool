@@ -5,6 +5,36 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-11
 - **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
 
+- **Ketenoverzicht: stapel-tabs en groepsschakelaars weg, één afhankelijkheden-schakelaar, volledig scherm** (Quinten)
+
+  Partijen kenden drie manieren om te verdwijnen (uitvinken, groepsschakelaar,
+  stapel-tab onder de kaart) — een restant van het model waarin partijen
+  standaard uit stonden. Nu één regel: aangevinkt in het menu 'Partijen' is
+  een kaartje, uitgevinkt is weg. De twee groepsschakelaars (focusteam /
+  andere teams — zinloos in de standen zonder focusteam) en de stapel-tabs met
+  hun lijst-navigatie in het detailvak zijn verwijderd. In plaats daarvan één
+  schakelaar 'Afhankelijkheden tonen (gestippelde lijnen)': uit haalt de
+  afhankelijkheidsrelaties weg, en daarmee in één keer de algemene partijen
+  (CAB, IAM-beheer, Security Office, …) die alleen daarvan leven; partijen
+  die een item leveren of ontvangen blijven staan. In het detailvak van een
+  geselecteerd team staan uitgevinkte partijen als grijze, gestippelde chip;
+  klik erop en de partij komt terug én is geselecteerd — zo blijft 'welke
+  partijen raken dit team' vindbaar zonder tabjes.
+
+  Toolbar linksonder nu gelijk aan de teampagina: uitzoomen, inzoomen,
+  centreren/passend maken, en volledig scherm (canvas met detailvak als
+  overlay over de hele app, Escape sluit; zelfde z-laag als de teampagina).
+  Het canvas meet zijn hoogte ook in volledig scherm zelf en is in de
+  flex-kolom niet samendrukbaar.
+
+  Geverifieerd in de browser: geen stapel-tabs; schakelaar uit → 67
+  gestippelde lijnen weg, 23 → 12 partijen; 'alleen' → 1 partij, kaartdetail
+  toont 7 grijze chips, klik → partij terug en geselecteerd; toolbar-titels
+  gelijk aan de teampagina; volledig scherm: canvas 868px hoog bij een venster
+  van 900 (16px marge), erbuiten 803px (73 + 24); Escape sluit.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
 - **Ketenoverzicht: weergave hele keten / één team / meerdere teams, filterpaneel weg** (Quinten)
 
   De canvasbalk linksboven begint nu met een driestanden-keuze i.p.v. alleen
