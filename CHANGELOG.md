@@ -2,6 +2,79 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-11
+- **Analyse: zes tabbladen in de pagina i.p.v. één lange lijst secties** (Quinten)
+
+  De veertien secties stonden onder elkaar in één pagina met een rij
+  'spring naar'-knopjes erboven. In de praktijk was dat te lang om te
+  overzien, en springen bracht je telkens midden in een scherm vol kaarten.
+
+  Nu een tabstrip in de pagina zelf, direct onder de filterbalk. De zijbalk
+  verandert niet. De team- en periodefilters blijven erboven staan, want die
+  gelden voor alle tabbladen tegelijk.
+
+  Bewust gegroepeerd naar zes tabs i.p.v. één tab per sectie: veertien
+  tabnamen zijn samen breder dan het scherm, de strip breekt dan naar twee
+  of drie regels en leest niet meer als tabs. De indeling:
+
+    Overzicht        Overzicht, Rapport
+    Signalen         Waarschuwingen, Constateringen
+    Trends           Trends, Doorlooptijden
+    Risico           Risico en urgentie, Verdelingen, Concentratie en hubs
+    Keten en proces  Keten, Applicaties en ontwikkelproces, Flowverlies
+    Data en beheer   Datakwaliteit, Beheer en registratie
+
+  Elke sectie houdt zijn eigen kop en inhoud, er verdwijnt niets. Alleen het
+  geopende tabblad staat in de DOM, wat de pagina flink lichter maakt en de
+  PNG-export bruikbaar: die pakt nu precies het tabblad dat je bekijkt in
+  plaats van meters aan pagina. Flowverlies blijft zoals voorheen alleen
+  zichtbaar als 'Uitgebreide analyse' aan staat.
+
+  Welke tab open staat is bewust niet gepersisteerd, net als de team- en
+  periodefilters.
+
+  De diff oogt groot doordat de secties twee spaties zijn ingesprongen; met
+  'git diff -w' blijft de werkelijke wijziging over. Inhoudelijk is alleen
+  de sectie Doorlooptijden verplaatst, naar het Trends-tabblad.
+
+  Geverifieerd in de browser: alle zes tabs, NL/EN, en het wegvallen van
+  Flowverlies met 'Uitgebreide analyse' uit.
+
+- **Matrix-overzicht en Relatiekaart volledig verwijderd** (Quinten)
+
+  Beide weergaven zijn uit de tool gehaald. Wat overblijft: Heatmap (het
+  startscherm), Ketenoverzicht en Analyse.
+
+  Matrix-overzicht: de hele pagina inclusief de twee secties die er alleen
+  op stonden — de samenvattingskaarten (ExecutiveSummary) en de
+  belangrijkste observaties (InsightPanel), plus lib/insights.js dat alleen
+  die twee voedde. De Analysepagina dekt dezelfde vragen inmiddels
+  uitgebreider.
+
+  Relatiekaart: de bipartite modus van de Netwerkweergave. Daarmee valt de
+  modus-wissel weg en is GraphView.jsx opgegaan in HeatmapView.jsx — alleen
+  nog de heatmap-tabel, zonder reactflow, nodes/edges, doorklik-pin of
+  sleep-om-een-dependency-te-maken. Reactflow zit daardoor niet meer in de
+  hoofdbundel.
+
+  Verder meegenomen:
+  - Admin-toggles: pages.matrix en pages.netwerk (met sections heatmap/
+    relatiekaart) vervangen door pages.heatmap. migrateAdminSettings neemt
+    pages voortaan per bekende sleutel over i.p.v. met een spread, zodat
+    verdwenen pagina's niet als restsleutel in de state en in nieuwe
+    exports blijven hangen.
+  - Tabblad 'graph' heet nu 'heatmap'; een bewaarde navigatiestatus die
+    naar 'matrix'/'graph' wijst valt terug op de Heatmap.
+  - Globale scope-state in AppContext weg — alleen Matrix gebruikte die.
+  - i18n: matrix.col.*/matrix.empty zijn tabel.*, graph.* is heatmap.*, en
+    'wis selectie' is één gedeelde sleutel voor Heatmap en Ketenoverzicht.
+  - README en gebruikshandleiding bijgewerkt (hoofdstukken hernummerd,
+    nieuwe heatmap-screenshot, de twee achterhaalde screenshots weg).
+
+  Geverifieerd in de browser: cel-, rij- en kolomselectie, hover-tooltip,
+  categorie-uitleg, filters, detailpaneel, NL/EN, de andere twee pagina's
+  en de admin-migratie vanaf oude opgeslagen instellingen.
+
 ## 2026-09-10
 - **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
 
