@@ -5,6 +5,40 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-11
 - **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
 
+- **Ketenoverzicht: focusteam kiezen bij openen, partijenbediening op twee plekken, risicofilter weg** (Quinten)
+
+  Bij het openen leek er al een team gekozen (de langste keten werd stil
+  voorgeselecteerd) terwijl dat geen eigen keuze was. Zonder keuze toont het
+  scherm nu teamtegels (in ketenvolgorde, met in/uit-tellers, hoogste risico
+  en hoeveel teams de keten vanaf dat team raakt); de keuze staat in de URL
+  (/ketenoverzicht/<team-id>), wordt bewaard en is een history-entry, zodat
+  terug/vooruit, verversen en delen op datzelfde team uitkomen. De focus-state
+  verhuisde daarvoor van ChainOverview naar App (lib/routes.js).
+
+  Het risicofilter is uit het ketenoverzicht gehaald: dependencies zijn hier
+  geen invoer, het filter stuurde alleen het badge-kleurtje op ingeklapte
+  kaarten. Het paneel rechts houdt twee groepen over die allebei over 'wat
+  staat er op het canvas' gaan: Teams tonen en Externe partijen
+  (TeamFilterPanel: risicogroep optioneel, de Heatmap gebruikt 'm nog).
+
+  De partijenbediening staat bewust op twee plekken met dezelfde state
+  (ExternalPartyFilter): als groep in het filterpaneel én als uitklapmenu
+  'Partijen 23/23' op de canvasbalk — welke ingang beter werkt blijkt in het
+  gebruik, de verliezer kan er dan zo uit. Nieuw in beide: teller 'x van y',
+  zoekveld, en per partij een 'alleen'-knop (solo) om in één klik enkel die
+  partij over te houden.
+
+  Legenda: alleen nog een i-icoontje, met een tweede blok over de bediening
+  (focusteam, diepte — begrenst ook de stroom —, terugkoppelingen, partijen).
+
+  Geverifieerd in de browser: /ketenoverzicht zonder keuze → 8 tegels; tegel
+  → /ketenoverzicht/team-…; terug → tegels; vooruit → canvas; direct openen
+  van /ketenoverzicht/team-polis; geen risicogroep; 'alleen' → 1 van 23 en één
+  partijkaartje, Alles herstelt; canvasmenu met 25 vinkjes, sluit op Escape;
+  legenda 12 regels.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
 - **Ketenoverzicht vult het venster, legenda in het canvas, URL per pagina** (Quinten)
 
   Canvas: de vaste hoogte (max(560px, 100vh - 280px)) liet op een groot
