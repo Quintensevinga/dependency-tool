@@ -20,7 +20,7 @@ const TeamPage = lazy(() => import('./components/TeamPage'))
 import { exportElementAsPng } from './lib/export'
 import { getCorruptRawData, clearCorruptRawData } from './lib/storage'
 import { buildDuplicatePrefill } from './lib/duplicateDependency'
-import { pathForNav, navFromPath } from './lib/routes'
+import { pathForNav, navFromPath, sanitizeChainView, DEFAULT_CHAIN_VIEW } from './lib/routes'
 
 // Bewust géén silent no-op als een pagina via Admin uitgezet is (bv. een
 // verweesde teampagina-navigatie of een handmatige URL/state-restore): een
@@ -96,13 +96,13 @@ function AppContent() {
     // principe als elders in de app).
     return restored && teams.some((tm) => tm.id === restored) ? restored : null
   })
-  // Focusteam van het ketenoverzicht: bewust een expliciete keuze van de
-  // gebruiker (geen automatisch gekozen team — dat oogde als een eigen keuze
-  // die het niet was), in de URL (/ketenoverzicht/<team-id>) en bewaard.
-  const [chainFocusTeamId, setChainFocusTeamId] = useState(() => {
+  // Weergave van het ketenoverzicht: hele keten, één team (focus) of
+  // meerdere teams — een expliciete keuze van de gebruiker (geen automatisch
+  // gekozen team: dat oogde als een eigen keuze die het niet was), in de URL
+  // en bewaard. Zie lib/routes.js voor de paden.
+  const [chainView, setChainView] = useState(() => {
     const fromUrl = navFromPath(window.location.pathname)
-    const restored = fromUrl?.chainFocusTeamId !== undefined ? fromUrl.chainFocusTeamId : loadNavState().chainFocusTeamId
-    return restored && teams.some((tm) => tm.id === restored) ? restored : ''
+    return sanitizeChainView(fromUrl?.chainView ?? loadNavState().chainView ?? DEFAULT_CHAIN_VIEW, teams)
   })
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
@@ -116,8 +116,8 @@ function AppContent() {
   // browserherlaad (bv. na een codewijziging tijdens ontwikkelen) op dezelfde
   // pagina uitkomt i.p.v. terug te vallen op de standaard Heatmap.
   useEffect(() => {
-    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, teamPageTeamId, chainFocusTeamId }))
-  }, [activeTab, teamPageTeamId, chainFocusTeamId])
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, teamPageTeamId, chainView }))
+  }, [activeTab, teamPageTeamId, chainView])
 
   // URL volgt de navigatiestatus: elke wissel van pagina is een nieuwe
   // history-entry (pushState), zodat terug/vooruit in de browser werkt. De
@@ -126,7 +126,7 @@ function AppContent() {
   // terug-stap weer een nieuwe entry maken en kwam je nooit meer terug.
   const urlSyncRef = useRef({ initial: true, fromPop: false })
   useEffect(() => {
-    const path = pathForNav({ activeTab, teamPageTeamId, chainFocusTeamId })
+    const path = pathForNav({ activeTab, teamPageTeamId, chainView })
     const sync = urlSyncRef.current
     if (window.location.pathname !== path) {
       if (sync.initial || sync.fromPop) window.history.replaceState(null, '', path)
@@ -134,7 +134,7 @@ function AppContent() {
     }
     sync.initial = false
     sync.fromPop = false
-  }, [activeTab, teamPageTeamId, chainFocusTeamId])
+  }, [activeTab, teamPageTeamId, chainView])
   useEffect(() => {
     function handlePop() {
       const nav = navFromPath(window.location.pathname)
@@ -145,7 +145,7 @@ function AppContent() {
       } else {
         setTeamPageTeamId(null)
         setActiveTab(nav.activeTab)
-        if (nav.activeTab === 'chain') setChainFocusTeamId(teams.some((tm) => tm.id === nav.chainFocusTeamId) ? nav.chainFocusTeamId : '')
+        if (nav.activeTab === 'chain') setChainView(sanitizeChainView(nav.chainView, teams))
       }
       // Leverde de popstate geen statuswijziging op (zelfde pagina), dan
       // loopt het sync-effect hierboven niet en moet de vlag hier weer uit.
@@ -164,8 +164,10 @@ function AppContent() {
   // volgende laadbeurt (migrateTeamWorkflows) weer wegvalt.
   useEffect(() => {
     if (teamPageTeamId && !teams.some((tm) => tm.id === teamPageTeamId)) setTeamPageTeamId(null)
-    if (chainFocusTeamId && !teams.some((tm) => tm.id === chainFocusTeamId)) setChainFocusTeamId('')
-  }, [teams, teamPageTeamId, chainFocusTeamId])
+    // Weergave van het ketenoverzicht opschonen zodra een team verdwijnt.
+    const clean = sanitizeChainView(chainView, teams)
+    if (clean.teamId !== chainView.teamId || clean.teamIds.length !== chainView.teamIds.length) setChainView(clean)
+  }, [teams, teamPageTeamId, chainView])
 
   function handleTabChange(tab) {
     setTeamPageTeamId(null)
@@ -336,8 +338,8 @@ function AppContent() {
                 <ChainOverview
                   adminSections={adminSettings.sections.keten}
                   sidebarMode={sidebarMode}
-                  focusTeamId={chainFocusTeamId}
-                  onFocusChange={setChainFocusTeamId}
+                  view={chainView}
+                  onViewChange={setChainView}
                 />
               ) : (
                 <PageDisabledNotice />

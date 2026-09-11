@@ -30,8 +30,6 @@ import { orderChain, roundedOrthPath, polylineMidpoint, buildElkGraph, applyElkL
 import { emptyTeamWorkflow } from '../lib/storage'
 import { fitViewAvoidingCorner } from '../lib/flowFit'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
-import { useTeamSelection } from '../lib/useTeamSelection'
-import TeamFilterPanel from './TeamFilterPanel'
 import ExternalPartyFilter from './ExternalPartyFilter'
 
 function highestRisk(deps) {
@@ -289,11 +287,11 @@ function ChainLegend() {
   )
 }
 
-// Uitklapmenu 'Partijen' op de canvasbalk: dezelfde bediening als de groep in
-// het filterpaneel (ExternalPartyFilter), direct bij de tekening. Sluit bij
-// een klik erbuiten of Escape.
-function PartyMenu(filter) {
-  const { t } = useLanguage()
+// Uitklapmenu op de canvasbalk (knop met teller, paneel eronder). Sluit bij
+// een klik erbuiten of Escape. Capture-fase voor de muis: het canvas
+// (d3-zoom in React Flow) stopt de mousedown op de pane vóór 'ie bij document
+// aankomt, waardoor een klik op het canvas het menu anders niet sloot.
+function BarMenu({ label, shown, total, narrowed, highlight = false, children }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
   useEffect(() => {
@@ -304,15 +302,15 @@ function PartyMenu(filter) {
     const onKey = (event) => {
       if (event.key === 'Escape') setOpen(false)
     }
-    document.addEventListener('mousedown', onDown)
+    document.addEventListener('mousedown', onDown, true)
+    document.addEventListener('touchstart', onDown, true)
     document.addEventListener('keydown', onKey)
     return () => {
-      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('mousedown', onDown, true)
+      document.removeEventListener('touchstart', onDown, true)
       document.removeEventListener('keydown', onKey)
     }
   }, [open])
-  const shown = filter.parties.filter((p) => !filter.hiddenKeys.has(p.key)).length
-  const narrowed = !filter.showFocus || !filter.showOthers || shown < filter.parties.length
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -320,20 +318,62 @@ function PartyMenu(filter) {
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
-          open ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white' : 'border-slate-300 bg-white text-slate-600 hover:text-slate-900'
+          open
+            ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white'
+            : highlight
+              ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 font-medium text-[#2a5f8a] ring-2 ring-[#2a5f8a]/30'
+              : 'border-slate-300 bg-white text-slate-600 hover:text-slate-900'
         }`}
       >
-        {t('chain.partiesMenu')}
+        {label}
         <span className={`rounded px-1 text-[10px] font-semibold ${open ? 'bg-white/20' : narrowed ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'bg-slate-100 text-slate-500'}`}>
-          {shown}/{filter.parties.length}
+          {shown}/{total}
         </span>
       </button>
-      {open && (
-        <div className="absolute left-0 top-full z-20 mt-1.5 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">
-          <ExternalPartyFilter {...filter} />
-        </div>
-      )}
+      {open && <div className="absolute left-0 top-full z-20 mt-1.5 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">{children}</div>}
     </div>
+  )
+}
+
+// 'Partijen': dezelfde bediening als ExternalPartyFilter, direct bij de tekening.
+function PartyMenu(filter) {
+  const { t } = useLanguage()
+  const shown = filter.parties.filter((p) => !filter.hiddenKeys.has(p.key)).length
+  const narrowed = !filter.showFocus || !filter.showOthers || shown < filter.parties.length
+  return (
+    <BarMenu label={t('chain.partiesMenu')} shown={shown} total={filter.parties.length} narrowed={narrowed}>
+      <ExternalPartyFilter {...filter} />
+    </BarMenu>
+  )
+}
+
+// 'Teams' (stand Meerdere teams): welke teams meedoen, met Alles/Geen. Zonder
+// enig team is de knop gemarkeerd — dan is er niets te tekenen.
+function TeamsMenu({ teams, teamLabels, selectedIds, onToggle, onSelectAll, onSelectNone }) {
+  const { t } = useLanguage()
+  const selected = new Set(selectedIds)
+  return (
+    <BarMenu label={t('chain.teamsMenu')} shown={selected.size} total={teams.length} narrowed={selected.size < teams.length} highlight={selected.size === 0}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('chain.teamsMenuHint')}</span>
+        <span className="flex shrink-0 gap-2 text-xs">
+          <button type="button" onClick={onSelectAll} className="font-medium text-[#2a5f8a] hover:underline">
+            {t('filter.selectAll')}
+          </button>
+          <button type="button" onClick={onSelectNone} className="font-medium text-slate-400 hover:underline">
+            {t('filter.selectNone')}
+          </button>
+        </span>
+      </div>
+      <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
+        {teams.map((team) => (
+          <label key={team.id} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+            <input type="checkbox" checked={selected.has(team.id)} onChange={() => onToggle(team.id)} className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 accent-[#2a5f8a]" />
+            <span className="min-w-0 flex-1 truncate">{teamLabels[team.id] ?? team.naam}</span>
+          </label>
+        ))}
+      </div>
+    </BarMenu>
   )
 }
 
@@ -668,9 +708,10 @@ function FocusChainCardNode({ id, data }) {
         <Handle type="source" position={Position.Left} id="card-out-rev" style={{ top: 30, opacity: 0.4 }} />
         <div className="text-sm font-semibold text-slate-800">{data.label}</div>
         {data.mode === 'collapsed' ? (
-          <div className="mt-2 flex items-center justify-between gap-1.5 border-t border-slate-100 pt-2">
+          // Ingeklapt: alleen de tellers — geen risicolabel meer, dit scherm
+          // gaat over de keten, niet over de ernst van dependencies.
+          <div className="mt-2 border-t border-slate-100 pt-2">
             <span className="whitespace-nowrap text-[11px] text-slate-500">{t('chain.collapsedCounts', { inCount: data.inCount, outCount: data.outCount })}</span>
-            {data.depCount > 0 && <RiskBadge level={data.risk.level} />}
           </div>
         ) : (
           <div className="mt-2 flex flex-col gap-1.5 border-t border-slate-100 pt-2">
@@ -828,12 +869,16 @@ const edgeTypes = { elk: ElkEdge }
 // (dimmen, amber items) komt er in displayNodes/displayEdges overheen.
 function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, focusTeamId, partyGraph, partyOptions, depth, showBackflow, selection }) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
-  const trace = traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll)
-  const columns = trace.columns.slice(0, depth + 1)
-  if (columns.length === 0) return { nodes: [], edges: [], stream: null }
-  const visibleTeams = columns.flat()
+  // Zonder focusteam (bij het openen): de hele keten, elk team ingeklapt, in
+  // ketenvolgorde — het overzicht om een team uit te kiezen. Mét focusteam:
+  // alleen wat de voorwaartse keten vanaf dat team raakt, tot `depth` stappen.
+  const overview = !focusTeamId
+  const visibleTeams = overview ? orderTeamsByChain(filteredTeams, chainEdgesAll) : traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll).columns.slice(0, depth + 1).flat()
+  if (visibleTeams.length === 0) return { nodes: [], edges: [], stream: null }
   const visibleTeamIds = new Set(visibleTeams.map((team) => team.id))
-  const { layerOf, backEdgeIds } = orderChain(focusTeamId, visibleTeamIds, chainEdgesAll)
+  // Wortel voor de cyclusbreking: het focusteam, of in het overzicht het
+  // eerste team in ketenvolgorde.
+  const { layerOf, backEdgeIds } = orderChain(overview ? visibleTeams[0].id : focusTeamId, visibleTeamIds, chainEdgesAll)
   // Namen voor álle teams (teamLabels dekt ook gearchiveerde en uitgevinkte
   // teams): een "van/naar {team}"-onderschrift kan naar een team buiten de
   // huidige selectie wijzen, en toonde dan het kale team-id.
@@ -1301,7 +1346,7 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
         mode: card.mode,
         rows: card.rows.map((row) => ({ ...row, color: itemColor.get(row.id) ?? null })),
         more: card.more,
-        isFocus: index === 0,
+        isFocus: !overview && index === 0,
         selected: team.id === selectedTeamId,
         highlight: highlightTeams.has(team.id),
         stacks,
@@ -1328,14 +1373,19 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
 // controle op de mockdata in node, zonder browser).
 export { computeChainGraph }
 
-export default function ChainOverview({ adminSections, sidebarMode, focusTeamId, onFocusChange }) {
+export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   const { teams, dependencies, teamWorkflows, teamLabels, externalParties } = useAppContext()
   const { t } = useLanguage()
   // Gearchiveerde teams staan standaard uit, zelfde gedrag als de
   // heatmap — blijven wel aan te vinken voor historische data.
-  const { selectedTeamIds, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams)
-
-  const filteredTeams = useMemo(() => teams.filter((tm) => selectedTeamIds.includes(tm.id)), [teams, selectedTeamIds])
+  // Geen filterpaneel op dit scherm: alle actieve teams doen mee
+  // (gearchiveerde niet); in de stand 'Meerdere teams' alleen de aangevinkte.
+  // Externe partijen regel je via het menu op de canvasbalk.
+  const activeTeams = useMemo(() => teams.filter((tm) => tm.actief), [teams])
+  const filteredTeams = useMemo(
+    () => (view.mode === 'teams' ? activeTeams.filter((tm) => view.teamIds.includes(tm.id)) : activeTeams),
+    [activeTeams, view.mode, view.teamIds],
+  )
 
   // Het ketenoverzicht kent één weergave: focus op één team, waarna de keten
   // voorwaarts uitrolt (kolom per ketenstap, begrensd door `depth`). Het
@@ -1370,37 +1420,32 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
   // Het team dat daadwerkelijk in beeld is: de keuze zolang die bestaat en
   // niet is weggefilterd.
   const activeFocusTeamId = useMemo(
-    () => (focusTeamId && filteredTeams.some((tm) => tm.id === focusTeamId) ? focusTeamId : ''),
-    [focusTeamId, filteredTeams],
+    () => (view.mode === 'team' && view.teamId && filteredTeams.some((tm) => tm.id === view.teamId) ? view.teamId : ''),
+    [view.mode, view.teamId, filteredTeams],
   )
 
   const focusActive = Boolean(activeFocusTeamId)
 
-  function changeFocus(teamId) {
-    onFocusChange(teamId)
+  function changeView(next) {
+    onViewChange(next)
     setSelection(null)
     setStackReturn(null)
   }
-
-  // Tegels om een focusteam te kiezen (zolang er geen focus is): in
-  // ketenvolgorde, met per team zijn in/uit-tellers, hoogste risico en hoeveel
-  // andere teams de keten vanaf dat team raakt.
-  const teamTiles = useMemo(
-    () =>
-      orderTeamsByChain(filteredTeams, chainEdgesAll).map((team) => {
-        const wf = teamWorkflows[team.id] ?? emptyTeamWorkflow()
-        const deps = dependencies.filter((d) => d.teamId === team.id)
-        return {
-          id: team.id,
-          naam: teamLabels[team.id] ?? team.naam,
-          inCount: (wf.inputs ?? []).length,
-          outCount: (wf.outputs ?? []).length,
-          reach: traceForwardChain(team.id, filteredTeams, chainEdgesAll).columns.flat().length - 1,
-          risk: deps.length > 0 ? highestRisk(deps) : null,
-        }
-      }),
-    [filteredTeams, chainEdgesAll, teamWorkflows, teamLabels, dependencies],
-  )
+  // 'Focus op dit team' (detailvak) en de dropdown: altijd de stand Eén team.
+  function changeFocus(teamId) {
+    changeView({ mode: 'team', teamId, teamIds: [] })
+  }
+  // Wissel van stand. Eén team houdt een eerder gekozen focus; Meerdere teams
+  // begint met álle teams aangevinkt (dat is hetzelfde beeld als Hele keten,
+  // vanwaar je wegvinkt wat je niet wilt zien).
+  function changeMode(mode) {
+    if (mode === view.mode) return
+    if (mode === 'chain') changeView({ mode, teamId: '', teamIds: [] })
+    else if (mode === 'team') changeView({ mode, teamId: view.teamId, teamIds: [] })
+    else changeView({ mode, teamId: '', teamIds: activeTeams.map((tm) => tm.id) })
+  }
+  const toggleTeamInView = (teamId) =>
+    changeView({ ...view, teamIds: view.teamIds.includes(teamId) ? view.teamIds.filter((id) => id !== teamId) : [...view.teamIds, teamId] })
 
   // Voorwaartse BFS vanaf het focusteam (traceForwardChain, lib/teamWorkflow.js),
   // begrensd op `depth` stappen: kolom = ketenstap.
@@ -1409,7 +1454,11 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
     return traceForwardChain(activeFocusTeamId, filteredTeams, chainEdgesAll)
   }, [focusActive, activeFocusTeamId, filteredTeams, chainEdgesAll])
 
-  const visibleTeams = useMemo(() => focusChainTrace?.columns.slice(0, depth + 1).flat() ?? [], [focusChainTrace, depth])
+  // Zonder focus: alle teams (overzicht, zie computeChainGraph).
+  const visibleTeams = useMemo(
+    () => (focusChainTrace ? focusChainTrace.columns.slice(0, depth + 1).flat() : orderTeamsByChain(filteredTeams, chainEdgesAll)),
+    [focusChainTrace, depth, filteredTeams, chainEdgesAll],
+  )
 
   // Hoogste risico per kaart (badge op ingeklapte kaarten), over álle
   // dependencies van het team: team- én ketenniveau samen, zonder risicofilter
@@ -1471,11 +1520,13 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
         focusTeamId: activeFocusTeamId,
         partyGraph: visiblePartyGraph,
         partyOptions: { showFocus: showFocusParties, showOthers: showOtherParties },
-        depth,
+        // Zonder focus (hele keten / meerdere teams) is er geen dieptemeter in
+        // beeld; een stroom loopt dan zo ver als de tekening reikt.
+        depth: focusActive ? depth : MAX_DEPTH,
         showBackflow,
         selection,
       }),
-    [teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, visiblePartyGraph, showFocusParties, showOtherParties, depth, showBackflow, selection],
+    [teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, focusActive, visiblePartyGraph, showFocusParties, showOtherParties, depth, showBackflow, selection],
   )
   const { nodes, edges, stream } = graph
 
@@ -1640,41 +1691,88 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
   // zweven) valt dit terug op een gewone, gecentreerde plek in de melding,
   // zodat je ook dan van focusteam kan wisselen. Geen lege optie: er is
   // altijd één team in beeld (zie activeFocusTeamId).
+  // De canvasbalk linksboven: eerst de weergave (hele keten / één team /
+  // meerdere teams), dan wat bij die stand hoort — de teamdropdown met de
+  // dieptemeter, of de teamkiezer — en altijd terugkoppelingen en partijen.
+  // Geen focus gekozen in de stand Eén team: dropdown gemarkeerd, met hint.
+  const viewLabels = { chain: t('chain.viewChain'), team: t('chain.viewTeam'), teams: t('chain.viewTeams') }
+  const separator = <span className="h-4 w-px bg-slate-200" />
   const focusPicker = (
     <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-sm">
-      <label htmlFor="chain-focus" className="text-xs font-medium text-[#2a5f8a]">
-        {t('chain.focusLabel')}
-      </label>
-      <select
-        id="chain-focus"
-        value={activeFocusTeamId}
-        onChange={(e) => changeFocus(e.target.value)}
-        className="max-w-[200px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 focus:border-[#2a5f8a] focus:outline-none"
-      >
-        {filteredTeams.map((tm) => (
-          <option key={tm.id} value={tm.id}>
-            {teamLabels[tm.id] ?? tm.naam}
-          </option>
-        ))}
-      </select>
-      <span className="h-4 w-px bg-slate-200" />
-      <span className="text-xs font-medium text-[#2a5f8a]" title={t('chain.depthHint')}>
-        {t('chain.depthLabel')}
-      </span>
-      <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" title={t('chain.depthHint')}>
-        {Array.from({ length: MAX_DEPTH }, (_, i) => i + 1).map((n) => (
+      <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" role="group" aria-label={t('chain.viewLabel')}>
+        {['chain', 'team', 'teams'].map((mode) => (
           <button
-            key={n}
+            key={mode}
             type="button"
-            aria-pressed={depth === n}
-            onClick={() => setDepth(n)}
-            className={`rounded px-2 py-0.5 transition-colors ${depth === n ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'}`}
+            aria-pressed={view.mode === mode}
+            onClick={() => changeMode(mode)}
+            className={`rounded px-2 py-0.5 transition-colors ${view.mode === mode ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'}`}
           >
-            {n}
+            {viewLabels[mode]}
           </button>
         ))}
       </div>
-      <span className="h-4 w-px bg-slate-200" />
+      {view.mode === 'team' && (
+        <>
+          <select
+            id="chain-focus"
+            aria-label={t('chain.focusLabel')}
+            value={activeFocusTeamId}
+            onChange={(e) => changeFocus(e.target.value)}
+            className={`max-w-[200px] truncate rounded-md border px-2 py-1 text-xs focus:outline-none ${
+              focusActive
+                ? 'border-slate-300 bg-white text-slate-600 focus:border-[#2a5f8a]'
+                : 'border-[#2a5f8a] bg-[#2a5f8a]/10 font-medium text-[#2a5f8a] ring-2 ring-[#2a5f8a]/30'
+            }`}
+          >
+            {/* Zonder keuze een lege, niet kiesbare eerste optie: de dropdown
+                toont dan 'Kies een team…' i.p.v. stiekem het eerste team. */}
+            {!focusActive && (
+              <option value="" disabled>
+                {t('chain.focusPlaceholder')}
+              </option>
+            )}
+            {activeTeams.map((tm) => (
+              <option key={tm.id} value={tm.id}>
+                {teamLabels[tm.id] ?? tm.naam}
+              </option>
+            ))}
+          </select>
+          {!focusActive && <span className="text-xs text-[#2a5f8a]">{t('chain.focusHintOverview')}</span>}
+          {focusActive && (
+            <>
+              {separator}
+              <span className="text-xs font-medium text-[#2a5f8a]" title={t('chain.depthHint')}>
+                {t('chain.depthLabel')}
+              </span>
+              <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" title={t('chain.depthHint')}>
+                {Array.from({ length: MAX_DEPTH }, (_, i) => i + 1).map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={depth === n}
+                    onClick={() => setDepth(n)}
+                    className={`rounded px-2 py-0.5 transition-colors ${depth === n ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'}`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </>
+      )}
+      {view.mode === 'teams' && (
+        <TeamsMenu
+          teams={activeTeams}
+          teamLabels={teamLabels}
+          selectedIds={view.teamIds}
+          onToggle={toggleTeamInView}
+          onSelectAll={() => changeView({ ...view, teamIds: activeTeams.map((tm) => tm.id) })}
+          onSelectNone={() => changeView({ ...view, teamIds: [] })}
+        />
+      )}
+      {separator}
       <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600">
         <input
           type="checkbox"
@@ -1684,7 +1782,7 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
         />
         {t('chain.backflowToggle')}
       </label>
-      <span className="h-4 w-px bg-slate-200" />
+      {separator}
       <PartyMenu {...partyFilterProps} />
     </div>
   )
@@ -1911,34 +2009,7 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
             geaccepteerd verzoek (gestippelde lijn) of alleen externe partijen
             heeft wél een canvas — daarom wordt hier op de getekende lijnen
             getoetst, niet op geaccepteerde ketenkoppelingen alleen. */}
-        {!focusActive ? (
-          // Nog geen focusteam gekozen: tegels om er een te kiezen.
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <div className="mb-1 text-sm font-semibold text-slate-800">{t('chain.chooseFocusTitle')}</div>
-            <div className="mb-4 text-xs text-slate-500">{t('chain.chooseFocusHint')}</div>
-            {teamTiles.length === 0 ? (
-              <div className="py-6 text-center text-sm text-slate-400">{t('chain.noTeams')}</div>
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {teamTiles.map((tile) => (
-                  <button
-                    key={tile.id}
-                    type="button"
-                    onClick={() => changeFocus(tile.id)}
-                    className="rounded-xl border-2 border-slate-200 bg-white px-3.5 py-3 text-left shadow-sm transition hover:-translate-y-px hover:border-[#2a5f8a] hover:shadow-md"
-                  >
-                    <div className="text-sm font-semibold text-slate-800">{tile.naam}</div>
-                    <div className="mt-1 text-[11px] text-slate-500">{t('chain.collapsedCounts', { inCount: tile.inCount, outCount: tile.outCount })}</div>
-                    <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-slate-500">
-                      <span>{tile.reach === 0 ? t('chain.tileReachNone') : tile.reach === 1 ? t('chain.tileReachOne') : t('chain.tileReach', { count: tile.reach })}</span>
-                      {tile.risk && <RiskBadge level={tile.risk.level} />}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : focusActive && visibleTeams.length === 1 && edges.length === 0 ? (
+        {focusActive && visibleTeams.length === 1 && edges.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
             <div className="mb-4 flex justify-center">{focusPicker}</div>
             <div>{t('chain.focusEmptyTitle')}</div>
@@ -1946,6 +2017,7 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
           </div>
         ) : visibleTeams.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
+            <div className="mb-4 flex justify-center">{focusPicker}</div>
             {t('chain.noTeams')}
           </div>
         ) : (
@@ -1955,7 +2027,7 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
                 graph={graph}
                 nodes={displayNodes}
                 edges={displayEdges}
-                fitKey={`${activeFocusTeamId}:${sidebarMode}`}
+                fitKey={`${activeFocusTeamId || 'overview'}:${sidebarMode}`}
                 onNodeClick={(event, node) => {
                   if (node.type === 'externalParty') {
                     // Nogmaals klikken op de partij heft de selectie op.
@@ -2023,16 +2095,6 @@ export default function ChainOverview({ adminSections, sidebarMode, focusTeamId,
         )}
       </div>
 
-      {adminSections.filters && (
-        <TeamFilterPanel
-          teams={teams}
-          selected={selectedTeamIds}
-          onToggle={toggleTeam}
-          onSelectAll={selectAllTeams}
-          onSelectNone={selectNoTeams}
-          externalParties={partyFilterProps}
-        />
-      )}
     </div>
   )
 }

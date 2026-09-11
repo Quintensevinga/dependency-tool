@@ -4,7 +4,6 @@ import { useAppContext } from '../context/AppContext'
 import { RISK_LEVELS } from '../data/constants'
 import { translateRiskLevel } from '../i18n/labels'
 import { riskStyle } from '../lib/riskStyles'
-import ExternalPartyFilter from './ExternalPartyFilter'
 
 function ChevronIcon({ open }) {
   return (
@@ -93,35 +92,6 @@ function CheckboxGroup({ title, options, selected, onToggle, renderLabel, render
   )
 }
 
-// Filtergroep voor de externe partijen van het ketenoverzicht (zelfde opbouw
-// en uiterlijk als CheckboxGroup; de inhoud is gedeeld met het uitklapmenu op
-// de canvasbalk, zie ExternalPartyFilter).
-function ExternalPartyGroup({ t, ...filter }) {
-  const [open, setOpen] = useState(true)
-  const narrowed = !filter.showFocus || !filter.showOthers || filter.hiddenKeys.size > 0
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
-      >
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('filter.externalParties')}</span>
-        <span className="flex items-center gap-1.5">
-          {narrowed && <span className="h-1.5 w-1.5 rounded-full bg-[#2a5f8a]" title={t('filter.active')} />}
-          <ChevronIcon open={open} />
-        </span>
-      </button>
-      {open && (
-        <div className="px-4 pb-4">
-          <ExternalPartyFilter {...filter} />
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function TeamFilterPanel({
   teams,
   selected,
@@ -134,7 +104,6 @@ export default function TeamFilterPanel({
   onShowAllRisk,
   workflowStap,
   effectOpFlow,
-  externalParties,
 }) {
   const { t, language } = useLanguage()
   const { teamLabels } = useAppContext()
@@ -143,8 +112,7 @@ export default function TeamFilterPanel({
   const anyNarrowed =
     selected.length < teams.length ||
     (riskLevels && riskLevels.length < RISK_LEVELS.length) ||
-    [workflowStap, effectOpFlow].some((group) => group && group.selected.length < group.options.length) ||
-    (externalParties && (!externalParties.showFocus || !externalParties.showOthers || externalParties.hiddenKeys.size > 0))
+    [workflowStap, effectOpFlow].some((group) => group && group.selected.length < group.options.length)
 
   if (collapsed) {
     return (
@@ -243,7 +211,6 @@ export default function TeamFilterPanel({
         />
       )}
 
-      {externalParties && <ExternalPartyGroup {...externalParties} t={t} />}
 
     </div>
   )
