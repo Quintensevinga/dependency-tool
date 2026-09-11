@@ -2,22 +2,15 @@ import { useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
 import { bronTypeColor } from '../lib/workflowStyles'
 
-// Bediening van de externe partijen in het ketenoverzicht — één component,
-// op twee plekken gebruikt met dezelfde state: in het filterpaneel rechts
-// (TeamFilterPanel) en als uitklapmenu op de canvasbalk (ChainOverview).
-// Bewust allebei tegelijk aanwezig: welke ingang in de praktijk beter werkt
-// wordt aan het gebruik overgelaten; de verliezer kan er dan zo uit.
-//
-// Bovenaan de twee groepsschakelaars (partijen van het focusteam / van de
-// andere teams als kaartje tonen; uit = die partijen zakken in de stapel-tab
-// onder de kaart), daaronder het subfilter met elke partij apart — met
-// zoekveld, 'alleen' per partij (solo: alle andere uit) en Alles/Geen — om
-// algemeen bekende partijen (CAB, IAM-beheer, …) uit de tekening te laten.
+// Bediening van de externe partijen in het ketenoverzicht (uitklapmenu
+// 'Partijen' op de canvasbalk). Eén regel: aangevinkt = kaartje op het
+// canvas, uitgevinkt = weg. Bovenaan één schakelaar voor de afhankelijkheden
+// (de gestippelde lijnen — meestal de algemene partijen als CAB of
+// IAM-beheer), daaronder elke partij apart, met zoekveld, 'alleen' per partij
+// (solo: alle andere uit) en Alles/Geen.
 export default function ExternalPartyFilter({
-  showFocus,
-  showOthers,
-  onToggleFocus,
-  onToggleOthers,
+  showDependencies,
+  onToggleDependencies,
   parties,
   hiddenKeys,
   onToggleParty,
@@ -31,20 +24,12 @@ export default function ExternalPartyFilter({
   const needle = query.trim().toLowerCase()
   const visible = needle ? parties.filter((p) => p.naam.toLowerCase().includes(needle)) : parties
 
-  const toggle = (checked, onChange, label) => (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-      <input type="checkbox" checked={checked} onChange={onChange} className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]" />
-      {label}
-    </label>
-  )
-
   return (
     <div>
-      <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('filter.partiesShowAs')}</div>
-      <div className="space-y-2">
-        {toggle(showFocus, onToggleFocus, t('filter.partiesOfFocus'))}
-        {toggle(showOthers, onToggleOthers, t('filter.partiesOfOthers'))}
-      </div>
+      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={showDependencies} onChange={onToggleDependencies} className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]" />
+        {t('filter.partiesDependencies')}
+      </label>
       <div className="mt-3 border-t border-slate-100 pt-3">
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">

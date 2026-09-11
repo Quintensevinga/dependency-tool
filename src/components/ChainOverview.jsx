@@ -232,16 +232,6 @@ function ChainLegend() {
       key: 'legendFocus',
       sample: <span className="inline-block h-3 w-[34px] shrink-0 rounded border-2 border-[#2a5f8a] bg-white" aria-hidden="true" />,
     },
-    {
-      key: 'legendStack',
-      sample: (
-        <span className="inline-flex w-[34px] shrink-0 justify-center" aria-hidden="true">
-          <span className="inline-flex h-3 items-center gap-0.5 rounded-b border-2 border-t-0 border-[#5c6b8a]/40 bg-slate-50 px-1 text-[8px] font-bold leading-none text-[#3f4a63]">
-            {stackGlyph}
-          </span>
-        </span>
-      ),
-    },
   ]
   return (
     <div className="flex flex-col items-end gap-1.5">
@@ -339,7 +329,7 @@ function BarMenu({ label, shown, total, narrowed, highlight = false, children })
 function PartyMenu(filter) {
   const { t } = useLanguage()
   const shown = filter.parties.filter((p) => !filter.hiddenKeys.has(p.key)).length
-  const narrowed = !filter.showFocus || !filter.showOthers || shown < filter.parties.length
+  const narrowed = !filter.showDependencies || shown < filter.parties.length
   return (
     <BarMenu label={t('chain.partiesMenu')} shown={shown} total={filter.parties.length} narrowed={narrowed}>
       <ExternalPartyFilter {...filter} />
@@ -378,14 +368,15 @@ function TeamsMenu({ teams, teamLabels, selectedIds, onToggle, onSelectAll, onSe
 }
 
 // Zwevende toolbar linksonder ín het canvas (zelfde plek en uiterlijk als op
-// de teampagina, zie TeamCanvasToolbar): uitzoomen, inzoomen, passend maken.
+// de teampagina, zie TeamCanvasToolbar): uitzoomen, inzoomen, centreren/
+// passend maken, volledig scherm.
 // Doet ook de automatische fit zodra er een nieuwe lay-out staat (elke
 // selectie/focus/diepte-wijziging levert er een op) of de zijbalk
 // *definitief* wisselt (fitKey bevat sidebarMode) — React Flow's eigen
 // fitView-prop werkt alleen bij de eerste render. Fit houdt rekening met de
 // eigen footprint van deze toolbar als kleine safe area (lib/flowFit.js),
 // zodat er nooit een kaart onder de knoppen verdwijnt.
-function ChainCanvasToolbar({ fitKey }) {
+function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   const instance = useReactFlow()
   const store = useStoreApi()
   const { t } = useLanguage()
@@ -434,20 +425,20 @@ function ChainCanvasToolbar({ fitKey }) {
   return (
     <Panel position="bottom-left">
       <div ref={toolbarRef} className="flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur-sm">
-        <button type="button" onClick={() => instance.zoomOut()} title={t('chain.zoomOut')} aria-label={t('chain.zoomOut')} className={btnClass}>
+        <button type="button" onClick={() => instance.zoomOut()} title={t('teampage.canvasZoomOut')} aria-label={t('teampage.canvasZoomOut')} className={btnClass}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
             <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
             <path d="M8 11h6M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
         </button>
-        <button type="button" onClick={() => instance.zoomIn()} title={t('chain.zoomIn')} aria-label={t('chain.zoomIn')} className={btnClass}>
+        <button type="button" onClick={() => instance.zoomIn()} title={t('teampage.canvasZoomIn')} aria-label={t('teampage.canvasZoomIn')} className={btnClass}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
             <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
             <path d="M11 8v6M8 11h6M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
           </svg>
         </button>
         <div className="my-0.5 h-px w-4 bg-slate-200" />
-        <button type="button" onClick={fit} title={t('chain.fitToScreen')} aria-label={t('chain.fitToScreen')} className={btnClass}>
+        <button type="button" onClick={fit} title={t('teampage.canvasFitView')} aria-label={t('teampage.canvasFitView')} className={btnClass}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
             <path
               d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
@@ -456,7 +447,39 @@ function ChainCanvasToolbar({ fitKey }) {
               strokeLinecap="round"
               strokeLinejoin="round"
             />
+            <circle cx="12" cy="12" r="2.25" stroke="currentColor" strokeWidth="1.8" />
           </svg>
+        </button>
+        <div className="my-0.5 h-px w-4 bg-slate-200" />
+        <button
+          type="button"
+          onClick={onFullscreen}
+          title={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
+          aria-label={isFullscreen ? t('teampage.fullscreenClose') : t('teampage.fullscreenOpen')}
+          className={btnClass}
+        >
+          {isFullscreen ? (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M9 4H5a1 1 0 0 0-1 1v4M15 4h4a1 1 0 0 1 1 1v4M9 20H5a1 1 0 0 1-1-1v-4M15 20h4a1 1 0 0 0 1-1v-4"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path d="m7 7 3 3M17 7l-3 3M7 17l3-3M17 17l-3-3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+            </svg>
+          ) : (
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          )}
         </button>
       </div>
     </Panel>
@@ -509,7 +532,7 @@ function measureNodes(nodeInternals, dims, graph) {
 // of net toegevoegd na een focuswissel) staan onzichtbaar op (0,0) tot de
 // eerstvolgende lay-out klaar is — zo is er nooit een frame met kaarten op een
 // verkeerde plek; hun lijnen blijven zolang verborgen.
-function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
+function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, children, ...handlers }) {
   const store = useStoreApi()
   const nodesInitialized = useNodesInitialized()
   const [layout, setLayout] = useState({ version: 0, graph: null, positions: new Map(), points: new Map() })
@@ -617,7 +640,7 @@ function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
       onNodesChange={onNodesChange}
       {...handlers}
     >
-      <ChainCanvasToolbar fitKey={`${layout.version}:${fitKey}`} />
+      <ChainCanvasToolbar fitKey={`${layout.version}:${fitKey}`} onFullscreen={onFullscreen} isFullscreen={isFullscreen} />
       {children}
     </PannableFlowCanvas>
   )
@@ -644,34 +667,6 @@ function RiskBadge({ level }) {
   )
 }
 
-const stackGlyph = (
-  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" aria-hidden="true">
-    <path d="M4 7h16M6 12h12M8 17h8" />
-  </svg>
-)
-
-// Stapel-tab onder de kaart: het aantal externe partijen aan die kant. Klik
-// (afgevangen in onNodeClick via data-stack) opent de lijst in het detailvak;
-// vandaar kan een partij als hub geselecteerd worden. Geen partij-kaartjes
-// en lange grijze lijnen meer in rust — dat was het drukste deel van het oude
-// beeld.
-function StackTab({ side, count, active, title }) {
-  if (!count) return null
-  return (
-    <div
-      data-stack={side}
-      title={title}
-      className={`absolute bottom-0 flex h-[26px] cursor-pointer items-center gap-1 rounded-b-lg border-2 border-t-0 px-2 text-[10px] font-bold shadow-sm ${
-        side === 'left' ? 'left-3' : 'right-3'
-      } ${active ? 'border-[#2a5f8a] bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'border-[#5c6b8a]/40 bg-slate-50 text-[#3f4a63]'}`}
-    >
-      {side === 'right' && <span>{count}</span>}
-      <span className={active ? 'text-[#2a5f8a]' : 'text-[#5c6b8a]'}>{stackGlyph}</span>
-      {side === 'left' && <span>{count}</span>}
-    </div>
-  )
-}
-
 // Teamkaart in drie standen (data.mode): 'full' toont alle items (het
 // focusteam in rust, of de geselecteerde kaart), 'partial' alleen de items
 // die aan de selectie hangen plus "+N andere items" (de buren van een
@@ -688,13 +683,9 @@ function FocusChainCardNode({ id, data }) {
     updateNodeInternals(id)
   }, [data.rows, data.mode, id, updateNodeInternals])
 
-  const hasStacks = Boolean(data.stacks?.left || data.stacks?.right)
   const ring = data.selected ? 'ring-2 ring-[#2a5f8a] ring-offset-2' : data.highlight ? 'ring-[3px] ring-[#2a5f8a]/25' : ''
   return (
-    // Buitenste wrapper reserveert ruimte voor de stapel-tabs, zodat de
-    // gemeten node-hoogte (en dus ELK's obstakel) de tabs meeneemt en een
-    // lijn er niet net doorheen loopt.
-    <div className="relative" style={{ width: FC_CARD_WIDTH, paddingBottom: hasStacks ? 14 : 0 }} title={t('chain.clickToFocusHint')}>
+    <div className="relative" style={{ width: FC_CARD_WIDTH }} title={t('chain.clickToFocusHint')}>
       <div
         className={`relative cursor-pointer rounded-xl border-2 bg-white px-3.5 py-2.5 shadow-md hover:shadow-lg ${ring}`}
         style={{ borderColor: data.isFocus || data.selected ? '#2a5f8a' : '#cbd5e1' }}
@@ -768,12 +759,6 @@ function FocusChainCardNode({ id, data }) {
           </div>
         )}
       </div>
-      {hasStacks && (
-        <>
-          <StackTab side="left" count={data.stacks.left} active={data.stackActive === 'left'} title={t('chain.stackSources', { count: data.stacks.left })} />
-          <StackTab side="right" count={data.stacks.right} active={data.stackActive === 'right'} title={t('chain.stackSinks', { count: data.stacks.right })} />
-        </>
-      )}
     </div>
   )
 }
@@ -933,30 +918,24 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
   // --- Externe partijen: elke relatie partij ↔ zichtbaar team, met de
   // items/afhankelijkheden (refs) die die relatie dragen. 'in' = de partij
   // voedt het team (input-items en afhankelijkheden), 'out' = het team levert
-  // aan de partij (output-items). Aan of uit per groep; een geselecteerde
-  // partij toont altijd al haar relaties, ook uit een uitgezette groep.
-  const showFocusParties = partyOptions?.showFocus ?? true
-  const showOtherParties = partyOptions?.showOthers ?? true
-  const relationEnabled = (party, teamId) => party.key === selectedPartyKey || (teamId === focusTeamId ? showFocusParties : showOtherParties)
-  const partyRelations = []
+  // aan de partij (output-items). Met partyOptions.showDependencies uit
+  // vervallen de afhankelijkheids-refs (de gestippelde lijnen — meestal de
+  // algemene partijen als CAB of IAM-beheer); een relatie zonder overgebleven
+  // refs vervalt, en een partij zonder relaties verdwijnt dan van het canvas.
+  // Een geselecteerde partij toont altijd alles wat ze raakt.
+  const showDependencies = partyOptions?.showDependencies ?? true
+  const drawnRelations = []
   for (const party of partyGraph ?? []) {
+    const keepRef = (ref) => showDependencies || party.key === selectedPartyKey || ref.kind !== 'dependency'
     for (const [teamId, refs] of party.sources) {
-      if (visibleTeamIds.has(teamId)) partyRelations.push({ party, teamId, direction: 'in', refs, enabled: relationEnabled(party, teamId) })
+      const kept = refs.filter(keepRef)
+      if (visibleTeamIds.has(teamId) && kept.length > 0) drawnRelations.push({ party, teamId, direction: 'in', refs: kept })
     }
     for (const [teamId, refs] of party.sinks) {
-      if (visibleTeamIds.has(teamId)) partyRelations.push({ party, teamId, direction: 'out', refs, enabled: relationEnabled(party, teamId) })
+      if (visibleTeamIds.has(teamId) && refs.length > 0) drawnRelations.push({ party, teamId, direction: 'out', refs })
     }
   }
-  const drawnRelations = partyRelations.filter((r) => r.enabled)
   const relationRefKey = (r, ref) => `${r.party.key}|${r.teamId}|${r.direction}|${ref.kind}:${ref.id}`
-  // Stapel-tabs: per kaart de partijen waarvan de relatie met díe kaart niet
-  // getekend staat (groep uit), per kant.
-  const stackCounts = new Map()
-  for (const r of partyRelations) {
-    if (r.enabled) continue
-    if (!stackCounts.has(r.teamId)) stackCounts.set(r.teamId, { left: new Set(), right: new Set() })
-    stackCounts.get(r.teamId)[r.direction === 'in' ? 'left' : 'right'].add(r.party.key)
-  }
 
   // Herkomst/bestemming van een item: eerst een daadwerkelijke team-koppeling
   // (itemLinkedTeams hierboven, de meest concrete info), dan een externe partij
@@ -1330,8 +1309,6 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
   const nodes = visibleTeams.map((team, index) => {
     const card = cards.get(team.id)
     const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
-    const counts = stackCounts.get(team.id)
-    const stacks = partyGraph ? { left: counts?.left.size ?? 0, right: counts?.right.size ?? 0 } : null
     return {
       id: `focus-card:${team.id}`,
       type: 'focusCard',
@@ -1349,8 +1326,6 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
         isFocus: !overview && index === 0,
         selected: team.id === selectedTeamId,
         highlight: highlightTeams.has(team.id),
-        stacks,
-        stackActive: sel.type === 'stack' && sel.teamId === team.id ? sel.side : null,
         layer: layerOfTeam(team.id),
       },
     }
@@ -1396,22 +1371,29 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   const [depth, setDepth] = useState(MAX_DEPTH)
   const [showBackflow, setShowBackflow] = useState(true)
   // Externe partijen (systemen, leveranciers, CAB, …): standaard als eigen
-  // kaartjes in beeld, per groep uit te zetten in het filterpaneel (dan
-  // zakken ze in de stapel-tabs onder de kaarten), plus een subfilter om
-  // algemeen bekende partijen (CAB, IAM-beheer, …) helemaal weg te laten.
-  const [showFocusParties, setShowFocusParties] = useState(true)
-  const [showOtherParties, setShowOtherParties] = useState(true)
+  // kaartjes in beeld. Eén regel: aangevinkt in het menu 'Partijen' = kaartje,
+  // uitgevinkt = weg. Daarnaast één schakelaar voor de afhankelijkheden (de
+  // gestippelde lijnen), zodat de algemene partijen in één keer uit het beeld
+  // kunnen zonder ze stuk voor stuk uit te vinken.
+  const [showPartyDependencies, setShowPartyDependencies] = useState(true)
   const [hiddenPartyKeys, setHiddenPartyKeys] = useState(() => new Set())
   // Eén selectie tegelijk: een kaart ({type:'card'}), een lijn ({type:'edge',
-  // id = koppeling of bundel}), een stapel-tab ({type:'stack'}), een externe
-  // partij ({type:'party'}) of één input-/outputitem ({type:'item'}). De
-  // selectie bepaalt mede wat er getekend wordt (zie computeChainGraph);
-  // hover niet.
+  // id = koppeling of bundel}), een externe partij ({type:'party'}) of één
+  // input-/outputitem ({type:'item'}). De selectie bepaalt mede wat er
+  // getekend wordt (zie computeChainGraph); hover niet.
   const [selection, setSelection] = useState(null)
   const [hoveredEdgeId, setHoveredEdgeId] = useState(null)
-  // Vanuit welke stapel-tab een partij gekozen is, voor de terugweg in het
-  // detailvak.
-  const [stackReturn, setStackReturn] = useState(null)
+  // Volledig scherm: het canvas (met detailvak) als overlay over de hele app,
+  // zoals op de teampagina; Escape sluit.
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  useEffect(() => {
+    if (!isFullscreen) return
+    const onKey = (e) => {
+      if (e.key === 'Escape') setIsFullscreen(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isFullscreen])
 
   // Eén keer berekend, hergebruikt door teamTiles/focusChainTrace hieronder
   // en door computeChainGraph.
@@ -1429,7 +1411,6 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   function changeView(next) {
     onViewChange(next)
     setSelection(null)
-    setStackReturn(null)
   }
   // 'Focus op dit team' (detailvak) en de dropdown: altijd de stand Eén team.
   function changeFocus(teamId) {
@@ -1491,7 +1472,8 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
       .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'))
   }, [partyGraph, filteredTeams])
   const visiblePartyGraph = useMemo(() => partyGraph.filter((p) => !hiddenPartyKeys.has(p.key)), [partyGraph, hiddenPartyKeys])
-  const partyList = useMemo(() => partiesByTeam(visiblePartyGraph), [visiblePartyGraph])
+  // Per team álle partijen (ook de uitgevinkte, die het kaartdetail grijs toont).
+  const partyListAll = useMemo(() => partiesByTeam(partyGraph), [partyGraph])
   const selectedParty = useMemo(
     () => (selection?.type === 'party' ? (visiblePartyGraph.find((p) => p.key === selection.key) ?? null) : null),
     [selection, visiblePartyGraph],
@@ -1519,33 +1501,28 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
         filteredTeams,
         focusTeamId: activeFocusTeamId,
         partyGraph: visiblePartyGraph,
-        partyOptions: { showFocus: showFocusParties, showOthers: showOtherParties },
+        partyOptions: { showDependencies: showPartyDependencies },
         // Zonder focus (hele keten / meerdere teams) is er geen dieptemeter in
         // beeld; een stroom loopt dan zo ver als de tekening reikt.
         depth: focusActive ? depth : MAX_DEPTH,
         showBackflow,
         selection,
       }),
-    [teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, focusActive, visiblePartyGraph, showFocusParties, showOtherParties, depth, showBackflow, selection],
+    [teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, focusActive, visiblePartyGraph, showPartyDependencies, depth, showBackflow, selection],
   )
   const { nodes, edges, stream } = graph
 
   // Een selectie die niet meer in beeld is (diepte verlaagd, team weggefilterd,
-  // partij weggefilterd, stapel-tab verdwenen doordat die groep partijen weer
-  // als kaartjes staat) vervalt vanzelf.
+  // partij weggefilterd) vervalt vanzelf.
   useEffect(() => {
     if (!selection) return
     const card = (teamId) => nodes.find((n) => n.id === `focus-card:${teamId}`)
     const stale =
       (selection.type === 'card' && !card(selection.teamId)) ||
       (selection.type === 'item' && !card(selection.teamId)?.data.rows.some((row) => row.id === selection.itemId)) ||
-      (selection.type === 'stack' && !card(selection.teamId)?.data.stacks?.[selection.side]) ||
       (selection.type === 'party' && !nodes.some((n) => n.id === `party:${selection.key}`)) ||
       (selection.type === 'edge' && !edges.some((e) => e.id === selection.id || e.data?.pairId === selection.id))
-    if (stale) {
-      setSelection(null)
-      setStackReturn(null)
-    }
+    if (stale) setSelection(null)
   }, [selection, nodes, edges])
 
   // Een geselecteerde lijn kan een bundel zijn (agg:A->B) die inmiddels als
@@ -1654,17 +1631,15 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
       pair.count += 1
       if (edge.status === 'voorgesteld') pair.pending += 1
     }
-    const parties = partyList.get(selection.teamId) ?? { left: [], right: [] }
+    const parties = partyListAll.get(selection.teamId) ?? { left: [], right: [] }
     return { node, pairs: [...pairs.values()], parties }
-  }, [selection, nodes, chainEdgesAll, teamLabels, teams, partyList])
+  }, [selection, nodes, chainEdgesAll, teamLabels, teams, partyListAll])
 
   // Eén props-object voor de partijenbediening, gedeeld door het filterpaneel
   // rechts en het uitklapmenu op de canvasbalk (zie ExternalPartyFilter).
   const partyFilterProps = {
-    showFocus: showFocusParties,
-    showOthers: showOtherParties,
-    onToggleFocus: () => setShowFocusParties((v) => !v),
-    onToggleOthers: () => setShowOtherParties((v) => !v),
+    showDependencies: showPartyDependencies,
+    onToggleDependencies: () => setShowPartyDependencies((v) => !v),
     parties: partyFilterOptions,
     hiddenKeys: hiddenPartyKeys,
     onToggleParty: togglePartyHidden,
@@ -1673,14 +1648,15 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
     onSelectNone: () => setHiddenPartyKeys(new Set(partyFilterOptions.map((p) => p.key))),
   }
 
-  function selectParty(key, from = null) {
-    setStackReturn(from)
+  // Een uitgevinkte partij (grijze chip in het kaartdetail) komt bij
+  // selectie eerst terug in beeld.
+  function selectParty(key) {
+    if (hiddenPartyKeys.has(key)) togglePartyHidden(key)
     setSelection({ type: 'party', key })
   }
 
   function clearSelection() {
     setSelection(null)
-    setStackReturn(null)
   }
 
   const teamNaam = (teamId) => teamLabels[teamId] ?? teams.find((tm) => tm.id === teamId)?.naam ?? teamId
@@ -1790,19 +1766,27 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   const chipClass = (clickable) =>
     `inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 ${clickable ? 'cursor-pointer hover:border-[#2a5f8a] hover:text-[#2a5f8a]' : ''}`
   const sectionLabel = (text) => <span className="mr-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-400">{text}</span>
-  const partyChip = (entry, from) => (
-    <button key={`${from.side}:${entry.party.key}`} type="button" onClick={() => selectParty(entry.party.key, from)} className={chipClass(true)}>
-      {entry.party.naam}
-      <span className="text-slate-400">· {entry.refs.length}</span>
-    </button>
-  )
+  const partyChip = (entry, side) => {
+    const hidden = hiddenPartyKeys.has(entry.party.key)
+    return (
+      <button
+        key={`${side}:${entry.party.key}`}
+        type="button"
+        onClick={() => selectParty(entry.party.key)}
+        title={hidden ? t('chain.partyHiddenChipHint') : undefined}
+        className={hidden ? `${chipClass(true)} border-dashed text-slate-400` : chipClass(true)}
+      >
+        {entry.party.naam}
+        <span className="text-slate-400">· {entry.refs.length}</span>
+      </button>
+    )
+  }
 
   // Het detailvak onder het canvas, per selectiesoort.
   let detail = null
   if (selectedCard) {
     const { node, pairs, parties } = selectedCard
     const { data } = node
-    const from = (side) => ({ teamId: data.teamId, side })
     detail = (
       <>
         <div className="mb-1.5 flex flex-wrap items-center justify-between gap-2">
@@ -1835,8 +1819,8 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
         <div className="flex flex-wrap items-center gap-1.5">
           {sectionLabel(t('chain.partiesLabel'))}
           {parties.left.length + parties.right.length === 0 && <span className="text-slate-400">{t('chain.noParties')}</span>}
-          {parties.left.map((entry) => partyChip(entry, from('left')))}
-          {parties.right.map((entry) => partyChip(entry, from('right')))}
+          {parties.left.map((entry) => partyChip(entry, 'left'))}
+          {parties.right.map((entry) => partyChip(entry, 'right'))}
         </div>
       </>
     )
@@ -1870,37 +1854,13 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
         </div>
       </>
     )
-  } else if (selection?.type === 'stack') {
-    const entries = partyList.get(selection.teamId)?.[selection.side] ?? []
-    detail = (
-      <>
-        <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">
-          {t(selection.side === 'left' ? 'chain.stackSelectedSources' : 'chain.stackSelectedSinks', { team: teamNaam(selection.teamId) })}
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {entries.length === 0 && <span className="text-slate-400">{t('chain.noParties')}</span>}
-          {entries.map((entry) => partyChip(entry, { teamId: selection.teamId, side: selection.side }))}
-        </div>
-      </>
-    )
   } else if (selectedParty) {
     // Geselecteerde externe partij: alles wat er in de zichtbare keten aan
     // hangt, per team.
     detail = (
       <>
-        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-          <span className="font-semibold uppercase tracking-wide text-[#2a5f8a]">
-            {t('chain.externalSelectedTitle')} · {selectedParty.naam}
-          </span>
-          {stackReturn && (
-            <button
-              type="button"
-              onClick={() => setSelection({ type: 'stack', teamId: stackReturn.teamId, side: stackReturn.side })}
-              className="text-[11px] font-medium text-[#2a5f8a] hover:underline"
-            >
-              {t('chain.partyBackToStack', { count: partyList.get(stackReturn.teamId)?.[stackReturn.side]?.length ?? 0, team: teamNaam(stackReturn.teamId) })}
-            </button>
-          )}
+        <div className="mb-1 font-semibold uppercase tracking-wide text-[#2a5f8a]">
+          {t('chain.externalSelectedTitle')} · {selectedParty.naam}
         </div>
         <div className="space-y-1">
           {selectedPartyRows.map((row) => (
@@ -1988,8 +1948,8 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
       if (!box || !window.innerHeight) return
       const top = box.getBoundingClientRect().top
       const detailHeight = detailBoxRef.current ? detailBoxRef.current.getBoundingClientRect().height + 8 : 0
-      // 24px = de pb-6 van <main> (App.jsx).
-      setCanvasHeight(Math.max(480, Math.floor(window.innerHeight - top - detailHeight - 24)))
+      // 24px = de pb-6 van <main> (App.jsx); in volledig scherm de eigen p-4.
+      setCanvasHeight(Math.max(480, Math.floor(window.innerHeight - top - detailHeight - (isFullscreen ? 16 : 24))))
     }
     update()
     window.addEventListener('resize', update)
@@ -1999,11 +1959,19 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
       window.removeEventListener('resize', update)
       observer.disconnect()
     }
-  }, [detailOpen])
+  }, [detailOpen, isFullscreen])
 
   return (
     <div className="flex items-start gap-4">
-      <div className="min-w-0 flex-1 space-y-2">
+      <div
+        className={
+          isFullscreen
+            // z-[45]: boven de vaste topbar (z-40) en zijbalk (z-30), maar ónder
+            // de dialogen (z-50 en hoger) — zelfde laag als de teampagina.
+            ? 'fixed inset-0 z-[45] flex h-screen w-screen flex-col gap-2 overflow-hidden bg-white p-4'
+            : 'min-w-0 flex-1 space-y-2'
+        }
+      >
         {/* Leeg-melding alleen als de tekening écht leeg zou zijn: geen andere
             kaart en geen enkele lijn. Een team met alleen een nog niet
             geaccepteerd verzoek (gestippelde lijn) of alleen externe partijen
@@ -2022,12 +1990,14 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
           </div>
         ) : (
           <ReactFlowProvider>
-            <div ref={canvasBoxRef} className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm" style={{ height: canvasHeight }}>
+            <div ref={canvasBoxRef} className="relative shrink-0 overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm" style={{ height: canvasHeight }}>
               <ChainCanvas
                 graph={graph}
                 nodes={displayNodes}
                 edges={displayEdges}
-                fitKey={`${activeFocusTeamId || 'overview'}:${sidebarMode}`}
+                fitKey={`${activeFocusTeamId || 'overview'}:${sidebarMode}:${isFullscreen}`}
+                onFullscreen={() => setIsFullscreen((v) => !v)}
+                isFullscreen={isFullscreen}
                 onNodeClick={(event, node) => {
                   if (node.type === 'externalParty') {
                     // Nogmaals klikken op de partij heft de selectie op.
@@ -2036,31 +2006,20 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
                     return
                   }
                   if (node.type !== 'focusCard') return
-                  // Klik op een stapel-tab (zie StackTab) opent de partijenlijst
-                  // van die kant; klik op een itemrij (zie FocusChainCardNode)
-                  // selecteert dat ene item en toont zijn stroom; een klik op
-                  // de kaart zelf selecteert het team — de focus verleggen gaat
-                  // via 'Focus op dit team' in het detailvak of het menu.
-                  const stack = event.target.closest?.('[data-stack]')
-                  if (stack) {
-                    const side = stack.getAttribute('data-stack')
-                    setStackReturn(null)
-                    setSelection((prev) => (prev?.type === 'stack' && prev.teamId === node.data.teamId && prev.side === side ? null : { type: 'stack', teamId: node.data.teamId, side }))
-                    return
-                  }
+                  // Klik op een itemrij (zie FocusChainCardNode) selecteert dat
+                  // ene item en toont zijn stroom; een klik op de kaart zelf
+                  // selecteert het team — de focus verleggen gaat via 'Focus op
+                  // dit team' in het detailvak of het menu.
                   const row = event.target.closest?.('[data-item]')
                   if (row) {
                     const itemId = row.getAttribute('data-item')
                     const kind = row.getAttribute('data-item-kind')
-                    setStackReturn(null)
                     setSelection((prev) => (prev?.type === 'item' && prev.itemId === itemId ? null : { type: 'item', teamId: node.data.teamId, itemId, kind }))
                     return
                   }
-                  setStackReturn(null)
                   setSelection((prev) => (prev?.type === 'card' && prev.teamId === node.data.teamId ? null : { type: 'card', teamId: node.data.teamId }))
                 }}
                 onEdgeClick={(_, edge) => {
-                  setStackReturn(null)
                   // Een losse koppeling uit een geselecteerde bundel klikken
                   // laat de bundel-selectie staan; elke andere lijn wisselt.
                   setSelection((prev) => {
