@@ -3,6 +3,82 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-11
+- **Ketenoverzicht: lijnen die op één blokje aankomen lopen naast elkaar** (Quinten)
+
+  Lijnen die uit hetzelfde blokje vertrekken (fan-out van één output, één
+  kleur) blijven één poort delen en lopen samen tot ze uit elkaar moeten —
+  dat leest als een vertakking. Lijnen die vanuit verschillende bronnen op
+  hetzelfde blokje aankomen lagen echter ook over elkaar, waarbij de bovenste
+  de andere kleuren verborg. Elke aankomende lijn krijgt nu een eigen ELK-
+  poortje, een paar pixels boven of onder het handle-midden (5px uit elkaar,
+  dichter op elkaar zodra de band anders meer dan 40% van de kaarthoogte zou
+  beslaan), zodat ze naast elkaar landen, elk met een eigen pijlpunt.
+
+  Twee ELK-rondes: de eerste levert de posities, daaruit volgt per
+  aankomstpunt de volgorde (bron van boven naar beneden = poortje van boven
+  naar beneden, zodat ze elkaar vlak vóór het blokje zo min mogelijk hoeven
+  te kruisen), de tweede rekent met de losse poortjes. Zonder aankomstpunt
+  met twee of meer lijnen volstaat de eerste ronde.
+
+  Geverifieerd op de mockdata: zeven aankomstpunten met 7 tot 15 lijnen,
+  geen enkel samenvallend eindpunt meer; close-up toont zeven lijnen naast
+  elkaar op een ingeklapte kaart.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+  # Conflicts:
+  #	docs/gebruikshandleiding.html
+
+- **Ketenoverzicht: lijnen tot op het itemblokje, partijen standaard in beeld, stroom per item** (Quinten)
+
+  Vier verbeteringen op verzoek, na de ELK-herbouw.
+
+  Lijnen hechten nu aan het itemblokje zelf i.p.v. visueel bij de kaartrand
+  te stoppen. Het item-handle zat al óp de rij (kaartrand + padding naar
+  binnen), maar React Flow tekent lijnen onder de nodes, dus het laatste
+  stukje ging schuil achter de kaart en het handle-bolletje zweefde los van
+  zijn lijn. Alle lijnen staan nu in een eigen laag bóven de kaarten (edge
+  zIndex 1); veilig omdat ELK om elke kaart heen routeert. Tijdens de paar
+  frames tussen een structuurwijziging en het bijbehorende ELK-resultaat
+  (oude routes bij nieuwe kaartmaten) zakken ze even terug onder de kaarten,
+  zodat zo'n verouderd stukje niet dwars over een inmiddels hogere kaart
+  zichtbaar wordt.
+
+  Externe partijen staan standaard als eigen kaartje naast de teams die ze
+  raken, met een lijn naar elk item dat ze noemt (aan het item-handle zodra
+  dat getoond wordt, anders gebundeld met teller aan de kaart). ELK plaatst
+  ze links van de teams die ze voeden, rechts van de teams die aan haar
+  leveren, of ertussenin — een partij die beide is en een cyclus zou geven
+  gaat links, met de leveringen als terugkoppeling. In het filterpaneel een
+  nieuwe groep: twee schakelaars (partijen van het focusteam / van de andere
+  teams — uit = die partijen zakken in de stapel-tab onder de kaart, vanwaar
+  één partij nog altijd te kiezen is) en een subfilter met elke partij apart,
+  om algemeen bekende partijen (CAB, IAM-beheer, …) uit het beeld te laten.
+  Gestippelde afhankelijkheidslijnen zijn lichter dan itemlijnen, zodat die
+  de structuur blijven dragen nu er veel meer van zijn.
+
+  Klik op één input-/outputblokje of op een partij toont zijn stroom: een
+  0-1-BFS stroomafwaarts over items, partijen en teams — een input gaat
+  binnen het team door naar alle outputs (black-box-aanname, dezelfde als
+  de ketenvolgorde zelf; geen stap), een ketenkoppeling of partijrelatie is
+  één stap — begrensd door de dieptemeter, die zo zowel de tekening als de
+  stroom begrenst. Plus precies één stap terug (waar het startpunt zelf
+  vandaan komt). Kaarten in de stroom tonen alleen hun stroom-items, de kaart
+  van het geklikte item blijft volledig, lijnen buiten de stroom dimmen; het
+  detailvak somt teams en partijen in de stroom op (klikbaar).
+
+  Opgeruimd: de partijenbalk met legenda boven het canvas en het
+  statistiekblokje rechtsboven zijn weg; de zoomknoppen staan als zwevende
+  toolbar linksonder ín het canvas, zoals op de teampagina, met een fit die
+  de eigen toolbar-hoek ontziet (lib/flowFit.js).
+
+  Geverifieerd in de browser op de mockdata: 7 teams, 22 partijkaartjes, 79
+  lijnen, allemaal gerouteerd (geen lijn zonder ELK-route, geen hangende
+  lijn, geen handle-waarschuwing); stroom van een output bij diepte 3 en 1;
+  partij-stroom; groepsschakelaar uit → stapel-tabs met juiste tellers →
+  partij uit stapel kiezen → kaartje; subfilter → kaartje weg; close-up
+  bevestigt dat de lijn met pijl op de rij eindigt.
+
 - **Analyse: zes tabbladen in de pagina i.p.v. één lange lijst secties** (Quinten)
 
   De veertien secties stonden onder elkaar in één pagina met een rij
