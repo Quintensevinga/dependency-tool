@@ -29,6 +29,7 @@ import { translateRiskLevel, translateBronType } from '../i18n/labels'
 import { resolveChainEdges, orderTeamsByChain, traceForwardChain } from '../lib/teamWorkflow'
 import { orderChain, roundedOrthPath, polylineMidpoint, buildElkGraph, applyElkLayout, fallbackPositions } from '../lib/chainLayout'
 import { emptyTeamWorkflow } from '../lib/storage'
+import { fitViewAvoidingCorner } from '../lib/flowFit'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useTeamSelection } from '../lib/useTeamSelection'
 import TeamFilterPanel from './TeamFilterPanel'
@@ -44,13 +45,26 @@ function highestRisk(deps) {
 }
 
 // Externe partijen (systeem, ander bedrijfsonderdeel, leverancier, CAB, …)
-// zitten in rust als stapel-tab ónder de kaart (links = bronnen en
-// afhankelijkheden, rechts = ontvangers) en verschijnen pas als eigen kaartje
-// zodra één partij geselecteerd is: dan zet ELK die als hub naast de teams
-// die ze raakt, met een lijn naar elk van die teams. Bewust grijs, buiten de
-// risicokleurenreeks — een partij heeft zelf geen risicoscore; de lijnen
-// tonen de relatie (input/output/afhankelijkheid), niet een ernst.
+// staan standaard als eigen kaartje naast de teams die ze raken — ELK zet ze
+// links van de teams die ze voeden, rechts van de teams die aan haar leveren,
+// of ertussenin — met een lijn naar elk item (of, zonder getoond item, naar de
+// kaart) dat ze noemt. Per groep (partijen van het focusteam / van de andere
+// teams) uit te zetten in het filterpaneel; dan zakken ze terug in een
+// stapel-tab ónder de kaart (links = bronnen en afhankelijkheden, rechts =
+// ontvangers), vanwaar één partij alsnog als kaartje te selecteren is. Bewust
+// grijs, buiten de risicokleurenreeks — een partij heeft zelf geen
+// risicoscore; de lijnen tonen de relatie (input/output/afhankelijkheid),
+// niet een ernst.
 const EXT_COLOR = '#5c6b8a'
+// Alle lijnen in een eigen laag bóven de kaarten (React Flow tekent lijnen
+// standaard onder de nodes). Een item-handle zit ín de kaart, op de rand van
+// het itemblokje zelf (kaartrand + padding verder naar binnen): met de lijnen
+// eronder stopte elke lijn visueel al bij de kaartrand en 'zweefde' het
+// handle-bolletje op het blokje los van zijn lijn. Nu loopt de lijn door tot
+// op het blokje. Geen risico op lijnen dwars over kaarten: ELK routeert om
+// elke kaart heen (zie chainLayout.js); alleen dit korte stukje ligt bewust
+// over de eigen kaartrand.
+const EDGE_Z = 1
 const OV_EXT_WIDTH = 176
 // Koppeling die nog op akkoord van het andere team wacht (zie LINK_STATUS in
 // constants.js): gestippeld i.p.v. een eigen kleur, zodat de risicokleur van
@@ -162,10 +176,10 @@ function partiesByTeam(partyGraph) {
   return result
 }
 
-// De hub-node van de geselecteerde partij; de positie bepaalt ELK. `layer` is
-// alleen een hint voor de noodlay-out: vóór het eerste team dat ze voedt, of
-// ná het laatste team dat aan haar levert.
-function partyNode(p, layer) {
+// Het kaartje van een externe partij; de positie bepaalt ELK. `layer` is
+// alleen een hint voor de noodlay-out: vóór het eerste team dat ze voedt, ná
+// het laatste team dat aan haar levert, of ertussenin.
+function partyNode(p, layer, selected) {
   return {
     id: `party:${p.key}`,
     type: 'externalParty',
@@ -175,7 +189,7 @@ function partyNode(p, layer) {
       naam: p.naam,
       type: p.type,
       teamCount: new Set([...p.sources.keys(), ...p.sinks.keys()]).size,
-      selected: true,
+      selected,
       layer,
     },
   }
@@ -185,57 +199,74 @@ function externalEdgeData(p, teamNaam, direction, refs) {
   return { external: true, partyKey: p.key, partyNaam: p.naam, teamNaam, direction, refs }
 }
 
-// Zichtbare zoom-toolbar boven het canvas (i.p.v. enkel React Flow's kleine
-// standaard knoppen linksonder) — moet binnen een ReactFlowProvider zitten
-// om via useReactFlow() bij de zoom/fitView-acties van déze canvas-instantie
-// te kunnen.
-function ChainZoomToolbar() {
-  const { zoomIn, zoomOut, fitView } = useReactFlow()
+// Zwevende toolbar linksonder ín het canvas (zelfde plek en uiterlijk als op
+// de teampagina, zie TeamCanvasToolbar): uitzoomen, inzoomen, passend maken.
+// Doet ook de automatische fit zodra er een nieuwe lay-out staat (elke
+// selectie/focus/diepte-wijziging levert er een op) of de zijbalk
+// *definitief* wisselt (fitKey bevat sidebarMode) — React Flow's eigen
+// fitView-prop werkt alleen bij de eerste render. Fit houdt rekening met de
+// eigen footprint van deze toolbar als kleine safe area (lib/flowFit.js),
+// zodat er nooit een kaart onder de knoppen verdwijnt.
+function ChainCanvasToolbar({ fitKey }) {
+  const instance = useReactFlow()
+  const store = useStoreApi()
   const { t } = useLanguage()
-  return (
-    <div className="mb-2 flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={() => zoomOut()}
-        title={t('chain.zoomOut')}
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-sm text-slate-600 hover:bg-slate-50"
-      >
-        −
-      </button>
-      <button
-        type="button"
-        onClick={() => fitView({ padding: 0.15, duration: 200 })}
-        className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-      >
-        {t('chain.fitToScreen')}
-      </button>
-      <button
-        type="button"
-        onClick={() => zoomIn()}
-        title={t('chain.zoomIn')}
-        className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 bg-white text-sm text-slate-600 hover:bg-slate-50"
-      >
-        +
-      </button>
-    </div>
-  )
-}
+  const toolbarRef = useRef(null)
 
-// Past het canvas opnieuw in beeld zodra er een nieuwe lay-out staat (elke
-// selectie/focus/diepte-wijziging levert er een op), of wanneer de zijbalk
-// *definitief* wisselt (open/iconen/auto) en zo de beschikbare breedte
-// permanent verandert (fitKey bevat sidebarMode). ReactFlow's fitView-prop
-// werkt alleen bij de eerste render.
-function ChainAutoFit({ fitKey }) {
-  const { fitView } = useReactFlow()
+  const fit = useCallback(() => {
+    const el = toolbarRef.current
+    // De Panel-wrapper van React Flow legt zelf nog 15px marge om de toolbar.
+    const safeAreaWidth = el ? el.getBoundingClientRect().width + 30 : 0
+    const safeAreaHeight = el ? el.getBoundingClientRect().height + 30 : 0
+    fitViewAvoidingCorner(instance, store.getState().domNode, {
+      safeAreaWidth,
+      safeAreaHeight,
+      padding: 0.12,
+      minZoom: 0.2,
+      maxZoom: 1.5,
+      duration: 200,
+    })
+  }, [instance, store])
+
   useEffect(() => {
     // 200ms i.p.v. een enkele rAF: dekt zowel de React Flow-commit-lag van
     // nieuwe nodes als de CSS-transitie van <main>'s padding-left bij een
     // sidebarMode-wissel, zodat er tegen de uiteindelijke bounds gefit wordt.
-    const id = window.setTimeout(() => fitView({ padding: 0.15, duration: 200 }), 200)
+    const id = window.setTimeout(fit, 200)
     return () => window.clearTimeout(id)
-  }, [fitKey, fitView])
-  return null
+  }, [fitKey, fit])
+
+  const btnClass = 'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700'
+  return (
+    <Panel position="bottom-left">
+      <div ref={toolbarRef} className="flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur-sm">
+        <button type="button" onClick={() => instance.zoomOut()} title={t('chain.zoomOut')} aria-label={t('chain.zoomOut')} className={btnClass}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M8 11h6M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
+        <button type="button" onClick={() => instance.zoomIn()} title={t('chain.zoomIn')} aria-label={t('chain.zoomIn')} className={btnClass}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="1.8" />
+            <path d="M11 8v6M8 11h6M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+          </svg>
+        </button>
+        <div className="my-0.5 h-px w-4 bg-slate-200" />
+        <button type="button" onClick={fit} title={t('chain.fitToScreen')} aria-label={t('chain.fitToScreen')} className={btnClass}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M4 9V5a1 1 0 0 1 1-1h4M20 9V5a1 1 0 0 0-1-1h-4M4 15v4a1 1 0 0 0 1 1h4M20 15v4a1 1 0 0 1-1 1h-4"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </Panel>
+  )
 }
 
 const elk = new ELK()
@@ -287,7 +318,7 @@ function measureNodes(nodeInternals, dims, graph) {
 function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
   const store = useStoreApi()
   const nodesInitialized = useNodesInitialized()
-  const [layout, setLayout] = useState({ version: 0, positions: new Map(), points: new Map() })
+  const [layout, setLayout] = useState({ version: 0, graph: null, positions: new Map(), points: new Map() })
   const runRef = useRef(0)
 
   // Gemeten afmetingen per node, bijgehouden uit React Flow's 'dimensions'-
@@ -318,12 +349,12 @@ function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
       .layout(buildElkGraph(graph, sizes))
       .then((result) => {
         if (run !== runRef.current) return
-        setLayout({ version: run, ...applyElkLayout(result, graph) })
+        setLayout({ version: run, graph, ...applyElkLayout(result, graph) })
       })
       .catch((error) => {
         if (run !== runRef.current) return
         console.error('Ketenoverzicht: ELK-lay-out mislukt, noodlay-out gebruikt', error)
-        setLayout({ version: run, positions: fallbackPositions(graph, sizes), points: new Map() })
+        setLayout({ version: run, graph, positions: fallbackPositions(graph, sizes), points: new Map() })
       })
     // `dims` hoort in de deps: een kaart die van maat verandert zonder dat de
     // structuur wijzigt (bv. een nagemeten handle-set) krijgt zo ook een
@@ -347,32 +378,41 @@ function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
       }),
     [nodes, layout, dims],
   )
+  // Tussen een structuurwijziging (nieuwe graaf: andere kaartstanden, dus
+  // andere kaartmaten) en het ELK-resultaat daarvoor zitten een paar frames
+  // waarin de oude routes nog bij de nieuwe kaarten staan — een oude route
+  // kan dan dwars door een inmiddels hogere kaart lopen. Zolang de lay-out
+  // niet bij déze graaf hoort liggen de lijnen daarom even weer ónder de
+  // kaarten (zoals React Flow standaard doet), zodat zo'n stukje achter de
+  // kaart schuilgaat; zodra de verse routes er zijn komen ze weer bovenop
+  // (EDGE_Z) en lopen ze door tot op de itemblokjes.
+  const layoutIsFresh = layout.graph === graph
   const routedEdges = useMemo(
     () =>
       edges.map((e) => {
         if (!layout.positions.has(e.source) || !layout.positions.has(e.target)) return { ...e, hidden: true }
         const points = layout.points.get(e.id)
-        return points ? { ...e, data: { ...e.data, points } } : e
+        const routed = points ? { ...e, data: { ...e.data, points } } : e
+        return { ...routed, zIndex: layoutIsFresh ? EDGE_Z : 0 }
       }),
-    [edges, layout],
+    [edges, layout, layoutIsFresh],
   )
 
   return (
-    <>
-      <ChainAutoFit fitKey={`${layout.version}:${fitKey}`} />
-      <PannableFlowCanvas
-        nodes={positionedNodes}
-        edges={routedEdges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        elevateEdgesOnSelect
-        nodesDraggable={false}
-        onNodesChange={onNodesChange}
-        {...handlers}
-      >
-        {children}
-      </PannableFlowCanvas>
-    </>
+    <PannableFlowCanvas
+      nodes={positionedNodes}
+      edges={routedEdges}
+      nodeTypes={nodeTypes}
+      edgeTypes={edgeTypes}
+      elevateEdgesOnSelect
+      nodesDraggable={false}
+      hideControls
+      onNodesChange={onNodesChange}
+      {...handlers}
+    >
+      <ChainCanvasToolbar fitKey={`${layout.version}:${fitKey}`} />
+      {children}
+    </PannableFlowCanvas>
   )
 }
 
@@ -472,9 +512,15 @@ function FocusChainCardNode({ id, data }) {
               const activeHandleStyle = { opacity: 1, width: 9, height: 9, background: '#d97706' }
               const caption = itemOriginCaption(item, t, language)
               return (
+                // Klik op een rij (afgevangen in onNodeClick via data-item)
+                // selecteert dít item en toont zijn stroom door de keten; klik
+                // op de kaart zelf selecteert het team.
                 <div
                   key={item.id}
-                  className={`relative rounded border px-2 py-1 text-[11px] text-slate-600 transition-colors ${
+                  data-item={item.id}
+                  data-item-kind={item.kind}
+                  title={t('chain.clickItemHint')}
+                  className={`relative cursor-pointer rounded border px-2 py-1 text-[11px] text-slate-600 transition-colors hover:border-slate-300 ${
                     active ? 'bg-amber-50 ring-2 ring-amber-400' : item.ghost ? 'border-dashed bg-amber-50/60' : 'bg-slate-50'
                   }`}
                   style={{
@@ -596,14 +642,28 @@ const edgeTypes = { elk: ElkEdge }
 // deze weergave toont enkel een "van/naar {team}"-onderschrift, nooit een
 // fantoom-lijn naar een niet-getoonde kaart.
 //
+// Externe partijen (partyGraph, al gefilterd op het subfilter) staan als
+// eigen kaartje zodra minstens één van hun relaties met een zichtbaar team
+// 'aan' staat (partyOptions.showFocus voor het focusteam, .showOthers voor de
+// rest; een geselecteerde partij altijd volledig). Hun lijnen hangen aan het
+// item dat ze noemen zodra dat getoond wordt, anders gebundeld aan de kaart.
+// Wat níet getekend wordt telt mee in de stapel-tab van die kaart.
+//
+// Een geselecteerd item of een geselecteerde partij levert een "stroom": de
+// verzameling items, teams, partijen en lijnen die er stroomafwaarts aan
+// hangt, tot `depth` teamgrenzen ver (zie computeStream) — de dieptemeter
+// begrenst dus zowel de tekening als de stroom. Kaarten met stroom-items
+// tonen alleen die items; lijnen krijgen data.inStream, waarop displayEdges
+// de rest dimt.
+//
 // Levert nodes zónder positie en edges zónder lijnpunten: die vult de
 // ELK-lay-out in ChainCanvas in. Zuivere functie; selectie/hover-stijl
 // (dimmen, amber items) komt er in displayNodes/displayEdges overheen.
-function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, focusTeamId, partyGraph, depth, showBackflow, selection }) {
+function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, focusTeamId, partyGraph, partyOptions, depth, showBackflow, selection }) {
   const naamVan = (team) => teamLabels[team.id] ?? team.naam
   const trace = traceForwardChain(focusTeamId, filteredTeams, chainEdgesAll)
   const columns = trace.columns.slice(0, depth + 1)
-  if (columns.length === 0) return { nodes: [], edges: [] }
+  if (columns.length === 0) return { nodes: [], edges: [], stream: null }
   const visibleTeams = columns.flat()
   const visibleTeamIds = new Set(visibleTeams.map((team) => team.id))
   const { layerOf, backEdgeIds } = orderChain(focusTeamId, visibleTeamIds, chainEdgesAll)
@@ -647,24 +707,43 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
   const sel = selection ?? { type: 'none' }
   const selectedTeamId = sel.type === 'card' ? sel.teamId : null
   const selectedEdgeId = sel.type === 'edge' ? sel.id : null
+  const selectedItem = sel.type === 'item' ? sel : null
+  const selectedPartyKey = sel.type === 'party' ? sel.key : null
   const touches = (link, teamId) => link.edge.sourceTeam === teamId || link.edge.targetTeam === teamId
-  // Welke koppelingen "horen bij" de selectie: alles aan de geselecteerde
-  // kaart, of de (gebundelde) lijn zelf.
+  // Welke koppelingen "horen bij" een kaart- of lijnselectie: alles aan de
+  // geselecteerde kaart, of de (gebundelde) lijn zelf.
   const selectedLinks = selectedTeamId
     ? links.filter((link) => touches(link, selectedTeamId))
     : selectedEdgeId
       ? links.filter((link) => link.edge.id === selectedEdgeId || link.pairId === selectedEdgeId)
       : []
-  const modeOf = (teamId) => {
-    if (selectedTeamId) {
-      if (teamId === selectedTeamId) return 'full'
-      return selectedLinks.some((link) => touches(link, teamId)) ? 'partial' : 'collapsed'
+
+  // --- Externe partijen: elke relatie partij ↔ zichtbaar team, met de
+  // items/afhankelijkheden (refs) die die relatie dragen. 'in' = de partij
+  // voedt het team (input-items en afhankelijkheden), 'out' = het team levert
+  // aan de partij (output-items). Aan of uit per groep; een geselecteerde
+  // partij toont altijd al haar relaties, ook uit een uitgezette groep.
+  const showFocusParties = partyOptions?.showFocus ?? true
+  const showOtherParties = partyOptions?.showOthers ?? true
+  const relationEnabled = (party, teamId) => party.key === selectedPartyKey || (teamId === focusTeamId ? showFocusParties : showOtherParties)
+  const partyRelations = []
+  for (const party of partyGraph ?? []) {
+    for (const [teamId, refs] of party.sources) {
+      if (visibleTeamIds.has(teamId)) partyRelations.push({ party, teamId, direction: 'in', refs, enabled: relationEnabled(party, teamId) })
     }
-    if (selectedEdgeId) {
-      if (selectedLinks.some((link) => touches(link, teamId))) return 'partial'
-      return teamId === focusTeamId ? 'full' : 'collapsed'
+    for (const [teamId, refs] of party.sinks) {
+      if (visibleTeamIds.has(teamId)) partyRelations.push({ party, teamId, direction: 'out', refs, enabled: relationEnabled(party, teamId) })
     }
-    return teamId === focusTeamId ? 'full' : 'collapsed'
+  }
+  const drawnRelations = partyRelations.filter((r) => r.enabled)
+  const relationRefKey = (r, ref) => `${r.party.key}|${r.teamId}|${r.direction}|${ref.kind}:${ref.id}`
+  // Stapel-tabs: per kaart de partijen waarvan de relatie met díe kaart niet
+  // getekend staat (groep uit), per kant.
+  const stackCounts = new Map()
+  for (const r of partyRelations) {
+    if (r.enabled) continue
+    if (!stackCounts.has(r.teamId)) stackCounts.set(r.teamId, { left: new Set(), right: new Set() })
+    stackCounts.get(r.teamId)[r.direction === 'in' ? 'left' : 'right'].add(r.party.key)
   }
 
   // Herkomst/bestemming van een item: eerst een daadwerkelijke team-koppeling
@@ -715,20 +794,135 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
       outCount: (wf.outputs ?? []).length,
     }
   }
+  const rowsByTeam = new Map(visibleTeams.map((team) => [team.id, allRows(team.id)]))
+
+  // --- Stroom vanaf een geselecteerd item of een geselecteerde partij.
+  // Stroomafwaarts, over een graaf van items, partijen en teams: een output
+  // gaat via zijn ketenkoppeling(en) naar een input elders (één teamgrens,
+  // telt als één stap), een input gaat binnen het eigen team door naar álle
+  // outputs (het team is een black box: alles wat erin komt kan alles wat
+  // eruit gaat beïnvloeden — dezelfde aanname als de ketenvolgorde zelf; kost
+  // geen stap), een partij voedt de inputs die haar noemen, een output levert
+  // aan de partij die 'm noemt, en een afhankelijkheid van een partij raakt
+  // het hele team (dus al zijn outputs). Begrensd op `depth` stappen — de
+  // dieptemeter. Daarnaast precies één stap terug: waar het startpunt zelf
+  // rechtstreeks vandaan komt (de output/partij die deze input voedt, de
+  // outputs die aan deze partij leveren) — niet verder terug, want "wat komt
+  // er allemaal vóór dit item" zou via de black-box-aanname meteen de hele
+  // keten zijn.
+  function computeStream() {
+    const forward = new Map()
+    const backward = new Map()
+    const add = (from, to, cost, tag) => {
+      if (!forward.has(from)) forward.set(from, [])
+      forward.get(from).push({ to, cost, tag })
+      if (cost === 1) {
+        if (!backward.has(to)) backward.set(to, [])
+        backward.get(to).push({ from, tag })
+      }
+    }
+    for (const [teamId, { rows }] of rowsByTeam) {
+      const ins = rows.filter((row) => row.kind === 'in').map((row) => `in:${teamId}:${row.id}`)
+      const outs = rows.filter((row) => row.kind === 'out').map((row) => `out:${teamId}:${row.id}`)
+      for (const i of ins) for (const o of outs) add(i, o, 0, null)
+      for (const o of outs) add(`team:${teamId}`, o, 0, null)
+    }
+    for (const { edge } of links) add(`out:${edge.sourceTeam}:${sourceItemId(edge)}`, `in:${edge.targetTeam}:${targetItemId(edge)}`, 1, { link: edge.id })
+    for (const r of drawnRelations) {
+      for (const ref of r.refs) {
+        const tag = { relation: relationRefKey(r, ref) }
+        if (r.direction === 'in' && ref.kind === 'input') add(`party:${r.party.key}`, `in:${r.teamId}:${ref.id}`, 1, tag)
+        else if (r.direction === 'in' && ref.kind === 'dependency') add(`party:${r.party.key}`, `team:${r.teamId}`, 1, tag)
+        else if (r.direction === 'out' && ref.kind === 'output') add(`out:${r.teamId}:${ref.id}`, `party:${r.party.key}`, 1, tag)
+      }
+    }
+    const start = selectedItem ? `${selectedItem.kind}:${selectedItem.teamId}:${selectedItem.itemId}` : `party:${selectedPartyKey}`
+    const linkIds = new Set()
+    const relationKeys = new Set()
+    const mark = (tag) => {
+      if (!tag) return
+      if (tag.link) linkIds.add(tag.link)
+      if (tag.relation) relationKeys.add(tag.relation)
+    }
+    // 0-1-BFS: een stap zonder kosten gaat vóóraan in de rij, zodat elke node
+    // met zijn kleinste afstand verwerkt wordt. Elke lijn die binnen de diepte
+    // valt hoort bij de stroom, ook als het doel al eerder bereikt was.
+    const dist = new Map([[start, 0]])
+    const queue = [start]
+    while (queue.length > 0) {
+      const node = queue.shift()
+      const d = dist.get(node)
+      for (const { to, cost, tag } of forward.get(node) ?? []) {
+        const next = d + cost
+        if (next > depth) continue
+        mark(tag)
+        if (dist.has(to) && dist.get(to) <= next) continue
+        dist.set(to, next)
+        if (cost === 0) queue.unshift(to)
+        else queue.push(to)
+      }
+    }
+    for (const { from, tag } of backward.get(start) ?? []) {
+      mark(tag)
+      if (!dist.has(from)) dist.set(from, 1)
+    }
+    const items = new Map()
+    const teams = new Set()
+    const partyKeys = new Set()
+    for (const node of dist.keys()) {
+      if (node.startsWith('party:')) {
+        partyKeys.add(node.slice('party:'.length))
+      } else if (node.startsWith('team:')) {
+        teams.add(node.slice('team:'.length))
+      } else {
+        // 'in:<team>:<item>' — een team-id bevat geen dubbele punt, een
+        // item-id (ghost:…) wel.
+        const teamStart = node.indexOf(':') + 1
+        const itemStart = node.indexOf(':', teamStart) + 1
+        const teamId = node.slice(teamStart, itemStart - 1)
+        teams.add(teamId)
+        if (!items.has(teamId)) items.set(teamId, new Set())
+        items.get(teamId).add(node.slice(itemStart))
+      }
+    }
+    return { items, teams, partyKeys, linkIds, relationKeys }
+  }
+  const stream = selectedItem || selectedPartyKey ? computeStream() : null
+
+  const modeOf = (teamId) => {
+    if (selectedTeamId) {
+      if (teamId === selectedTeamId) return 'full'
+      return selectedLinks.some((link) => touches(link, teamId)) ? 'partial' : 'collapsed'
+    }
+    if (selectedEdgeId) {
+      if (selectedLinks.some((link) => touches(link, teamId))) return 'partial'
+      return teamId === focusTeamId ? 'full' : 'collapsed'
+    }
+    if (stream) {
+      // De kaart van het geselecteerde item blijft volledig, zodat een ander
+      // item op dezelfde kaart direct aan te klikken is.
+      if (selectedItem && teamId === selectedItem.teamId) return 'full'
+      if (stream.items.get(teamId)?.size) return 'partial'
+      return teamId === focusTeamId ? 'full' : 'collapsed'
+    }
+    return teamId === focusTeamId ? 'full' : 'collapsed'
+  }
 
   // Per kaart: welke rijen staan er (stand + selectie), en hoeveel echte
   // items blijven verborgen achter "+N andere items".
   const cards = new Map()
   for (const team of visibleTeams) {
     const mode = modeOf(team.id)
-    const { rows, inCount, outCount } = allRows(team.id)
+    const { rows, inCount, outCount } = rowsByTeam.get(team.id)
     let shown = []
     if (mode === 'full') shown = rows
     else if (mode === 'partial') {
-      const wanted = new Set()
-      for (const link of selectedLinks) {
-        if (link.edge.sourceTeam === team.id) wanted.add(sourceItemId(link.edge))
-        if (link.edge.targetTeam === team.id) wanted.add(targetItemId(link.edge))
+      const wanted = new Set(stream ? stream.items.get(team.id) ?? [] : [])
+      if (!stream) {
+        for (const link of selectedLinks) {
+          if (link.edge.sourceTeam === team.id) wanted.add(sourceItemId(link.edge))
+          if (link.edge.targetTeam === team.id) wanted.add(targetItemId(link.edge))
+        }
       }
       shown = rows.filter((row) => wanted.has(row.id))
     }
@@ -749,6 +943,7 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
   })
   const arrow = (color, size = 14) => ({ type: MarkerType.ArrowClosed, color, width: size, height: size })
   const pendingStyle = (edge) => (edge.status === 'voorgesteld' ? PENDING_EDGE_STYLE : {})
+  const inStreamLink = (edge) => (stream ? stream.linkIds.has(edge.id) : undefined)
   const edges = []
   const itemColor = new Map()
   const bundles = new Map()
@@ -788,7 +983,7 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
       sourceHandle: srcShown ? `item-out${rev}:${srcId}` : `card-out${rev}`,
       targetHandle: tgtShown ? `item-in${rev}:${tgtId}` : `card-in${rev}`,
       type: 'elk',
-      data: { back, pairId, link: linkData(edge) },
+      data: { back, pairId, inStream: inStreamLink(edge), link: linkData(edge) },
       style: { stroke: color, strokeWidth: 2, ...(back ? BACK_EDGE_STYLE : {}), ...pendingStyle(edge) },
       markerEnd: arrow(color),
     })
@@ -808,6 +1003,7 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
         aggregated: true,
         count: bundle.links.length,
         pendingCount,
+        inStream: stream ? bundle.links.some((edge) => stream.linkIds.has(edge.id)) : undefined,
         sourceTeamNaam: teamNaamById[bundle.sourceTeam] ?? bundle.sourceTeam,
         targetTeamNaam: teamNaamById[bundle.targetTeam] ?? bundle.targetTeam,
         links: bundle.links.map(linkData),
@@ -820,57 +1016,101 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
     })
   }
 
-  // --- Externe partijen: tellers in de stapel-tabs van elke kaart; alleen de
-  // geselecteerde partij wordt een hub-node met een lijn naar elk zichtbaar
-  // team dat ze raakt (afhankelijkheden en input-items samengevoegd tot één
-  // lijn per team, outputs één lijn per team).
-  const byTeam = partyGraph ? partiesByTeam(partyGraph) : null
-  const highlightTeams = new Set()
-  const hubNodes = []
-  if (partyGraph && sel.type === 'party') {
-    const p = partyGraph.find((party) => party.key === sel.key)
-    const sourceTeams = p ? visibleTeams.map((team) => team.id).filter((id) => p.sources.has(id)) : []
-    const sinkTeams = p ? visibleTeams.map((team) => team.id).filter((id) => p.sinks.has(id)) : []
-    if (p && sourceTeams.length + sinkTeams.length > 0) {
-      const leftOfChain = sourceTeams.length > 0
-      const layer = leftOfChain ? Math.min(...sourceTeams.map(layerOfTeam)) - 1 : Math.max(...sinkTeams.map(layerOfTeam)) + 1
-      hubNodes.push(partyNode(p, layer))
-      const extStyle = (dashed) => ({ stroke: EXT_COLOR, strokeWidth: 1.5, ...(dashed ? BACK_EDGE_STYLE : {}), opacity: 0.85 })
-      for (const teamId of sourceTeams) {
-        const refs = p.sources.get(teamId)
-        highlightTeams.add(teamId)
-        edges.push({
-          id: `hub:${p.key}->${teamId}`,
-          source: `party:${p.key}`,
-          target: `focus-card:${teamId}`,
-          sourceHandle: 'right-source',
-          targetHandle: 'card-in',
-          type: 'elk',
-          data: { count: refs.length, ...externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'in', refs) },
-          style: extStyle(refs.some((ref) => ref.kind === 'dependency')),
-          markerEnd: arrow(EXT_COLOR, 12),
-        })
-      }
-      for (const teamId of sinkTeams) {
-        const refs = p.sinks.get(teamId)
-        highlightTeams.add(teamId)
-        // Staat de hub links (ze is óók bron), dan loopt output ernaartoe
-        // terug naar links: terugkoppeling.
+  // --- Externe partijen als kaartje, met per relatie een lijn per getoond
+  // item (aan het item-handle) en één gebundelde lijn (met teller) aan de
+  // kaart voor de rest: afhankelijkheden, en items die op een ingeklapte of
+  // gedeeltelijke kaart niet getoond worden.
+  // Een gestippelde lijn is een afhankelijkheid van een partij (geen
+  // item-koppeling); met alle partijen in beeld zijn dat er veel — daarom
+  // lichter dan de doorgetrokken itemlijnen, zodat die de structuur blijven
+  // dragen.
+  const extStyle = (dashed) => ({ stroke: EXT_COLOR, strokeWidth: 1.5, ...(dashed ? BACK_EDGE_STYLE : {}), opacity: dashed ? 0.55 : 0.85 })
+  const partyNodes = []
+  const drawnParties = [...new Map(drawnRelations.map((r) => [r.party.key, r.party])).values()]
+  for (const party of drawnParties) {
+    const rels = drawnRelations.filter((r) => r.party.key === party.key)
+    const sourceLayers = rels.filter((r) => r.direction === 'in').map((r) => layerOfTeam(r.teamId))
+    const sinkLayers = rels.filter((r) => r.direction === 'out').map((r) => layerOfTeam(r.teamId))
+    // Plaatsing: tussen de teams in als alles wat aan haar levert vóór alles
+    // ligt wat ze voedt (A → partij → C, geen cyclus); anders links van de
+    // keten, waarbij wat aan haar levert als terugkoppeling (gestippeld, via
+    // de -rev-handles) naar links terugloopt; alleen ontvangen = rechts.
+    const minSource = sourceLayers.length > 0 ? Math.min(...sourceLayers) : null
+    const maxSink = sinkLayers.length > 0 ? Math.max(...sinkLayers) : null
+    const between = minSource !== null && maxSink !== null && maxSink < minSource
+    const leftOfChain = minSource !== null && !between
+    const layer = leftOfChain ? minSource - 1 : (maxSink ?? -1) + 1
+    partyNodes.push(partyNode(party, layer, party.key === selectedPartyKey))
+    for (const r of rels) {
+      const card = cards.get(r.teamId)
+      const teamNaam = teamNaamById[r.teamId] ?? r.teamId
+      const rowRefs = r.refs.filter((ref) => (ref.kind === 'input' || ref.kind === 'output') && card.shownIds.has(ref.id))
+      const restRefs = r.refs.filter((ref) => !rowRefs.includes(ref))
+      const inStreamRef = (ref) => stream.relationKeys.has(relationRefKey(r, ref))
+      const inStream = (refs) => (stream ? refs.some(inStreamRef) : undefined)
+      if (r.direction === 'in') {
+        for (const ref of rowRefs) {
+          edges.push({
+            id: `hub:${party.key}->${r.teamId}:${ref.id}`,
+            source: `party:${party.key}`,
+            target: `focus-card:${r.teamId}`,
+            sourceHandle: 'right-source',
+            targetHandle: `item-in:${ref.id}`,
+            type: 'elk',
+            data: { count: 1, inStream: inStream([ref]), ...externalEdgeData(party, teamNaam, 'in', [ref]) },
+            style: extStyle(false),
+            markerEnd: arrow(EXT_COLOR, 12),
+          })
+        }
+        if (restRefs.length > 0) {
+          edges.push({
+            id: `hub:${party.key}->${r.teamId}`,
+            source: `party:${party.key}`,
+            target: `focus-card:${r.teamId}`,
+            sourceHandle: 'right-source',
+            targetHandle: 'card-in',
+            type: 'elk',
+            data: { count: restRefs.length, inStream: inStream(restRefs), ...externalEdgeData(party, teamNaam, 'in', restRefs) },
+            style: extStyle(restRefs.some((ref) => ref.kind === 'dependency')),
+            markerEnd: arrow(EXT_COLOR, 12),
+          })
+        }
+      } else {
         const rev = leftOfChain ? '-rev' : ''
-        edges.push({
-          id: `hub:${teamId}->${p.key}`,
-          source: `focus-card:${teamId}`,
-          target: `party:${p.key}`,
-          sourceHandle: `card-out${rev}`,
-          targetHandle: leftOfChain ? 'right-target' : 'left-target',
-          type: 'elk',
-          data: { back: leftOfChain, count: refs.length, ...externalEdgeData(p, teamNaamById[teamId] ?? teamId, 'out', refs) },
-          style: extStyle(false),
-          markerEnd: arrow(EXT_COLOR, 12),
-        })
+        const targetHandle = leftOfChain ? 'right-target' : 'left-target'
+        for (const ref of rowRefs) {
+          edges.push({
+            id: `hub:${r.teamId}:${ref.id}->${party.key}`,
+            source: `focus-card:${r.teamId}`,
+            target: `party:${party.key}`,
+            sourceHandle: `item-out${rev}:${ref.id}`,
+            targetHandle,
+            type: 'elk',
+            data: { back: leftOfChain, count: 1, inStream: inStream([ref]), ...externalEdgeData(party, teamNaam, 'out', [ref]) },
+            style: extStyle(false),
+            markerEnd: arrow(EXT_COLOR, 12),
+          })
+        }
+        if (restRefs.length > 0) {
+          edges.push({
+            id: `hub:${r.teamId}->${party.key}`,
+            source: `focus-card:${r.teamId}`,
+            target: `party:${party.key}`,
+            sourceHandle: `card-out${rev}`,
+            targetHandle,
+            type: 'elk',
+            data: { back: leftOfChain, count: restRefs.length, inStream: inStream(restRefs), ...externalEdgeData(party, teamNaam, 'out', restRefs) },
+            style: extStyle(false),
+            markerEnd: arrow(EXT_COLOR, 12),
+          })
+        }
       }
     }
   }
+
+  // Kaarten die in de stroom van een geselecteerd item/partij liggen krijgen
+  // een lichte ring (het startpunt zelf niet: dat is al amber/geselecteerd).
+  const highlightTeams = new Set(stream ? [...stream.teams].filter((teamId) => teamId !== selectedItem?.teamId) : [])
 
   // Kaarten in ketenvolgorde (focusteam eerst): ELK gebruikt die invoer-
   // volgorde als tie-breaker (considerModelOrder), zodat dezelfde data ook
@@ -878,7 +1118,8 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
   const nodes = visibleTeams.map((team, index) => {
     const card = cards.get(team.id)
     const risk = teamRisk[team.id] ?? { level: 'Laag', score: 0, count: 0 }
-    const stacks = byTeam ? { left: byTeam.get(team.id)?.left.length ?? 0, right: byTeam.get(team.id)?.right.length ?? 0 } : null
+    const counts = stackCounts.get(team.id)
+    const stacks = partyGraph ? { left: counts?.left.size ?? 0, right: counts?.right.size ?? 0 } : null
     return {
       id: `focus-card:${team.id}`,
       type: 'focusCard',
@@ -903,7 +1144,17 @@ function computeChainGraph({ teamWorkflows, teamRisk, teamLabels, chainEdgesAll,
     }
   })
 
-  return { nodes: [...nodes, ...hubNodes], edges }
+  // Samenvatting van de stroom voor het detailvak.
+  const streamSummary = stream
+    ? {
+        teamIds: [...stream.teams].filter((teamId) => teamId !== selectedItem?.teamId),
+        linkCount: stream.linkIds.size,
+        partyKeys: [...stream.partyKeys].filter((key) => key !== selectedPartyKey),
+        item: selectedItem ? (rowsByTeam.get(selectedItem.teamId)?.rows.find((row) => row.id === selectedItem.itemId) ?? null) : null,
+      }
+    : null
+
+  return { nodes: [...nodes, ...partyNodes], edges, stream: streamSummary }
 }
 
 // Zuivere graafopbouw ook los van de component bruikbaar (bv. een ad-hoc
@@ -930,14 +1181,18 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
   const [focusTeamId, setFocusTeamId] = useState('')
   const [depth, setDepth] = useState(MAX_DEPTH)
   const [showBackflow, setShowBackflow] = useState(true)
-  // Externe partijen (systemen, leveranciers, CAB, …) als stapel-tabs onder
-  // de kaarten en, geselecteerd, als hub — standaard aan, uit te zetten voor
-  // een puur team-op-team beeld.
-  const [showExternalParties, setShowExternalParties] = useState(true)
+  // Externe partijen (systemen, leveranciers, CAB, …): standaard als eigen
+  // kaartjes in beeld, per groep uit te zetten in het filterpaneel (dan
+  // zakken ze in de stapel-tabs onder de kaarten), plus een subfilter om
+  // algemeen bekende partijen (CAB, IAM-beheer, …) helemaal weg te laten.
+  const [showFocusParties, setShowFocusParties] = useState(true)
+  const [showOtherParties, setShowOtherParties] = useState(true)
+  const [hiddenPartyKeys, setHiddenPartyKeys] = useState(() => new Set())
   // Eén selectie tegelijk: een kaart ({type:'card'}), een lijn ({type:'edge',
-  // id = koppeling of bundel}), een stapel-tab ({type:'stack'}) of een
-  // externe partij ({type:'party'}). De selectie bepaalt mede wat er
-  // getekend wordt (zie computeChainGraph); hover niet.
+  // id = koppeling of bundel}), een stapel-tab ({type:'stack'}), een externe
+  // partij ({type:'party'}) of één input-/outputitem ({type:'item'}). De
+  // selectie bepaalt mede wat er getekend wordt (zie computeChainGraph);
+  // hover niet.
   const [selection, setSelection] = useState(null)
   const [hoveredEdgeId, setHoveredEdgeId] = useState(null)
   // Vanuit welke stapel-tab een partij gekozen is, voor de terugweg in het
@@ -1008,42 +1263,36 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     return result
   }, [visibleTeams, dependencies, selectedRiskLevels, scope])
 
-  // Hub-statistieken voor het gefocuste team: aantal inkomende/uitgaande
-  // koppelingen (niet unieke partners — een team met 3 losse koppelingen naar
-  // dezelfde partner telt als 3) en het hoogste risiconiveau van zijn eigen
-  // dependencies, ongeacht het huidige risicofilter. Rechtstreeks uit
-  // chainEdgesAll i.p.v. via focusChainTrace — dit gaat over de dírecte
-  // koppelingen van het focusteam zelf, niet over de hele voorwaartse keten.
-  const focusStats = useMemo(() => {
-    if (!focusActive) return null
-    // Verzoeken die nog op akkoord wachten tellen nog niet mee als koppeling,
-    // en alleen koppelingen met teams binnen de huidige teamselectie tellen:
-    // een uitgevinkt team staat niet op het canvas en hoort dan ook niet in
-    // deze tellingen.
-    const selected = new Set(filteredTeams.map((tm) => tm.id))
-    const accepted = chainEdgesAll.filter((e) => e.status !== 'voorgesteld' && selected.has(e.sourceTeam) && selected.has(e.targetTeam))
-    const incoming = accepted.filter((e) => e.targetTeam === activeFocusTeamId && e.sourceTeam !== activeFocusTeamId)
-    const outgoing = accepted.filter((e) => e.sourceTeam === activeFocusTeamId && e.targetTeam !== activeFocusTeamId)
-    const inScope = dependencies.filter((d) => d.teamId === activeFocusTeamId && (scope === 'alle' || d.scope === scope))
-    return {
-      incoming: incoming.length,
-      outgoing: outgoing.length,
-      total: incoming.length + outgoing.length,
-      risk: inScope.length > 0 ? highestRisk(inScope) : null,
-    }
-  }, [focusActive, activeFocusTeamId, chainEdgesAll, filteredTeams, dependencies, scope])
-
   // Externe partijen: één keer verzameld uit alle teams/dependencies; de
   // graafopbouw filtert zelf op de zichtbare teams.
   const partyGraph = useMemo(
     () => buildExternalPartyGraph(teamWorkflows, dependencies, externalParties, teams, teamLabels),
     [teamWorkflows, dependencies, externalParties, teams, teamLabels],
   )
-  const partyList = useMemo(() => partiesByTeam(partyGraph), [partyGraph])
+  // Subfilter: welke partijen überhaupt meedoen. De keuzelijst in het
+  // filterpaneel toont elke partij die minstens één team uit de teamselectie
+  // raakt (ongeacht focus/diepte, zodat de lijst niet meebeweegt met de
+  // tekening), op naam gesorteerd.
+  const partyFilterOptions = useMemo(() => {
+    const selected = new Set(filteredTeams.map((tm) => tm.id))
+    return partyGraph
+      .filter((p) => [...p.sources.keys(), ...p.sinks.keys()].some((teamId) => selected.has(teamId)))
+      .map((p) => ({ key: p.key, naam: p.naam, type: p.type, teamCount: new Set([...p.sources.keys(), ...p.sinks.keys()]).size }))
+      .sort((a, b) => a.naam.localeCompare(b.naam, 'nl'))
+  }, [partyGraph, filteredTeams])
+  const visiblePartyGraph = useMemo(() => partyGraph.filter((p) => !hiddenPartyKeys.has(p.key)), [partyGraph, hiddenPartyKeys])
+  const partyList = useMemo(() => partiesByTeam(visiblePartyGraph), [visiblePartyGraph])
   const selectedParty = useMemo(
-    () => (selection?.type === 'party' && showExternalParties ? (partyGraph.find((p) => p.key === selection.key) ?? null) : null),
-    [selection, showExternalParties, partyGraph],
+    () => (selection?.type === 'party' ? (visiblePartyGraph.find((p) => p.key === selection.key) ?? null) : null),
+    [selection, visiblePartyGraph],
   )
+  const togglePartyHidden = (key) =>
+    setHiddenPartyKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
 
   // Structuur van de tekening (welke kaarten in welke stand, welke lijnen,
   // aan welke handles) — elke wijziging hierin laat ChainCanvas een nieuwe
@@ -1059,30 +1308,33 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
         chainEdgesAll,
         filteredTeams,
         focusTeamId: activeFocusTeamId,
-        partyGraph: showExternalParties ? partyGraph : null,
+        partyGraph: visiblePartyGraph,
+        partyOptions: { showFocus: showFocusParties, showOthers: showOtherParties },
         depth,
         showBackflow,
         selection,
       }),
-    [teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, showExternalParties, partyGraph, depth, showBackflow, selection],
+    [teamWorkflows, teamRisk, teamLabels, chainEdgesAll, filteredTeams, activeFocusTeamId, visiblePartyGraph, showFocusParties, showOtherParties, depth, showBackflow, selection],
   )
-  const { nodes, edges } = graph
+  const { nodes, edges, stream } = graph
 
   // Een selectie die niet meer in beeld is (diepte verlaagd, team weggefilterd,
-  // partijen uitgezet) vervalt vanzelf.
+  // partij weggefilterd, stapel-tab verdwenen doordat die groep partijen weer
+  // als kaartjes staat) vervalt vanzelf.
   useEffect(() => {
     if (!selection) return
-    const hasCard = (teamId) => nodes.some((n) => n.id === `focus-card:${teamId}`)
+    const card = (teamId) => nodes.find((n) => n.id === `focus-card:${teamId}`)
     const stale =
-      (selection.type === 'card' && !hasCard(selection.teamId)) ||
-      (selection.type === 'stack' && (!showExternalParties || !hasCard(selection.teamId))) ||
-      (selection.type === 'party' && (!showExternalParties || !nodes.some((n) => n.id === `party:${selection.key}`))) ||
+      (selection.type === 'card' && !card(selection.teamId)) ||
+      (selection.type === 'item' && !card(selection.teamId)?.data.rows.some((row) => row.id === selection.itemId)) ||
+      (selection.type === 'stack' && !card(selection.teamId)?.data.stacks?.[selection.side]) ||
+      (selection.type === 'party' && !nodes.some((n) => n.id === `party:${selection.key}`)) ||
       (selection.type === 'edge' && !edges.some((e) => e.id === selection.id || e.data?.pairId === selection.id))
     if (stale) {
       setSelection(null)
       setStackReturn(null)
     }
-  }, [selection, nodes, edges, showExternalParties])
+  }, [selection, nodes, edges])
 
   // Een geselecteerde lijn kan een bundel zijn (agg:A->B) die inmiddels als
   // losse koppelingen getekend staat — elk daarvan draagt de bundel als
@@ -1092,7 +1344,9 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     () => (selectedEdgeId ? edges.filter((e) => e.id === selectedEdgeId || e.data?.pairId === selectedEdgeId) : []),
     [edges, selectedEdgeId],
   )
-  const selectedPartyKey = selection?.type === 'party' ? selection.key : null
+  // Een geselecteerd item of een geselecteerde partij markeert de lijnen van
+  // zijn stroom al in de graaf zelf (data.inStream, zie computeChainGraph).
+  const streamSelected = selection?.type === 'item' || selection?.type === 'party'
 
   // Selectie wint van hover: een vastgezette lijn moet niet weer wegzakken
   // omdat de muis toevallig over een andere lijn beweegt.
@@ -1100,34 +1354,41 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
 
   // Klik pint een lijn vast (blijft staan terwijl je rondkijkt/scrollt);
   // hover geeft alleen lichte visuele feedback ín de lijn zelf (oplichten, de
-  // rest kort dimmen). Een geselecteerde externe partij licht ál haar lijnen
-  // tegelijk op, zodat in één oogopslag te zien is welke teams eraan hangen.
+  // rest kort dimmen). Bij een stroom (item/partij) lichten alle lijnen van
+  // die stroom op en dimt de rest — niet geanimeerd, dat wordt bij tientallen
+  // lijnen tegelijk alleen maar onrustig.
   const displayEdges = useMemo(
     () =>
       edges.map((e) => {
         const selected = e.id === selectedEdgeId || (selectedEdgeId != null && e.data?.pairId === selectedEdgeId)
-        if (!activeEdgeId && !selectedPartyKey) return { ...e, selected }
-        const active = e.id === activeEdgeId || e.data?.pairId === activeEdgeId || (selectedPartyKey && e.data?.partyKey === selectedPartyKey)
+        if (streamSelected) {
+          const active = Boolean(e.data?.inStream)
+          return { ...e, selected, style: { ...e.style, strokeWidth: active ? 3 : 1.5, opacity: active ? 1 : 0.12 } }
+        }
+        if (!activeEdgeId) return { ...e, selected }
+        const active = e.id === activeEdgeId || e.data?.pairId === activeEdgeId
         return {
           ...e,
           selected,
-          animated: active && Boolean(selectedEdgeId || selectedPartyKey),
+          animated: active && Boolean(selectedEdgeId),
           style: { ...e.style, strokeWidth: active ? 3.5 : 1.5, opacity: active ? 1 : 0.15 },
         }
       }),
-    [edges, activeEdgeId, selectedEdgeId, selectedPartyKey],
+    [edges, activeEdgeId, selectedEdgeId, streamSelected],
   )
 
   // Bij een geselecteerde lijn lichten de twee item-handles (amber) op, zodat
-  // meteen duidelijk is van welk output- naar welk inputkaartje de lijn loopt.
+  // meteen duidelijk is van welk output- naar welk inputkaartje de lijn loopt;
+  // bij een geselecteerd item alleen dat item zelf.
   const activeItemIds = useMemo(() => {
+    if (selection?.type === 'item') return new Set([selection.itemId])
     if (selectedEdges.length === 0) return null
     const ids = selectedEdges
       .flatMap((e) => [e.sourceHandle, e.targetHandle])
       .filter((handle) => handle && handle.startsWith('item-'))
       .map((handle) => handle.replace(/^item-(in|out)(-rev)?:/, ''))
     return new Set(ids)
-  }, [selectedEdges])
+  }, [selectedEdges, selection])
 
   const displayNodes = useMemo(() => {
     if (!activeItemIds) return nodes
@@ -1201,7 +1462,8 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
 
   const teamFilterActive = selectedTeamIds.length < teams.length
   const riskFilterActive = selectedRiskLevels.length < RISK_LEVELS.length
-  const anyFilterActive = teamFilterActive || riskFilterActive
+  const partyFilterActive = !showFocusParties || !showOtherParties || hiddenPartyKeys.size > 0
+  const anyFilterActive = teamFilterActive || riskFilterActive || partyFilterActive
   const teamNaam = (teamId) => teamLabels[teamId] ?? teams.find((tm) => tm.id === teamId)?.naam ?? teamId
 
   // Het team-focusmenu leeft op het canvas zelf (als zwevend paneel, zie
@@ -1257,25 +1519,6 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
     </div>
   )
 
-  const focusStatsBlock = focusStats && (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 text-xs text-slate-600 shadow-md backdrop-blur-sm">
-      <span>
-        {t('chain.statIncoming')}: <b className="text-slate-800">{focusStats.incoming}</b>
-      </span>
-      <span>
-        {t('chain.statOutgoing')}: <b className="text-slate-800">{focusStats.outgoing}</b>
-      </span>
-      <span>
-        {t('chain.statTotal')}: <b className="text-slate-800">{focusStats.total}</b>
-      </span>
-      {focusStats.risk && (
-        <span className="inline-flex items-center gap-1">
-          {t('chain.statHighestRisk')}: <RiskBadge level={focusStats.risk.level} />
-        </span>
-      )}
-    </div>
-  )
-
   const chipClass = (clickable) =>
     `inline-flex items-center gap-1 rounded-full border border-slate-300 bg-white px-2 py-0.5 text-[11px] text-slate-700 ${clickable ? 'cursor-pointer hover:border-[#2a5f8a] hover:text-[#2a5f8a]' : ''}`
   const sectionLabel = (text) => <span className="mr-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-slate-400">{text}</span>
@@ -1321,14 +1564,42 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
             </span>
           ))}
         </div>
-        {showExternalParties && (
-          <div className="flex flex-wrap items-center gap-1.5">
-            {sectionLabel(t('chain.partiesLabel'))}
-            {parties.left.length + parties.right.length === 0 && <span className="text-slate-400">{t('chain.noParties')}</span>}
-            {parties.left.map((entry) => partyChip(entry, from('left')))}
-            {parties.right.map((entry) => partyChip(entry, from('right')))}
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {sectionLabel(t('chain.partiesLabel'))}
+          {parties.left.length + parties.right.length === 0 && <span className="text-slate-400">{t('chain.noParties')}</span>}
+          {parties.left.map((entry) => partyChip(entry, from('left')))}
+          {parties.right.map((entry) => partyChip(entry, from('right')))}
+        </div>
+      </>
+    )
+  } else if (selection?.type === 'item' && stream) {
+    // Geselecteerd item: wat het is, en wat er binnen de huidige diepte
+    // stroomafwaarts aan hangt (plus waar het zelf rechtstreeks vandaan komt).
+    const item = stream.item
+    detail = (
+      <>
+        <div className="mb-1 flex flex-wrap items-center gap-2">
+          <span className="font-semibold uppercase tracking-wide text-[#2a5f8a]">
+            {t(selection.kind === 'in' ? 'chain.itemSelectedIn' : 'chain.itemSelectedOut', { team: teamNaam(selection.teamId) })} · {item?.label || '—'}
+          </span>
+          <span className="text-slate-500">
+            {t('chain.streamSummary', { depth, teams: stream.teamIds.length, links: stream.linkCount, parties: stream.partyKeys.length })}
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {sectionLabel(t('chain.streamTeamsLabel'))}
+          {stream.teamIds.length + stream.partyKeys.length === 0 && <span className="text-slate-400">{t('chain.streamEmpty')}</span>}
+          {stream.teamIds.map((teamId) => (
+            <button key={teamId} type="button" onClick={() => changeFocus(teamId)} className={chipClass(true)} title={t('chain.focusHere')}>
+              {teamNaam(teamId)}
+            </button>
+          ))}
+          {stream.partyKeys.map((key) => (
+            <button key={key} type="button" onClick={() => selectParty(key)} className={chipClass(true)}>
+              {partyGraph.find((p) => p.key === key)?.naam ?? key}
+            </button>
+          ))}
+        </div>
       </>
     )
   } else if (selection?.type === 'stack') {
@@ -1442,28 +1713,14 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
               </span>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600">
-              <input
-                type="checkbox"
-                checked={showExternalParties}
-                onChange={(e) => setShowExternalParties(e.target.checked)}
-                className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
-              />
-              {t('chain.showExternalParties')}
-            </label>
-            <span className="hidden text-xs text-slate-400 sm:inline" title={t('chain.focusLegend')}>
-              {t('chain.focusLegend')}
-            </span>
-            <ScopeToggle scope={scope} onChange={setScope} />
-          </div>
+          <ScopeToggle scope={scope} onChange={setScope} />
         </div>
 
         {/* Leeg-melding alleen als de tekening écht leeg zou zijn: geen andere
             kaart en geen enkele lijn. Een team met alleen een nog niet
             geaccepteerd verzoek (gestippelde lijn) of alleen externe partijen
-            heeft wél een canvas — focusStats telt die bewust niet mee en gaf
-            daardoor ten onrechte de lege staat. */}
+            heeft wél een canvas — daarom wordt hier op de getekende lijnen
+            getoetst, niet op geaccepteerde ketenkoppelingen alleen. */}
         {focusActive && visibleTeams.length === 1 && edges.length === 0 ? (
           <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-400 shadow-sm">
             <div className="mb-4 flex justify-center">{focusPicker}</div>
@@ -1476,7 +1733,6 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           </div>
         ) : (
           <ReactFlowProvider>
-            <ChainZoomToolbar />
             <div
               className="relative overflow-auto rounded-xl border border-slate-200 bg-white shadow-sm"
               style={{ height: 'max(560px, calc(100vh - 280px))' }}
@@ -1488,21 +1744,30 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 fitKey={`${activeFocusTeamId}:${sidebarMode}`}
                 onNodeClick={(event, node) => {
                   if (node.type === 'externalParty') {
-                    // Nogmaals klikken op de hub heft de selectie op.
+                    // Nogmaals klikken op de partij heft de selectie op.
                     if (selection?.type === 'party' && selection.key === node.data.key) clearSelection()
                     else selectParty(node.data.key)
                     return
                   }
                   if (node.type !== 'focusCard') return
                   // Klik op een stapel-tab (zie StackTab) opent de partijenlijst
-                  // van die kant; een klik op de kaart zelf selecteert het team —
-                  // de focus verleggen gaat via 'Focus op dit team' in het
-                  // detailvak of het menu.
+                  // van die kant; klik op een itemrij (zie FocusChainCardNode)
+                  // selecteert dat ene item en toont zijn stroom; een klik op
+                  // de kaart zelf selecteert het team — de focus verleggen gaat
+                  // via 'Focus op dit team' in het detailvak of het menu.
                   const stack = event.target.closest?.('[data-stack]')
                   if (stack) {
                     const side = stack.getAttribute('data-stack')
                     setStackReturn(null)
                     setSelection((prev) => (prev?.type === 'stack' && prev.teamId === node.data.teamId && prev.side === side ? null : { type: 'stack', teamId: node.data.teamId, side }))
+                    return
+                  }
+                  const row = event.target.closest?.('[data-item]')
+                  if (row) {
+                    const itemId = row.getAttribute('data-item')
+                    const kind = row.getAttribute('data-item-kind')
+                    setStackReturn(null)
+                    setSelection((prev) => (prev?.type === 'item' && prev.itemId === itemId ? null : { type: 'item', teamId: node.data.teamId, itemId, kind }))
                     return
                   }
                   setStackReturn(null)
@@ -1522,7 +1787,6 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
                 onPaneClick={clearSelection}
               >
                 <Panel position="top-left">{focusPicker}</Panel>
-                {focusStatsBlock && <Panel position="top-right">{focusStatsBlock}</Panel>}
               </ChainCanvas>
             </div>
           </ReactFlowProvider>
@@ -1553,6 +1817,17 @@ export default function ChainOverview({ adminSections, sidebarMode }) {
           onToggleRisk={toggleRiskLevel}
           onHideLowRisk={() => setSelectedRiskLevels(['Hoog', 'Kritiek'])}
           onShowAllRisk={() => setSelectedRiskLevels(RISK_LEVELS)}
+          externalParties={{
+            showFocus: showFocusParties,
+            showOthers: showOtherParties,
+            onToggleFocus: () => setShowFocusParties((v) => !v),
+            onToggleOthers: () => setShowOtherParties((v) => !v),
+            parties: partyFilterOptions,
+            hiddenKeys: hiddenPartyKeys,
+            onToggleParty: togglePartyHidden,
+            onSelectAll: () => setHiddenPartyKeys(new Set()),
+            onSelectNone: () => setHiddenPartyKeys(new Set(partyFilterOptions.map((p) => p.key))),
+          }}
         />
       )}
     </div>
