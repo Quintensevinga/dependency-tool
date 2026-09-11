@@ -27,7 +27,7 @@ import { riskStyle } from '../lib/riskStyles'
 import { bronTypeColor } from '../lib/workflowStyles'
 import { translateRiskLevel, translateBronType } from '../i18n/labels'
 import { resolveChainEdges, orderTeamsByChain, traceForwardChain } from '../lib/teamWorkflow'
-import { orderChain, roundedOrthPath, polylineMidpoint, buildElkGraph, applyElkLayout, fallbackPositions } from '../lib/chainLayout'
+import { orderChain, roundedOrthPath, polylineMidpoint, buildElkGraph, applyElkLayout, fallbackPositions, fanInOffsets, ELK_LAYOUT_OPTIONS } from '../lib/chainLayout'
 import { emptyTeamWorkflow } from '../lib/storage'
 import { fitViewAvoidingCorner } from '../lib/flowFit'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
@@ -345,11 +345,24 @@ function ChainCanvas({ graph, nodes, edges, fitKey, children, ...handlers }) {
     // Alleen het laatste verzoek telt: een oudere lay-out die later klaar is
     // (ELK is asynchroon) mag een nieuwere niet overschrijven.
     const run = ++runRef.current
+    // Twee rondes: de eerste bepaalt de posities; daaruit volgt per
+    // aankomstpunt de volgorde van de lijnen die er samen op landen
+    // (fanInOffsets), waarna de tweede ronde ze elk een eigen poortje geeft
+    // zodat ze naast elkaar aankomen. Zonder zo'n punt volstaat de eerste
+    // ronde. Elke ronde krijgt een verse ELK-invoer: ELK schrijft in het
+    // object dat het krijgt.
     elk
       .layout(buildElkGraph(graph, sizes))
+      .then((first) => {
+        if (run !== runRef.current) return null
+        const firstLayout = applyElkLayout(first, graph)
+        const fanIn = fanInOffsets(graph, sizes, firstLayout.positions)
+        if (fanIn.size === 0) return firstLayout
+        return elk.layout(buildElkGraph(graph, sizes, ELK_LAYOUT_OPTIONS, fanIn)).then((second) => (run === runRef.current ? applyElkLayout(second, graph) : null))
+      })
       .then((result) => {
-        if (run !== runRef.current) return
-        setLayout({ version: run, graph, ...applyElkLayout(result, graph) })
+        if (!result || run !== runRef.current) return
+        setLayout({ version: run, graph, ...result })
       })
       .catch((error) => {
         if (run !== runRef.current) return
