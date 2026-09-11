@@ -3,6 +3,40 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-11
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht vult het venster, legenda in het canvas, URL per pagina** (Quinten)
+
+  Canvas: de vaste hoogte (max(560px, 100vh - 280px)) liet op een groot
+  scherm een leeg vak onder het canvas over. Het canvas meet nu zelf: van
+  zijn eigen bovenrand tot de onderrand van het venster, minus het detailvak
+  zodra dat open staat (dat blijft dan óók in beeld, zonder paginascroll), met
+  een ondergrens van 480px voor kleine schermen. Meet opnieuw bij venster-
+  resize en bij elke maatwijziging van het detailvak (ResizeObserver); de
+  toolbar fit de tekening dan ook opnieuw. De balk met de scope-schakelaar
+  (Teamniveau / Ketenniveau / Alles) is weg — het ketenoverzicht toont beide
+  niveaus altijd samen — dus het canvas begint direct onder de kop.
+
+  Legenda: knop rechtsboven ín het canvas, klapt een kaartje open met elke
+  lijnsoort (itemkoppeling, bundel met teller, wachtend op akkoord,
+  terugkoppeling, partij-item, partij-afhankelijkheid) en kaartsoort
+  (focusteam, stapel-tab) plus de klikacties. De voorbeeldlijntjes gebruiken
+  dezelfde constanten als de echte lijnen, zodat de legenda nooit uit de pas
+  loopt met de tekening.
+
+  Routing: elke pagina heeft een eigen adres — /heatmap, /ketenoverzicht,
+  /analyse, /team/<id> — zonder router-library (lib/routes.js). De URL wint
+  bij het laden van de bewaarde navigatiestatus, een onbekend pad valt daarop
+  terug; elke paginawissel is een history-entry, terug/vooruit sturen de
+  status (popstate) zonder zelf weer een entry te maken. vercel.json laat elk
+  pad index.html serveren, zodat een gedeelde of ververste link ook op Vercel
+  werkt.
+
+  Geverifieerd in de browser: canvas eindigt 24px boven de onderrand bij een
+  venster van 900px, ook na openen/sluiten van het detailvak; legenda toont 8
+  regels; direct /ketenoverzicht, klik naar /team/<id> (history +1), terug,
+  vooruit, /analyse, onbekend pad → laatste pagina, direct /team/<id>.
+
 - **Ketenoverzicht: lijnen die op één blokje aankomen lopen naast elkaar** (Quinten)
 
   Lijnen die uit hetzelfde blokje vertrekken (fan-out van één output, één
