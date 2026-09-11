@@ -4,7 +4,7 @@ import { useAppContext } from '../context/AppContext'
 import { RISK_LEVELS } from '../data/constants'
 import { translateRiskLevel } from '../i18n/labels'
 import { riskStyle } from '../lib/riskStyles'
-import { bronTypeColor } from '../lib/workflowStyles'
+import ExternalPartyFilter from './ExternalPartyFilter'
 
 function ChevronIcon({ open }) {
   return (
@@ -93,21 +93,12 @@ function CheckboxGroup({ title, options, selected, onToggle, renderLabel, render
   )
 }
 
-// Filtergroep voor de externe partijen van het ketenoverzicht: twee
-// schakelaars per groep (partijen van het focusteam / van de andere teams —
-// uit = die partijen zakken in de stapel-tab onder de kaart) en daaronder een
-// subfilter met elke partij apart, om algemeen bekende partijen (CAB,
-// IAM-beheer, …) uit de tekening te laten. Zelfde opbouw en uiterlijk als
-// CheckboxGroup; apart omdat de twee schakelaars boven de lijst horen.
-function ExternalPartyGroup({ showFocus, showOthers, onToggleFocus, onToggleOthers, parties, hiddenKeys, onToggleParty, onSelectAll, onSelectNone, t }) {
+// Filtergroep voor de externe partijen van het ketenoverzicht (zelfde opbouw
+// en uiterlijk als CheckboxGroup; de inhoud is gedeeld met het uitklapmenu op
+// de canvasbalk, zie ExternalPartyFilter).
+function ExternalPartyGroup({ t, ...filter }) {
   const [open, setOpen] = useState(true)
-  const narrowed = !showFocus || !showOthers || hiddenKeys.size > 0
-  const toggle = (checked, onChange, label) => (
-    <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-      <input type="checkbox" checked={checked} onChange={onChange} className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]" />
-      {label}
-    </label>
-  )
+  const narrowed = !filter.showFocus || !filter.showOthers || filter.hiddenKeys.size > 0
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <button
@@ -124,30 +115,7 @@ function ExternalPartyGroup({ showFocus, showOthers, onToggleFocus, onToggleOthe
       </button>
       {open && (
         <div className="px-4 pb-4">
-          <div className="space-y-2">
-            {toggle(showFocus, onToggleFocus, t('filter.partiesOfFocus'))}
-            {toggle(showOthers, onToggleOthers, t('filter.partiesOfOthers'))}
-          </div>
-          <div className="mt-3 border-t border-slate-100 pt-3">
-            <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('filter.partiesWhich')}</div>
-            <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-              {parties.length === 0 && <div className="text-xs text-slate-400">{t('chain.noParties')}</div>}
-              {parties.map((party) => (
-                <label key={party.key} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700" title={party.naam}>
-                  <input
-                    type="checkbox"
-                    checked={!hiddenKeys.has(party.key)}
-                    onChange={() => onToggleParty(party.key)}
-                    className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 accent-[#2a5f8a]"
-                  />
-                  <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: bronTypeColor(party.type) ?? '#5c6b8a' }} />
-                  <span className="min-w-0 flex-1 truncate">{party.naam}</span>
-                  <span className="shrink-0 text-[10px] text-slate-400">{party.teamCount}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-          <AllNoneFooter onSelectAll={onSelectAll} onSelectNone={onSelectNone} t={t} />
+          <ExternalPartyFilter {...filter} />
         </div>
       )}
     </div>
@@ -174,7 +142,7 @@ export default function TeamFilterPanel({
 
   const anyNarrowed =
     selected.length < teams.length ||
-    riskLevels.length < RISK_LEVELS.length ||
+    (riskLevels && riskLevels.length < RISK_LEVELS.length) ||
     [workflowStap, effectOpFlow].some((group) => group && group.selected.length < group.options.length) ||
     (externalParties && (!externalParties.showFocus || !externalParties.showOthers || externalParties.hiddenKeys.size > 0))
 
@@ -231,25 +199,27 @@ export default function TeamFilterPanel({
         }
       />
 
-      <CheckboxGroup
-        title={t('filter.riskLevel')}
-        options={RISK_LEVELS.slice().reverse()}
-        selected={riskLevels}
-        onToggle={onToggleRisk}
-        defaultOpen
-        renderLabel={(level) => translateRiskLevel(level, language)}
-        renderDot={(level) => <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />}
-        footer={
-          <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
-            <button type="button" onClick={onHideLowRisk} className="font-medium text-[#2a5f8a] hover:underline">
-              {t('filter.hideLowRisk')}
-            </button>
-            <button type="button" onClick={onShowAllRisk} className="font-medium text-slate-400 hover:underline">
-              {t('filter.selectAll')}
-            </button>
-          </div>
-        }
-      />
+      {riskLevels && (
+        <CheckboxGroup
+          title={t('filter.riskLevel')}
+          options={RISK_LEVELS.slice().reverse()}
+          selected={riskLevels}
+          onToggle={onToggleRisk}
+          defaultOpen
+          renderLabel={(level) => translateRiskLevel(level, language)}
+          renderDot={(level) => <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />}
+          footer={
+            <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
+              <button type="button" onClick={onHideLowRisk} className="font-medium text-[#2a5f8a] hover:underline">
+                {t('filter.hideLowRisk')}
+              </button>
+              <button type="button" onClick={onShowAllRisk} className="font-medium text-slate-400 hover:underline">
+                {t('filter.selectAll')}
+              </button>
+            </div>
+          }
+        />
+      )}
 
       {workflowStap && (
         <CheckboxGroup

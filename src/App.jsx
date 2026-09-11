@@ -96,6 +96,14 @@ function AppContent() {
     // principe als elders in de app).
     return restored && teams.some((tm) => tm.id === restored) ? restored : null
   })
+  // Focusteam van het ketenoverzicht: bewust een expliciete keuze van de
+  // gebruiker (geen automatisch gekozen team — dat oogde als een eigen keuze
+  // die het niet was), in de URL (/ketenoverzicht/<team-id>) en bewaard.
+  const [chainFocusTeamId, setChainFocusTeamId] = useState(() => {
+    const fromUrl = navFromPath(window.location.pathname)
+    const restored = fromUrl?.chainFocusTeamId !== undefined ? fromUrl.chainFocusTeamId : loadNavState().chainFocusTeamId
+    return restored && teams.some((tm) => tm.id === restored) ? restored : ''
+  })
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
@@ -108,8 +116,8 @@ function AppContent() {
   // browserherlaad (bv. na een codewijziging tijdens ontwikkelen) op dezelfde
   // pagina uitkomt i.p.v. terug te vallen op de standaard Heatmap.
   useEffect(() => {
-    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, teamPageTeamId }))
-  }, [activeTab, teamPageTeamId])
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, teamPageTeamId, chainFocusTeamId }))
+  }, [activeTab, teamPageTeamId, chainFocusTeamId])
 
   // URL volgt de navigatiestatus: elke wissel van pagina is een nieuwe
   // history-entry (pushState), zodat terug/vooruit in de browser werkt. De
@@ -118,7 +126,7 @@ function AppContent() {
   // terug-stap weer een nieuwe entry maken en kwam je nooit meer terug.
   const urlSyncRef = useRef({ initial: true, fromPop: false })
   useEffect(() => {
-    const path = pathForNav({ activeTab, teamPageTeamId })
+    const path = pathForNav({ activeTab, teamPageTeamId, chainFocusTeamId })
     const sync = urlSyncRef.current
     if (window.location.pathname !== path) {
       if (sync.initial || sync.fromPop) window.history.replaceState(null, '', path)
@@ -126,7 +134,7 @@ function AppContent() {
     }
     sync.initial = false
     sync.fromPop = false
-  }, [activeTab, teamPageTeamId])
+  }, [activeTab, teamPageTeamId, chainFocusTeamId])
   useEffect(() => {
     function handlePop() {
       const nav = navFromPath(window.location.pathname)
@@ -137,6 +145,7 @@ function AppContent() {
       } else {
         setTeamPageTeamId(null)
         setActiveTab(nav.activeTab)
+        if (nav.activeTab === 'chain') setChainFocusTeamId(teams.some((tm) => tm.id === nav.chainFocusTeamId) ? nav.chainFocusTeamId : '')
       }
       // Leverde de popstate geen statuswijziging op (zelfde pagina), dan
       // loopt het sync-effect hierboven niet en moet de vlag hier weer uit.
@@ -155,7 +164,8 @@ function AppContent() {
   // volgende laadbeurt (migrateTeamWorkflows) weer wegvalt.
   useEffect(() => {
     if (teamPageTeamId && !teams.some((tm) => tm.id === teamPageTeamId)) setTeamPageTeamId(null)
-  }, [teams, teamPageTeamId])
+    if (chainFocusTeamId && !teams.some((tm) => tm.id === chainFocusTeamId)) setChainFocusTeamId('')
+  }, [teams, teamPageTeamId, chainFocusTeamId])
 
   function handleTabChange(tab) {
     setTeamPageTeamId(null)
@@ -323,7 +333,12 @@ function AppContent() {
               ))}
             {activeTab === 'chain' &&
               (adminSettings.pages.keten ? (
-                <ChainOverview adminSections={adminSettings.sections.keten} sidebarMode={sidebarMode} />
+                <ChainOverview
+                  adminSections={adminSettings.sections.keten}
+                  sidebarMode={sidebarMode}
+                  focusTeamId={chainFocusTeamId}
+                  onFocusChange={setChainFocusTeamId}
+                />
               ) : (
                 <PageDisabledNotice />
               ))}
