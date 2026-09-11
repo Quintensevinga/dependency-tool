@@ -264,7 +264,7 @@ function ChainLegend() {
           <div className="mt-2 border-t border-slate-100 pt-1.5 text-[10px] text-slate-500">{t('chain.legendClicks')}</div>
           <div className="mb-1.5 mt-2.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('chain.legendControlsTitle')}</div>
           <ul className="space-y-1">
-            {['legendFocusPicker', 'legendDepth', 'legendBackflowToggle', 'legendPartiesMenu'].map((key) => (
+            {['legendFocusPicker', 'legendDepth', 'legendBackflowToggle', 'legendDependenciesToggle', 'legendPartiesMenu'].map((key) => (
               <li key={key} className="flex items-start gap-2">
                 <span className="mt-[5px] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300" aria-hidden="true" />
                 <span>{t(`chain.${key}`)}</span>
@@ -281,7 +281,7 @@ function ChainLegend() {
 // een klik erbuiten of Escape. Capture-fase voor de muis: het canvas
 // (d3-zoom in React Flow) stopt de mousedown op de pane vóór 'ie bij document
 // aankomt, waardoor een klik op het canvas het menu anders niet sloot.
-function BarMenu({ label, shown, total, narrowed, highlight = false, children }) {
+function BarMenu({ label, badge, narrowed, highlight = false, hint, children }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef(null)
   useEffect(() => {
@@ -307,6 +307,8 @@ function BarMenu({ label, shown, total, narrowed, highlight = false, children })
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
+        aria-haspopup="true"
+        title={hint}
         className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs transition-colors ${
           open
             ? 'border-[#2a5f8a] bg-[#2a5f8a] text-white'
@@ -316,9 +318,14 @@ function BarMenu({ label, shown, total, narrowed, highlight = false, children })
         }`}
       >
         {label}
+        {/* Teller: neutraal zolang alles aanstaat, blauw zodra er iets uitstaat
+            ('12 van 23') — dan is 'ie ook pas informatief. */}
         <span className={`rounded px-1 text-[10px] font-semibold ${open ? 'bg-white/20' : narrowed ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'bg-slate-100 text-slate-500'}`}>
-          {shown}/{total}
+          {badge}
         </span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" aria-hidden="true" className={`transition-transform ${open ? 'rotate-180' : ''}`}>
+          <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
       </button>
       {open && <div className="absolute left-0 top-full z-20 mt-1.5 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-lg">{children}</div>}
     </div>
@@ -328,10 +335,11 @@ function BarMenu({ label, shown, total, narrowed, highlight = false, children })
 // 'Partijen': dezelfde bediening als ExternalPartyFilter, direct bij de tekening.
 function PartyMenu(filter) {
   const { t } = useLanguage()
+  const total = filter.parties.length
   const shown = filter.parties.filter((p) => !filter.hiddenKeys.has(p.key)).length
-  const narrowed = !filter.showDependencies || shown < filter.parties.length
+  const narrowed = shown < total
   return (
-    <BarMenu label={t('chain.partiesMenu')} shown={shown} total={filter.parties.length} narrowed={narrowed}>
+    <BarMenu label={t('chain.partiesMenu')} badge={narrowed ? t('chain.countOf', { shown, total }) : String(total)} narrowed={narrowed} hint={t('chain.partiesMenuHint')}>
       <ExternalPartyFilter {...filter} />
     </BarMenu>
   )
@@ -343,7 +351,13 @@ function TeamsMenu({ teams, teamLabels, selectedIds, onToggle, onSelectAll, onSe
   const { t } = useLanguage()
   const selected = new Set(selectedIds)
   return (
-    <BarMenu label={t('chain.teamsMenu')} shown={selected.size} total={teams.length} narrowed={selected.size < teams.length} highlight={selected.size === 0}>
+    <BarMenu
+      label={t('chain.teamsMenu')}
+      badge={t('chain.countOf', { shown: selected.size, total: teams.length })}
+      narrowed={selected.size < teams.length}
+      highlight={selected.size === 0}
+      hint={t('chain.teamsMenuHint')}
+    >
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('chain.teamsMenuHint')}</span>
         <span className="flex shrink-0 gap-2 text-xs">
@@ -1638,8 +1652,6 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   // Eén props-object voor de partijenbediening, gedeeld door het filterpaneel
   // rechts en het uitklapmenu op de canvasbalk (zie ExternalPartyFilter).
   const partyFilterProps = {
-    showDependencies: showPartyDependencies,
-    onToggleDependencies: () => setShowPartyDependencies((v) => !v),
     parties: partyFilterOptions,
     hiddenKeys: hiddenPartyKeys,
     onToggleParty: togglePartyHidden,
@@ -1672,24 +1684,51 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   // dieptemeter, of de teamkiezer — en altijd terugkoppelingen en partijen.
   // Geen focus gekozen in de stand Eén team: dropdown gemarkeerd, met hint.
   const viewLabels = { chain: t('chain.viewChain'), team: t('chain.viewTeam'), teams: t('chain.viewTeams') }
-  const separator = <span className="h-4 w-px bg-slate-200" />
+  // Elke groep op de balk heeft een klein bijschrift (Weergave · Team ·
+  // Diepte · Lijnen · Externe partijen) met een uitleg op hover, zodat de
+  // knoppen zichzelf verklaren i.p.v. dat je moet raden wat ze doen.
+  const caption = (text, hint) => (
+    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400" title={hint}>
+      {text}
+    </span>
+  )
+  const separator = <span className="h-5 w-px bg-slate-200" />
+  const segmented = (options, value, onChange, label, hint) => (
+    <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" role="group" aria-label={label} title={hint}>
+      {options.map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          aria-pressed={value === opt.value}
+          onClick={() => onChange(opt.value)}
+          className={`rounded px-2 py-0.5 transition-colors ${value === opt.value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'}`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  )
+  const lineToggle = (checked, onChange, label, hint) => (
+    <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600" title={hint}>
+      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]" />
+      {label}
+    </label>
+  )
   const focusPicker = (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-sm">
-      <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" role="group" aria-label={t('chain.viewLabel')}>
-        {['chain', 'team', 'teams'].map((mode) => (
-          <button
-            key={mode}
-            type="button"
-            aria-pressed={view.mode === mode}
-            onClick={() => changeMode(mode)}
-            className={`rounded px-2 py-0.5 transition-colors ${view.mode === mode ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'}`}
-          >
-            {viewLabels[mode]}
-          </button>
-        ))}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-2 shadow-md backdrop-blur-sm">
+      <div className="flex items-center gap-2">
+        {caption(t('chain.viewLabel'), t('chain.viewHint'))}
+        {segmented(
+          ['chain', 'team', 'teams'].map((mode) => ({ value: mode, label: viewLabels[mode] })),
+          view.mode,
+          changeMode,
+          t('chain.viewLabel'),
+          t('chain.viewHint'),
+        )}
       </div>
       {view.mode === 'team' && (
-        <>
+        <div className="flex items-center gap-2">
+          {caption(t('chain.teamLabel'))}
           <select
             id="chain-focus"
             aria-label={t('chain.focusLabel')}
@@ -1715,49 +1754,39 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
             ))}
           </select>
           {!focusActive && <span className="text-xs text-[#2a5f8a]">{t('chain.focusHintOverview')}</span>}
-          {focusActive && (
-            <>
-              {separator}
-              <span className="text-xs font-medium text-[#2a5f8a]" title={t('chain.depthHint')}>
-                {t('chain.depthLabel')}
-              </span>
-              <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" title={t('chain.depthHint')}>
-                {Array.from({ length: MAX_DEPTH }, (_, i) => i + 1).map((n) => (
-                  <button
-                    key={n}
-                    type="button"
-                    aria-pressed={depth === n}
-                    onClick={() => setDepth(n)}
-                    className={`rounded px-2 py-0.5 transition-colors ${depth === n ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    {n}
-                  </button>
-                ))}
-              </div>
-            </>
+        </div>
+      )}
+      {view.mode === 'team' && focusActive && (
+        <div className="flex items-center gap-2">
+          {caption(t('chain.depthLabel'), t('chain.depthHint'))}
+          {segmented(
+            Array.from({ length: MAX_DEPTH }, (_, i) => ({ value: i + 1, label: String(i + 1) })),
+            depth,
+            setDepth,
+            t('chain.depthLabel'),
+            t('chain.depthHint'),
           )}
-        </>
+        </div>
       )}
       {view.mode === 'teams' && (
-        <TeamsMenu
-          teams={activeTeams}
-          teamLabels={teamLabels}
-          selectedIds={view.teamIds}
-          onToggle={toggleTeamInView}
-          onSelectAll={() => changeView({ ...view, teamIds: activeTeams.map((tm) => tm.id) })}
-          onSelectNone={() => changeView({ ...view, teamIds: [] })}
-        />
+        <div className="flex items-center gap-2">
+          {caption(t('chain.teamsLabel'))}
+          <TeamsMenu
+            teams={activeTeams}
+            teamLabels={teamLabels}
+            selectedIds={view.teamIds}
+            onToggle={toggleTeamInView}
+            onSelectAll={() => changeView({ ...view, teamIds: activeTeams.map((tm) => tm.id) })}
+            onSelectNone={() => changeView({ ...view, teamIds: [] })}
+          />
+        </div>
       )}
       {separator}
-      <label className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-slate-600">
-        <input
-          type="checkbox"
-          checked={showBackflow}
-          onChange={(e) => setShowBackflow(e.target.checked)}
-          className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
-        />
-        {t('chain.backflowToggle')}
-      </label>
+      <div className="flex items-center gap-2.5">
+        {caption(t('chain.linesLabel'), t('chain.linesHint'))}
+        {lineToggle(showBackflow, setShowBackflow, t('chain.backflowToggle'), t('chain.backflowHint'))}
+        {lineToggle(showPartyDependencies, setShowPartyDependencies, t('chain.dependenciesToggle'), t('chain.dependenciesHint'))}
+      </div>
       {separator}
       <PartyMenu {...partyFilterProps} />
     </div>

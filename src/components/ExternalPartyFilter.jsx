@@ -3,14 +3,11 @@ import { useLanguage } from '../context/LanguageContext'
 import { bronTypeColor } from '../lib/workflowStyles'
 
 // Bediening van de externe partijen in het ketenoverzicht (uitklapmenu
-// 'Partijen' op de canvasbalk). Eén regel: aangevinkt = kaartje op het
-// canvas, uitgevinkt = weg. Bovenaan één schakelaar voor de afhankelijkheden
-// (de gestippelde lijnen — meestal de algemene partijen als CAB of
-// IAM-beheer), daaronder elke partij apart, met zoekveld, 'alleen' per partij
-// (solo: alle andere uit) en Alles/Geen.
+// 'Externe partijen' op de canvasbalk). Eén regel: aangevinkt = kaartje op
+// het canvas, uitgevinkt = weg. Elke partij apart, met zoekveld, 'alleen'
+// per partij (solo: alle andere uit) en Alles/Geen. De schakelaar voor de
+// afhankelijkheidslijnen staat op de balk zelf, bij 'Lijnen'.
 export default function ExternalPartyFilter({
-  showDependencies,
-  onToggleDependencies,
   parties,
   hiddenKeys,
   onToggleParty,
@@ -26,11 +23,8 @@ export default function ExternalPartyFilter({
 
   return (
     <div>
-      <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-        <input type="checkbox" checked={showDependencies} onChange={onToggleDependencies} className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]" />
-        {t('filter.partiesDependencies')}
-      </label>
-      <div className="mt-3 border-t border-slate-100 pt-3">
+      <div className="mb-2 text-xs text-slate-500">{t('filter.partiesIntro')}</div>
+      <div>
         <div className="mb-2 flex items-center justify-between gap-2">
           <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
             {t('filter.partiesWhichCount', { shown: shownCount, total: parties.length })}
