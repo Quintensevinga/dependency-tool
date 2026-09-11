@@ -5,6 +5,24 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-11
 - **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
 
+- **Ketenoverzicht: canvasbalk met bijschriften, lijnvinkjes bij elkaar, menu 'Externe partijen'** (Quinten)
+
+  De balk linksboven had geen bijschriften (alleen 'Diepte'), een knop
+  'Partijen 23/23' die als score las en niet als menu, en de schakelaar voor
+  afhankelijkheidslijnen verstopt ín dat menu — terwijl die familie is van
+  'Terugkoppelingen' (allebei: welke lijnen zie je).
+
+  Nu vier benoemde groepen, elk met een uitleg op hover: Weergave (hele keten
+  / één team / meerdere teams), dan wat bij die stand hoort — Team met de
+  dropdown en Diepte, of Teams met 'Kies teams' — daarna Lijnen met de twee
+  vinkjes Terugkoppelingen en Afhankelijkheden bij elkaar, en tot slot het
+  menu 'Externe partijen' met pijltje en een teller die neutraal blijft
+  zolang alles aanstaat en pas blauw '12 van 23' wordt als er iets uitstaat.
+  Het menu opent met 'Aangevinkt = als kaartje op het canvas.' Legenda en
+  handleiding volgen mee.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
 - **Ketenoverzicht: stapel-tabs en groepsschakelaars weg, één afhankelijkheden-schakelaar, volledig scherm** (Quinten)
 
   Partijen kenden drie manieren om te verdwijnen (uitvinken, groepsschakelaar,
