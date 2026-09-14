@@ -43,6 +43,13 @@ function todayIso() {
   return new Date().toISOString().slice(0, 10)
 }
 
+// Alleen een echte, parseerbare datumtekst blijft staan; al het andere
+// (leeg, getal, 'gisteren') wordt null. Een onparseerbare datum liep anders
+// als NaN de analyse in en liet daar de hele app op een fout vastlopen.
+function isoDatumOf(value) {
+  return typeof value === 'string' && value && !Number.isNaN(Date.parse(value)) ? value : null
+}
+
 export function deepClone(value) {
   return JSON.parse(JSON.stringify(value))
 }
@@ -91,15 +98,13 @@ export const DEFAULT_ADMIN_SETTINGS = {
   // code nodig — zie src/lib/analysis.js.
   uitgebreideAnalyse: false,
   pages: {
-    matrix: true,
-    netwerk: true,
+    heatmap: true,
     keten: true,
     team: true,
     analyse: true,
   },
   sections: {
-    matrix: { samenvattingskaarten: true, keyObservations: true, tabel: true, filters: true },
-    netwerk: { heatmap: true, relatiekaart: true, categorieUitleg: true, selectiepaneel: true, filters: true },
+    heatmap: { categorieUitleg: true, selectiepaneel: true, filters: true },
     keten: { filters: true, legenda: true },
     team: {
       applicatieflow: true,
@@ -128,7 +133,15 @@ const FREQUENTIE_MIGRATIE = { incidenteel: 'soms' }
 
 export function migrateAdminSettings(raw) {
   const source = raw && typeof raw === 'object' ? raw : {}
-  const pages = { ...DEFAULT_ADMIN_SETTINGS.pages, ...(source.pages && typeof source.pages === 'object' ? source.pages : {}) }
+  // Per bekende sleutel overnemen i.p.v. een spread van het hele opgeslagen
+  // object: pagina's die niet meer bestaan (Matrix-overzicht, Netwerkweergave)
+  // bleven anders als losse sleutel in de state en in elke nieuwe JSON-export
+  // hangen — zelfde regel als de sections-lus hieronder al hanteerde.
+  const savedPages = source.pages && typeof source.pages === 'object' ? source.pages : {}
+  const pages = {}
+  for (const [pageKey, fallback] of Object.entries(DEFAULT_ADMIN_SETTINGS.pages)) {
+    pages[pageKey] = typeof savedPages[pageKey] === 'boolean' ? savedPages[pageKey] : fallback
+  }
   const sections = {}
   for (const [pageKey, defaults] of Object.entries(DEFAULT_ADMIN_SETTINGS.sections)) {
     const savedPage = source.sections?.[pageKey]
@@ -192,6 +205,20 @@ function resolveTeamId(dep, teamsState) {
     teamsState.existingIds.add(id)
     teamsState.nameToId.set(naam, id)
     teamsState.teams.push({ id, naam, actief: true, createdAt: todayIso(), updatedAt: todayIso() })
+    return id
+  }
+
+  // Een teamId dat naar geen enkel team (meer) wijst — alleen mogelijk bij
+  // handmatig samengestelde importdata — leverde een dependency die in geen
+  // enkele weergave zichtbaar was: elke view filtert op de teamlijst. Het
+  // record onzichtbaar wegstoppen is erger dan een placeholder-team met de
+  // verweesde id als naam: zo staat het in beeld en kan de gebruiker het
+  // hernoemen of naar het juiste team verplaatsen. Zelfde aanpak als de
+  // naam-route hierboven, die ook al teams bijmaakt.
+  if (typeof dep.teamId === 'string' && dep.teamId.trim()) {
+    const id = dep.teamId.trim()
+    teamsState.existingIds.add(id)
+    teamsState.teams.push({ id, naam: id, actief: true, createdAt: todayIso(), updatedAt: todayIso() })
     return id
   }
 
@@ -271,7 +298,7 @@ function migrateDependency(raw, teamsState) {
     // Terugval op vandaag i.p.v. een lege string: consistent met hoe elders al
     // met vandaag-als-fallback wordt gewerkt, en sorteert 'm tussen de andere
     // records i.p.v. altijd onderaan/bovenaan te dwingen.
-    laatst_bijgewerkt: typeof raw.laatst_bijgewerkt === 'string' ? raw.laatst_bijgewerkt : todayIso(),
+    laatst_bijgewerkt: isoDatumOf(raw.laatst_bijgewerkt) ?? todayIso(),
     // Team-als-veroorzaker ook op id (niet alleen op naam): expliciet
     // meegegeven, anders afgeleid uit een exact matchende teamnaam, zodat
     // analyses nooit op naam hoeven te matchen. Nooit geraden bij twijfel.
@@ -287,7 +314,7 @@ function migrateDependency(raw, teamsState) {
     // (onvolledig ≠ nul), de UI toont dit expliciet als "onbekend". Alleen
     // nieuw aangemaakte records (via AppContext.addDependency) krijgen dit
     // vanaf nu automatisch gezet.
-    aangemaakt_op: typeof raw.aangemaakt_op === 'string' ? raw.aangemaakt_op : null,
+    aangemaakt_op: isoDatumOf(raw.aangemaakt_op),
     // Wijzigingshistorie (status, impact, frequentie, …) met datum — de basis
     // voor trends en doorlooptijden. Wordt vanaf nu door AppContext gevuld bij
     // elke wijziging; oudere data start met een lege historie (onvolledig ≠
@@ -296,7 +323,7 @@ function migrateDependency(raw, teamsState) {
     // Gesloten dependencies blijven bewaard mét historie, maar tellen niet
     // meer mee in de operationele weergaven (zie activeDependencies in
     // AppContext).
-    gesloten_op: typeof raw.gesloten_op === 'string' && raw.gesloten_op ? raw.gesloten_op : null,
+    gesloten_op: isoDatumOf(raw.gesloten_op),
   }
 }
 
@@ -358,8 +385,12 @@ function sanitizePunten(raw) {
 // om akkoord vragen zou elke bestaande ketenlijn in oudere data/exports plots
 // op 'wacht op akkoord' zetten. Alleen nieuwe koppelingen (via de teampagina)
 // starten als verzoek — zie LINK_STATUS in constants.js.
-function migrateIoItem(item) {
-  if (!item || typeof item !== 'object') return item
+function migrateIoItem(rawItem) {
+  if (!rawItem || typeof rawItem !== 'object') return rawItem
+  // Presentatievelden van de teampagina (_pendingRequest/_ghostRequest) die
+  // in oudere data via het bewerk-formulier per ongeluk zijn meegeschreven,
+  // horen niet in het record en gaan hier weg.
+  const { _pendingRequest: _pending, _ghostRequest: _ghost, ...item } = rawItem
   const hasLink = Boolean(item.linkedTeam && (item.linkedOutputId || item.linkedInputId))
   const linkStatus = LINK_STATUS.includes(item.linkStatus) ? item.linkStatus : hasLink ? 'geaccepteerd' : ''
   return {

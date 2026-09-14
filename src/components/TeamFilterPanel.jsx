@@ -47,7 +47,9 @@ function AllNoneFooter({ onSelectAll, onSelectNone, t }) {
 
 function CheckboxGroup({ title, options, selected, onToggle, renderLabel, renderDot, footer, defaultOpen = false }) {
   const [open, setOpen] = useState(defaultOpen)
-  const narrowed = selected.length > 0 && selected.length < options.length
+  // Ook 'niets geselecteerd' (Geen) is een actief filter — op het ingeklapte
+  // paneel is dit stipje de enige aanwijzing waarom de weergave leeg is.
+  const narrowed = selected.length < options.length
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -108,11 +110,9 @@ export default function TeamFilterPanel({
   const [collapsed, setCollapsed] = useState(false)
 
   const anyNarrowed =
-    (selected.length > 0 && selected.length < teams.length) ||
-    (riskLevels.length > 0 && riskLevels.length < RISK_LEVELS.length) ||
-    [workflowStap, effectOpFlow].some(
-      (group) => group && group.selected.length > 0 && group.selected.length < group.options.length,
-    )
+    selected.length < teams.length ||
+    (riskLevels && riskLevels.length < RISK_LEVELS.length) ||
+    [workflowStap, effectOpFlow].some((group) => group && group.selected.length < group.options.length)
 
   if (collapsed) {
     return (
@@ -167,25 +167,27 @@ export default function TeamFilterPanel({
         }
       />
 
-      <CheckboxGroup
-        title={t('filter.riskLevel')}
-        options={RISK_LEVELS.slice().reverse()}
-        selected={riskLevels}
-        onToggle={onToggleRisk}
-        defaultOpen
-        renderLabel={(level) => translateRiskLevel(level, language)}
-        renderDot={(level) => <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />}
-        footer={
-          <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
-            <button type="button" onClick={onHideLowRisk} className="font-medium text-[#2a5f8a] hover:underline">
-              {t('filter.hideLowRisk')}
-            </button>
-            <button type="button" onClick={onShowAllRisk} className="font-medium text-slate-400 hover:underline">
-              {t('filter.selectAll')}
-            </button>
-          </div>
-        }
-      />
+      {riskLevels && (
+        <CheckboxGroup
+          title={t('filter.riskLevel')}
+          options={RISK_LEVELS.slice().reverse()}
+          selected={riskLevels}
+          onToggle={onToggleRisk}
+          defaultOpen
+          renderLabel={(level) => translateRiskLevel(level, language)}
+          renderDot={(level) => <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />}
+          footer={
+            <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
+              <button type="button" onClick={onHideLowRisk} className="font-medium text-[#2a5f8a] hover:underline">
+                {t('filter.hideLowRisk')}
+              </button>
+              <button type="button" onClick={onShowAllRisk} className="font-medium text-slate-400 hover:underline">
+                {t('filter.selectAll')}
+              </button>
+            </div>
+          }
+        />
+      )}
 
       {workflowStap && (
         <CheckboxGroup
@@ -208,6 +210,7 @@ export default function TeamFilterPanel({
           footer={<AllNoneFooter onSelectAll={effectOpFlow.onSelectAll} onSelectNone={effectOpFlow.onSelectNone} t={t} />}
         />
       )}
+
 
     </div>
   )

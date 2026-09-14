@@ -2,7 +2,538 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-11
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: canvasbalk met bijschriften, lijnvinkjes bij elkaar, menu 'Externe partijen'** (Quinten)
+
+  De balk linksboven had geen bijschriften (alleen 'Diepte'), een knop
+  'Partijen 23/23' die als score las en niet als menu, en de schakelaar voor
+  afhankelijkheidslijnen verstopt ín dat menu — terwijl die familie is van
+  'Terugkoppelingen' (allebei: welke lijnen zie je).
+
+  Nu vier benoemde groepen, elk met een uitleg op hover: Weergave (hele keten
+  / één team / meerdere teams), dan wat bij die stand hoort — Team met de
+  dropdown en Diepte, of Teams met 'Kies teams' — daarna Lijnen met de twee
+  vinkjes Terugkoppelingen en Afhankelijkheden bij elkaar, en tot slot het
+  menu 'Externe partijen' met pijltje en een teller die neutraal blijft
+  zolang alles aanstaat en pas blauw '12 van 23' wordt als er iets uitstaat.
+  Het menu opent met 'Aangevinkt = als kaartje op het canvas.' Legenda en
+  handleiding volgen mee.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: stapel-tabs en groepsschakelaars weg, één afhankelijkheden-schakelaar, volledig scherm** (Quinten)
+
+  Partijen kenden drie manieren om te verdwijnen (uitvinken, groepsschakelaar,
+  stapel-tab onder de kaart) — een restant van het model waarin partijen
+  standaard uit stonden. Nu één regel: aangevinkt in het menu 'Partijen' is
+  een kaartje, uitgevinkt is weg. De twee groepsschakelaars (focusteam /
+  andere teams — zinloos in de standen zonder focusteam) en de stapel-tabs met
+  hun lijst-navigatie in het detailvak zijn verwijderd. In plaats daarvan één
+  schakelaar 'Afhankelijkheden tonen (gestippelde lijnen)': uit haalt de
+  afhankelijkheidsrelaties weg, en daarmee in één keer de algemene partijen
+  (CAB, IAM-beheer, Security Office, …) die alleen daarvan leven; partijen
+  die een item leveren of ontvangen blijven staan. In het detailvak van een
+  geselecteerd team staan uitgevinkte partijen als grijze, gestippelde chip;
+  klik erop en de partij komt terug én is geselecteerd — zo blijft 'welke
+  partijen raken dit team' vindbaar zonder tabjes.
+
+  Toolbar linksonder nu gelijk aan de teampagina: uitzoomen, inzoomen,
+  centreren/passend maken, en volledig scherm (canvas met detailvak als
+  overlay over de hele app, Escape sluit; zelfde z-laag als de teampagina).
+  Het canvas meet zijn hoogte ook in volledig scherm zelf en is in de
+  flex-kolom niet samendrukbaar.
+
+  Geverifieerd in de browser: geen stapel-tabs; schakelaar uit → 67
+  gestippelde lijnen weg, 23 → 12 partijen; 'alleen' → 1 partij, kaartdetail
+  toont 7 grijze chips, klik → partij terug en geselecteerd; toolbar-titels
+  gelijk aan de teampagina; volledig scherm: canvas 868px hoog bij een venster
+  van 900 (16px marge), erbuiten 803px (73 + 24); Escape sluit.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: weergave hele keten / één team / meerdere teams, filterpaneel weg** (Quinten)
+
+  De canvasbalk linksboven begint nu met een driestanden-keuze i.p.v. alleen
+  'Focus op team':
+  - Hele keten (standaard bij openen): elk actief team ingeklapt, in
+    ketenvolgorde, met alle koppelingen en de externe partijen erbij.
+  - Eén team: de dropdown 'Kies een team…' (gemarkeerd zolang er niets
+    gekozen is, met hint; tot die tijd staat de hele keten in beeld), daarna
+    de keten vanaf dat team met de dieptemeter.
+  - Meerdere teams: een teamkiezer met vinkjes en Alles/Geen; begint met alle
+    teams aangevinkt. Zonder enig team blijft de balk in het lege vak staan.
+  Elke stand heeft een eigen adres (/ketenoverzicht, /ketenoverzicht/team,
+  /ketenoverzicht/<id>, /ketenoverzicht/teams/<id>,<id>) en is een history-
+  entry; App bewaart de weergave als één object (lib/routes.js:
+  sanitizeChainView valideert URL en localStorage tegen de bestaande teams).
+
+  Het filterpaneel rechts is van dit scherm af: alle actieve teams doen mee,
+  de externe partijen regel je via het menu 'Partijen' op de canvasbalk (de
+  paneelgroep daarvoor is uit TeamFilterPanel gehaald). De uitklapmenu's
+  sluiten nu ook bij een klik op het canvas: React Flow's d3-zoom stopt de
+  mousedown op de pane vóór 'ie bij document aankomt, dus de
+  'klik-erbuiten'-luisteraar hangt nu in de capture-fase. Ingeklapte kaarten
+  tonen alleen nog hun in/uit-tellers, geen risicolabel meer.
+
+  Geverifieerd in de browser: openen → hele keten (8 kaarten, 23 partijen,
+  geen paneel, geen risicolabel); Eén team → /ketenoverzicht/team met
+  placeholder en markering → keuze → /ketenoverzicht/team-…, focuskaart
+  volledig, dieptemeter zichtbaar; Meerdere teams → /ketenoverzicht/teams/…,
+  één uitvinken → 7 kaarten, menu blijft open, Geen → leeg vak met balk,
+  Alles herstelt; partijenmenu sluit op klik op het canvas; terug/vooruit
+  door de standen; directe URL met twee teams → twee kaarten.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: focusteam kiezen bij openen, partijenbediening op twee plekken, risicofilter weg** (Quinten)
+
+  Bij het openen leek er al een team gekozen (de langste keten werd stil
+  voorgeselecteerd) terwijl dat geen eigen keuze was. Zonder keuze toont het
+  scherm nu teamtegels (in ketenvolgorde, met in/uit-tellers, hoogste risico
+  en hoeveel teams de keten vanaf dat team raakt); de keuze staat in de URL
+  (/ketenoverzicht/<team-id>), wordt bewaard en is een history-entry, zodat
+  terug/vooruit, verversen en delen op datzelfde team uitkomen. De focus-state
+  verhuisde daarvoor van ChainOverview naar App (lib/routes.js).
+
+  Het risicofilter is uit het ketenoverzicht gehaald: dependencies zijn hier
+  geen invoer, het filter stuurde alleen het badge-kleurtje op ingeklapte
+  kaarten. Het paneel rechts houdt twee groepen over die allebei over 'wat
+  staat er op het canvas' gaan: Teams tonen en Externe partijen
+  (TeamFilterPanel: risicogroep optioneel, de Heatmap gebruikt 'm nog).
+
+  De partijenbediening staat bewust op twee plekken met dezelfde state
+  (ExternalPartyFilter): als groep in het filterpaneel én als uitklapmenu
+  'Partijen 23/23' op de canvasbalk — welke ingang beter werkt blijkt in het
+  gebruik, de verliezer kan er dan zo uit. Nieuw in beide: teller 'x van y',
+  zoekveld, en per partij een 'alleen'-knop (solo) om in één klik enkel die
+  partij over te houden.
+
+  Legenda: alleen nog een i-icoontje, met een tweede blok over de bediening
+  (focusteam, diepte — begrenst ook de stroom —, terugkoppelingen, partijen).
+
+  Geverifieerd in de browser: /ketenoverzicht zonder keuze → 8 tegels; tegel
+  → /ketenoverzicht/team-…; terug → tegels; vooruit → canvas; direct openen
+  van /ketenoverzicht/team-polis; geen risicogroep; 'alleen' → 1 van 23 en één
+  partijkaartje, Alles herstelt; canvasmenu met 25 vinkjes, sluit op Escape;
+  legenda 12 regels.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht vult het venster, legenda in het canvas, URL per pagina** (Quinten)
+
+  Canvas: de vaste hoogte (max(560px, 100vh - 280px)) liet op een groot
+  scherm een leeg vak onder het canvas over. Het canvas meet nu zelf: van
+  zijn eigen bovenrand tot de onderrand van het venster, minus het detailvak
+  zodra dat open staat (dat blijft dan óók in beeld, zonder paginascroll), met
+  een ondergrens van 480px voor kleine schermen. Meet opnieuw bij venster-
+  resize en bij elke maatwijziging van het detailvak (ResizeObserver); de
+  toolbar fit de tekening dan ook opnieuw. De balk met de scope-schakelaar
+  (Teamniveau / Ketenniveau / Alles) is weg — het ketenoverzicht toont beide
+  niveaus altijd samen — dus het canvas begint direct onder de kop.
+
+  Legenda: knop rechtsboven ín het canvas, klapt een kaartje open met elke
+  lijnsoort (itemkoppeling, bundel met teller, wachtend op akkoord,
+  terugkoppeling, partij-item, partij-afhankelijkheid) en kaartsoort
+  (focusteam, stapel-tab) plus de klikacties. De voorbeeldlijntjes gebruiken
+  dezelfde constanten als de echte lijnen, zodat de legenda nooit uit de pas
+  loopt met de tekening.
+
+  Routing: elke pagina heeft een eigen adres — /heatmap, /ketenoverzicht,
+  /analyse, /team/<id> — zonder router-library (lib/routes.js). De URL wint
+  bij het laden van de bewaarde navigatiestatus, een onbekend pad valt daarop
+  terug; elke paginawissel is een history-entry, terug/vooruit sturen de
+  status (popstate) zonder zelf weer een entry te maken. vercel.json laat elk
+  pad index.html serveren, zodat een gedeelde of ververste link ook op Vercel
+  werkt.
+
+  Geverifieerd in de browser: canvas eindigt 24px boven de onderrand bij een
+  venster van 900px, ook na openen/sluiten van het detailvak; legenda toont 8
+  regels; direct /ketenoverzicht, klik naar /team/<id> (history +1), terug,
+  vooruit, /analyse, onbekend pad → laatste pagina, direct /team/<id>.
+
+- **Ketenoverzicht: lijnen die op één blokje aankomen lopen naast elkaar** (Quinten)
+
+  Lijnen die uit hetzelfde blokje vertrekken (fan-out van één output, één
+  kleur) blijven één poort delen en lopen samen tot ze uit elkaar moeten —
+  dat leest als een vertakking. Lijnen die vanuit verschillende bronnen op
+  hetzelfde blokje aankomen lagen echter ook over elkaar, waarbij de bovenste
+  de andere kleuren verborg. Elke aankomende lijn krijgt nu een eigen ELK-
+  poortje, een paar pixels boven of onder het handle-midden (5px uit elkaar,
+  dichter op elkaar zodra de band anders meer dan 40% van de kaarthoogte zou
+  beslaan), zodat ze naast elkaar landen, elk met een eigen pijlpunt.
+
+  Twee ELK-rondes: de eerste levert de posities, daaruit volgt per
+  aankomstpunt de volgorde (bron van boven naar beneden = poortje van boven
+  naar beneden, zodat ze elkaar vlak vóór het blokje zo min mogelijk hoeven
+  te kruisen), de tweede rekent met de losse poortjes. Zonder aankomstpunt
+  met twee of meer lijnen volstaat de eerste ronde.
+
+  Geverifieerd op de mockdata: zeven aankomstpunten met 7 tot 15 lijnen,
+  geen enkel samenvallend eindpunt meer; close-up toont zeven lijnen naast
+  elkaar op een ingeklapte kaart.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+  # Conflicts:
+  #	docs/gebruikshandleiding.html
+
+- **Ketenoverzicht: lijnen tot op het itemblokje, partijen standaard in beeld, stroom per item** (Quinten)
+
+  Vier verbeteringen op verzoek, na de ELK-herbouw.
+
+  Lijnen hechten nu aan het itemblokje zelf i.p.v. visueel bij de kaartrand
+  te stoppen. Het item-handle zat al óp de rij (kaartrand + padding naar
+  binnen), maar React Flow tekent lijnen onder de nodes, dus het laatste
+  stukje ging schuil achter de kaart en het handle-bolletje zweefde los van
+  zijn lijn. Alle lijnen staan nu in een eigen laag bóven de kaarten (edge
+  zIndex 1); veilig omdat ELK om elke kaart heen routeert. Tijdens de paar
+  frames tussen een structuurwijziging en het bijbehorende ELK-resultaat
+  (oude routes bij nieuwe kaartmaten) zakken ze even terug onder de kaarten,
+  zodat zo'n verouderd stukje niet dwars over een inmiddels hogere kaart
+  zichtbaar wordt.
+
+  Externe partijen staan standaard als eigen kaartje naast de teams die ze
+  raken, met een lijn naar elk item dat ze noemt (aan het item-handle zodra
+  dat getoond wordt, anders gebundeld met teller aan de kaart). ELK plaatst
+  ze links van de teams die ze voeden, rechts van de teams die aan haar
+  leveren, of ertussenin — een partij die beide is en een cyclus zou geven
+  gaat links, met de leveringen als terugkoppeling. In het filterpaneel een
+  nieuwe groep: twee schakelaars (partijen van het focusteam / van de andere
+  teams — uit = die partijen zakken in de stapel-tab onder de kaart, vanwaar
+  één partij nog altijd te kiezen is) en een subfilter met elke partij apart,
+  om algemeen bekende partijen (CAB, IAM-beheer, …) uit het beeld te laten.
+  Gestippelde afhankelijkheidslijnen zijn lichter dan itemlijnen, zodat die
+  de structuur blijven dragen nu er veel meer van zijn.
+
+  Klik op één input-/outputblokje of op een partij toont zijn stroom: een
+  0-1-BFS stroomafwaarts over items, partijen en teams — een input gaat
+  binnen het team door naar alle outputs (black-box-aanname, dezelfde als
+  de ketenvolgorde zelf; geen stap), een ketenkoppeling of partijrelatie is
+  één stap — begrensd door de dieptemeter, die zo zowel de tekening als de
+  stroom begrenst. Plus precies één stap terug (waar het startpunt zelf
+  vandaan komt). Kaarten in de stroom tonen alleen hun stroom-items, de kaart
+  van het geklikte item blijft volledig, lijnen buiten de stroom dimmen; het
+  detailvak somt teams en partijen in de stroom op (klikbaar).
+
+  Opgeruimd: de partijenbalk met legenda boven het canvas en het
+  statistiekblokje rechtsboven zijn weg; de zoomknoppen staan als zwevende
+  toolbar linksonder ín het canvas, zoals op de teampagina, met een fit die
+  de eigen toolbar-hoek ontziet (lib/flowFit.js).
+
+  Geverifieerd in de browser op de mockdata: 7 teams, 22 partijkaartjes, 79
+  lijnen, allemaal gerouteerd (geen lijn zonder ELK-route, geen hangende
+  lijn, geen handle-waarschuwing); stroom van een output bij diepte 3 en 1;
+  partij-stroom; groepsschakelaar uit → stapel-tabs met juiste tellers →
+  partij uit stapel kiezen → kaartje; subfilter → kaartje weg; close-up
+  bevestigt dat de lijn met pijl op de rij eindigt.
+
+- **Analyse: zes tabbladen in de pagina i.p.v. één lange lijst secties** (Quinten)
+
+  De veertien secties stonden onder elkaar in één pagina met een rij
+  'spring naar'-knopjes erboven. In de praktijk was dat te lang om te
+  overzien, en springen bracht je telkens midden in een scherm vol kaarten.
+
+  Nu een tabstrip in de pagina zelf, direct onder de filterbalk. De zijbalk
+  verandert niet. De team- en periodefilters blijven erboven staan, want die
+  gelden voor alle tabbladen tegelijk.
+
+  Bewust gegroepeerd naar zes tabs i.p.v. één tab per sectie: veertien
+  tabnamen zijn samen breder dan het scherm, de strip breekt dan naar twee
+  of drie regels en leest niet meer als tabs. De indeling:
+
+    Overzicht        Overzicht, Rapport
+    Signalen         Waarschuwingen, Constateringen
+    Trends           Trends, Doorlooptijden
+    Risico           Risico en urgentie, Verdelingen, Concentratie en hubs
+    Keten en proces  Keten, Applicaties en ontwikkelproces, Flowverlies
+    Data en beheer   Datakwaliteit, Beheer en registratie
+
+  Elke sectie houdt zijn eigen kop en inhoud, er verdwijnt niets. Alleen het
+  geopende tabblad staat in de DOM, wat de pagina flink lichter maakt en de
+  PNG-export bruikbaar: die pakt nu precies het tabblad dat je bekijkt in
+  plaats van meters aan pagina. Flowverlies blijft zoals voorheen alleen
+  zichtbaar als 'Uitgebreide analyse' aan staat.
+
+  Welke tab open staat is bewust niet gepersisteerd, net als de team- en
+  periodefilters.
+
+  De diff oogt groot doordat de secties twee spaties zijn ingesprongen; met
+  'git diff -w' blijft de werkelijke wijziging over. Inhoudelijk is alleen
+  de sectie Doorlooptijden verplaatst, naar het Trends-tabblad.
+
+  Geverifieerd in de browser: alle zes tabs, NL/EN, en het wegvallen van
+  Flowverlies met 'Uitgebreide analyse' uit.
+
+- **Matrix-overzicht en Relatiekaart volledig verwijderd** (Quinten)
+
+  Beide weergaven zijn uit de tool gehaald. Wat overblijft: Heatmap (het
+  startscherm), Ketenoverzicht en Analyse.
+
+  Matrix-overzicht: de hele pagina inclusief de twee secties die er alleen
+  op stonden — de samenvattingskaarten (ExecutiveSummary) en de
+  belangrijkste observaties (InsightPanel), plus lib/insights.js dat alleen
+  die twee voedde. De Analysepagina dekt dezelfde vragen inmiddels
+  uitgebreider.
+
+  Relatiekaart: de bipartite modus van de Netwerkweergave. Daarmee valt de
+  modus-wissel weg en is GraphView.jsx opgegaan in HeatmapView.jsx — alleen
+  nog de heatmap-tabel, zonder reactflow, nodes/edges, doorklik-pin of
+  sleep-om-een-dependency-te-maken. Reactflow zit daardoor niet meer in de
+  hoofdbundel.
+
+  Verder meegenomen:
+  - Admin-toggles: pages.matrix en pages.netwerk (met sections heatmap/
+    relatiekaart) vervangen door pages.heatmap. migrateAdminSettings neemt
+    pages voortaan per bekende sleutel over i.p.v. met een spread, zodat
+    verdwenen pagina's niet als restsleutel in de state en in nieuwe
+    exports blijven hangen.
+  - Tabblad 'graph' heet nu 'heatmap'; een bewaarde navigatiestatus die
+    naar 'matrix'/'graph' wijst valt terug op de Heatmap.
+  - Globale scope-state in AppContext weg — alleen Matrix gebruikte die.
+  - i18n: matrix.col.*/matrix.empty zijn tabel.*, graph.* is heatmap.*, en
+    'wis selectie' is één gedeelde sleutel voor Heatmap en Ketenoverzicht.
+  - README en gebruikshandleiding bijgewerkt (hoofdstukken hernummerd,
+    nieuwe heatmap-screenshot, de twee achterhaalde screenshots weg).
+
+  Geverifieerd in de browser: cel-, rij- en kolomselectie, hover-tooltip,
+  categorie-uitleg, filters, detailpaneel, NL/EN, de andere twee pagina's
+  en de admin-migratie vanaf oude opgeslagen instellingen.
+
 ## 2026-09-10
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: leeg canvas verholpen — lay-out liep vast op zijn eigen maatmeting** (Quinten)
+
+  Alle kaarten bleven op 0,0 staan omdat de ELK-lay-out nooit startte. Oorzaak
+  was een impasse tussen twee dingen die elkaar opheffen:
+
+  React Flow bouwt zijn interne node-administratie bij ELKE nieuwe nodes-array
+  opnieuw op uit de node-objecten zelf. Een gemeten breedte/hoogte die daar
+  alleen intern stond, verdween daardoor weer zodra ChainCanvas een nieuwe array
+  doorgaf — en dat deed het juist naar aanleiding van diezelfde meting. De
+  lay-out-effect las de maat uit die (net leeggemaakte) administratie, gaf het
+  op, en niets mat opnieuw: de afmeting van de kaart was immers niet veranderd,
+  dus de ResizeObserver zweeg. Alleen handleBounds overleeft die herbouw, dus
+  useNodesInitialized werd wél true — het effect stopte een stap later.
+
+  De maat komt nu uit de eigen `dims`-map (gevuld uit React Flow's eigen
+  dimensions-changes, en dus onafhankelijk van die herbouw), en wordt ook altijd
+  op de nodes teruggezet zodra hij bekend is, zodat React Flow zijn edges blijft
+  tekenen. handleBounds blijft uit de interne administratie komen. Een nog niet
+  gemeten node krijgt géén maat mee, zodat de eerste echte meting intact blijft;
+  een kaart die verdwijnt en terugkomt wordt hoe dan ook opnieuw gemeten, want
+  useUpdateNodeInternals (aangeroepen door beide node-componenten) forceert dat.
+
+  Geverifieerd door de meting handmatig te forceren zoals een zichtbaar tabblad
+  dat doet: vóór de fix bleven de afmetingen weg en stonden alle 7 kaarten op
+  0,0; erna houden ze hun maat, staat geen enkele kaart meer op 0,0 en tekenen
+  alle lijnen. Ook na focuswissel, kaartselectie en diepte 1 ↔ 3 (dat laatste
+  voegt eerder verwijderde kaarten opnieuw toe) blijft dat zo.
+
+- **Merge origin/main: ketenherontwerp en teampagina-lanes samengevoegd met de auditfixes** (Quinten)
+
+  De andere sessie herschreef intussen het Ketenoverzicht (ELK-layout,
+  ingeklapte kaarten, bundels, stapel-tabs) en de teampagina-lanes. Conflicten
+  in ChainOverview, TeamPage en PannableFlowCanvas.
+
+  Aanpak per bestand:
+  - ChainOverview: het herontwerp is de basis. Daarop opnieuw aangebracht wat
+    daar nog niet in zat: namen van teams buiten de selectie in plaats van hun
+    id, kleur per output-item bij fan-out naar meerdere teams, een onderschrift
+    dat alle gekoppelde teams noemt, hub-statistieken die alleen geselecteerde
+    teams tellen, partijdetail beperkt tot kaarten op het canvas, de lege staat
+    alleen bij een echt leeg canvas, en de teamselectie via useTeamSelection.
+    De resetKey op useMergedLayout is vervallen: kaarten zijn niet meer
+    versleepbaar, ELK bepaalt de posities.
+  - TeamPage: beide zijden repareerden T4 onafhankelijk. De check op
+    laneGeometry uit main is nauwkeuriger dan mijn fallback op accent, dus die
+    blijft en de fallback is weg.
+  - PannableFlowCanvas: nodesConnectable en nodesDraggable zijn beide nu een
+    prop.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-audit-repair-9d9832** (Quinten)
+
+- **Audit: dode code weg, handleiding gecorrigeerd, i18n-controlescript** (Quinten)
+
+  - TabSelector en ConfidentialityBadge werden nergens gebruikt.
+  - De gebruikshandleiding beschreef een "+ Nieuwe categorie toevoegen"-optie die
+    niet bestaat; de categorielijst is vast en scope-afhankelijk. De PDF is nog
+    niet opnieuw gegenereerd.
+  - scripts/check-i18n.mjs vergelijkt de nl- en en-sleutels en meldt dynamische
+    sleutels die handmatig nalopen vragen.
+  - docs/audit-2026-09-10.md is het overdrachtsrapport van de audit.
+
+- **Audit: teampagina gerepareerd** (Quinten)
+
+  - Versleepte posities werden nooit bewaard: de afsluitende change van reactflow
+    komt zonder positie, dus de opslagcheck ging nooit af.
+  - "Slim ordenen" deed niets voor nodes die in de sessie versleept waren.
+  - Volledig scherm lag boven elk detailpaneel, formulier en item-modal; die
+    openden onzichtbaar achter het vlak.
+  - Applicatieflow-lijnen hingen aan een node zonder banner en verdwenen zodra een
+    team een applicatiegerelateerde dependency had. Team Wakanda toonde nul van
+    zes lijnen, nu acht.
+  - Presentatievelden van een verzoek werden via het item-formulier opgeslagen,
+    waardoor een verzoek zichtbaar bleef en dubbel geaccepteerd kon worden.
+  - Admin-sectie "Dependencies" uit maakte Teamgegevens onbereikbaar, de toggle
+    "Ontwikkelflow" deed niets, en het applicatie-zoekveld bleef filteren nadat
+    het veld verdween.
+  - De rijcomponenten stonden binnen TeamPage en remountten bij elke
+    state-wijziging; ze staan nu op moduleniveau met een stabiel ctx-object.
+
+- **Audit: Analyse gerepareerd** (Quinten)
+
+  - Trend en vergelijking negeerden sluit- en heropen-gebeurtenissen: een
+    heropende dependency telde als open in zijn gesloten periode en sluitingen
+    ontbraken in "gesloten per week".
+  - De constatering "review oud" rendereerde logregels als dependencies, met een
+    nep-badge en een onzinnige rapportzin.
+  - "Wie blokkeert wie" klopte niet onder een teamfilter: het gefilterde team kon
+    nooit veroorzaker zijn.
+  - De analyse negeerde de admin-toggle "uitgebreide analyse".
+  - Gearchiveerde teams telden mee, blokkerende dagen ondertelden dependencies
+    die al blokkerend werden aangemaakt, en een klik in "Gedeelde applicaties"
+    zonder dependencies deed niets.
+
+- **Audit: Heatmap, Relatiekaart, Matrix en Ketenoverzicht gerepareerd** (Quinten)
+
+  - Relatiekaart: de handles stonden boven en onder de blokjes terwijl de layout
+    links/rechts is, dus alle lijnen liepen dwars door de blokjes en een
+    gemarkeerde lijn ving klikken op teamblokjes weg.
+  - Team naar team slepen opende het formulier met een team-id als categorie.
+  - De lijst onder de kaart was een momentopname: verwijderde en gesloten
+    dependencies bleven staan en de teller klopte niet.
+  - Archiveren tijdens een open weergave werkte niet door; de nieuwe hook
+    useTeamSelection leidt de selectie per render af uit team.actief.
+  - Ketenoverzicht: het risicofilter en de scope-toggle deden niets zichtbaars,
+    team-ids stonden in "van/naar", een output naar meerdere teams kreeg de kleur
+    van alleen de laatste lijn, en versleepte kaarten bleven na focuswissel staan.
+  - De Relatiekaart zoomde bij zestien categorieen zo ver uit dat de labels
+    onleesbaar waren; er is nu een leesbaarheidsvloer en de kaart begint op de
+    bovenste rij.
+  - Enkelvoud in het aria-label van een heatmapcel.
+
+- **Audit: formulier, detailpaneel, instellingen en zijbalk gerepareerd** (Quinten)
+
+  - Scope wisselen van Keten naar Team liet de partij- of teamverwijzing op het
+    record staan; deadlineTekst en een partij-id zonder naam bleven ook hangen.
+  - De risico-uitleg klopte niet bij de ondergrens: 1 x 1 - 2 werd zonder
+    toelichting 1.
+  - Hernoemen startte met een verouderde naam en zette bij blur een eerdere
+    hernoeming terug.
+  - De wijzigingenlog-badge telde reviews van verwijderde dependencies mee.
+  - "Wis teampagina" kon een gearchiveerd team raken, een importfout toonde de
+    ruwe JSON-parsemelding en de blokkeermelding noemde ketenkoppelingen niet.
+  - Hardgecodeerd Nederlands "Ander voorbeeld" ook in de Engelse UI.
+  - Kier tussen de zijbalk en het Instellingen-paneel overbrugd: de muis
+    erdoorheen kon een auto-hide-zijbalk laten dichtklappen.
+
+- **Audit: kern van opslag, context en app-shell gerepareerd** (Quinten)
+
+  - JSON-export bevatte alleen open dependencies, waardoor een teruggezette
+    back-up het tabblad "Gesloten" en de sluitingshistorie verloor.
+  - "+ Nieuwe dependency" met meerdere teams maakte één record met een restveld
+    extraTeamIds in plaats van één record per team.
+  - Het detailpaneel vanuit Matrix, Netwerk of Analyse toonde een momentopname,
+    waardoor "Accepteer" niets leek te doen.
+  - De teampagina bleef open als "Onbekend team" na wissen of importeren.
+  - Escape sloot het onderliggende paneel in plaats van het bovenste; a11y houdt
+    nu een stapel bij en kent een optie trapFocus: false voor inline panelen.
+  - deleteTeam en archiveTeam lazen hun uitkomst uit de setState-updater.
+  - Onparseerbare datums lieten de analyse crashen; usingMockData, de teamteller
+    en een leeg admin-wachtwoord zaten er ook naast.
+  - Eenzijdig loskoppelen liet de ketenlijn vanuit het andere team staan.
+  - Een dependency met een teamId dat naar geen enkel team wijst krijgt een
+    placeholder-team, in plaats van in geen enkele weergave zichtbaar te zijn.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+  # Conflicts:
+  #	src/components/ChainOverview.jsx
+
+- **Teampagina: IO-kaarten naast hun lane, applicatiekoppelingen als bus** (Quinten)
+
+  In Split per applicatie-modus stond elk input-/outputitem gecentreerd over
+  de volle hoogte van de Applicatieflow-zone, los van welke applicatie het
+  raakte — de lijn ernaartoe kon daardoor dwars over andere lanes/chips heen
+  lopen. Een item met een gekoppelde applicatie die al een lane heeft komt nu
+  op de hoogte van die lane's eigen rij te staan en haakt rechtstreeks op de
+  banner (input) of de rechterrand van het lane-kader (output, dus ná alle
+  chips) aan; bron en doel liggen zo altijd op dezelfde, niet-overlappende
+  hoogteband (elke lane heeft zijn eigen rij) en de lijn kan geen andere lane
+  meer kruisen. Een rij reserveert nu ook extra hoogte als er meer gekoppelde
+  IO-kaarten zijn dan chip-rijen.
+
+  Applicatiekoppelingen (uit de Applicatieflow-vragenlijst) liepen rechtstreeks
+  van banner naar banner — bij een derde lane ertussen dwars over diens chips
+  heen. Ze routeren nu als 'bus' door de lege gang links van de lanes (drie
+  banen, orthogonale lijnen met ronde hoeken, zelfde roundedOrthPath-renderer
+  als het ketenoverzicht), met hogere rust-opacity dan de losse IO-lijnen.
+
+  Onderweg een pre-existing bug gevonden en gefixt: in Split-modus met een
+  Overstijgend-lane (geen eigen banner) als laatst geplaatste rij verwees het
+  ankerpunt voor alle Applicatieflow-IO-lijnen naar een niet-bestaande
+  'appbanner:unlabeled'-node, met stilzwijgend verdwenen lijnen tot gevolg
+  (React Flow's eigen gedrag bij een ontbrekend handle/doel). Het ankerpunt
+  wordt nu alleen op een lane met een echte banner gezet.
+
+  Geverifieerd via directe inspectie van de berekende nodes/edges (posities,
+  handle-koppeling, kruisingstoets) op alle 8 mockteams plus een synthetisch
+  scenario met een extra brede lane, i.p.v. alleen visueel — geen enkele
+  Applicatieflow-lijn kruist een andere lane, geen dropped/dangling edges.
+
+- **Ketenoverzicht: rustige ruststand met ingeklapte kaarten, bundels, stapel-tabs en diepte** (Quinten)
+
+  In rust toont alleen het focusteam zijn items; elk ander team is een kaart
+  met titel, tellers (in/uit) en hoogste risico. Koppelingen worden op
+  itemniveau getekend (eigen kleur) zodra een van beide items zichtbaar is en
+  gaan anders op in één gebundelde grijze lijn per teampaar met een teller
+  (amber punt = minstens één verzoek wacht op akkoord). Klik op een kaart
+  klapt die uit en toont bij de buren alleen de items die eraan hangen
+  ("+N andere items"); klik op een bundel splitst 'm in zijn koppelingen; de
+  focus verleggen gaat via "Focus op dit team" in het detailvak.
+
+  Externe partijen zijn geen kaartjes meer in rust maar stapel-tabs onder de
+  kaart (links bronnen/afhankelijkheden, rechts ontvangers) met de lijst in
+  het detailvak; een gekozen partij wordt een hub met één lijn per geraakt
+  team. Nieuw in het focuspaneel: diepte (1–3 ketenstappen) en een schakelaar
+  voor terugkoppelingen. Verzoeken om een nog niet bestaand item staan als
+  amber ghost-rij, zoals de schaduwkaart op de teampagina.
+
+  Meetrobuustheid: een (opnieuw) toegevoegde node krijgt geen oude maat mee,
+  anders slaat React Flow zijn meting over en registreert het de handles nooit
+  (lijnen die nooit verschijnen); de lay-out wacht tot handles gemeten zijn.
+
+- **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
+
+- **Ketenoverzicht: ELK-layout en orthogonale routing, lijnen nooit meer door kaarten** (Quinten)
+
+  De zelfgebouwde kolomlayout (BFS-kolommen, geschatte kaarthoogtes, drie eigen
+  boog-edges voor voorwaarts/terug/zijwaarts, partijenraster aan de rand) is
+  vervangen door elkjs (algoritme 'layered'): React Flow meet de kaarten en
+  handles, ELK bepaalt kolommen en posities en routeert elke lijn orthogonaal om
+  de kaarten heen. Cycli worden vooraf gebroken (terugkoppeling = gestippeld via
+  de -rev-handles), externe partijen zijn nodes in dezelfde graaf naast de teams
+  die ze raken, en afhankelijkheden van één partij op één team zijn één lijn.
+  Handmatig slepen vervalt in dit scherm: de lay-out is volledig berekend.
+
+  Valkuil onderweg: React Flow v11 neemt width/height van de eigen node-objecten
+  over en gooit zijn meting weg — zonder de 'dimensions'-changes terug te geven
+  rendert het stilzwijgend geen enkele edge (zie ChainCanvas).
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Analyse: rapport te downloaden als markdown-bestand** (Quinten)
+
+  Naast "Kopieer rapport" (platte tekst naar het klembord) staat nu "Download":
+  hetzelfde rapport als markdown, met kopjes per alinea en bullets voor de
+  aanbevelingen. De bestandsnaam draagt het bereik en de dag
+  (dependency-insight-rapport-<team>-<datum>.md), zodat twee downloads naast
+  elkaar te leggen zijn. Downloaden loopt via exportTextAsFile in lib/export.js,
+  dezelfde blob-route als de bestaande JSON-export.
+
 - **Teamnamen in mockdata omgezet naar Marvel-thema** (Quinten)
 
   Elke naam gekozen op basis van de functie van het team in de keten

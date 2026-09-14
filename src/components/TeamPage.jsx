@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Handle, Position, ReactFlowProvider, useReactFlow, useNodesInitialized } from 'reactflow'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { BaseEdge, Handle, Position, ReactFlowProvider, getSmoothStepPath, useReactFlow, useNodesInitialized } from 'reactflow'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import {
@@ -32,6 +32,7 @@ import { riskStyle } from '../lib/riskStyles'
 import { generateId, emptyTeamWorkflow, emptyApplicatieflow } from '../lib/storage'
 import { buildDuplicatePrefill } from '../lib/duplicateDependency'
 import { fitViewAvoidingCorner } from '../lib/flowFit'
+import { roundedOrthPath } from '../lib/chainLayout'
 import { CategoryIcon } from '../data/categoryIcons'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
@@ -261,9 +262,18 @@ function ApplicatieflowBannerNode({ data }) {
       className="relative flex items-center gap-1.5 rounded-lg border bg-white px-2 py-2 shadow-[0_1px_3px_rgba(15,23,42,0.06)] transition-shadow hover:shadow-[0_3px_10px_rgba(15,23,42,0.1)]"
       style={{ width: data.width, borderColor: `${accentColor}59`, borderLeftWidth: 3, borderLeftColor: accentColor }}
     >
-      {/* Onzichtbare handles zodat app-naar-app-koppelingen (uit de
-          Applicatieflow-vragenlijst) hier als lijn op kunnen aansluiten. */}
-      <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
+      {/* Drie onzichtbare handles, alle met een eigen id — nodig zodra een
+          node meer dan één handle aan dezelfde kant heeft (hier: twee
+          source-handles links+rechts), anders kan React Flow niet meer
+          betrouwbaar bepalen welke een edge zonder expliciete handle-id moet
+          gebruiken. 'left-in' = generieke linker-ingang (Applicatieflow-input
+          die naast deze lane hangt, of de bus die hier eindigt). 'bus-out' =
+          linker-uitgang, alleen voor app-naar-app-koppelingen die via de
+          linkergoot lopen (zie appconn-edges in computeWorkflowLayout).
+          'right-out' = rechter-uitgang, voor de chip-kolom (crossflow) en de
+          ongewijzigde Samengevoegd-route naar de output-kolom. */}
+      <Handle type="target" position={Position.Left} id="left-in" style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Left} id="bus-out" style={{ opacity: 0 }} />
       {data.onToggleCollapse && (
         <button
           type="button"
@@ -314,7 +324,7 @@ function ApplicatieflowBannerNode({ data }) {
           </span>
         </span>
       </div>
-      <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Right} id="right-out" style={{ opacity: 0 }} />
     </div>
   )
 }
@@ -336,6 +346,17 @@ function LaneGroupNode({ data }) {
         background: data.accent === 'app' ? 'rgba(255,255,255,0.6)' : `${accentColor}0a`,
       }}
     >
+      {/* Onzichtbaar handle op de rechterrand van het HELE kader (niet de
+          banner) — een outputitem dat bij deze lane hoort vertrekt hiervandaan,
+          dus ná alle chips, in plaats van vanaf de banner (links) er dwars
+          overheen. Geen eigen top-offset: React Flow centreert een handle
+          zonder die stijl standaard op 50% van de gerenderde hoogte van dít
+          element (data.height hierboven), en dat IS precies het midden van de
+          gereserveerde rij — ook als die extra hoog staat voor gestapelde
+          IO-kaarten (zie de ioRows-boost in placeLaneGroup). pointer-events-
+          none van de ouder is geen probleem: dit handle wordt nooit door de
+          gebruiker versleept, alleen door eigen edges bij id aangesproken. */}
+      <Handle type="source" position={Position.Right} id="lane-out" style={{ opacity: 0 }} />
       {/* Optioneel label-pilletje, bv. voor de losstaande Ontwikkelflow-
           Overstijgend-band — de gewone Applicatieflow-lanes tonen hun naam al
           via de banner zelf en geven hier geen label mee. */}
@@ -470,6 +491,38 @@ const nodeTypes = {
   externalTeam: ExternalTeamNode,
 }
 
+// Route een lijn via een vaste 'gang' (verticale kolom zonder lane-content)
+// tussen bron en doel: horizontaal naar de gang, verticaal naar de juiste
+// hoogte, horizontaal het doel in. Gebruikt voor Applicatieflow-IO (de gangen
+// tussen de IO-kolommen en de zone) en voor applicatiekoppelingen (de
+// linkergang naast de lanes) — zie computeWorkflowLayout. Degenereert vanzelf
+// tot een rechte lijn zodra bron en doel al op dezelfde hoogte staan
+// (roundedOrthPath slaat een nul-lengte segment stilzwijgend over).
+function gutterRoute(x1, y1, gutterX, x2, y2) {
+  return [
+    [x1, y1],
+    [gutterX, y1],
+    [gutterX, y2],
+    [x2, y2],
+  ]
+}
+
+// Tekent de orthogonale route die computeWorkflowLayout voor een edge heeft
+// uitgerekend (data.points), met afgeronde hoeken — zelfde renderer als het
+// ketenoverzicht (lib/chainLayout.js), hier ingezet voor Applicatieflow-IO en
+// applicatiekoppelingen zodat die nooit meer dwars over een andere lane of
+// chip heen lopen. Edges zonder data.points (fasepijl, capaciteit, crossflow,
+// Ontwikkelflow-IO, annotaties) vallen terug op de standaard
+// smoothstep-berekening, exact zoals voorheen.
+function LayoutEdge({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, data }) {
+  const path = data?.points
+    ? roundedOrthPath(data.points)
+    : getSmoothStepPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, borderRadius: 8 })[0]
+  return <BaseEdge path={path} style={style} markerEnd={markerEnd} />
+}
+
+const edgeTypes = { layout: LayoutEdge }
+
 function computeWorkflowLayout(
   inputs,
   outputs,
@@ -565,6 +618,20 @@ function computeWorkflowLayout(
   // ze als één geheel ogen i.p.v. een los wit blok onder een los blauw blok.
   const ZONE_X = STAGE_START_X - ZONE_INNER_PAD_X
   const ZONE_WIDTH = BANNER_WIDTH + ZONE_INNER_PAD_X * 2
+  // Lege 'gangen' zonder lane-content, waar nodig gebruikt om een lijn
+  // gegarandeerd langs andere lanes/chips heen te leiden (zie
+  // gutterRoute/appconn-edges en de "rest"-outputplaatsing verderop).
+  // Applicatieflow-inputlijnen hebben zo'n gerichte route niet nodig: een
+  // input-item staat altijd links van de hele zone, dus de bocht van React
+  // Flow's eigen smoothstep-lijn valt daar vanzelf al in de lege ruimte vóór
+  // de zone (bevestigd: bij tegenoverliggende handles ligt die bocht op het
+  // midden tussen bron- en doel-x, en dat midden ligt bij deze afstanden nooit
+  // ín de zone). BUS_CHANNEL_X (drie banen, voor de applicatiekoppelingen) en
+  // OUTPUT_GUTTER_X (één brede gang voorbij ELKE lane, voor generieke/niet-
+  // lane-gekoppelde outputitems) hebben die garantie niet vanzelf en routeren
+  // daarom wél expliciet.
+  const BUS_CHANNEL_X = [ZONE_X - 28, ZONE_X - 16, ZONE_X - 4]
+  const OUTPUT_GUTTER_X = ZONE_X + ZONE_WIDTH + 10
 
   // --- Applicatieflow-lane bouwstenen ---
   // Hier al gedeclareerd (i.p.v. pas in de Applicatieflow-lanesectie verderop)
@@ -575,6 +642,13 @@ function computeWorkflowLayout(
   const LANE_ITEM_W = 195
   const LANE_CONTENT_GAP = 18
   const LANE_ROW_H = 52
+  // Halve bannerhoogte (ankerpunt voor het handle op het lane-kader, zie
+  // LaneGroupNode) en een ruwe schatting van één IoNode-hoogte (voor de
+  // rij-reservering verderop als een lane meer gekoppelde IO-kaarten heeft
+  // dan chip-rijen) — geen DOM-meting, zelfde schattingsstijl als de rest
+  // van dit bestand.
+  const LANE_BANNER_CENTER_Y = LANE_ROW_H / 2
+  const IO_CARD_HEIGHT_ESTIMATE = 80
   const LANE_GAP = 22
   const LANE_PACK_GAP_X = 24
   // Extra ademruimte tussen de laatste chip van de ene applicatie en de
@@ -733,6 +807,7 @@ function computeWorkflowLayout(
           edges.push({
             id: `crossflow:${dep.id}:${appId}`,
             source: `appbanner:${appId}`,
+            sourceHandle: 'right-out',
             target: mid,
             style: { stroke: '#7a5c8a', strokeWidth: 1, strokeDasharray: '5 4', opacity: 0.04 },
           })
@@ -779,6 +854,54 @@ function computeWorkflowLayout(
   // blijft, ook als de lanes zelf compacter worden.
   const applicatieflowDeps = teamDependencies.filter((d) => d.flowtype === 'applicatieflow')
 
+  // Input/output vast eerder gesplitst dan voorheen (i.p.v. pas na de
+  // lane-plaatsing) — nodig omdat de lane-plaatsing hieronder al moet weten
+  // hoeveel IO-kaarten er per applicatie aan hangen (zie appIdsWithLane/
+  // splitByLane/ioRows), zodat een rij genoeg hoogte reserveert. Zuivere
+  // filters op de meegegeven inputs/outputs en showIO — geen afhankelijkheid
+  // van lane-plaatsing zelf.
+  const effectiveInputs = showIO ? inputs : []
+  const effectiveOutputs = showIO ? outputs : []
+  const applicatieflowInputs = effectiveInputs.filter((item) => item.flowtype !== 'ontwikkelflow')
+  const devInputs = effectiveInputs.filter((item) => item.flowtype === 'ontwikkelflow')
+  const applicatieflowOutputs = effectiveOutputs.filter((item) => item.flowtype !== 'ontwikkelflow')
+  const devOutputs = effectiveOutputs.filter((item) => item.flowtype === 'ontwikkelflow')
+
+  // Applicaties die in Split-modus een eigen lane krijgen (banner + evt.
+  // chips, zie pushApplicatieflowLane/placeLaneGroup hieronder) — alleen dán
+  // heeft "dit item hoort bij die lane" betekenis. Zonder lane (Samengevoegd,
+  // of een applicatie zonder Applicatieflow-dependency) is er geen rij om
+  // naast te zetten; zo'n item valt terug op de oude, over de hele zone
+  // gecentreerde kolom (zie splitByLane).
+  const appIdsWithLane = splitApplicaties
+    ? new Set(
+        applications
+          .filter((app) => applicatieflowDeps.some((d) => (d.applicatieIds ?? []).includes(app.id)))
+          .map((app) => app.id),
+      )
+    : new Set()
+
+  // Splitst Applicatieflow-input/output in wat aan zo'n lane hangt (per
+  // applicatie gegroepeerd — komt straks op de rij van die lane, zie
+  // laneGeometry/pushApplicatieflowLane) en de rest (ongewijzigd gecentreerd
+  // over de hele zone, zie applicatieflowInEdgeTarget/-OutEdgeTarget
+  // verderop).
+  function splitByLane(items) {
+    const byApp = new Map()
+    const rest = []
+    for (const item of items) {
+      if (item.applicatieId && appIdsWithLane.has(item.applicatieId)) {
+        if (!byApp.has(item.applicatieId)) byApp.set(item.applicatieId, [])
+        byApp.get(item.applicatieId).push(item)
+      } else {
+        rest.push(item)
+      }
+    }
+    return { byApp, rest }
+  }
+  const laneLinkedInputs = splitByLane(applicatieflowInputs)
+  const laneLinkedOutputs = splitByLane(applicatieflowOutputs)
+
   function pushApplicatieflowLane(id, label, deps, x, y, collapsed, accent, appTagFor, appIdOf, width, height, connCount) {
     const bid = `appbanner:${id}`
     // Overstijgend heeft geen eigen bannerkaart meer — alleen het label-
@@ -789,6 +912,14 @@ function computeWorkflowLayout(
     const { itemPos } = groupApplicatieflowDeps(deps, appIdOf, accent)
     const effectiveHeight = collapsed ? LANE_ROW_H : height
     const effectiveWidth = collapsed ? LANE_BANNER_W : width
+
+    // Geometrie van deze lane vastleggen voor de IO-plaatsing en de
+    // applicatiekoppelingen (bus), die pas ná alle lanes draaien — ook bij
+    // een ingeklapte lane: de banner (en dus het ankerpunt) blijft dan
+    // gewoon bestaan, alleen de chips zijn verborgen. `height` is de
+    // uiteindelijke (eventueel voor IO-kaarten opgehoogde) rijhoogte — de
+    // IO-plaatsing centreert daar zelf weer binnen, zie stackCenteredOnPoint.
+    if (hasBanner) laneGeometry.set(id, { x, y, bid, width: effectiveWidth, height: effectiveHeight })
 
     const bgId = `${bid}:bg`
     nodes.push({
@@ -857,7 +988,13 @@ function computeWorkflowLayout(
       // Zonder banner is er geen node meer om de chip mee te verbinden — de
       // omsluitende kader (laneGroup) toont de groepering al visueel.
       if (hasBanner) {
-        edges.push({ id: `${bid}->${mid}`, source: bid, target: mid, style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 } })
+        edges.push({
+          id: `${bid}->${mid}`,
+          source: bid,
+          sourceHandle: 'right-out',
+          target: mid,
+          style: { stroke: '#cbd5e1', strokeWidth: 1, strokeDasharray: '3 3', opacity: 0.45 },
+        })
       }
     })
   }
@@ -876,8 +1013,17 @@ function computeWorkflowLayout(
   let topLaneY = null
   // Id van de lane/groep dichtst bij de stage-rij — het natuurlijke
   // aanknopingspunt voor Applicatieflow-IO, analoog aan hoe Ontwikkelflow-IO aan de
-  // eerste/laatste workflowstap hangt.
+  // eerste/laatste workflowstap hangt. baseLaneAppId is hetzelfde, maar dan
+  // het kale request-id (zonder 'appbanner:'-prefix) — alleen gezet als het
+  // om een echte applicatie-lane gaat (dus met een geldige laneGeometry-
+  // entry), voor de gerichte gutter-route van de "rest"-outputitems verderop.
   let baseLaneId = null
+  let baseLaneAppId = null
+  // Per app-id (alleen accent==='app'-lanes) de uiteindelijke geometrie —
+  // gevuld door pushApplicatieflowLane zodra de rij geplaatst is, gelezen
+  // door de IO-plaatsing verderop zodra alle lanes staan (pas dan is elke
+  // lane's definitieve y bekend).
+  const laneGeometry = new Map()
 
   // 'Shelf'-packing: elke aangevraagde lane krijgt zijn eigen (compacte)
   // breedte; lanes pakken links-naar-rechts in dezelfde rij tot de
@@ -896,7 +1042,13 @@ function computeWorkflowLayout(
       // toggle meer — altijd volledig getoond.
       const collapsed = r.accent === 'overstijgend' ? false : (collapsedLaneIds?.has(r.id) ?? false)
       const { height, width } = groupApplicatieflowDeps(r.deps, r.appIdOf, r.accent)
-      return { ...r, collapsed, height: collapsed ? LANE_ROW_H : height, width: collapsed ? LANE_BANNER_W : width }
+      // Meer gekoppelde IO-kaarten dan chip-rijen? Dan reserveert de rij
+      // extra hoogte, zodat de gestapelde kaarten (zie stackCenteredOnPoint
+      // verderop) niet buiten hun eigen rij in de volgende lane belanden.
+      // Niet bij een ingeklapte lane — dat is een bewust compacte keuze, de
+      // IO-kaarten blijven dan wel op de (kortere) bannerrij aangehaakt.
+      const ioHeight = collapsed || !r.ioRows ? 0 : (r.ioRows - 1) * IO_Y_GAP + IO_CARD_HEIGHT_ESTIMATE
+      return { ...r, collapsed, height: collapsed ? LANE_ROW_H : Math.max(height, ioHeight), width: collapsed ? LANE_BANNER_W : width }
     })
 
     const rows = []
@@ -933,7 +1085,20 @@ function computeWorkflowLayout(
       let x = STAGE_START_X
       row.forEach((lane) => {
         pushApplicatieflowLane(lane.id, lane.label, lane.deps, x, rowY, lane.collapsed, lane.accent, lane.appTagFor, lane.appIdOf, lane.width, lane.height, lane.connCount)
-        if (ri === rows.length - 1 && baseLaneId === null) baseLaneId = `appbanner:${lane.id}`
+        // Alleen een lane mét banner (laneGeometry-entry; Overstijgend heeft
+        // er geen) kan het ankerpunt zijn — zónder deze check kon baseLaneId
+        // op een niet-bestaande 'appbanner:unlabeled'-node uitkomen zodra
+        // Overstijgend de laatst geplaatste rij was (in Split-modus altijd
+        // het geval als Overstijgend voorkomt, want die staat altijd als
+        // laatste in de aangeleverde lijst) — met als gevolg dat React Flow
+        // alle Applicatieflow-IO-lijnen naar dat doel stilzwijgend liet
+        // vallen. Rijen worden hier top-naar-onder doorlopen, dus de LAATST
+        // geziene geldige (bannerde) lane is vanzelf de rij het dichtst bij
+        // de stage-rij — precies het oorspronkelijke doel van baseLaneId.
+        if (laneGeometry.has(lane.id)) {
+          baseLaneId = `appbanner:${lane.id}`
+          baseLaneAppId = lane.id
+        }
         x += lane.width + LANE_PACK_GAP_X
       })
       rowY += rowHeights[ri] + LANE_STACK_GAP
@@ -987,30 +1152,52 @@ function computeWorkflowLayout(
         // (nooit naast een andere applicatie-lane gepakt), zodat de lijst
         // altijd netjes onder elkaar staat: banner links, dependencies rechts.
         forceOwnRow: true,
+        // Hoeveel IO-kaarten straks aan déze rij komen te hangen (zie
+        // laneLinkedInputs/-Outputs) — bepaalt of de rij extra hoogte nodig
+        // heeft (zie de ioHeight-berekening in placeLaneGroup's sized-stap).
+        ioRows: Math.max(laneLinkedInputs.byApp.get(app.id)?.length ?? 0, laneLinkedOutputs.byApp.get(app.id)?.length ?? 0),
       }))
       .filter((r) => r.deps.length > 0)
     placeLaneGroup(overstijgendRequest ? [...appRequests, overstijgendRequest] : appRequests)
 
     // De koppelingen uit de Applicatieflow-vragenlijst ('welke applicatie
-    // geeft werk/data door aan welke andere') worden hier als directe
-    // lijnen tussen de lane-banners getekend. Rust-opacity is heel laag (de
-    // '↔ N'-badge op de banner is de permanente indicator); de hover-dim-laag
-    // verderop licht de lijn pas op zodra je een van de twee gekoppelde
-    // banners hovert/focust.
+    // geeft werk/data door aan welke andere') lopen als 'bus' door de lege
+    // gang links van de lanes (BUS_CHANNEL_X) i.p.v. rechtstreeks van banner
+    // naar banner — een directe lijn zou bij twee lanes met een derde
+    // ertussen dwars over die tussenliggende lane/chips heen lopen. Beide
+    // uiteinden haken daarom aan de LINKERkant van hun banner aan (bus-out/
+    // left-in, zie ApplicatieflowBannerNode); channelIndex verdeelt
+    // gelijktijdige koppelingen simpelweg cyclisch over de drie banen, zodat
+    // ze elkaar niet allemaal op precies dezelfde x overlappen. Rust-opacity
+    // ligt hoger dan de losse IO-lijnen (0.04): dit zijn de koppelingen
+    // tussen applicaties zelf, de structuur van de zone, geen losse ruis.
+    let channelIndex = 0
     applicatieflowConnecties.forEach((c) => {
       const sourceId = `appbanner:${c.van}`
       const targetId = `appbanner:${c.naar}`
       if (!nodes.some((n) => n.id === sourceId) || !nodes.some((n) => n.id === targetId)) return
       const vanNaam = applications.find((a) => a.id === c.van)?.naam || '—'
       const naarNaam = applications.find((a) => a.id === c.naar)?.naam || '—'
+      const sourceGeo = laneGeometry.get(c.van)
+      const targetGeo = laneGeometry.get(c.naar)
+      const channelX = BUS_CHANNEL_X[channelIndex % BUS_CHANNEL_X.length]
+      channelIndex += 1
+      const points =
+        sourceGeo && targetGeo
+          ? gutterRoute(sourceGeo.x, sourceGeo.y + LANE_BANNER_CENTER_Y, channelX, targetGeo.x, targetGeo.y + LANE_BANNER_CENTER_Y)
+          : undefined
       edges.push({
         id: `appconn:${c.id}`,
         source: sourceId,
+        sourceHandle: 'bus-out',
         target: targetId,
-        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.05 },
+        targetHandle: 'left-in',
+        type: 'layout',
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.25 },
         // Hover toont de opsomming, klik opent 'm bewerkbaar in het
         // focuspaneel (zie onEdgeClick / buildFocusPanelContent).
         data: {
+          points,
           kind: 'appconn',
           connId: c.id,
           tooltipTitle: `${vanNaam} → ${naarNaam}`,
@@ -1142,18 +1329,24 @@ function computeWorkflowLayout(
     return `${flowLabel} · ${scopeLabel}`
   }
 
+  // Voor de "rest" (niet-lane-gekoppelde) IO-items: gecentreerd over de hele
+  // zone, ongewijzigd t.o.v. voorheen.
   function stackCenteredInZone(items, zoneTop, zoneBottom) {
     const totalH = Math.max(0, items.length - 1) * IO_Y_GAP
     const startY = zoneTop + Math.max(24, (zoneBottom - zoneTop - totalH) / 2)
     return items.map((item, i) => ({ item, y: startY + i * IO_Y_GAP }))
   }
 
-  const effectiveInputs = showIO ? inputs : []
-  const effectiveOutputs = showIO ? outputs : []
-  const applicatieflowInputs = effectiveInputs.filter((item) => item.flowtype !== 'ontwikkelflow')
-  const devInputs = effectiveInputs.filter((item) => item.flowtype === 'ontwikkelflow')
-  const applicatieflowOutputs = effectiveOutputs.filter((item) => item.flowtype !== 'ontwikkelflow')
-  const devOutputs = effectiveOutputs.filter((item) => item.flowtype === 'ontwikkelflow')
+  // Voor lane-gekoppelde IO-items: gecentreerd rond één vast punt (de rij van
+  // hun eigen lane) i.p.v. over een bereik — de kaarten stapelen dus symmetrisch
+  // om de lane heen, ongeacht hoeveel extra hoogte die rij daarvoor gereserveerd
+  // kreeg (zie de ioRows-boost in placeLaneGroup's sized-berekening).
+  function stackCenteredOnPoint(items, centerY) {
+    const totalH = Math.max(0, items.length - 1) * IO_Y_GAP
+    const startY = centerY - totalH / 2
+    return items.map((item, i) => ({ item, y: startY + i * IO_Y_GAP }))
+  }
+
   // Als er geen enkele lane bestaat (geen applicaties/Overstijgend-deps) hebben
   // Applicatieflow-IO-lijntjes niets om aan te haken binnen de Applicatieflow-zone zelf —
   // zonder dit anker vielen ze terug op de Ontwikkelflow-stagerij, waardoor
@@ -1172,74 +1365,117 @@ function computeWorkflowLayout(
     applicatieflowOutEdgeTarget = 'applicatieflowAnchor'
   }
 
-  stackCenteredInZone(applicatieflowInputs, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
+  // Node-data voor een Applicatieflow-IO-kaart — identiek voor lane-
+  // gekoppelde en gecentreerde items, alleen positie en lijndoel verschillen
+  // (zie de vier blokken hieronder).
+  function applicatieflowIoData(kind, item) {
+    return {
+      kind,
+      itemId: item.id,
+      label: item.label,
+      linkLabel: resolveLinkLabel(item, kind === 'output' ? 'output' : undefined),
+      bronColor: bronTypeColor(item.bron_type),
+      externalTeam: item.externalTeam,
+      meta: ioMetaLabel(item),
+      linkStatus: item.linkStatus,
+      linkStatusLabel: translateLinkStatus(item.linkStatus, language),
+      ghost: Boolean(item._ghostRequest),
+      request: item._ghostRequest ?? item._pendingRequest ?? null,
+      requestLabel: item._ghostRequest
+        ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
+        : item._pendingRequest
+          ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
+          : '',
+    }
+  }
+  const applicatieflowIoEdgeData = (item) => ({ kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] })
+
+  // "Rest": items zonder eigen lane (Samengevoegd, Overstijgend, of een
+  // applicatie zonder lane) — ongewijzigd gecentreerd over de hele zone. Geen
+  // eigen `type: 'layout'` nodig: het inputitem staat altijd links van de
+  // héle zone (x = ZONE_X - 210, ruim vóór STAGE_START_X), dus bij
+  // tegenoverliggende handles (bron rechts op de kaart, doel links op de
+  // banner/het anker) legt React Flow's eigen smoothstep-berekening de bocht
+  // op het midden tussen bron- en doel-x — en dat midden ligt bij deze
+  // afstanden altijd nog vóór de zone, dus nooit over een lane heen.
+  stackCenteredInZone(laneLinkedInputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
     const id = `input:${item.id}`
-    nodes.push({
-      id,
-      type: 'ioItem',
-      position: withSavedPosition(id, { x: ZONE_X - 210, y }),
-      data: {
-        kind: 'input',
-        itemId: item.id,
-        label: item.label,
-        linkLabel: resolveLinkLabel(item),
-        bronColor: bronTypeColor(item.bron_type),
-        externalTeam: item.externalTeam,
-        meta: ioMetaLabel(item),
-        linkStatus: item.linkStatus,
-        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
-        ghost: Boolean(item._ghostRequest),
-        request: item._ghostRequest ?? item._pendingRequest ?? null,
-        requestLabel: item._ghostRequest
-          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
-          : item._pendingRequest
-            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
-            : '',
-      },
-      draggable: true,
-    })
+    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X - 210, y }), data: applicatieflowIoData('input', item), draggable: true })
     edges.push({
       id: `input:${item.id}->${applicatieflowInEdgeTarget}`,
       source: id,
       target: applicatieflowInEdgeTarget,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
-      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
+      data: applicatieflowIoEdgeData(item),
     })
   })
-  stackCenteredInZone(applicatieflowOutputs, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
-    const id = `output:${item.id}`
-    nodes.push({
-      id,
-      type: 'ioItem',
-      position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
-      data: {
-        kind: 'output',
-        itemId: item.id,
-        label: item.label,
-        linkLabel: resolveLinkLabel(item, 'output'),
-        bronColor: bronTypeColor(item.bron_type),
-        externalTeam: item.externalTeam,
-        meta: ioMetaLabel(item),
-        linkStatus: item.linkStatus,
-        linkStatusLabel: translateLinkStatus(item.linkStatus, language),
-        ghost: Boolean(item._ghostRequest),
-        request: item._ghostRequest ?? item._pendingRequest ?? null,
-        requestLabel: item._ghostRequest
-          ? t('teampage.requestProposedBy', { team: item._ghostRequest.proposerNaam })
-          : item._pendingRequest
-            ? t('teampage.requestForItem', { team: item._pendingRequest.proposerNaam })
-            : '',
-      },
-      draggable: true,
+  // Lane-gekoppeld: item hangt aan een specifieke, zichtbare applicatie-lane
+  // (Split-modus) — komt op de hoogte van die lane's eigen rij te staan
+  // i.p.v. gecentreerd over de hele zone, en haakt rechtstreeks op die ene
+  // banner aan. Bron en doel liggen daardoor al op nagenoeg dezelfde hoogte,
+  // dus de lijn loopt vanzelf (bijna) recht en kan geen ándere lane kruisen —
+  // elke rij heeft een eigen, niet-overlappende hoogteband (forceOwnRow).
+  for (const [appId, items] of laneLinkedInputs.byApp) {
+    const geo = laneGeometry.get(appId)
+    if (!geo) continue
+    stackCenteredOnPoint(items, geo.y + LANE_BANNER_CENTER_Y).forEach(({ item, y }) => {
+      const id = `input:${item.id}`
+      nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X - 210, y }), data: applicatieflowIoData('input', item), draggable: true })
+      edges.push({
+        id: `input:${item.id}->${geo.bid}`,
+        source: id,
+        target: geo.bid,
+        targetHandle: 'left-in',
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
+        data: applicatieflowIoEdgeData(item),
+      })
     })
+  }
+  stackCenteredInZone(laneLinkedOutputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
+    const id = `output:${item.id}`
+    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }), data: applicatieflowIoData('output', item), draggable: true })
+    // Bron ligt op de rij van baseLaneAppId (het generieke ankerpunt), doel
+    // ergens anders in de zone gecentreerd — die twee liggen dus NIET op
+    // dezelfde hoogte, en een rechtstreekse lijn zou (bij een brede lane
+    // ertussen) dwars over diens chips heen kunnen lopen. Route daarom altijd
+    // via de zone-brede rechtergang (voorbij elke lane, ongeacht hoe breed),
+    // vanaf het bekende right-out-ankerpunt van de basislane. Alleen relevant
+    // als er een echte lane is (baseLaneAppId) — zonder lane bestaat dit
+    // kruisingsrisico niet (er is dan niets om overheen te lopen).
+    const baseGeo = baseLaneAppId ? laneGeometry.get(baseLaneAppId) : null
+    const points = baseGeo
+      ? gutterRoute(baseGeo.x + LANE_BANNER_W, baseGeo.y + LANE_BANNER_CENTER_Y, OUTPUT_GUTTER_X, ZONE_X + ZONE_WIDTH + 20, y)
+      : undefined
     edges.push({
       id: `${applicatieflowOutEdgeTarget}->output:${item.id}`,
       source: applicatieflowOutEdgeTarget,
       target: id,
+      type: points ? 'layout' : undefined,
       style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
-      data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
+      data: { points, ...applicatieflowIoEdgeData(item) },
     })
   })
+  // Lane-gekoppeld: vertrekt vanaf de RECHTERRAND van het lane-kader zelf
+  // (voorbij alle chips van die lane, zie de 'lane-out'-handle op
+  // LaneGroupNode) i.p.v. vanaf de banner — anders zou de lijn dwars over de
+  // eigen chips van die lane heen lopen. Bron en doel liggen op dezelfde
+  // hoogte (beide horen bij dezelfde rij), dus verder geen eigen route nodig.
+  for (const [appId, items] of laneLinkedOutputs.byApp) {
+    const geo = laneGeometry.get(appId)
+    if (!geo) continue
+    stackCenteredOnPoint(items, geo.y + geo.height / 2).forEach(({ item, y }) => {
+      const id = `output:${item.id}`
+      nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }), data: applicatieflowIoData('output', item), draggable: true })
+      edges.push({
+        id: `${geo.bid}:bg->output:${item.id}`,
+        source: `${geo.bid}:bg`,
+        sourceHandle: 'lane-out',
+        target: id,
+        style: { stroke: '#2a5f8a', strokeWidth: 1.5, opacity: 0.04 },
+        data: applicatieflowIoEdgeData(item),
+      })
+    })
+  }
   stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
     const id = `input:${item.id}`
     nodes.push({
@@ -1560,7 +1796,10 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
       update({ bron_type: 'team', ...(teamMode === 'intern' ? clearParty : clearLink) })
       return
     }
-    update({ bron_type: next, ...clearLink })
+    // 'Nog niet bepaald' (leeg) laat ook een eventuele partij los — anders
+    // bleef die onzichtbaar aan het item hangen (lijstsamenvatting,
+    // ketenoverzicht) en kwam bij de volgende bewerking het type weer terug.
+    update({ bron_type: next, ...clearLink, ...(next === '' ? clearParty : {}) })
   }
   function chooseTeamMode(mode) {
     setTeamMode(mode)
@@ -2337,6 +2576,147 @@ function LinkRequestsPanel({ requests, workflow, teamName, onAccept, onReject, t
   )
 }
 
+// DependencyRow/StageGroupedDeps/FlatDeps staan bewust op moduleniveau: als
+// geneste functiecomponenten binnen TeamPage kregen ze bij elke state-wijziging
+// een nieuwe identiteit, waardoor React elke rij unmountte en opnieuw aanmaakte
+// — merkbaar als focusverlies in de applicatie-select en als onnodige
+// rendercycli in lijsten van tientallen dependencies. Alles wat ze uit de
+// pagina nodig hebben komt via één stabiel ctx-object (rowContext in TeamPage),
+// zodat de memo hieronder daadwerkelijk iets oplevert.
+const DependencyRow = memo(function DependencyRow({ dep, showAppPicker, ctx }) {
+  const { t, language, uitgebreideAnalyse, applications, onSelect, onAddApplicatie, onRemoveApplicatie } = ctx
+  const risk = calculateRisk(dep)
+  const style = riskStyle(risk.level)
+  const flowverlies = uitgebreideAnalyse ? berekenFlowverlies(dep) : null
+  return (
+    <li className="py-2">
+      <button
+        type="button"
+        onClick={() => onSelect(dep)}
+        className="flex w-full items-center gap-2 text-left text-sm hover:bg-slate-50"
+      >
+        <CategoryIcon categorie={dep.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+        <span className="flex-1 truncate text-slate-700">{dep.titel}</span>
+        <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
+        <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
+        {flowverlies && (
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${riskStyle(flowverlies.level).badge}`}
+            title={t('teampage.flowverliesHint')}
+          >
+            {t('teampage.flowverliesShort')}: {translateRiskLevel(flowverlies.level, language)}
+          </span>
+        )}
+      </button>
+      {(dep.status || dep.actieAfspraak) && (
+        <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-[11px] text-slate-400">
+          {dep.status && <span className="shrink-0">{translateStatus(dep.status, language)}</span>}
+          {dep.status && dep.actieAfspraak && <span aria-hidden="true">·</span>}
+          {dep.actieAfspraak && <span className="truncate">{dep.actieAfspraak}</span>}
+        </div>
+      )}
+      {showAppPicker && applications.length > 0 && (() => {
+        const linkedIds = dep.applicatieIds ?? []
+        const linkedApps = linkedIds.map((id) => applications.find((a) => a.id === id)).filter(Boolean)
+        const unlinkedApps = applications.filter((a) => !linkedIds.includes(a.id))
+        return (
+          <div className="mt-1 flex flex-wrap items-center gap-1 pl-5" title={t('teampage.appLabelHint')}>
+            {linkedApps.length === 0 ? (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{t('teampage.appOverstijgend')}</span>
+            ) : (
+              linkedApps.map((app) => (
+                <span
+                  key={app.id}
+                  className="inline-flex items-center gap-1 rounded-full bg-[#2a5f8a]/10 px-2 py-0.5 text-[11px] font-medium text-[#2a5f8a]"
+                >
+                  {app.naam || '—'}
+                  <button
+                    type="button"
+                    onClick={() => onRemoveApplicatie(dep, app.id)}
+                    aria-label={t('teampage.appChipRemove', { naam: app.naam || '—' })}
+                    className="leading-none text-[#2a5f8a]/60 hover:text-[#2a5f8a]"
+                  >
+                    ×
+                  </button>
+                </span>
+              ))
+            )}
+            {unlinkedApps.length > 0 && (
+              <select
+                value=""
+                onChange={(e) => onAddApplicatie(dep, e.target.value)}
+                aria-label={t('teampage.appChipAdd')}
+                className="rounded border-none bg-transparent py-0 pl-0 pr-3 text-[11px] text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2a5f8a]"
+              >
+                <option value="">{t('teampage.appChipAdd')}</option>
+                {unlinkedApps.map((app) => (
+                  <option key={app.id} value={app.id}>
+                    {app.naam || '—'}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )
+      })()}
+    </li>
+  )
+})
+// Weergave voor de Ontwikkelflow-lijst, gegroepeerd per workflowstap (+ een
+// 'Proces-overstijgend'-restgroep voor legacy/incomplete data zonder
+// herleidbare stap — zelfde term als het canvas gebruikt voor diezelfde
+// groep). Uitsluitend voor Ontwikkelflow: Applicatieflow-dependencies
+// groeperen op applicatie, niet op workflowstap (zie FlatDeps hieronder).
+function StageGroupedDeps({ deps, showAppPicker, ctx }) {
+  const { t, language } = ctx
+  return (
+    <>
+      {WORKFLOW_STAGES.map((stage) => {
+        const stageDeps = deps.filter((d) => WORKFLOW_STAP_TO_STAGE[d.workflowStap] === stage)
+        if (stageDeps.length === 0) return null
+        return (
+          <div key={stage} className="mb-2">
+            <div className="mb-1 text-[11px] font-medium text-slate-400">{translateWorkflowStage(stage, language)}</div>
+            <ul className="divide-y divide-slate-100">
+              {stageDeps.map((dep) => (
+                <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} ctx={ctx} />
+              ))}
+            </ul>
+          </div>
+        )
+      })}
+      {(() => {
+        const noStage = deps.filter((d) => !WORKFLOW_STAP_TO_STAGE[d.workflowStap])
+        if (noStage.length === 0) return null
+        return (
+          <div className="mb-2">
+            <div className="mb-1 text-[11px] font-medium text-slate-400">{t('teampage.procesOverstijgend')}</div>
+            <ul className="divide-y divide-slate-100">
+              {noStage.map((dep) => (
+                <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} ctx={ctx} />
+              ))}
+            </ul>
+          </div>
+        )
+      })()}
+    </>
+  )
+}
+
+// Vlakke lijst zonder subgroepering — voor Applicatieflow-dependencies
+// (al gegroepeerd op applicatie door de aanroeper zelf): een tweede,
+// workflowstap-gebaseerde onderverdeling zou daar geen betekenis hebben en
+// 'Applicatieflow heeft geen workflowstap' weer ondermijnen.
+function FlatDeps({ deps, showAppPicker, ctx }) {
+  return (
+    <ul className="divide-y divide-slate-100">
+      {deps.map((dep) => (
+        <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} ctx={ctx} />
+      ))}
+    </ul>
+  )
+}
+
 function TeamDataBlock({ title, count, open, onToggle, action, children, blockRef }) {
   return (
     <div ref={blockRef} className="py-3 first:pt-0 last:pb-0">
@@ -2686,7 +3066,7 @@ function DepFiltersDropdown({
 
           <div className="mt-2.5">
             <div className="mb-1 flex items-center justify-between">
-              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('matrix.col.status')}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{t('tabel.col.status')}</span>
               <button type="button" onClick={() => setStatusFilter(new Set(STATUS_LEVELS))} className="text-[10px] text-[#2a5f8a] hover:underline">
                 {t('filter.selectAll')}
               </button>
@@ -2770,6 +3150,11 @@ function DepFiltersDropdown({
   )
 }
 
+// Zuivere layout-berekening ook los van de component bruikbaar (bv. een
+// ad-hoc controle op de mockdata in node, zonder browser) — zelfde patroon
+// als computeChainGraph in ChainOverview.jsx.
+export { computeWorkflowLayout }
+
 export default function TeamPage({ teamId, onBack, adminSections, sidebarCollapsed, sidebarMode, containerRef }) {
   const {
     teams,
@@ -2777,6 +3162,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     teamWorkflows,
     updateTeamWorkflow,
     removeApplicationEverywhere,
+    unlinkCounterparts,
     addDependency,
     addDependencies,
     updateDependency,
@@ -2815,6 +3201,15 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [tourActive, setTourActive] = useState(false)
   const [appFilterQuery, setAppFilterQuery] = useState('')
   const [splitApplicaties, setSplitApplicaties] = useState(true)
+  // Het zoekveld voor applicaties bestaat alleen bij 'Split per applicatie'
+  // met meer dan vier applicaties; verdwijnt het veld, dan mag zijn tekst
+  // niet stilzwijgend blijven filteren.
+  // (teamWorkflows uit de context i.p.v. `workflow`: die const staat verderop
+  // en is hier nog niet geïnitialiseerd.)
+  const appFilterVisible = splitApplicaties && (teamWorkflows[teamId]?.applications ?? []).length > 4
+  useEffect(() => {
+    if (!appFilterVisible) setAppFilterQuery('')
+  }, [appFilterVisible])
   // Welke Applicatieflow-lanes op het canvas zijn ingeklapt — puur presentatie,
   // niet bewaard, zodat teams met veel applicaties de stapel compact kunnen
   // houden zonder een onleesbare muur aan lanes.
@@ -2823,7 +3218,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [showIO, setShowIO] = useState(true)
   const [showOverstijgend, setShowOverstijgend] = useState(true)
   // Standaard aan: geaccepteerde afhankelijkheden blijven op het teamcanvas
-  // staan (ze zijn wel uit de organisatiebrede Netwerkweergave gefilterd).
+  // staan (ze zijn wel uit de organisatiebrede Heatmap gefilterd).
   const [showGeaccepteerd, setShowGeaccepteerd] = useState(true)
   const [riskFilterOn, setRiskFilterOn] = useState(false)
   const [showExternalTeams, setShowExternalTeams] = useState(false)
@@ -3013,9 +3408,10 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     !showApplicaties ||
     !showCapaciteit ||
     !showWorkflowfasen
-  const weergaveActive = depFiltersActive || viewTogglesActive
+  const weergaveActive = depFiltersActive || viewTogglesActive || appFilterQuery.trim() !== ''
   function clearWeergave() {
     clearDepFilters()
+    setAppFilterQuery('')
     setShowIO(true)
     setShowOverstijgend(true)
     setShowGeaccepteerd(true)
@@ -3083,7 +3479,13 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // Dependencies en Teamgegevens stonden onder elkaar — bij een team met veel
   // input/output/capaciteit moest je helemaal naar beneden scrollen om bij
   // Teamgegevens te komen. Nu twee tabs op dezelfde plek, Dependencies default.
-  const [bottomSectionTab, setBottomSectionTab] = useState('dependencies')
+  // Zonder Dependencies-sectie (Admin) is Teamgegevens het enige tabblad —
+  // de tabkeuze zit ín de kaarten, dus zonder deze terugval was er dan
+  // helemaal geen kaart (en geen tab om naar Teamgegevens te komen).
+  const [bottomSectionTab, setBottomSectionTab] = useState(adminSections.dependencies ? 'dependencies' : 'teamgegevens')
+  useEffect(() => {
+    if (!adminSections.dependencies) setBottomSectionTab('teamgegevens')
+  }, [adminSections.dependencies])
   const acceptedDeps = useMemo(() => filteredTeamDependencies.filter((d) => d.geaccepteerd), [filteredTeamDependencies])
   const visibleTeamDependencies = useMemo(
     () => (depTab === 'gesloten' ? [] : filteredTeamDependencies.filter((d) => Boolean(d.geaccepteerd) === (depTab === 'geaccepteerd'))),
@@ -3108,148 +3510,38 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     [visibleTeamDependencies],
   )
 
-  function addApplicatieId(dep, appId) {
-    if (!appId) return
-    const current = dep.applicatieIds ?? []
-    if (current.includes(appId)) return
-    updateDependency(dep.id, { applicatieIds: [...current, appId] })
-  }
-  function removeApplicatieId(dep, appId) {
-    updateDependency(dep.id, { applicatieIds: (dep.applicatieIds ?? []).filter((id) => id !== appId) })
-  }
+  // useCallback i.p.v. gewone functiedeclaraties: deze twee zitten in
+  // rowContext hieronder, dat stabiel moet blijven wil de memo op
+  // DependencyRow effect hebben.
+  const addApplicatieId = useCallback(
+    (dep, appId) => {
+      if (!appId) return
+      const current = dep.applicatieIds ?? []
+      if (current.includes(appId)) return
+      updateDependency(dep.id, { applicatieIds: [...current, appId] })
+    },
+    [updateDependency],
+  )
+  const removeApplicatieId = useCallback(
+    (dep, appId) => {
+      updateDependency(dep.id, { applicatieIds: (dep.applicatieIds ?? []).filter((id) => id !== appId) })
+    },
+    [updateDependency],
+  )
 
-  function DependencyRow({ dep, showAppPicker }) {
-    const risk = calculateRisk(dep)
-    const style = riskStyle(risk.level)
-    const flowverlies = adminSettings.uitgebreideAnalyse ? berekenFlowverlies(dep) : null
-    return (
-      <li className="py-2">
-        <button
-          type="button"
-          onClick={() => setSelectedDependency(dep)}
-          className="flex w-full items-center gap-2 text-left text-sm hover:bg-slate-50"
-        >
-          <CategoryIcon categorie={dep.categorie} className="h-3.5 w-3.5 shrink-0 text-slate-400" />
-          <span className="flex-1 truncate text-slate-700">{dep.titel}</span>
-          <span className="shrink-0 text-xs text-slate-400">{translateCategorie(dep.categorie, language)}</span>
-          <span className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${style.badge}`}>{translateRiskLevel(risk.level, language)}</span>
-          {flowverlies && (
-            <span
-              className={`shrink-0 rounded px-1.5 py-0.5 text-xs ${riskStyle(flowverlies.level).badge}`}
-              title={t('teampage.flowverliesHint')}
-            >
-              {t('teampage.flowverliesShort')}: {translateRiskLevel(flowverlies.level, language)}
-            </span>
-          )}
-        </button>
-        {(dep.status || dep.actieAfspraak) && (
-          <div className="mt-0.5 flex items-center gap-1.5 pl-5 text-[11px] text-slate-400">
-            {dep.status && <span className="shrink-0">{translateStatus(dep.status, language)}</span>}
-            {dep.status && dep.actieAfspraak && <span aria-hidden="true">·</span>}
-            {dep.actieAfspraak && <span className="truncate">{dep.actieAfspraak}</span>}
-          </div>
-        )}
-        {showAppPicker && workflow.applications.length > 0 && (() => {
-          const linkedIds = dep.applicatieIds ?? []
-          const linkedApps = linkedIds.map((id) => workflow.applications.find((a) => a.id === id)).filter(Boolean)
-          const unlinkedApps = workflow.applications.filter((a) => !linkedIds.includes(a.id))
-          return (
-            <div className="mt-1 flex flex-wrap items-center gap-1 pl-5" title={t('teampage.appLabelHint')}>
-              {linkedApps.length === 0 ? (
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-400">{t('teampage.appOverstijgend')}</span>
-              ) : (
-                linkedApps.map((app) => (
-                  <span
-                    key={app.id}
-                    className="inline-flex items-center gap-1 rounded-full bg-[#2a5f8a]/10 px-2 py-0.5 text-[11px] font-medium text-[#2a5f8a]"
-                  >
-                    {app.naam || '—'}
-                    <button
-                      type="button"
-                      onClick={() => removeApplicatieId(dep, app.id)}
-                      aria-label={t('teampage.appChipRemove', { naam: app.naam || '—' })}
-                      className="leading-none text-[#2a5f8a]/60 hover:text-[#2a5f8a]"
-                    >
-                      ×
-                    </button>
-                  </span>
-                ))
-              )}
-              {unlinkedApps.length > 0 && (
-                <select
-                  value=""
-                  onChange={(e) => addApplicatieId(dep, e.target.value)}
-                  aria-label={t('teampage.appChipAdd')}
-                  className="rounded border-none bg-transparent py-0 pl-0 pr-3 text-[11px] text-slate-400 focus:outline-none focus:ring-1 focus:ring-[#2a5f8a]"
-                >
-                  <option value="">{t('teampage.appChipAdd')}</option>
-                  {unlinkedApps.map((app) => (
-                    <option key={app.id} value={app.id}>
-                      {app.naam || '—'}
-                    </option>
-                  ))}
-                </select>
-              )}
-            </div>
-          )
-        })()}
-      </li>
-    )
-  }
+  const rowContext = useMemo(
+    () => ({
+      t,
+      language,
+      uitgebreideAnalyse: adminSettings.uitgebreideAnalyse,
+      applications: workflow.applications,
+      onSelect: setSelectedDependency,
+      onAddApplicatie: addApplicatieId,
+      onRemoveApplicatie: removeApplicatieId,
+    }),
+    [t, language, adminSettings.uitgebreideAnalyse, workflow.applications, addApplicatieId, removeApplicatieId],
+  )
 
-  // Weergave voor de Ontwikkelflow-lijst, gegroepeerd per workflowstap (+ een
-  // 'Proces-overstijgend'-restgroep voor legacy/incomplete data zonder
-  // herleidbare stap — zelfde term als het canvas gebruikt voor diezelfde
-  // groep). Uitsluitend voor Ontwikkelflow: Applicatieflow-dependencies
-  // groeperen op applicatie, niet op workflowstap (zie FlatDeps hieronder).
-  function StageGroupedDeps({ deps, showAppPicker }) {
-    return (
-      <>
-        {WORKFLOW_STAGES.map((stage) => {
-          const stageDeps = deps.filter((d) => WORKFLOW_STAP_TO_STAGE[d.workflowStap] === stage)
-          if (stageDeps.length === 0) return null
-          return (
-            <div key={stage} className="mb-2">
-              <div className="mb-1 text-[11px] font-medium text-slate-400">{translateWorkflowStage(stage, language)}</div>
-              <ul className="divide-y divide-slate-100">
-                {stageDeps.map((dep) => (
-                  <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
-                ))}
-              </ul>
-            </div>
-          )
-        })}
-        {(() => {
-          const noStage = deps.filter((d) => !WORKFLOW_STAP_TO_STAGE[d.workflowStap])
-          if (noStage.length === 0) return null
-          return (
-            <div className="mb-2">
-              <div className="mb-1 text-[11px] font-medium text-slate-400">{t('teampage.procesOverstijgend')}</div>
-              <ul className="divide-y divide-slate-100">
-                {noStage.map((dep) => (
-                  <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
-                ))}
-              </ul>
-            </div>
-          )
-        })()}
-      </>
-    )
-  }
-
-  // Vlakke lijst zonder subgroepering — voor Applicatieflow-dependencies
-  // (al gegroepeerd op applicatie door de aanroeper zelf): een tweede,
-  // workflowstap-gebaseerde onderverdeling zou daar geen betekenis hebben en
-  // 'Applicatieflow heeft geen workflowstap' weer ondermijnen.
-  function FlatDeps({ deps, showAppPicker }) {
-    return (
-      <ul className="divide-y divide-slate-100">
-        {deps.map((dep) => (
-          <DependencyRow key={dep.id} dep={dep} showAppPicker={showAppPicker} />
-        ))}
-      </ul>
-    )
-  }
 
   // "Teamgegevens" bundelt Applicaties/Applicatieverbindingen/Input/Output/
   // Capaciteit in losse, standaard dichte blokjes — elk blok houdt zijn eigen
@@ -3366,6 +3658,9 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     [filteredTeamDependencies, showGeaccepteerd],
   )
 
+  // Zie handleSmartOrder: telt op bij 'Slim ordenen' en laat useMergedLayout
+  // alle handmatig versleepte posities vergeten.
+  const [layoutResetKey, setLayoutResetKey] = useState(0)
   const [{ nodes, edges, canvasWidth, canvasHeight }, onNodesChange] = useMergedLayout(computeWorkflowLayout, [
     canvasInputs,
     canvasOutputs,
@@ -3388,7 +3683,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     viewFilters,
     setAppDetailId,
     workflow.stageNotes,
-  ])
+    layoutResetKey,
+  ], { resetKey: layoutResetKey })
 
   // Signaal voor 'de zichtbare canvas-inhoud is veranderd, fit opnieuw' —
   // canvasWidth/-Height zijn de eigen, berekende afmetingen van de layout
@@ -3399,7 +3695,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const canvasFitKey = `${nodes.length}:${canvasWidth}:${canvasHeight}:${splitApplicaties}`
 
   // Lijnen worden pas duidelijk als niet-gerelateerde relaties wegvallen
-  // zodra je iets aanwijst — zelfde hover-dim-patroon als GraphView.jsx
+  // zodra je iets aanwijst — zelfde hover-dim-patroon als HeatmapView.jsx
   // (hoverNodeId + een lichte stijl-laag over de edges, los van de layout-
   // berekening zelf zodat hoveren geen herberekening van nodes triggert).
   const [hoverNodeId, setHoverNodeId] = useState(null)
@@ -3460,9 +3756,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
       dependencyMarker: showDependencies,
       applicatieflowBanner: showApplicaties,
       capacityBadge: showCapaciteit,
-      stage: showWorkflowfasen,
+      // Admin-sectie 'Ontwikkelflow' uit = de fasereeks van het canvas af,
+      // net als de andere sectietoggles; de gebruikerstoggle komt daar bovenop.
+      stage: showWorkflowfasen && adminSections.ontwikkelflow,
     }),
-    [showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen],
+    [showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen, adminSections.ontwikkelflow],
   )
   const filteredNodes = useMemo(() => {
     if (Object.values(canvasTypeFilters).every(Boolean)) return displayNodes
@@ -3474,14 +3772,32 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     return displayEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
   }, [displayEdges, filteredNodes, displayNodes])
 
+  // Laatst bekende sleeppositie per node: reactflow stuurt tijdens het slepen
+  // position-changes mét positie (dragging: true), maar de afsluitende change
+  // (dragging: false) komt zónder positie — de vroegere check op 'positie én
+  // dragging false' ging daardoor nooit af, en een versleepte node stond na
+  // herladen weer op zijn berekende plek.
+  const dragPositionsRef = useRef(new Map())
   function handleNodesChange(changes) {
     onNodesChange(changes)
-    const finished = changes.filter((c) => c.type === 'position' && c.position && c.dragging === false)
-    if (finished.length > 0) {
-      const nextLayout = { ...workflow.layout }
-      for (const c of finished) nextLayout[c.id] = c.position
-      patch({ layout: nextLayout })
+    const nextLayout = { ...workflow.layout }
+    let changed = false
+    for (const c of changes) {
+      if (c.type !== 'position') continue
+      if (c.dragging && c.position) {
+        dragPositionsRef.current.set(c.id, c.position)
+        continue
+      }
+      if (c.dragging === false) {
+        const position = c.position ?? dragPositionsRef.current.get(c.id)
+        dragPositionsRef.current.delete(c.id)
+        if (position) {
+          nextLayout[c.id] = position
+          changed = true
+        }
+      }
     }
+    if (changed) patch({ layout: nextLayout })
   }
 
   function addAnnotation(kind, extra = {}) {
@@ -3751,6 +4067,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     patch({ inputs: workflow.inputs.map((i) => (i.id === id ? { ...i, ...fields } : i)) })
   }
   function removeInput(id) {
+    unlinkCounterparts(teamId, 'input', id)
     patch({ inputs: workflow.inputs.filter((i) => i.id !== id) })
   }
 
@@ -3761,6 +4078,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     patch({ outputs: workflow.outputs.map((o) => (o.id === id ? { ...o, ...fields } : o)) })
   }
   function removeOutput(id) {
+    unlinkCounterparts(teamId, 'output', id)
     patch({ outputs: workflow.outputs.filter((o) => o.id !== id) })
   }
 
@@ -3804,6 +4122,10 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // een gebruiker-gestuurde actie, geen automatische herordening.
   function handleSmartOrder() {
     patch({ layout: {} })
+    // Ook de niet-bewaarde, alleen in de canvas-state onthouden sleepposities
+    // loslaten (useMergedLayout houdt die anders vast) — zonder dit deed de
+    // knop niets voor nodes die in deze sessie versleept waren.
+    setLayoutResetKey((k) => k + 1)
   }
 
   // Eén keer opgebouwd, tweemaal hergebruikt: dezelfde tab-knoppen staan nu
@@ -3861,7 +4183,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
           <div
             className={
               isFullscreen
-                ? 'fixed inset-0 top-0 left-0 z-[100] h-screen w-screen flex flex-col overflow-hidden bg-white p-4'
+                // z-[45]: boven de vaste topbar (z-40) en zijbalk (z-30), maar
+                // ónder de dialogen (z-50 en hoger: detailpaneel, formulieren,
+                // item-modals) — met een hogere laag openden die in volledig-
+                // schermmodus onzichtbaar achter dit vlak.
+                ? 'fixed inset-0 top-0 left-0 z-[45] h-screen w-screen flex flex-col overflow-hidden bg-white p-4'
                 : 'flex flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm'
             }
             // Vast berekend i.p.v. een losse vh-percentage op alleen het canvas:
@@ -4112,7 +4438,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                       className="h-8 w-48 rounded-md border border-slate-200 bg-white px-2.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
                     />
                   )}
-                  {splitApplicaties && workflow.applications.length > 4 && (
+                  {appFilterVisible && (
                     <input
                       value={appFilterQuery}
                       onChange={(e) => setAppFilterQuery(e.target.value)}
@@ -4138,7 +4464,9 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                         { key: 'showDependencies', label: t('teampage.viewFilterShowDependencies'), value: showDependencies, onChange: setShowDependencies },
                         { key: 'showApplicaties', label: t('teampage.viewFilterShowApplicaties'), value: showApplicaties, onChange: setShowApplicaties },
                         { key: 'showCapaciteit', label: t('teampage.viewFilterShowCapaciteit'), value: showCapaciteit, onChange: setShowCapaciteit },
-                        { key: 'showWorkflowfasen', label: t('teampage.viewFilterShowWorkflowfasen'), value: showWorkflowfasen, onChange: setShowWorkflowfasen },
+                        ...(adminSections.ontwikkelflow
+                          ? [{ key: 'showWorkflowfasen', label: t('teampage.viewFilterShowWorkflowfasen'), value: showWorkflowfasen, onChange: setShowWorkflowfasen }]
+                          : []),
                       ]}
                       flowtypeFilter={flowtypeFilter}
                       setFlowtypeFilter={setFlowtypeFilter}
@@ -4164,7 +4492,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             </div>
 
             {/* Canvas + focuspaneel als flex-rij (zelfde dockingpatroon als
-                TeamFilterPanel naast GraphView) — het paneel is een vaste-
+                TeamFilterPanel naast HeatmapView) — het paneel is een vaste-
                 breedte zijkolom die alleen verschijnt zodra canvasFocus
                 gezet is, i.p.v. een overlay bovenop het canvas. flex-1 laat
                 deze rij precies de ruimte vullen die de omsluitende kaart nog
@@ -4182,6 +4510,12 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     nodes={filteredNodes}
                     edges={filteredEdges}
                     nodeTypes={nodeTypes}
+                    edgeTypes={edgeTypes}
+                    // Geen onConnect op dit canvas: lijnen leg je via de
+                    // item-/applicatieformulieren, niet door te slepen — zonder
+                    // deze prop kon je een verbindingslijn trekken die bij
+                    // loslaten gewoon verdween.
+                    nodesConnectable={false}
                     onNodesChange={handleNodesChange}
                     onNodeClick={handleNodeClick}
                     onPaneClick={() => setCanvasFocus(null)}
@@ -4393,7 +4727,23 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 const isNew = !canvasIoTarget.item
                 // Nieuwe/gewijzigde koppeling naar een ander team wordt een
                 // verzoek aan dat team — zie withLinkStatus.
-                const draft = withLinkStatus(rawDraft, canvasIoTarget.item)
+                // De canvas-/lijstitems dragen presentatievelden (_pendingRequest,
+                // _ghostRequest) die nooit in het record thuishoren — anders bleef
+                // een verzoek na akkoord 'voor altijd' in beeld staan.
+                const { _pendingRequest: _pending, _ghostRequest: _ghost, ...cleanDraft } = rawDraft
+                const draft = withLinkStatus(cleanDraft, canvasIoTarget.item)
+                // Koppeling gewijzigd of losgelaten: ook de terugverwijzing bij het
+                // andere team opruimen, anders bleef de ketenlijn vanuit dat team
+                // staan (resolveChainEdges leest de input-kant).
+                const original = canvasIoTarget.item
+                if (
+                  original?.linkedTeam &&
+                  (original.linkedTeam !== draft.linkedTeam ||
+                    (original.linkedOutputId ?? '') !== (draft.linkedOutputId ?? '') ||
+                    (original.linkedInputId ?? '') !== (draft.linkedInputId ?? ''))
+                ) {
+                  unlinkCounterparts(teamId, canvasIoTarget.kind, original.id)
+                }
                 // Nieuw verzoek (of opnieuw ingediend na wijziging): als
                 // gebeurtenis in de wijzigingenlog voor de analyse.
                 if (draft.linkStatus === 'voorgesteld' && draft.linkVoorgesteldOp && draft.linkVoorgesteldOp !== (canvasIoTarget.item?.linkVoorgesteldOp ?? '')) {
@@ -4561,7 +4911,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 <p className="mb-1.5 mt-0.5 text-[11px] text-slate-400">{t('teampage.flowtypeUndeterminedHint')}</p>
                 <ul className="divide-y divide-slate-100">
                   {legacyFlowDeps.map((dep) => (
-                    <DependencyRow key={dep.id} dep={dep} showAppPicker={false} />
+                    <DependencyRow key={dep.id} dep={dep} showAppPicker={false} ctx={rowContext} />
                   ))}
                 </ul>
               </div>
@@ -4572,7 +4922,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 <h4 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
                   {t('teampage.flowtypeOntwikkelflow')} · {ontwikkelflowDeps.length}
                 </h4>
-                <StageGroupedDeps deps={ontwikkelflowDeps} showAppPicker />
+                <StageGroupedDeps deps={ontwikkelflowDeps} showAppPicker ctx={rowContext} />
               </div>
             )}
 
@@ -4592,7 +4942,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                     return (
                       <div key={app.id} className="mb-3 rounded-lg border border-slate-100 bg-slate-50/60 p-2.5">
                         <div className="mb-1.5 text-xs font-semibold text-slate-600">{app.naam || '—'}</div>
-                        <FlatDeps deps={appDeps} showAppPicker />
+                        <FlatDeps deps={appDeps} showAppPicker ctx={rowContext} />
                       </div>
                     )
                   })}
@@ -4602,7 +4952,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   return (
                     <div className="mb-3 rounded-lg border border-dashed border-slate-200 p-2.5">
                       <div className="mb-1.5 text-xs font-semibold text-slate-500">{t('teampage.appOverstijgend')}</div>
-                      <FlatDeps deps={unlabeled} showAppPicker />
+                      <FlatDeps deps={unlabeled} showAppPicker ctx={rowContext} />
                     </div>
                   )
                 })()}

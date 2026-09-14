@@ -2,8 +2,8 @@ import ReactFlow, { Background, Controls, MiniMap } from 'reactflow'
 import 'reactflow/dist/style.css'
 
 // Gedeelde 'Miro-achtige' canvasconfiguratie (pan/zoom/knoppen) voor elk
-// sleepbaar React Flow-overzicht in de app (netwerkweergave, teampagina,
-// ketenoverzicht). De aanroeper blijft eigenaar van de omringende div,
+// sleepbaar React Flow-overzicht in de app (ketenoverzicht, teampagina).
+// De aanroeper blijft eigenaar van de omringende div,
 // hoogte, tooltips en zij-panelen — dit component is puur de `<ReactFlow>`
 // zelf met de vaste navigatie-instellingen.
 export default function PannableFlowCanvas({
@@ -39,6 +39,13 @@ export default function PannableFlowCanvas({
   // de node-kaarten i.p.v. erachter — nodig om een lijn duidelijk te kunnen
   // volgen zodra hij onder meerdere kaarten door loopt (Focusmodus).
   elevateEdgesOnSelect = false,
+  // Uit te zetten voor canvassen zonder onConnect (teampagina): anders kan de
+  // gebruiker vanaf een handle een verbindingslijn trekken die nergens toe leidt.
+  nodesConnectable = true,
+  // Handmatig slepen uit te zetten voor een canvas met een volledig berekende
+  // lay-out (Ketenoverzicht: ELK bepaalt de posities, slepen zou daarmee
+  // vechten).
+  nodesDraggable = true,
   children,
 }) {
   return (
@@ -73,8 +80,8 @@ export default function PannableFlowCanvas({
       maxZoom={maxZoom}
       elevateEdgesOnSelect={elevateEdgesOnSelect}
       proOptions={{ hideAttribution: true }}
-      nodesConnectable
-      nodesDraggable
+      nodesConnectable={nodesConnectable}
+      nodesDraggable={nodesDraggable}
       elementsSelectable
       panOnDrag
       zoomOnScroll

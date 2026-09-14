@@ -22,6 +22,7 @@ export default function SegmentedField({
   onBlur,
   translate,
   language,
+  t,
   required = false,
   children,
 }) {
@@ -100,8 +101,8 @@ export default function SegmentedField({
                 <button
                   type="button"
                   onClick={() => setVoorbeeldIndex((prev) => ({ ...prev, [getoond]: index + 1 }))}
-                  title={`Ander voorbeeld (${index + 1} van ${voorbeelden.length})`}
-                  aria-label="Ander voorbeeld"
+                  title={t ? t('form.anderVoorbeeld', { n: index + 1, totaal: voorbeelden.length }) : `Ander voorbeeld (${index + 1} van ${voorbeelden.length})`}
+                  aria-label={t ? t('form.anderVoorbeeldLabel') : 'Ander voorbeeld'}
                   className="ml-1 rounded text-slate-300 hover:text-[#2a5f8a] focus:outline-none focus-visible:ring-1 focus-visible:ring-[#2a5f8a]"
                 >
                   ↻

@@ -78,7 +78,10 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
     .filter(Boolean)
 
   return (
-    <div className="fixed inset-0 z-40 flex justify-end bg-slate-900/30" onClick={onClose}>
+    // z-50 (zelfde laag als de formulieren; het formulier staat later in de
+    // DOM en wint dus): boven het volledig-schermvlak van de teampagina
+    // (z-[45]), waar dit paneel anders onzichtbaar achter opende.
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30" onClick={onClose}>
       <div
         ref={panelRef}
         role="dialog"
@@ -173,6 +176,9 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
                   {risk.breakdown.statusCorrection}
                 </span>
               </div>
+              {risk.breakdown.baseScore + risk.breakdown.statusCorrection < risk.score && (
+                <div className="text-slate-500">{t('detail.minScoreNote')}</div>
+              )}
               <div className="pt-1 font-medium text-slate-800">
                 {t('detail.finalScore', { score: risk.score, level: riskLevel })}
               </div>
