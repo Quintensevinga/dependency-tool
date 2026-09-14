@@ -5,6 +5,15 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-14
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
+- **Laatste organisatiesporen uit changelog, auditdocument en codecommentaar** (Quinten)
+
+  Na het neutraliseren van de voorbeelddata stonden de oude termen nog in
+  historische changelogregels, in een auditdocument (een id dat niet meer
+  bestaat) en in mijn eigen migratiecommentaar. Die verwijzen nu naar de rol in
+  de keten of naar een generiek <team>, zonder de oude vaktaal.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
 - **Organisatienaam en herleidbare domeintaal uit de repo halen** (Quinten)
 
   De organisatienaam stond nog in de ondertitel (nl en en) en in één
