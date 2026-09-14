@@ -2,7 +2,7 @@ export const STRINGS = {
   nl: {
     'app.title': 'Dependency Insight',
     'app.loading': 'Laden…',
-    'app.subtitle': 'UWV — interne tool',
+    'app.subtitle': 'Interne tool',
     'badge.privacy': 'Geen persoonsgegevens — alleen rollen en teamniveau-informatie',
 
     'scope.intern': 'Teamniveau',
@@ -557,7 +557,7 @@ export const STRINGS = {
     'teampage.ioNameInput': 'Wat komt er binnen?',
     'teampage.ioNameOutput': 'Wat levert het team op?',
     'teampage.ioNamePlaceholderInput': 'bijv. Klantvraag vanuit Team Klantcontact',
-    'teampage.ioNamePlaceholderOutput': 'bijv. Betaalopdracht polis',
+    'teampage.ioNamePlaceholderOutput': 'bijv. Betaalopdracht abonnement',
     'teampage.ioFlowtypeLabel': 'Hoort bij',
     'teampage.ioFlowtypeHint': 'Applicatieflow: werk of data dat via een applicatie loopt · Ontwikkelflow: het ontwikkel- en releaseproces',
     'teampage.ioSourceLabel': 'Van wie of wat komt dit?',
@@ -618,7 +618,7 @@ export const STRINGS = {
   en: {
     'app.title': 'Dependency Insight',
     'app.loading': 'Loading…',
-    'app.subtitle': 'UWV — internal tool',
+    'app.subtitle': 'Internal tool',
     'badge.privacy': 'No personal data — roles and team-level information only',
 
     'scope.intern': 'Team level',

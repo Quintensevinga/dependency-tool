@@ -2,6 +2,48 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-14
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Changelogregel over de opschoning zelf neutraal formuleren** (Quinten)
+
+  De changelog-workflow nam het vorige commitbericht letterlijk over, inclusief
+  de organisatienaam en de oude vaktaal die net verwijderd waren. De regel zegt
+  nu wat er is gebeurd zonder die termen te herhalen.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Laatste organisatiesporen uit changelog, auditdocument en codecommentaar** (Quinten)
+
+  Na het neutraliseren van de voorbeelddata stonden de oude termen nog in
+  historische changelogregels, in een auditdocument (een id dat niet meer
+  bestaat) en in mijn eigen migratiecommentaar. Die verwijzen nu naar de rol in
+  de keten of naar een generiek <team>, zonder de oude vaktaal.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
+- **Organisatienaam en herleidbare domeintaal uit de repo halen** (Quinten)
+
+  De organisatienaam stond nog in de ondertitel (nl en en) en in één
+  changelogregel; die zijn weg. Daarnaast maakte de vaktaal in de
+  voorbeelddata de organisatie alsnog herkenbaar. Die is geneutraliseerd naar
+  een generieke dienstverlener met dezelfde ketenvorm (intake, administratie,
+  beoordeling, betaling, rapportage):
+
+  - de oude domeintermen zijn vervangen door abonnement, vergoeding, tarief,
+    besluit en dossierregistratie
+  - de externe overheidsdiensten zijn vervangen door neutrale ketenpartijen:
+    Externe inlogdienst, Centraal klantregister, Externe dataleverancier en
+    generieke inhoudingsregels
+  - 19 ids veranderden mee (waaronder dat van Team Wakanda); één op één,
+    geen wezen-referenties
+  - MOCK_DATA_VERSION naar 3, zodat bezoekers met onaangeraakte demodata de
+    nieuwe set krijgen in plaats van de oude te houden
+
+  Geverifieerd met verse mockdata in de browser: 225 dependencies, 23 partijen,
+  geen kapotte verwijzingen, geen van de oude termen meer in de state, en
+  heatmap, ketenoverzicht, teampagina en analyse renderen zonder fouten.
+
 ## 2026-09-11
 - **Merge remote-tracking branch 'origin/main' into claude/ketenoverzicht-visualization-d3ce04** (Quinten)
 
@@ -115,7 +157,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
   Geverifieerd in de browser: /ketenoverzicht zonder keuze → 8 tegels; tegel
   → /ketenoverzicht/team-…; terug → tegels; vooruit → canvas; direct openen
-  van /ketenoverzicht/team-polis; geen risicogroep; 'alleen' → 1 van 23 en één
+  van /ketenoverzicht/<team>; geen risicogroep; 'alleen' → 1 van 23 en één
   partijkaartje, Alles herstelt; canvasmenu met 25 vinkjes, sluit op Escape;
   legenda 12 regels.
 
@@ -537,11 +579,10 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 - **Teamnamen in mockdata omgezet naar Marvel-thema** (Quinten)
 
   Elke naam gekozen op basis van de functie van het team in de keten
-  (bv. Polis → Wakanda voor het kennisrisico-zwaartepunt, Smurfen →
-  S.H.I.E.L.D. voor de IAM/toegangshub). Team-id's en interne
+  (bv. het kennisrisico-zwaartepunt naar Wakanda, de IAM/toegangshub
+  naar S.H.I.E.L.D.). Team-id's en interne
   referenties (T.*, DEPS_*) blijven ongewijzigd; alleen weergavenamen
-  en prozateksten zijn aangepast. "Polis" als generieke verzekerings-
-  term (polisadministratie, polisstatus, ...) blijft intact.
+  en prozateksten zijn aangepast.
 
 - **Voorbeelddata verversen bij inhoudelijke wijziging voor bestaande bezoekers** (Quinten)
 
@@ -605,7 +646,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 - **Rijke demodataset: 8 teams in één keten, 198 dependencies, partijregister, log** (Quinten)
 
-  Volledig herschreven mockData.js: Tiem → Polis → Superheroes (nieuw team,
+  Volledig herschreven mockData.js: acht teams in één keten (nieuw team,
   aanvraag- en claimbeoordeling) → Casio ↔ Sterke verhalen, met Equinox,
   Smurfen en Freggels als bronnen. Bewust: één cyclus/wederzijds paar aan het
   eind, fan-out van één output naar drie teams, meerdere koppelingen op één
@@ -680,7 +721,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 - **Focusmodus: koppeling zelf-column loste dwars-door-kaart-bug op, badge weg** (Lars Hoogland)
 
   Een koppeling tussen twee teams in dezelfde kolom (boven/onder elkaar
-  gestapeld, bv. Team Tiem -> Team Polis) gebruikte dezelfde onderlangse
+  gestapeld, van het ene naar het volgende team) gebruikte dezelfde onderlangse
   boog als een echte terugkoppeling. Omdat de doelkaart in dat geval vaak
   zelf de laagste kaart van de hele tekening is, liep de lijn bij het weer
   omhoog komen dwars door die kaart heen (tot 90% van de lijnlengte
@@ -1307,7 +1348,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 - **Remove the teampagina header row, compact back/team-chip, help menu, and fullscreen mode** (Quinten)
 
-  Drops the standalone "← Terug naar overzicht / Team Polis / Rondleiding" row
+  Drops the standalone "← Terug naar overzicht / <team> / Rondleiding" row
   above the workflow card — it cost real vertical space for little payoff now
   that the active team is already visible in the sidebar. The workflow card
   now starts right at the top of the page.
@@ -1613,7 +1654,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
   as if it belonged to no phase at all — while the list directly below it grouped
   that same dependency correctly, so one page contradicted itself. Route on the
   workflow step instead; the phase-less band now holds only genuinely phase-less
-  items. On the demo data this moves 4 of Team Polis' 13 dependencies back under
+  items. On the demo data this moves 4 of one team's 13 dependencies back under
   their own phase.
 
   Deleting an application left every reference to it dangling. The dependency kept
@@ -1988,7 +2029,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
   used, and the team/risk/etc. filter panel becomes collapsible so it
   doesn't dominate the page.
 
-- **Restyle UI to UWV blue/slate visual identity** (Quinten)
+- **Restyle UI to blue/slate visual identity** (Quinten)
 
   Rebrands colors app-wide (stone/warm-green -> slate/blue), decouples
   destructive-action styling from risk colors, and reworks Header into a
