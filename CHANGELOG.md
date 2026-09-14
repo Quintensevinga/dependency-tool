@@ -115,7 +115,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
   Geverifieerd in de browser: /ketenoverzicht zonder keuze → 8 tegels; tegel
   → /ketenoverzicht/team-…; terug → tegels; vooruit → canvas; direct openen
-  van /ketenoverzicht/team-polis; geen risicogroep; 'alleen' → 1 van 23 en één
+  van /ketenoverzicht/<team>; geen risicogroep; 'alleen' → 1 van 23 en één
   partijkaartje, Alles herstelt; canvasmenu met 25 vinkjes, sluit op Escape;
   legenda 12 regels.
 
@@ -537,11 +537,10 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 - **Teamnamen in mockdata omgezet naar Marvel-thema** (Quinten)
 
   Elke naam gekozen op basis van de functie van het team in de keten
-  (bv. Polis → Wakanda voor het kennisrisico-zwaartepunt, Smurfen →
-  S.H.I.E.L.D. voor de IAM/toegangshub). Team-id's en interne
+  (bv. het kennisrisico-zwaartepunt naar Wakanda, de IAM/toegangshub
+  naar S.H.I.E.L.D.). Team-id's en interne
   referenties (T.*, DEPS_*) blijven ongewijzigd; alleen weergavenamen
-  en prozateksten zijn aangepast. "Polis" als generieke verzekerings-
-  term (polisadministratie, polisstatus, ...) blijft intact.
+  en prozateksten zijn aangepast.
 
 - **Voorbeelddata verversen bij inhoudelijke wijziging voor bestaande bezoekers** (Quinten)
 
@@ -605,7 +604,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 - **Rijke demodataset: 8 teams in één keten, 198 dependencies, partijregister, log** (Quinten)
 
-  Volledig herschreven mockData.js: Tiem → Polis → Superheroes (nieuw team,
+  Volledig herschreven mockData.js: acht teams in één keten (nieuw team,
   aanvraag- en claimbeoordeling) → Casio ↔ Sterke verhalen, met Equinox,
   Smurfen en Freggels als bronnen. Bewust: één cyclus/wederzijds paar aan het
   eind, fan-out van één output naar drie teams, meerdere koppelingen op één
@@ -680,7 +679,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 - **Focusmodus: koppeling zelf-column loste dwars-door-kaart-bug op, badge weg** (Lars Hoogland)
 
   Een koppeling tussen twee teams in dezelfde kolom (boven/onder elkaar
-  gestapeld, bv. Team Tiem -> Team Polis) gebruikte dezelfde onderlangse
+  gestapeld, van het ene naar het volgende team) gebruikte dezelfde onderlangse
   boog als een echte terugkoppeling. Omdat de doelkaart in dat geval vaak
   zelf de laagste kaart van de hele tekening is, liep de lijn bij het weer
   omhoog komen dwars door die kaart heen (tot 90% van de lijnlengte
@@ -1307,7 +1306,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 - **Remove the teampagina header row, compact back/team-chip, help menu, and fullscreen mode** (Quinten)
 
-  Drops the standalone "← Terug naar overzicht / Team Polis / Rondleiding" row
+  Drops the standalone "← Terug naar overzicht / <team> / Rondleiding" row
   above the workflow card — it cost real vertical space for little payoff now
   that the active team is already visible in the sidebar. The workflow card
   now starts right at the top of the page.
@@ -1613,7 +1612,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
   as if it belonged to no phase at all — while the list directly below it grouped
   that same dependency correctly, so one page contradicted itself. Route on the
   workflow step instead; the phase-less band now holds only genuinely phase-less
-  items. On the demo data this moves 4 of Team Polis' 13 dependencies back under
+  items. On the demo data this moves 4 of one team's 13 dependencies back under
   their own phase.
 
   Deleting an application left every reference to it dangling. The dependency kept
