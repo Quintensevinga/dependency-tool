@@ -25,6 +25,28 @@ Open daarna de URL die in de terminal verschijnt (meestal `http://localhost:5173
 - De app start met fictieve demo-data (8 teams in één keten, ruim 190 dependencies, een register van externe partijen en een gevulde wijzigingenlog). Via "Instellingen & privacy" onderaan de zijbalk kun je alle data wissen en desgewenst teruggaan naar de demo-data.
 - Het datamodel bevat bewust geen namen van personen, alleen rol-aanduidingen.
 
+## Versies: hoe iedereen de nieuwste versie krijgt
+
+Er zijn twee dingen die "oud" kunnen blijven, en ze worden apart opgelost:
+
+- **De code.** `index.html` en `version.json` worden met `no-cache, must-revalidate`
+  geserveerd (zie `vercel.json`), de gehashte bestanden onder `/assets` juist onbeperkt.
+  Een herlaadbeurt levert dus altijd de nieuwste app op. Een tab die dágenlang openstaat
+  herlaadt alleen nooit uit zichzelf: daarom vergelijkt de app periodiek (en bij het
+  terugkeren naar de tab) `/version.json` met de versie waarop hij draait, en toont hij
+  een balk "Er staat een nieuwere versie klaar · Herladen". De draaiende versie staat ook
+  in Instellingen & privacy, zodat je kunt vergelijken wie wat ziet.
+- **De data.** Die staat in localStorage en blijft dus per apparaat staan. Meegeleverde
+  voorbeelddata ververst automatisch: bij het bouwen wordt een hash van `src/data/mockData.js`
+  ingebakken, en wie nog nooit zelf iets wijzigde (`usingMockData: true`) krijgt bij een
+  afwijkende hash de nieuwe demodata. Wie wél eigen data heeft ingevoerd houdt die — die
+  wordt nooit automatisch overschreven.
+
+Zit iemand toch vast (eigen data, of een rommelige lokale staat), dan wist
+`https://dependency-tool.vercel.app/?reset=1` alles wat de app lokaal bewaart en start de
+app opnieuw met verse voorbeelddata. Dat is een harde reset: eigen data is daarna weg,
+dus exporteer eerst de JSON als die nog nodig is.
+
 ## Admin-afscherming (geen echte beveiliging)
 
 Het Admin-gedeelte in Instellingen zit achter een wachtwoord (`VITE_ADMIN_PASSWORD`, zie

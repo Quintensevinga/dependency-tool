@@ -18,19 +18,17 @@ export const STORAGE_KEY = 'dependency-insight:v1'
 export const SCHEMA_VERSION = 6
 
 // Los van SCHEMA_VERSION: die volgt de datastructuur, dit volgt de inhoud
-// van de meegeleverde voorbeelddata (data/mockData.js). Ophogen bij een
-// inhoudelijke wijziging (nieuwe teams/namen, extra historie, ...) zorgt dat
-// iemand die de site al opende maar nog nooit eigen data invoerde
-// (usingMockData: true) bij het volgende bezoek automatisch de nieuwe
-// voorbeelddata krijgt i.p.v. vast te blijven zitten op wat ooit geseed is.
-// Raakt echte gebruikersdata (usingMockData: false) nooit — zie loadState().
-// Belangrijk: dit werkt alleen als een volgende inhoudelijke wijziging aan
-// mockData.js dit getal ook echt ophoogt bij het mergen — anders detecteert
-// dit mechanisme niets en blijven bestaande usingMockData-bezoekers alsnog
-// op oude inhoud.
-// 1: 8-teams demodataset met wijzigingshistorie (historie) en analysepagina.
-// 2: teamnamen omgedoopt naar het Marvel-thema (ids ongewijzigd).
-export const MOCK_DATA_VERSION = 2
+// van de meegeleverde voorbeelddata (data/mockData.js). Het is een hash van
+// dat bestand, bij het bouwen berekend (zie vite.config.js) — dus geen
+// getal dat iemand handmatig moet ophogen: elke inhoudelijke wijziging aan
+// de demodata levert vanzelf een andere handtekening op. Iemand die de site
+// al opende maar nog nooit eigen data invoerde (usingMockData: true) krijgt
+// daardoor bij het volgende bezoek automatisch de nieuwe voorbeelddata
+// i.p.v. vast te blijven zitten op wat ooit geseed is. Raakt echte
+// gebruikersdata (usingMockData: false) nooit — zie loadState().
+// Het typeof-vangnet houdt dit bestand bruikbaar buiten een Vite-build
+// (node-scripts), waar de define niet bestaat.
+export const MOCK_DATA_SIGNATURE = typeof __MOCK_DATA_SIGNATURE__ === 'string' ? __MOCK_DATA_SIGNATURE__ : 'dev'
 
 export const MAX_SNAPSHOTS_PER_TEAM = 10
 
@@ -621,11 +619,13 @@ export function loadState() {
     const parsed = JSON.parse(rawText)
     const migrated = migrateState(parsed)
     // Onaangeraakte voorbeelddata verversen naar de nieuwste inhoud i.p.v.
-    // vast te blijven zitten op wat ooit geseed is — zie MOCK_DATA_VERSION.
-    // Zodra iemand zelf iets wijzigt zet AppContext usingMockData blijvend
-    // op false, dus dit raakt nooit eigen ingevoerde data.
-    const savedMockVersion = typeof parsed.mockDataVersion === 'number' ? parsed.mockDataVersion : 0
-    if (migrated.usingMockData && savedMockVersion < MOCK_DATA_VERSION) {
+    // vast te blijven zitten op wat ooit geseed is — zie
+    // MOCK_DATA_SIGNATURE. Zodra iemand zelf iets wijzigt zet AppContext
+    // usingMockData blijvend op false, dus dit raakt nooit eigen ingevoerde
+    // data. Een record van vóór deze handtekening (nog met het oude
+    // mockDataVersion-getal, of zonder allebei) heeft geen geldige
+    // handtekening en wordt dus één keer ververst.
+    if (migrated.usingMockData && parsed.mockDataSignature !== MOCK_DATA_SIGNATURE) {
       const refreshed = mockState()
       saveState(refreshed)
       return { state: refreshed, corrupted: false }
@@ -661,7 +661,7 @@ export function saveState(state) {
   try {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION, mockDataVersion: MOCK_DATA_VERSION }),
+      JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION, mockDataSignature: MOCK_DATA_SIGNATURE }),
     )
     return true
   } catch (err) {

@@ -200,6 +200,8 @@ export const STRINGS = {
     'settings.dangerZoneTitle': 'Gevaarlijke acties',
     'settings.clearTeamPickerLabel': 'Kies een team',
     'settings.clearTeamNoTeams': 'Geen actieve teams beschikbaar.',
+    'settings.version': 'Versie {{versie}} · gebouwd {{datum}}',
+    'settings.versionLatest': 'Herladen haalt altijd de nieuwste code op. Een link met ?reset=1 erachter wist daarnaast de lokaal bewaarde data en start met verse voorbeelddata.',
     'settings.reset': 'Wis alle data',
     'settings.resetConfirm': 'Weet je zeker dat je alle data wilt wissen? Dit kan niet ongedaan worden gemaakt.',
     'settings.resetConfirmButton': 'Bevestig wissen',
@@ -214,6 +216,10 @@ export const STRINGS = {
     'errorBoundary.message': 'Er ging iets onverwacht mis bij het weergeven van deze pagina. Je data staat nog gewoon lokaal opgeslagen.',
     'errorBoundary.retry': 'Opnieuw proberen',
     'errorBoundary.exportAndReset': 'Data exporteren en opnieuw beginnen',
+
+    'update.message': 'Er staat een nieuwere versie van deze tool klaar.',
+    'update.reload': 'Herladen',
+    'update.dismiss': 'Later',
 
     'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data of verwijder oude momentopnamen.',
     'saveError.dismiss': 'Sluiten',
@@ -810,6 +816,8 @@ export const STRINGS = {
     'settings.dangerZoneTitle': 'Dangerous actions',
     'settings.clearTeamPickerLabel': 'Choose a team',
     'settings.clearTeamNoTeams': 'No active teams available.',
+    'settings.version': 'Version {{versie}} · built {{datum}}',
+    'settings.versionLatest': 'Reloading always fetches the newest code. A link with ?reset=1 appended also clears the locally stored data and starts from fresh sample data.',
     'settings.reset': 'Clear all data',
     'settings.resetConfirm': 'Are you sure you want to clear all data? This cannot be undone.',
     'settings.resetConfirmButton': 'Confirm clear',
@@ -824,6 +832,10 @@ export const STRINGS = {
     'errorBoundary.message': 'Something unexpected went wrong while displaying this page. Your data is still stored locally.',
     'errorBoundary.retry': 'Try again',
     'errorBoundary.exportAndReset': 'Export data and start over',
+
+    'update.message': 'A newer version of this tool is available.',
+    'update.reload': 'Reload',
+    'update.dismiss': 'Later',
 
     'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data or delete old snapshots.',
     'saveError.dismiss': 'Close',

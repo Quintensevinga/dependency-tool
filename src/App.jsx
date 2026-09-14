@@ -21,6 +21,7 @@ import { exportElementAsPng } from './lib/export'
 import { getCorruptRawData, clearCorruptRawData } from './lib/storage'
 import { buildDuplicatePrefill } from './lib/duplicateDependency'
 import { pathForNav, navFromPath, sanitizeChainView, DEFAULT_CHAIN_VIEW } from './lib/routes'
+import { useNieuwereVersieBeschikbaar } from './lib/appVersion'
 
 // Bewust géén silent no-op als een pagina via Admin uitgezet is (bv. een
 // verweesde teampagina-navigatie of een handmatige URL/state-restore): een
@@ -104,6 +105,13 @@ function AppContent() {
     const fromUrl = navFromPath(window.location.pathname)
     return sanitizeChainView(fromUrl?.chainView ?? loadNavState().chainView ?? DEFAULT_CHAIN_VIEW, teams)
   })
+  // Een tab die dagenlang openstaat draait nog op de code van het moment
+  // dat hij geopend werd; deze melding maakt dat zichtbaar i.p.v. het aan
+  // toeval (een hard refresh) over te laten. Wegklikken geldt voor deze
+  // sessie — bij de volgende laadbeurt draait de app op de nieuwe versie en
+  // is er niets meer te melden.
+  const nieuwereVersie = useNieuwereVersieBeschikbaar()
+  const [updateWeggeklikt, setUpdateWeggeklikt] = useState(false)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
@@ -249,11 +257,13 @@ function AppContent() {
           bij teampagina-navigatie het team te onthouden). */}
       <Header onNewDependency={() => setFormState({ editing: null })} />
 
-      {/* Boven de sidebar (z-30 tegenover Header/Sidebar's eigen z-lagen),
-          onder de 57px-hoge header — zichtbaar ongeacht welke pagina open
-          staat, want beide gaan over de opslag zelf, niet over één scherm. */}
+      {/* Onder de 57px-hoge header, maar bóven de sidebar — zichtbaar
+          ongeacht welke pagina open staat, want deze meldingen gaan over de
+          opslag/versie zelf, niet over één scherm. z-40 i.p.v. z-30: de
+          sidebar is óók z-30 en staat later in de DOM, waardoor hij het
+          begin van de melding afdekte. */}
       {corruptedOnLoad && (
-        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('corrupted.message')}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -273,8 +283,29 @@ function AppContent() {
           </span>
         </div>
       )}
+      {!corruptedOnLoad && !saveError && nieuwereVersie && !updateWeggeklikt && (
+        <div className="fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
+          <span>{t('update.message')}</span>
+          <span className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+            >
+              {t('update.reload')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setUpdateWeggeklikt(true)}
+              className="rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+            >
+              {t('update.dismiss')}
+            </button>
+          </span>
+        </div>
+      )}
       {!corruptedOnLoad && saveError && (
-        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('saveError.message')}</span>
           <button
             type="button"

@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
+import { APP_VERSION, BUILD_TIME } from '../lib/appVersion'
 import { useLanguage } from '../context/LanguageContext'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
 import { emptyTeamWorkflow } from '../lib/storage'
@@ -7,6 +8,17 @@ import { useModalA11y } from '../lib/a11y'
 import { BRON_TYPES } from '../data/constants'
 import { translateBronType } from '../i18n/labels'
 import AdminLogPage from './AdminLogPage'
+
+// Het buildmoment is nuttiger als datum + tijd dan als kale ISO-tekst: er
+// gaan er op een drukke dag meerdere versies live. Een leeg of onparseerbaar
+// buildmoment (buiten een Vite-build) levert een streepje, geen 'Invalid
+// Date'.
+function formatBuildTime(iso, language) {
+  if (!iso) return '—'
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString(language === 'en' ? 'en-GB' : 'nl-NL', { dateStyle: 'short', timeStyle: 'short' })
+}
 
 // Nog altijd geen echte beveiliging (client-side, dus zichtbaar in de
 // gepubliceerde bundel voor wie er echt naar zoekt) — maar zo staat de waarde
@@ -547,6 +559,15 @@ export default function SettingsPanel({ onClose, onExportPng }) {
 
       <div className="max-h-[70vh] space-y-4 overflow-y-auto px-4 py-3.5">
         <p className="text-xs leading-relaxed text-slate-500">{t('settings.localData')}</p>
+
+        {/* Welke versie draait hier eigenlijk? Zonder dit is "heb jij de
+            nieuwste?" onbeantwoordbaar — en juist dat is de vraag zodra
+            twee mensen iets anders op hun scherm zien. */}
+        <p className="text-xs leading-relaxed text-slate-400">
+          {t('settings.version', { versie: APP_VERSION, datum: formatBuildTime(BUILD_TIME, language) })}
+          <br />
+          {t('settings.versionLatest')}
+        </p>
 
         <div className="rounded-md border border-slate-200 px-3 py-2.5">
           <div className="text-xs font-medium text-slate-600">
