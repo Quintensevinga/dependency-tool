@@ -7,19 +7,19 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 - **Organisatienaam en herleidbare domeintaal uit de repo halen** (Quinten)
 
-  De naam UWV stond nog in de ondertitel (nl en en) en in één changelogregel;
-  die zijn weg. Daarnaast maakte de vaktaal in de voorbeelddata de organisatie
-  alsnog herkenbaar. Die is geneutraliseerd naar een generieke dienstverlener
-  met dezelfde ketenvorm (intake, administratie, beoordeling, betaling,
-  rapportage):
+  De organisatienaam stond nog in de ondertitel (nl en en) en in één
+  changelogregel; die zijn weg. Daarnaast maakte de vaktaal in de
+  voorbeelddata de organisatie alsnog herkenbaar. Die is geneutraliseerd naar
+  een generieke dienstverlener met dezelfde ketenvorm (intake, administratie,
+  beoordeling, betaling, rapportage):
 
-  - polis -> abonnement, uitkering -> vergoeding, premie -> tarief,
-    beschikking -> besluit, zaakregistratie -> dossierregistratie
-  - overheidspartijen vervangen door neutrale ketenpartijen: DigiD ->
-    Externe inlogdienst, BRP -> Centraal klantregister, Belastingdienst ->
-    Externe dataleverancier, beslagvrije voet -> inhoudingsregels
-  - 19 ids veranderden mee (waaronder team-polis -> team-abonnement,
-    party-digid -> party-inlog); één op één, geen wezen-referenties
+  - de oude domeintermen zijn vervangen door abonnement, vergoeding, tarief,
+    besluit en dossierregistratie
+  - de externe overheidsdiensten zijn vervangen door neutrale ketenpartijen:
+    Externe inlogdienst, Centraal klantregister, Externe dataleverancier en
+    generieke inhoudingsregels
+  - 19 ids veranderden mee (waaronder dat van Team Wakanda); één op één,
+    geen wezen-referenties
   - MOCK_DATA_VERSION naar 3, zodat bezoekers met onaangeraakte demodata de
     nieuwe set krijgen in plaats van de oude te houden
 
