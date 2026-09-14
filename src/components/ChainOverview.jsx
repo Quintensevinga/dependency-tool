@@ -494,7 +494,7 @@ function computeFocusChainLayout(
   // (voor een ketenoverzicht het belangrijkste om te tonen — een item kan
   // zowel via een eigen applicatie lopen als uiteindelijk van een externe
   // partij komen, bv. klantgegevens via het eigen klantportaal maar
-  // oorspronkelijk uit de BRP; de externe herkomst weegt dan zwaarder dan
+  // oorspronkelijk uit een extern klantregister; de externe herkomst weegt
   // welke eigen app het ophaalt), dan de eigen applicatie, dan het generieke
   // bron_type (rol, persoon, stakeholder, omgeving). Zo toont elk item altijd
   // waar het vandaan komt of naartoe gaat, niet alleen de items die toevallig

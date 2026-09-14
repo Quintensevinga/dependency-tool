@@ -30,7 +30,10 @@ export const SCHEMA_VERSION = 6
 // op oude inhoud.
 // 1: 8-teams demodataset met wijzigingshistorie (historie) en analysepagina.
 // 2: teamnamen omgedoopt naar het Marvel-thema (ids ongewijzigd).
-export const MOCK_DATA_VERSION = 2
+// 3: domeintaal geneutraliseerd (abonnement/vergoeding/tarief/besluit i.p.v.
+//    polis/uitkering/premie/beschikking, generieke externe partijen); 19 ids
+//    veranderden mee, waaronder team-polis -> team-abonnement.
+export const MOCK_DATA_VERSION = 3
 
 export const MAX_SNAPSHOTS_PER_TEAM = 10
 

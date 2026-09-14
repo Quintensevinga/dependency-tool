@@ -1457,7 +1457,7 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
   used, and the team/risk/etc. filter panel becomes collapsible so it
   doesn't dominate the page.
 
-- **Restyle UI to UWV blue/slate visual identity** (Quinten)
+- **Restyle UI to blue/slate visual identity** (Quinten)
 
   Rebrands colors app-wide (stone/warm-green -> slate/blue), decouples
   destructive-action styling from risk colors, and reworks Header into a
