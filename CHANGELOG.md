@@ -5,6 +5,14 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-14
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
+- **Changelogregel over de opschoning zelf neutraal formuleren** (Quinten)
+
+  De changelog-workflow nam het vorige commitbericht letterlijk over, inclusief
+  de organisatienaam en de oude vaktaal die net verwijderd waren. De regel zegt
+  nu wat er is gebeurd zonder die termen te herhalen.
+
+- **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
+
 - **Laatste organisatiesporen uit changelog, auditdocument en codecommentaar** (Quinten)
 
   Na het neutraliseren van de voorbeelddata stonden de oude termen nog in
