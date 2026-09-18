@@ -390,7 +390,7 @@ export default function Sidebar({
             }
           : undefined
       }
-      className={`fixed bottom-0 left-0 top-[57px] z-30 hidden flex-col gap-1 overflow-y-auto bg-[#16324a] py-3 transition-[width] md:flex ${
+      className={`no-print fixed bottom-0 left-0 top-[57px] z-30 hidden flex-col gap-1 overflow-y-auto bg-[#16324a] py-3 transition-[width] md:flex ${
         collapsed ? 'w-14 items-center px-2' : 'w-56 px-2.5'
       } ${isAuto ? 'shadow-2xl shadow-black/30' : ''}`}
       aria-label={t('nav.views')}

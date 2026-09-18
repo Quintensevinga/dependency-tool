@@ -83,3 +83,71 @@ html, body {
 .teamcanvas-flow .react-flow__node {
   transition: transform 0.05s;
 }
+
+/* Printen. Zonder dit blok levert Ctrl+P altijd precies één pagina op, hoe
+   lang de inhoud ook is: de app-schil staat op h-screen met overflow-hidden
+   en alleen <main> scrolt, dus alles buiten de schermrand valt gewoon weg.
+   Daarnaast nemen de vaste koptekst, zijbalk en meldingsbalken op die ene
+   pagina ook nog ruimte in. */
+@media print {
+  /* 1. De hoogtebeperkingen opheffen zodat de inhoud over pagina's doorloopt.
+        html/body/#root staan op height 100% resp. min-height 100vh. */
+  html,
+  body,
+  #root {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  /* 2. De schil en het scrollende middengedeelte idem. De padding-top van 73px
+        compenseert de vaste koptekst, die hieronder verdwijnt — zonder dit
+        staat er op elke pagina een lege strook bovenaan. */
+  .app-shell,
+  .app-main {
+    height: auto;
+    max-height: none;
+    overflow: visible;
+    padding-top: 0;
+    padding-left: 0;
+  }
+
+  /* 3. Alles wat op het scherm vastgezet staat: koptekst, zijbalk en de
+        meldingsbalken. Die zouden anders op elke pagina meekomen of over de
+        inhoud heen vallen. */
+  .no-print {
+    display: none !important;
+  }
+
+  /* 4. Achtergrondkleuren meeprinten. Geen cosmetiek: de risicoweergave leunt
+        volledig op een warme, ordinale kleurenreeks — zonder achtergrondkleur
+        blijft er een tabel met witte vakjes over die niets meer zegt. */
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 5. Niet middenin een record afbreken. */
+  tr,
+  .rounded-xl,
+  .rounded-lg,
+  .rounded-md {
+    break-inside: avoid;
+  }
+
+  /* 6. Canvasschermen (ketenoverzicht, teamcanvas) tekenen in een eigen
+        viewport en komen op papier hoe dan ook afgekapt; die worden vervangen
+        door de .print-only-regel hieronder, die naar de PNG-export verwijst. */
+  .react-flow {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+}
+
+/* Alleen zichtbaar in het printvoorbeeld, nooit op het scherm. */
+.print-only {
+  display: none;
+}

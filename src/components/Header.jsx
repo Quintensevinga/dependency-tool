@@ -34,7 +34,7 @@ export default function Header({ onNewDependency }) {
   const canCreate = activeTeams.length > 0
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-slate-900/10 bg-[#101a2b]">
+    <header className="no-print fixed inset-x-0 top-0 z-40 border-b border-slate-900/10 bg-[#101a2b]">
       <div className="flex items-center justify-between gap-5 px-6 py-2.5">
         <div className="flex items-center gap-5">
           <div className="flex min-w-0 flex-col leading-tight">

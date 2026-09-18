@@ -261,7 +261,7 @@ function AppContent() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#f3f6f9]">
+    <div className="app-shell h-screen overflow-hidden bg-[#f3f6f9]">
       {/* Geen voorgeselecteerd team meer vanaf de globale knop — de gebruiker
           kiest expliciet in het formulier zelf i.p.v. een stil geraden
           standaardteam (zie currentTeamId hierboven, nog wel gebruikt om
@@ -272,7 +272,7 @@ function AppContent() {
           onder de 57px-hoge header — zichtbaar ongeacht welke pagina open
           staat, want beide gaan over de opslag zelf, niet over één scherm. */}
       {corruptedOnLoad && (
-        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('corrupted.message')}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -297,7 +297,7 @@ function AppContent() {
           overschrijft — alleen een download van de bewaarde kopie, zodat de
           gebruiker 'm mee kan nemen naar een bijgewerkte app. */}
       {futureVersionOnLoad && (
-        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('futureVersion.message', { version: futureVersionOnLoad, current: SCHEMA_VERSION })}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -322,7 +322,7 @@ function AppContent() {
           andere, minder alarmerende toon en geen downloadknop — er valt niets
           te redden aan een null of een losse tekst. */}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad > 0 && (
-        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('skipped.message', { count: skippedOnLoad })}</span>
           <button
             type="button"
@@ -334,7 +334,7 @@ function AppContent() {
         </div>
       )}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && saveError && (
-        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('saveError.message')}</span>
           <button
             type="button"
@@ -366,10 +366,17 @@ function AppContent() {
           (netwerk/keten/teampagina) mogen de volledige beschikbare breedte
           benutten — daar was juist de klacht dat ze te smal/gecentreerd stonden. */}
       <main
-        className={`mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${
+        className={`app-main mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${
           sidebarMode === 'open' ? 'md:pl-60' : sidebarMode === 'icons' ? 'md:pl-16' : 'md:pl-8'
         } ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
       >
+        {/* Ketenoverzicht en teamcanvas tekenen in een eigen viewport en komen
+            op papier hoe dan ook afgekapt. Bij printen worden ze verborgen
+            (zie het @media print-blok in index.css) en vervangen door deze
+            regel; op het scherm is hij onzichtbaar. */}
+        {(activeTab === 'chain' || teamPageTeamId) && (
+          <p className="print-only rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700">{t('print.canvasHint')}</p>
+        )}
         <Suspense fallback={<div className="py-10 text-center text-sm text-slate-400">{t('app.loading')}</div>}>
         {teamPageTeamId ? (
           adminSettings.pages.team ? (
