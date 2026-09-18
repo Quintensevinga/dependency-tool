@@ -599,13 +599,20 @@ export function hygiene({ open, alle, teamWorkflows, externalParties, teams, uit
       ? [
           { key: 'profiel', records: open.filter((d) => !d.wachttijd || !d.deadline || !d.oplosbaarheid) },
           { key: 'deadlineTekst', records: open.filter((d) => DEADLINE_TEKST_VERPLICHT.includes(d.deadline) && !d.deadlineTekst?.trim()) },
+          // 'Effect op flow' is DUBBEL afgeschermd in het formulier: het
+          // verschijnt alleen bij de uitgebreide analyse én alleen als er een
+          // wachttijd is die niet 'geen' is. Een dependency zonder wachttijd
+          // kan dat veld dus per definitie niet hebben, en werd hier toch als
+          // onvolledig geteld — teams kregen een verwijt over een veld dat ze
+          // nooit te zien kregen. Beide voorwaarden zijn nodig: alleen op de
+          // uitgebreide analyse filteren lost het maar half op.
+          { key: 'effectLeeg', records: open.filter((d) => d.wachttijd && d.wachttijd !== 'geen' && !d.effectOpFlow) },
         ]
       : []),
     { key: 'categorieScope', records: open.filter((d) => (d.scope === 'intern' && !intern.has(d.categorie)) || (d.scope === 'extern' && !extern.has(d.categorie))) },
     { key: 'externZonderPartij', records: open.filter((d) => d.scope === 'extern' && !d.geraaktPartijId && !d.geraaktTeamId && !teamNamen.has((d.geraakte_team_extern ?? '').trim().toLowerCase())) },
     { key: 'partijOnbekend', records: open.filter((d) => d.geraaktPartijId && !partijIds.has(d.geraaktPartijId)) },
     { key: 'partijGeweigerd', records: open.filter((d) => d.geraaktPartijId && geweigerd.has(d.geraaktPartijId)) },
-    { key: 'effectLeeg', records: open.filter((d) => !d.effectOpFlow) },
     { key: 'geenToelichting', records: open.filter((d) => !d.toelichting?.trim()) },
     { key: 'dubbeleTitels', records: dubbeleTitels },
     { key: 'verouderd', records: open.filter((d) => isVerouderd(d)) },
