@@ -460,6 +460,7 @@ function AnnotationNode({ data }) {
             value={tekstVeld.value}
             onChange={(e) => tekstVeld.onChange(e.target.value)}
             onBlur={tekstVeld.flush}
+            aria-label={data.ariaLabel}
             rows={3}
             placeholder="…"
             className="w-full resize-none bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none"
@@ -1639,6 +1640,7 @@ function computeWorkflowLayout(
         text: item.text,
         color: item.color,
         onText: (text) => annotationHandlers.onText(item.id, text),
+        ariaLabel: t('teampage.annotationTextLabel'),
         onColor: (color) => annotationHandlers.onColor(item.id, color),
         onRemove: () => annotationHandlers.onRemove(item.id),
       },
@@ -2046,7 +2048,7 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
 // Eigen component met een key op de applicatie-id (zie de aanroep): zo bouwt
 // React het veld vers op zodra de rij een andere applicatie toont, in plaats
 // van de naam van de vorige applicatie in beeld te laten staan.
-function ApplicationNameInput({ naam, onCommit, placeholder }) {
+function ApplicationNameInput({ naam, onCommit, placeholder, ariaLabel }) {
   const { value, onChange, flush } = useBufferedText(naam, onCommit)
   return (
     <input
@@ -2054,6 +2056,11 @@ function ApplicationNameInput({ naam, onCommit, placeholder }) {
       onChange={(e) => onChange(e.target.value)}
       onBlur={flush}
       placeholder={placeholder}
+      // Geen zichtbaar opschrift per rij: elke rij is de applicatie zelf, dus
+      // een label erboven zou bij tien applicaties tien keer hetzelfde woord
+      // opleveren. Wel een toegankelijk opschrift, zodat het veld ook zonder
+      // de visuele context te benoemen is.
+      aria-label={ariaLabel}
       className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
     />
   )
@@ -2087,6 +2094,7 @@ function ApplicationDetailModal({ app, data, onSave, onRename, onRequestRemove, 
             onChange={(e) => naamVeld.onChange(e.target.value)}
             onBlur={naamVeld.flush}
             placeholder={t('teampage.applicationsPlaceholder')}
+            aria-label={t('teampage.applicationNameLabel')}
             className="min-w-0 flex-1 rounded-md border border-transparent px-1.5 py-1 text-base font-semibold text-slate-900 hover:border-slate-200 focus:border-[#2a5f8a] focus:bg-white focus:outline-none"
           />
           <button
@@ -5059,6 +5067,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                               naam={app.naam}
                               onCommit={(naam) => updateApplication(app.id, { naam })}
                               placeholder={t('teampage.applicationsPlaceholder')}
+                              ariaLabel={t('teampage.applicationNameLabel')}
                             />
                             {detail?.risico_bij_uitval === 'ja' && (
                               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('appflow.detailRisico')} />

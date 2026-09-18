@@ -424,7 +424,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <Label required>{t('form.scope')}</Label>
+              {/* Geen sterretje: scope heeft altijd een waarde (intern is de
+                  startwaarde) en staat dan ook niet in requiredFields — het
+                  kan dus nooit een fout opleveren. */}
+              <Label>{t('form.scope')}</Label>
               <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
                 {['intern', 'extern'].map((value) => (
                   <button
@@ -601,7 +604,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             {form.flowtype !== 'applicatieflow' && (
               <div>
                 <div className="mb-1 flex items-center gap-1.5">
-                  <Label required htmlFor="dep-workflowstap">
+                  {/* Alleen verplicht bij Ontwikkelflow; Applicatieflow kent
+                      conceptueel geen workflowstap. Het sterretje volgt die
+                      voorwaarde nu, i.p.v. er altijd te staan. */}
+                  <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
                     {t('form.workflowStap')}
                   </Label>
                   <InfoIcon tooltip={t('form.workflowStapRequiredHelper')} />
@@ -720,6 +726,13 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               />
               {DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && (
                 <div>
+                  {/* Had alleen grijze voorbeeldtekst en geen opschrift: zodra
+                      je begon te typen verdween die tekst en wist je niet meer
+                      wat er gevraagd werd. De placeholder blijft staan als
+                      aanvulling, niet als vervanging. */}
+                  <Label required={DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && adminSettings.uitgebreideAnalyse} htmlFor="dep-deadline-tekst">
+                    {t('form.deadlineTekstLabel')}
+                  </Label>
                   <input
                     id="dep-deadline-tekst"
                     value={form.deadlineTekst}
