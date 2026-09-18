@@ -669,15 +669,23 @@ export default function GraphView({
           <ScopeToggle scope={scope} onChange={setScope} />
         </div>
 
-        {/* Vaste, ruime hoogte is alleen nodig voor de Relatiekaart (een
-            canvas die zelf moet kunnen pannen/zoomen); de Heatmap-tabel mag
-            gewoon zo hoog zijn als de inhoud vraagt — anders houdt hij bij
-            weinig teams/categorieën een groot leeg wit vlak over onder de
-            tabel, met alles wat je erna ziet (detailsectie) ver naar
-            beneden geduwd. */}
+        {/* De Relatiekaart heeft een vaste hoogte nodig (een canvas dat zelf
+            moet kunnen pannen/zoomen). De Heatmap kreeg eerder helemaal geen
+            hoogtebeperking, met als doel geen leeg wit vlak bij weinig teams —
+            maar daardoor scrolde dit vak zelf nooit en scrolde de hele pagina
+            mee. De vastgezette kolomkoppen (sticky top-0) plakten dan aan een
+            vak dat niet beweegt en verdwenen gewoon uit beeld: bij veertig
+            teams was niet meer te zien bij welke categorie een gekleurd vakje
+            hoorde. Een MAX-hoogte lost beide op: bij weinig teams krimpt het
+            vak mee (geen wit vlak), bij veel teams scrolt het zelf en gaan de
+            vastgezette koppen en de teamnaamkolom werken. */}
         <div
           className={`relative rounded-xl border border-slate-200 bg-white shadow-sm ${viewMode !== 'bipartite' ? 'overflow-auto' : ''}`}
-          style={viewMode === 'bipartite' ? { height: 'max(640px, calc(100vh - 232px))' } : undefined}
+          style={
+            viewMode === 'bipartite'
+              ? { height: 'max(640px, calc(100vh - 232px))' }
+              : { maxHeight: 'max(360px, calc(100vh - 232px))' }
+          }
         >
           {viewMode === 'bipartite' && (
           <ReactFlow
@@ -728,7 +736,11 @@ export default function GraphView({
 
           {viewMode === 'heatmap' && (
             <div className="flex h-full flex-col">
-              <div className="min-h-0 flex-1 overflow-auto p-4">
+              {/* Geen eigen overflow meer: het omhullende vak hierboven is
+                  het enige scrollgebied. Twee geneste scrollgebieden geven een
+                  dubbele scrollbalk en een muiswiel dat op het verkeerde vak
+                  grijpt. */}
+              <div className="min-h-0 flex-1 p-4">
                 {categoriesPresent.length === 0 ? (
                   <div className="flex h-full items-center justify-center text-sm text-slate-400">{t('graph.noDeps')}</div>
                 ) : (
@@ -743,7 +755,10 @@ export default function GraphView({
                       gridTemplateRows: `auto repeat(${visibleTeams.length}, minmax(48px, 1fr))`,
                     }}
                   >
-                    <div className="sticky top-0 z-20 bg-white" />
+                    {/* In beide richtingen vast en met de hoogste z-index:
+                        anders schuift de eerste categoriekop er tijdens
+                        horizontaal scrollen overheen. */}
+                    <div className="sticky left-0 top-0 z-30 bg-white" />
                     {categoriesPresent.map((cat) => {
                       const catDeps = visibleTeams.flatMap((team) => groups.get(`${team.id}::${cat}`) ?? [])
                       return (
@@ -780,8 +795,15 @@ export default function GraphView({
                         onMouseEnter={() => setHoverHeatmapRow(team.id)}
                         onMouseLeave={() => setHoverHeatmapRow(null)}
                         title={teamLabels[team.id] ?? team.naam}
-                        className={`flex min-w-0 cursor-pointer items-center overflow-hidden rounded-md px-2 text-left text-sm font-medium transition-colors ${
-                          hoverHeatmapRow === team.id ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'text-slate-700 hover:bg-slate-50'
+                        // sticky left-0 zodat de teamnamen bij horizontaal
+                        // scrollen blijven staan. De achtergrond moet dekkend
+                        // zijn: de vorige hover-tint was half doorzichtig
+                        // (bg-[#2a5f8a]/10) en dan schijnen de gekleurde cellen
+                        // er tijdens het scrollen doorheen. #e9eff3 is diezelfde
+                        // tint, maar dan plat op wit. z-10 ligt boven de
+                        // datacellen en onder de kolomkoppen (z-20/z-30).
+                        className={`sticky left-0 z-10 flex min-w-0 cursor-pointer items-center overflow-hidden rounded-md px-2 text-left text-sm font-medium transition-colors ${
+                          hoverHeatmapRow === team.id ? 'bg-[#e9eff3] text-[#2a5f8a]' : 'bg-white text-slate-700 hover:bg-slate-50'
                         }`}
                       >
                         {/* truncate op een eigen span (niet op de flex-button
