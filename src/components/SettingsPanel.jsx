@@ -2,7 +2,7 @@ import { useRef, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
-import { emptyTeamWorkflow } from '../lib/storage'
+import { emptyTeamWorkflow, validateImportShape } from '../lib/storage'
 import { useModalA11y } from '../lib/a11y'
 import { BRON_TYPES } from '../data/constants'
 import { translateBronType } from '../i18n/labels'
@@ -77,6 +77,43 @@ const ADMIN_PAGE_CONFIG = [
     ],
   },
 ]
+
+// Moment van de laatste geslaagde JSON-export. Bewust een eigen, kleine
+// localStorage-sleutel en NIET onderdeel van de hoofdstate: dit is geen
+// inhoudelijke data en hoort niet mee in een export, een import of de
+// schema-migratie daarvan. Zelfde patroon (en zelfde motivering) als
+// NAV_STORAGE_KEY in App.jsx; lezen en schrijven binnen try/catch, want een
+// browser met geblokkeerde opslag mag hier niet op klappen.
+const LAST_EXPORT_KEY = 'dependency-insight:last-export'
+
+function readLastExport() {
+  try {
+    const raw = localStorage.getItem(LAST_EXPORT_KEY)
+    if (!raw) return null
+    const datum = new Date(raw)
+    return Number.isNaN(datum.getTime()) ? null : datum
+  } catch {
+    return null
+  }
+}
+
+function writeLastExport() {
+  try {
+    localStorage.setItem(LAST_EXPORT_KEY, new Date().toISOString())
+  } catch {
+    // Opslag vol of geblokkeerd — dan blijft de regel staan op de vorige
+    // datum. Geen reden om de export zelf te laten mislukken.
+  }
+}
+
+// Vanaf deze leeftijd, en ook bij 'nog nooit', wordt de regel gekleurd: alle
+// data staat uitsluitend in deze ene browser en verdwijnt zonder waarschuwing
+// bij het leegmaken van de browseropslag.
+const EXPORT_WAARSCHUWING_DAGEN = 14
+
+function dagenGeleden(datum) {
+  return Math.floor((Date.now() - datum.getTime()) / 86400000)
+}
 
 function IconButton({ label, onClick, danger, children }) {
   return (
@@ -476,6 +513,11 @@ export default function SettingsPanel({ onClose, onExportPng }) {
   const effectiveClearTeamId = activeTeams.some((tm) => tm.id === clearTeamId) ? clearTeamId : (activeTeams[0]?.id ?? '')
   const [confirmingClearTeam, setConfirmingClearTeam] = useState(false)
   const [importError, setImportError] = useState('')
+  // Ingelezen en goedgekeurd bestand dat op bevestiging wacht. Zolang dit
+  // gevuld is, is er nog niets gewijzigd — annuleren gooit het gewoon weg.
+  const [pendingImport, setPendingImport] = useState(null)
+  const [lastExport, setLastExport] = useState(() => readLastExport())
+  const lastExportWaarschuwt = !lastExport || dagenGeleden(lastExport) >= EXPORT_WAARSCHUWING_DAGEN
   const fileInputRef = useRef(null)
   const panelRef = useRef(null)
   // Sessie-only: geen 'echte' auth, gewoon een tijdelijke prototype-
@@ -513,27 +555,51 @@ export default function SettingsPanel({ onClose, onExportPng }) {
 
   useModalA11y({ open: true, onClose, containerRef: panelRef })
 
-  function handleExportJson() {
-    exportDataAsJson(
-      // Externe partijen en wijzigingenlog horen bij de export: zonder die
-      // twee verloor een back-up/overdracht stilzwijgend de partij-
-      // goedkeuringen en de admin-log (import las ze wél al).
-      // alleDependencies (incl. gesloten) i.p.v. de operationele lijst: een
-      // back-up die de gesloten records met hun historie weglaat, is geen
-      // back-up — na terugzetten waren het tabblad 'Gesloten' en de
-      // sluitingshistorie op de analysepagina leeg.
-      { teams, dependencies: alleDependencies, teamWorkflows, teamSnapshots, externalParties, changeLog, usingMockData, schemaVersion, adminSettings },
-      `dependency-insight-export-${Date.now()}.json`,
-    )
+  // Eén plek die bepaalt wat er in een export gaat, zodat de automatische
+  // veiligheidskopie vóór een import gegarandeerd dezelfde inhoud heeft als
+  // een handmatige export. Twee losse payload-opbouwen zouden op termijn uit
+  // elkaar lopen, en dan is de kopie stilzwijgend onvolledig.
+  function exportPayload() {
+    // Externe partijen en wijzigingenlog horen bij de export: zonder die
+    // twee verloor een back-up/overdracht stilzwijgend de partij-
+    // goedkeuringen en de admin-log (import las ze wél al).
+    // alleDependencies (incl. gesloten) i.p.v. de operationele lijst: een
+    // back-up die de gesloten records met hun historie weglaat, is geen
+    // back-up — na terugzetten waren het tabblad 'Gesloten' en de
+    // sluitingshistorie op de analysepagina leeg.
+    return { teams, dependencies: alleDependencies, teamWorkflows, teamSnapshots, externalParties, changeLog, usingMockData, schemaVersion, adminSettings }
   }
 
+  function handleExportJson() {
+    exportDataAsJson(exportPayload(), `dependency-insight-export-${Date.now()}.json`)
+    writeLastExport()
+    setLastExport(new Date())
+  }
+
+  // Importeren is in deze werkwijze dagelijks werk (het JSON-bestand gaat van
+  // hand tot hand), en tegelijk het enige pad dat in één klik alles kan
+  // wissen. Daarom in twee trappen: eerst tonen wat er in het bestand zit,
+  // pas na bevestigen vervangen — en dan eerst automatisch een kopie van de
+  // huidige data wegschrijven.
   async function handleImportFile(e) {
     const file = e.target.files?.[0]
     if (!file) return
     setImportError('')
+    setPendingImport(null)
     try {
       const parsed = await readJsonFile(file)
-      importState(parsed)
+      // validateImportShape blijft de eerste horde: een structureel
+      // onbruikbaar bestand komt zo nooit tot een bevestigingsscherm.
+      validateImportShape(parsed)
+      setPendingImport({
+        data: parsed,
+        naam: file.name,
+        teams: Array.isArray(parsed.teams) ? parsed.teams.length : 0,
+        dependencies: Array.isArray(parsed.dependencies) ? parsed.dependencies.length : 0,
+        externalParties: Array.isArray(parsed.externalParties) ? parsed.externalParties.length : 0,
+        changeLog: Array.isArray(parsed.changeLog) ? parsed.changeLog.length : 0,
+        schemaVersion: typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : null,
+      })
     } catch (err) {
       // Een JSON-parsefout (SyntaxError) is voor de gebruiker onleesbaar
       // ("Unexpected token…"); de eigen validatiefouten (validateImportShape)
@@ -541,6 +607,21 @@ export default function SettingsPanel({ onClose, onExportPng }) {
       setImportError(err instanceof Error && !(err instanceof SyntaxError) ? err.message : t('settings.importGenericError'))
     }
     e.target.value = ''
+  }
+
+  function handleConfirmImport() {
+    if (!pendingImport) return
+    setImportError('')
+    try {
+      // Eerst de veiligheidskopie van de HUIDIGE data, dan pas vervangen.
+      // Deze volgorde is het hele punt: gaat de import mis of blijkt het
+      // verkeerde bestand gekozen, dan staat de vorige toestand al op schijf.
+      exportDataAsJson(exportPayload(), `voor-import-${new Date().toISOString().slice(0, 10)}.json`)
+      importState(pendingImport.data)
+      setPendingImport(null)
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : t('settings.importGenericError'))
+    }
   }
 
   return (
@@ -602,10 +683,28 @@ export default function SettingsPanel({ onClose, onExportPng }) {
           >
             {t('settings.exportJson')}
           </button>
+          {/* Ouderdom van de laatste back-up. Alle data staat uitsluitend in
+              deze ene browser, dus dit is geen detail: bij 14 dagen of langer,
+              en bij 'nog nooit', kleurt de regel in de waarschuwkleur. */}
+          <p className={`px-0.5 text-[11px] ${lastExportWaarschuwt ? 'font-medium text-[#9a3b2e]' : 'text-slate-400'}`}>
+            {lastExport
+              ? t('settings.lastExport', {
+                  dagen: dagenGeleden(lastExport),
+                  datum: lastExport.toLocaleDateString(language === 'en' ? 'en-GB' : 'nl-NL', { day: 'numeric', month: 'long' }),
+                })
+              : t('settings.lastExportNever')}
+          </p>
+        </div>
+
+        {/* Importeren staat vlak boven de gevarenzone en heeft dezelfde
+            waarschuwstijl: het is de enige knop die in een paar klikken alle
+            lokale data vervangt. Stond eerder onopvallend tussen de twee
+            exportknoppen, buiten de gevarenzone. */}
+        <div className="space-y-2 border-t border-slate-100 pt-3">
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+            className="w-full rounded-md border border-[#9a3b2e]/40 px-3 py-2 text-left text-xs font-medium text-[#9a3b2e] hover:bg-[#9a3b2e]/5"
           >
             {t('settings.importJson')}
           </button>
@@ -617,6 +716,42 @@ export default function SettingsPanel({ onClose, onExportPng }) {
             onChange={handleImportFile}
             aria-label={t('settings.importJson')}
           />
+
+          {/* Tweede trap: laat eerst zien wat er in het bestand zit. Zolang
+              dit blok staat is er nog niets gewijzigd. */}
+          {pendingImport && (
+            <div className="space-y-2 rounded-md border border-[#9a3b2e]/30 bg-[#9a3b2e]/5 p-3">
+              <div className="text-xs font-semibold text-[#9a3b2e]">{t('settings.importConfirmTitle')}</div>
+              <p className="truncate text-[11px] text-slate-500" title={pendingImport.naam}>
+                {pendingImport.naam}
+              </p>
+              <ul className="space-y-0.5 text-[11px] text-slate-700">
+                <li>{t('settings.importCountTeams', { count: pendingImport.teams })}</li>
+                <li>{t('settings.importCountDependencies', { count: pendingImport.dependencies })}</li>
+                <li>{t('settings.importCountParties', { count: pendingImport.externalParties })}</li>
+                <li>{t('settings.importCountLog', { count: pendingImport.changeLog })}</li>
+                <li>{t('settings.importSchemaVersion', { version: pendingImport.schemaVersion ?? '—' })}</li>
+              </ul>
+              <p className="text-[11px] text-slate-500">{t('settings.importBackupNote')}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleConfirmImport}
+                  className="rounded-md bg-[#9a3b2e] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#82301f]"
+                >
+                  {t('settings.importConfirm')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingImport(null)}
+                  className="rounded-md border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  {t('settings.importCancel')}
+                </button>
+              </div>
+            </div>
+          )}
+
           {importError && (
             <p role="alert" className="rounded-md bg-[#9a3b2e]/5 px-2.5 py-2 text-xs text-[#9a3b2e]">
               {importError}
