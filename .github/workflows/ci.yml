@@ -1,0 +1,46 @@
+name: CI
+
+# Lint, build en tests bij elke push naar main en bij elke pull request.
+# Bewust een apart bestand naast changelog.yml: die workflow heeft
+# schrijfrechten op de repo nodig om zijn changelog-commit terug te pushen, en
+# die rechten wil je niet uitbreiden naar een workflow die build- en teststappen
+# draait. Deze workflow leest alleen.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  controle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      # npm ci en niet npm install: alleen een installatie vanaf nul met een
+      # lege node_modules legt bloot dat een pakket wel geïmporteerd wordt maar
+      # niet (of in de verkeerde sectie) in package.json staat.
+      - name: Installeren
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Tests
+        run: npm test
+
+      # audit-relations.mjs draait hier bewust niet mee: dat script verwacht het
+      # pad naar een geëxporteerd JSON-bestand als argument, en dat bestand
+      # bestaat in CI niet.
+      - name: Vertalingen controleren
+        run: node scripts/check-i18n.mjs

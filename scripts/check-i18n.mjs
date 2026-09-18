@@ -7,9 +7,13 @@
 //   node scripts/check-i18n.mjs
 import fs from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const root = process.cwd()
-const { STRINGS } = await import(path.join(root, 'src/i18n/strings.js'))
+// pathToFileURL en niet het kale pad: op Windows levert path.join een pad als
+// 'C:\...' op, en dat weigert een dynamische import met
+// ERR_UNSUPPORTED_ESM_URL_SCHEME. Een file://-URL werkt op beide platforms.
+const { STRINGS } = await import(pathToFileURL(path.join(root, 'src/i18n/strings.js')).href)
 const nl = new Set(Object.keys(STRINGS.nl))
 const en = new Set(Object.keys(STRINGS.en))
 
