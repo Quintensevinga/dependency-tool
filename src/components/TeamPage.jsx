@@ -36,6 +36,7 @@ import { roundedOrthPath } from '../lib/chainLayout'
 import { CategoryIcon } from '../data/categoryIcons'
 import PannableFlowCanvas from './flow/PannableFlowCanvas'
 import { useMergedLayout } from './flow/useMergedLayout'
+import { useBufferedText } from '../lib/useBufferedText'
 import DependencyForm from './DependencyForm'
 import DependencyDetail from './DependencyDetail'
 import SpotlightTour from './SpotlightTour'
@@ -415,12 +416,20 @@ function AnnotationNode({ data }) {
   const shapeClass =
     data.shape === 'circle' ? 'rounded-full' : data.shape === 'diamond' ? 'rounded-md rotate-45' : 'rounded-md'
 
+  const tekstVeld = useBufferedText(data.text, data.onText)
+
   return (
     <div className="group relative w-40">
       <Handle type="target" position={Position.Left} style={{ opacity: 0.4 }} />
       <button
         type="button"
-        onClick={data.onRemove}
+        onClick={() => {
+          // Eerst de openstaande wijziging weggooien, dan pas verwijderen:
+          // zonder dit schrijft de flush bij unmount de zojuist verwijderde
+          // aantekening gewoon weer terug.
+          tekstVeld.cancel()
+          data.onRemove()
+        }}
         className="absolute -right-2 -top-2 z-10 hidden h-5 w-5 items-center justify-center rounded-full border border-slate-300 bg-white text-[10px] text-slate-500 shadow-sm group-hover:flex"
       >
         ✕
@@ -445,8 +454,9 @@ function AnnotationNode({ data }) {
           style={{ backgroundColor: `${data.color}33`, border: `1px solid ${data.color}` }}
         >
           <textarea
-            value={data.text}
-            onChange={(e) => data.onText(e.target.value)}
+            value={tekstVeld.value}
+            onChange={(e) => tekstVeld.onChange(e.target.value)}
+            onBlur={tekstVeld.flush}
             rows={3}
             placeholder="…"
             className="w-full resize-none bg-transparent text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none"
@@ -2008,22 +2018,49 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
 // getriggerd vanuit 'Applicaties in beheer/ontwikkeling' zelf. Stond eerder
 // in een eigen 'Applicatie-details'-blok naast de koppel-vragenlijst, wat
 // samen met die lijst als dubbelop aanvoelde.
+// Eigen component met een key op de applicatie-id (zie de aanroep): zo bouwt
+// React het veld vers op zodra de rij een andere applicatie toont, in plaats
+// van de naam van de vorige applicatie in beeld te laten staan.
+function ApplicationNameInput({ naam, onCommit, placeholder }) {
+  const { value, onChange, flush } = useBufferedText(naam, onCommit)
+  return (
+    <input
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={flush}
+      placeholder={placeholder}
+      className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+    />
+  )
+}
+
 function ApplicationDetailModal({ app, data, onSave, onRename, onRequestRemove, onClose, t, language }) {
   const [draft, setDraft] = useState(() => ({ toelichting: '', risico_bij_uitval: '', risico_toelichting: '', ...data }))
 
+  // De keuzelijst en de risicotoelichting schrijven direct weg: dat zijn losse
+  // keuzes, geen doorlopend getypte tekst. De twee vrije tekstvelden (naam
+  // bovenin en toelichting) lopen via useBufferedText — daar kostte elke
+  // letter anders een volledige serialisatie van de state. De lokale draft
+  // hier hielp daar niets tegen: die riep onSave meteen weer aan.
   function update(fields) {
     const next = { ...draft, ...fields }
     setDraft(next)
     onSave(next)
   }
 
+  // Bewust de draft-waarde meegeven en niet data.toelichting: de draft is hier
+  // de bron tijdens het openstaan van de modal.
+  const naamVeld = useBufferedText(app.naam, onRename)
+  const toelichtingVeld = useBufferedText(draft.toelichting ?? '', (toelichting) => update({ toelichting }))
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
       <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
           <input
-            value={app.naam}
-            onChange={(e) => onRename(e.target.value)}
+            value={naamVeld.value}
+            onChange={(e) => naamVeld.onChange(e.target.value)}
+            onBlur={naamVeld.flush}
             placeholder={t('teampage.applicationsPlaceholder')}
             className="min-w-0 flex-1 rounded-md border border-transparent px-1.5 py-1 text-base font-semibold text-slate-900 hover:border-slate-200 focus:border-[#2a5f8a] focus:bg-white focus:outline-none"
           />
@@ -2040,8 +2077,9 @@ function ApplicationDetailModal({ app, data, onSave, onRename, onRequestRemove, 
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">{t('appflow.detailToelichting')}</label>
             <textarea
-              value={draft.toelichting ?? ''}
-              onChange={(e) => update({ toelichting: e.target.value })}
+              value={toelichtingVeld.value}
+              onChange={(e) => toelichtingVeld.onChange(e.target.value)}
+              onBlur={toelichtingVeld.flush}
               rows={3}
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
             />
@@ -4991,11 +5029,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                         const hasDetail = Boolean(detail?.toelichting || detail?.risico_bij_uitval)
                         return (
                           <li key={app.id} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50/50 px-3 py-2">
-                            <input
-                              value={app.naam}
-                              onChange={(e) => updateApplication(app.id, { naam: e.target.value })}
+                            <ApplicationNameInput
+                              key={app.id}
+                              naam={app.naam}
+                              onCommit={(naam) => updateApplication(app.id, { naam })}
                               placeholder={t('teampage.applicationsPlaceholder')}
-                              className="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
                             />
                             {detail?.risico_bij_uitval === 'ja' && (
                               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#9a3b2e]" title={t('appflow.detailRisico')} />
