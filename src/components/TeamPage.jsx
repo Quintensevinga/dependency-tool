@@ -64,6 +64,9 @@ const STAGE_START_X = 260
 const STAGE_Y = 260
 const IO_Y_START = 40
 const IO_Y_GAP = 90
+// Kaartbreedte (w-44 = 176px) plus tussenruimte: de stap opzij wanneer een
+// IO-kolom vol is en er een kolom naast begint (zie stackCenteredInZone).
+const IO_COLUMN_STEP = 196
 
 const HIGH_RISK_LEVELS = ['Hoog', 'Kritiek']
 // Node-types die meedimmen zodra er canvas-focus actief is (zie
@@ -1340,11 +1343,33 @@ function computeWorkflowLayout(
   }
 
   // Voor de "rest" (niet-lane-gekoppelde) IO-items: gecentreerd over de hele
-  // zone, ongewijzigd t.o.v. voorheen.
+  // zone, maar met een MAXIMUM aantal kaarten per kolom. Zonder dat maximum
+  // stapelde een te grote groep gewoon door tot onder de zone, en omdat de
+  // applicatieflow- en de ontwikkelflow-stapel dezelfde x delen, kwamen de
+  // kaarten daar over elkaar heen te liggen (gemeten op de acht demoteams in
+  // beide standen: 4 overlappende paren, ergste geval 57px). Past een stapel
+  // niet meer, dan begint er een kolom NAAST de vorige — naar buiten toe, dus
+  // inputs verder naar links en outputs verder naar rechts. De zones blijven
+  // zo los van elkaar en kunnen elkaars ruimte niet meer in.
+  //
+  // Geeft per item ook de kolomindex terug; de aanroeper vertaalt die naar een
+  // x-verschuiving (IO_COLUMN_STEP), want alleen die weet welke kant "naar
+  // buiten" is.
   function stackCenteredInZone(items, zoneTop, zoneBottom) {
-    const totalH = Math.max(0, items.length - 1) * IO_Y_GAP
-    const startY = zoneTop + Math.max(24, (zoneBottom - zoneTop - totalH) / 2)
-    return items.map((item, i) => ({ item, y: startY + i * IO_Y_GAP }))
+    const beschikbaar = Math.max(0, zoneBottom - zoneTop - 24)
+    // +1 omdat n kaarten (n-1) keer IO_Y_GAP beslaan. Minstens 1, anders zou
+    // een zeer lage zone een oneindig aantal kolommen opleveren.
+    const perKolom = Math.max(1, Math.floor(beschikbaar / IO_Y_GAP) + 1)
+    return items.map((item, i) => {
+      const col = Math.floor(i / perKolom)
+      const inCol = i % perKolom
+      // Elke kolom apart centreren: een laatste, halfvolle kolom hangt dan niet
+      // scheef onderaan maar staat netjes midden in de zone.
+      const aantalHier = Math.min(perKolom, items.length - col * perKolom)
+      const totalH = Math.max(0, aantalHier - 1) * IO_Y_GAP
+      const startY = zoneTop + Math.max(24, (zoneBottom - zoneTop - totalH) / 2)
+      return { item, y: startY + inCol * IO_Y_GAP, col }
+    })
   }
 
   // Voor lane-gekoppelde IO-items: gecentreerd rond één vast punt (de rij van
@@ -1408,9 +1433,9 @@ function computeWorkflowLayout(
   // banner/het anker) legt React Flow's eigen smoothstep-berekening de bocht
   // op het midden tussen bron- en doel-x — en dat midden ligt bij deze
   // afstanden altijd nog vóór de zone, dus nooit over een lane heen.
-  stackCenteredInZone(laneLinkedInputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
+  stackCenteredInZone(laneLinkedInputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y, col }) => {
     const id = `input:${item.id}`
-    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X - 210, y }), data: applicatieflowIoData('input', item), draggable: true })
+    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X - 210 - col * IO_COLUMN_STEP, y }), data: applicatieflowIoData('input', item), draggable: true })
     edges.push({
       id: `input:${item.id}->${applicatieflowInEdgeTarget}`,
       source: id,
@@ -1441,9 +1466,9 @@ function computeWorkflowLayout(
       })
     })
   }
-  stackCenteredInZone(laneLinkedOutputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y }) => {
+  stackCenteredInZone(laneLinkedOutputs.rest, applicatieflowZoneTop, applicatieflowZoneBottom).forEach(({ item, y, col }) => {
     const id = `output:${item.id}`
-    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }), data: applicatieflowIoData('output', item), draggable: true })
+    nodes.push({ id, type: 'ioItem', position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20 + col * IO_COLUMN_STEP, y }), data: applicatieflowIoData('output', item), draggable: true })
     // Bron ligt op de rij van baseLaneAppId (het generieke ankerpunt), doel
     // ergens anders in de zone gecentreerd — die twee liggen dus NIET op
     // dezelfde hoogte, en een rechtstreekse lijn zou (bij een brede lane
@@ -1486,12 +1511,12 @@ function computeWorkflowLayout(
       })
     })
   }
-  stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
+  stackCenteredInZone(devInputs, devZoneTop, devZoneBottom).forEach(({ item, y, col }) => {
     const id = `input:${item.id}`
     nodes.push({
       id,
       type: 'ioItem',
-      position: withSavedPosition(id, { x: ZONE_X - 210, y }),
+      position: withSavedPosition(id, { x: ZONE_X - 210 - col * IO_COLUMN_STEP, y }),
       data: {
         kind: 'input',
         itemId: item.id,
@@ -1520,12 +1545,12 @@ function computeWorkflowLayout(
       data: { kind: 'io', itemId: item.id, tooltipTitle: item.label || '—', tooltipSub: ioMetaLabel(item), punten: item.punten ?? [] },
     })
   })
-  stackCenteredInZone(devOutputs, devZoneTop, devZoneBottom).forEach(({ item, y }) => {
+  stackCenteredInZone(devOutputs, devZoneTop, devZoneBottom).forEach(({ item, y, col }) => {
     const id = `output:${item.id}`
     nodes.push({
       id,
       type: 'ioItem',
-      position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20, y }),
+      position: withSavedPosition(id, { x: ZONE_X + ZONE_WIDTH + 20 + col * IO_COLUMN_STEP, y }),
       data: {
         kind: 'output',
         itemId: item.id,
