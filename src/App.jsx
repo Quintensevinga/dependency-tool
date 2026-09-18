@@ -124,6 +124,7 @@ function AppContent() {
     // principe als elders in de app).
     return restored && teams.some((tm) => tm.id === restored) ? restored : null
   })
+  const [exportingPng, setExportingPng] = useState(false)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
@@ -205,10 +206,29 @@ function AppContent() {
   }
 
   async function handleExportPng() {
-    const filename = `dependency-insight-${activeTab}-${Date.now()}.png`
-    const element = teamPageTeamId ? teamPageRef.current : viewRef.current
-    const ok = await exportElementAsPng(element, filename)
-    if (!ok) window.alert(t('settings.exportPngFailed'))
+    // Een PNG-export laadt html2canvas-pro pas op dat moment dynamisch bij en
+    // tekent daarna het hele scherm op schaal 2 — op een vol canvas duurt dat
+    // merkbaar lang. Zonder deze stand gebeurt er zichtbaar niets, klikt de
+    // gebruiker nog eens, en lopen er twee exports tegelijk.
+    if (exportingPng) return
+    setExportingPng(true)
+    try {
+      const filename = `dependency-insight-${activeTab}-${Date.now()}.png`
+      const element = teamPageTeamId ? teamPageRef.current : viewRef.current
+      const ok = await exportElementAsPng(element, filename)
+      if (!ok) window.alert(t('settings.exportPngFailed'))
+    } catch {
+      // exportElementAsPng geeft alleen false terug bij een ontbrekend
+      // element; een mislukte dynamische import of een fout in html2canvas
+      // gooit. Zonder deze catch kreeg de gebruiker daar niets van te zien —
+      // de knop sprong gewoon terug, wat dezelfde "er gebeurt niets"-klacht is
+      // als de ontbrekende bezig-stand hierboven.
+      window.alert(t('settings.exportPngError'))
+    } finally {
+      // In een finally: ook een mislukte of vastgelopen export moet de knop
+      // weer vrijgeven, anders blijft hij voorgoed uitgeschakeld.
+      setExportingPng(false)
+    }
   }
 
   function handleDownloadCorruptData() {
@@ -330,6 +350,7 @@ function AppContent() {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         onExportPng={handleExportPng}
+        exportingPng={exportingPng}
         onNavigateToTeam={handleNavigateToTeam}
         activeTeamId={teamPageTeamId}
         graphViewMode={graphViewMode}

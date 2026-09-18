@@ -475,7 +475,7 @@ function PartySection({ items, onAdd, onRename, onApprove, onReject, onDelete })
   )
 }
 
-export default function SettingsPanel({ onClose, onExportPng }) {
+export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
   const {
     alleDependencies,
     teams,
@@ -672,9 +672,10 @@ export default function SettingsPanel({ onClose, onExportPng }) {
           <button
             type="button"
             onClick={onExportPng}
-            className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+            disabled={exportingPng}
+            className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:bg-slate-50"
           >
-            {t('settings.exportPng')}
+            {exportingPng ? t('settings.exportPngBusy') : t('settings.exportPng')}
           </button>
           <button
             type="button"

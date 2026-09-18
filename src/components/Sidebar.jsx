@@ -307,6 +307,7 @@ export default function Sidebar({
   activeTab,
   onTabChange,
   onExportPng,
+  exportingPng,
   onNavigateToTeam,
   activeTeamId,
   graphViewMode,
@@ -478,7 +479,7 @@ export default function Sidebar({
           // een auto-hide-zijbalk kreeg daar mouseleave en klapte dicht
           // terwijl de muis onderweg was naar het paneel.
           <div className={collapsed ? 'fixed bottom-3 left-14 z-50 pl-3' : 'fixed bottom-3 left-56 z-50 pl-2'}>
-            <SettingsPanel onClose={() => setSettingsOpen(false)} onExportPng={onExportPng} />
+            <SettingsPanel onClose={() => setSettingsOpen(false)} onExportPng={onExportPng} exportingPng={exportingPng} />
           </div>
         )}
       </div>
