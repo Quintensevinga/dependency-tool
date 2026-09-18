@@ -528,6 +528,17 @@ export function validateImportShape(parsed) {
   if (!Array.isArray(parsed.dependencies)) {
     throw new Error('Bestand mist een geldige "dependencies"-lijst.')
   }
+  // Data uit een nieuwere versie weigeren i.p.v. stil uitkleden: migrateState
+  // bouwt de state onvoorwaardelijk opnieuw op uit de velden die déze versie
+  // kent, dus alles wat een nieuwere versie extra meebrengt zou zonder deze
+  // controle spoorloos wegvallen. Een ontbrekende of niet-numerieke
+  // schemaVersion gaat gewoon door: oude exports hebben dat veld niet altijd
+  // en moeten importeerbaar blijven.
+  if (typeof parsed.schemaVersion === 'number' && parsed.schemaVersion > SCHEMA_VERSION) {
+    throw new Error(
+      `Dit bestand komt uit een nieuwere versie van de tool (versie ${parsed.schemaVersion}, deze app kent versie ${SCHEMA_VERSION}). Werk eerst de app bij.`,
+    )
+  }
   for (const [i, dep] of parsed.dependencies.entries()) {
     if (!dep || typeof dep !== 'object') {
       throw new Error(`Dependency op positie ${i + 1} is geen geldig object.`)
@@ -614,6 +625,11 @@ function mockState() {
 }
 
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`
+// Veiligheidskopie van data uit een nieuwere schemaversie. De app laat die
+// data bij het laden bewust ongemoeid staan, maar blijft daarna gewoon
+// bruikbaar — en de eerstvolgende wijziging zou 'm via saveState alsnog
+// overschrijven. Deze kopie is de enige weg terug als dat gebeurt.
+const FUTURE_STORAGE_KEY = `${STORAGE_KEY}:nieuwere-versie`
 
 // Retourneert { state, corrupted, skipped } i.p.v. alleen de state: een
 // onleesbaar localStorage-record valt terug op demodata (anders crasht de hele
@@ -632,6 +648,22 @@ export function loadState() {
   }
   try {
     const parsed = JSON.parse(rawText)
+    // Staat er data van een nieuwere versie in deze browser, dan niet migreren
+    // en vooral niet terugschrijven: migrateState kent de extra velden van die
+    // versie niet en zou ze eruit gooien, waarna saveState het origineel
+    // overschrijft. Dat verlies is onherstelbaar. De opgeslagen tekst blijft
+    // hier dus letterlijk staan; de UI toont een melding en krijgt bewust géén
+    // knop die alsnog overschrijft.
+    if (typeof parsed.schemaVersion === 'number' && parsed.schemaVersion > SCHEMA_VERSION) {
+      try {
+        localStorage.setItem(FUTURE_STORAGE_KEY, rawText)
+      } catch {
+        // Quotum vol — dan kan de kopie niet gemaakt worden. De melding
+        // verschijnt evengoed; de originele sleutel blijft hoe dan ook staan
+        // tot de gebruiker zelf iets wijzigt.
+      }
+      return { state: mockState(), corrupted: false, skipped: 0, futureVersion: parsed.schemaVersion }
+    }
     const report = {}
     const migrated = migrateState(parsed, report)
     // Onaangeraakte voorbeelddata verversen naar de nieuwste inhoud i.p.v.
@@ -665,6 +697,12 @@ export function getCorruptRawData() {
 
 export function clearCorruptRawData() {
   localStorage.removeItem(CORRUPT_STORAGE_KEY)
+}
+
+// Bewaarde data uit een nieuwere schemaversie, zodat de gebruiker die kan
+// downloaden en meenemen naar een bijgewerkte app.
+export function getFutureVersionRawData() {
+  return localStorage.getItem(FUTURE_STORAGE_KEY)
 }
 
 // Retourneert of het opslaan echt gelukt is (bv. false bij een vol

@@ -142,6 +142,38 @@ describe('migrateState — onbruikbare records in de dependencylijst', () => {
   })
 })
 
+// Punt 5 — data uit een nieuwere schemaversie weigeren in plaats van stil
+// uitkleden. migrateState bouwt de state onvoorwaardelijk opnieuw op uit de
+// velden die déze versie kent, dus alles wat een nieuwere versie extra
+// meebrengt zou anders spoorloos wegvallen — en bij het laden ook nog eens
+// meteen overschreven worden.
+describe('validateImportShape — schemaversie', () => {
+  const geldig = { teams: [], dependencies: [] }
+
+  it('weigert een bestand met een hogere schemaversie, met beide nummers in de melding', () => {
+    expect(() => validateImportShape({ ...geldig, schemaVersion: SCHEMA_VERSION + 1 })).toThrow(
+      new RegExp(`versie ${SCHEMA_VERSION + 1}.*versie ${SCHEMA_VERSION}`),
+    )
+  })
+
+  it('accepteert de huidige schemaversie', () => {
+    expect(() => validateImportShape({ ...geldig, schemaVersion: SCHEMA_VERSION })).not.toThrow()
+  })
+
+  it('accepteert een lagere schemaversie', () => {
+    expect(() => validateImportShape({ ...geldig, schemaVersion: 1 })).not.toThrow()
+  })
+
+  // Oude exports hebben dit veld niet altijd en moeten importeerbaar blijven.
+  it('accepteert een bestand zonder schemaversie', () => {
+    expect(() => validateImportShape(geldig)).not.toThrow()
+  })
+
+  it('accepteert een niet-numerieke schemaversie', () => {
+    expect(() => validateImportShape({ ...geldig, schemaVersion: 'zes' })).not.toThrow()
+  })
+})
+
 // TEST 5 — idempotentie. De migratie draait bij élke keer dat de app opent
 // opnieuw, ook over data die al gemigreerd is. Twee keer draaien moet dus exact
 // hetzelfde opleveren als één keer.

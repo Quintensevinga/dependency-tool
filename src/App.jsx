@@ -20,7 +20,7 @@ const ChainOverview = lazy(() => import('./components/ChainOverview'))
 const AnalysePage = lazy(() => import('./components/AnalysePage'))
 const TeamPage = lazy(() => import('./components/TeamPage'))
 import { exportElementAsPng } from './lib/export'
-import { getCorruptRawData, clearCorruptRawData } from './lib/storage'
+import { getCorruptRawData, clearCorruptRawData, getFutureVersionRawData, SCHEMA_VERSION } from './lib/storage'
 import { buildDuplicatePrefill } from './lib/duplicateDependency'
 
 // Bewust géén silent no-op als een pagina via Admin uitgezet is (bv. een
@@ -77,6 +77,8 @@ function AppContent() {
     dismissCorruptedNotice,
     skippedOnLoad,
     dismissSkippedNotice,
+    futureVersionOnLoad,
+    dismissFutureVersionNotice,
   } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState(() => {
@@ -221,6 +223,18 @@ function AppContent() {
     URL.revokeObjectURL(url)
   }
 
+  function handleDownloadFutureData() {
+    const raw = getFutureVersionRawData()
+    if (!raw) return
+    const blob = new Blob([raw], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.download = `dependency-insight-nieuwere-versie-${Date.now()}.json`
+    link.href = url
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   function handleDismissCorrupted() {
     clearCorruptRawData()
     dismissCorruptedNotice()
@@ -258,11 +272,36 @@ function AppContent() {
           </span>
         </div>
       )}
+      {/* Data uit een nieuwere versie: bewust niet gemigreerd en niet
+          teruggeschreven. Deze melding krijgt daarom géén knop die alsnog
+          overschrijft — alleen een download van de bewaarde kopie, zodat de
+          gebruiker 'm mee kan nemen naar een bijgewerkte app. */}
+      {futureVersionOnLoad && (
+        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+          <span>{t('futureVersion.message', { version: futureVersionOnLoad, current: SCHEMA_VERSION })}</span>
+          <span className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={handleDownloadFutureData}
+              className="rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+            >
+              {t('futureVersion.download')}
+            </button>
+            <button
+              type="button"
+              onClick={dismissFutureVersionNotice}
+              className="rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+            >
+              {t('futureVersion.dismiss')}
+            </button>
+          </span>
+        </div>
+      )}
       {/* Losse balk naast de corrupt-melding: hier is de data juist wél
           gewoon geladen, alleen zijn er records overgeslagen. Daarom een
           andere, minder alarmerende toon en geen downloadknop — er valt niets
           te redden aan een null of een losse tekst. */}
-      {!corruptedOnLoad && skippedOnLoad > 0 && (
+      {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad > 0 && (
         <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('skipped.message', { count: skippedOnLoad })}</span>
           <button
@@ -274,7 +313,7 @@ function AppContent() {
           </button>
         </div>
       )}
-      {!corruptedOnLoad && skippedOnLoad === 0 && saveError && (
+      {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && saveError && (
         <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('saveError.message')}</span>
           <button
