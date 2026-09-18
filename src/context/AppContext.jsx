@@ -72,7 +72,7 @@ export function AppProvider({ children }) {
   // Eén keer geladen (niet meer twee keer, zie B-08) — het tweede stukje
   // state (currentTeamId) wordt hieronder synchroon van hetzelfde resultaat
   // afgeleid i.p.v. loadState() nogmaals aan te roepen.
-  const [{ state: initialState, corrupted: initiallyCorrupted }] = useState(() => loadState())
+  const [{ state: initialState, corrupted: initiallyCorrupted, skipped: initiallySkipped }] = useState(() => loadState())
   const [state, setState] = useState(initialState)
   const [currentTeamId, setCurrentTeamId] = useState(() => firstActiveTeamId(initialState.teams))
   const [scope, setScope] = useState('intern')
@@ -80,6 +80,11 @@ export function AppProvider({ children }) {
   // vervangen door demodata — de UI (App.jsx) toont hierop een waarschuwing
   // met een downloadoptie voor de bewaarde ruwe tekst (getCorruptRawData).
   const [corruptedOnLoad, setCorruptedOnLoad] = useState(initiallyCorrupted)
+  // Aantal dependency-records dat bij het laden geen bruikbaar object was en
+  // is overgeslagen (zie migrateState). Eerder kostte zo'n record de héle
+  // dataset; nu blijft de rest staan, maar dan moet wél zichtbaar zijn dat er
+  // iets niet is ingelezen — anders is het opnieuw stil verlies.
+  const [skippedOnLoad, setSkippedOnLoad] = useState(initiallySkipped ?? 0)
   // Zie B-04: laatste keer dat wegschrijven naar localStorage mislukte (bv.
   // vol quotum) — de wijziging staat dan wel in de UI maar is niet bewaard.
   const [saveError, setSaveError] = useState(false)
@@ -875,6 +880,7 @@ export function AppProvider({ children }) {
   }, [])
 
   const dismissCorruptedNotice = useCallback(() => setCorruptedOnLoad(false), [])
+  const dismissSkippedNotice = useCallback(() => setSkippedOnLoad(0), [])
 
   // Admin: pagina's/secties tonen of verbergen. Puur UI, geen datawijziging —
   // zie DEFAULT_ADMIN_SETTINGS in lib/storage.js voor de volledige structuur.
@@ -941,6 +947,8 @@ export function AppProvider({ children }) {
       dismissSaveError,
       corruptedOnLoad,
       dismissCorruptedNotice,
+      skippedOnLoad,
+      dismissSkippedNotice,
     }),
     [
       state,
@@ -987,6 +995,8 @@ export function AppProvider({ children }) {
       dismissSaveError,
       corruptedOnLoad,
       dismissCorruptedNotice,
+      skippedOnLoad,
+      dismissSkippedNotice,
     ],
   )
 

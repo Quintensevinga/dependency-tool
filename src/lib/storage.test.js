@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { migrateState, SCHEMA_VERSION } from './storage'
+import { migrateState, validateImportShape, SCHEMA_VERSION } from './storage'
 
 // Een oude export zoals die vóór de huidige schemaversie uit de app kwam:
 // teams als losse tekst, en een dependency met uitsluitend oude waarden. Geen
@@ -94,6 +94,51 @@ describe('migrateState — oude export', () => {
     const [dep] = migrateState(invoer).dependencies
     expect(dep).not.toHaveProperty('eigenaarFunctieIds')
     expect(dep).not.toHaveProperty('oplossingsniveau')
+  })
+})
+
+// Punt 6 — een leeg of onbruikbaar element in de dependencylijst mag niet de
+// hele dataset kosten. Vóór de reparatie gooide migrateDependency hier een
+// TypeError; bij het opstarten zit die in de try van loadState, waardoor de
+// complete opslag als onleesbaar werd bestempeld en vervangen door demodata.
+describe('migrateState — onbruikbare records in de dependencylijst', () => {
+  const ROMMEL = { teams: ['Team Alfa'], dependencies: [null, { titel: 'x' }, 'tekst'] }
+
+  it('gooit geen uitzondering', () => {
+    expect(() => migrateState(ROMMEL)).not.toThrow()
+  })
+
+  it('houdt precies de records over die wél een object zijn', () => {
+    const { dependencies } = migrateState(ROMMEL)
+    expect(dependencies).toHaveLength(1)
+    expect(dependencies[0].titel).toBe('x')
+  })
+
+  it('telt hoeveel records zijn overgeslagen', () => {
+    const report = {}
+    migrateState(ROMMEL, report)
+    expect(report.skippedDependencies).toBe(2)
+  })
+
+  it('telt een array ook als onbruikbaar record', () => {
+    const report = {}
+    const { dependencies } = migrateState({ dependencies: [[], { titel: 'x' }] }, report)
+    expect(dependencies).toHaveLength(1)
+    expect(report.skippedDependencies).toBe(1)
+  })
+
+  it('meldt nul overgeslagen records bij een schone lijst', () => {
+    const report = {}
+    migrateState(oudeExport(), report)
+    expect(report.skippedDependencies).toBe(0)
+  })
+
+  // Het overslaan geldt alleen voor de lokale opslag. Bij importeren wordt
+  // hetzelfde geval al eerder en strenger afgevangen, en dat moet zo blijven:
+  // een importbestand is iemands bewuste invoer, daar hoort een duidelijke
+  // fout bij in plaats van stilzwijgend minder records.
+  it('laat de strengere importcontrole ongemoeid', () => {
+    expect(() => validateImportShape({ teams: [], dependencies: [null] })).toThrow(/positie 1 is geen geldig object/)
   })
 })
 

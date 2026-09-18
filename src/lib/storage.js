@@ -187,6 +187,13 @@ function migrateTeams(rawTeams) {
 // in de teamlijst voorkomt (dan wordt het team alsnog aangemaakt zodat er
 // geen data verloren gaat).
 function resolveTeamId(dep, teamsState) {
+  // Ook los veilig: migrateState filtert niet-objecten er al uit vóór de map
+  // hieronder, maar deze functie mag daar niet van afhangen — zonder deze
+  // controle gooit dep.teamId een TypeError op een null of een losse tekst, en
+  // die fout kost bij het opstarten de héle dataset (loadState bestempelt 'm
+  // dan als onleesbaar en valt terug op demodata).
+  if (!dep || typeof dep !== 'object') return null
+
   if (dep.teamId && teamsState.existingIds.has(dep.teamId)) return dep.teamId
 
   const naam = typeof dep.team === 'string' ? dep.team.trim() : ''
@@ -322,12 +329,22 @@ function migrateDependency(raw, teamsState) {
 // formaat (localStorage of JSON-import) en retourneert altijd een volledig
 // geldige, actuele state met schemaVersion = SCHEMA_VERSION. Idempotent:
 // mag ook op reeds-gemigreerde data losgelaten worden zonder schade.
-export function migrateState(raw) {
+export function migrateState(raw, report) {
   const source = raw && typeof raw === 'object' ? raw : {}
   const teamsState = migrateTeams(source.teams)
-  const dependencies = (Array.isArray(source.dependencies) ? source.dependencies : []).map((dep) =>
-    migrateDependency(dep, teamsState),
-  )
+  const ruweDependencies = Array.isArray(source.dependencies) ? source.dependencies : []
+  // Eén null of losse tekst in deze lijst liet migrateDependency een TypeError
+  // gooien, en bij het opstarten zit dat in de try van loadState: de complete
+  // dataset werd dan als onleesbaar bestempeld en vervangen door demodata. Eén
+  // leeg element kostte dus alles. Ze worden nu overgeslagen in plaats van
+  // fataal — en geteld, zodat dat niet opnieuw stilzwijgend gebeurt.
+  const bruikbaar = ruweDependencies.filter((dep) => dep && typeof dep === 'object' && !Array.isArray(dep))
+  // Het aantal gaat via een losse report-parameter en niet via de
+  // returnwaarde: die returnwaarde ís de state die naar localStorage wordt
+  // weggeschreven, en dit is een melding over één migratie — geen inhoud die
+  // in de opslag of in een export thuishoort.
+  if (report) report.skippedDependencies = ruweDependencies.length - bruikbaar.length
+  const dependencies = bruikbaar.map((dep) => migrateDependency(dep, teamsState))
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
   const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
   const externalParties = migrateExternalParties(source.externalParties)
@@ -598,22 +615,25 @@ function mockState() {
 
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`
 
-// Retourneert { state, corrupted } i.p.v. alleen de state: een onleesbaar
-// localStorage-record valt terug op demodata (anders crasht de hele app op
-// het opstarten), maar dat mag niet stilzwijgend gebeuren — de aanroeper
-// (AppContext/App) toont bij corrupted:true een waarschuwing en biedt de
-// bewaarde ruwe tekst (zie getCorruptRawData) aan om te downloaden, zodat de
-// eigen data van de gebruiker niet spoorloos verdwijnt.
+// Retourneert { state, corrupted, skipped } i.p.v. alleen de state: een
+// onleesbaar localStorage-record valt terug op demodata (anders crasht de hele
+// app op het opstarten), maar dat mag niet stilzwijgend gebeuren — de
+// aanroeper (AppContext/App) toont bij corrupted:true een waarschuwing en
+// biedt de bewaarde ruwe tekst (zie getCorruptRawData) aan om te downloaden,
+// zodat de eigen data van de gebruiker niet spoorloos verdwijnt. `skipped`
+// telt langs dezelfde weg de dependency-records die geen bruikbaar object
+// waren en overgeslagen zijn (zie migrateState).
 export function loadState() {
   const rawText = localStorage.getItem(STORAGE_KEY)
   if (!rawText) {
     const initial = mockState()
     saveState(initial)
-    return { state: initial, corrupted: false }
+    return { state: initial, corrupted: false, skipped: 0 }
   }
   try {
     const parsed = JSON.parse(rawText)
-    const migrated = migrateState(parsed)
+    const report = {}
+    const migrated = migrateState(parsed, report)
     // Onaangeraakte voorbeelddata verversen naar de nieuwste inhoud i.p.v.
     // vast te blijven zitten op wat ooit geseed is — zie MOCK_DATA_VERSION.
     // Zodra iemand zelf iets wijzigt zet AppContext usingMockData blijvend
@@ -622,12 +642,12 @@ export function loadState() {
     if (migrated.usingMockData && savedMockVersion < MOCK_DATA_VERSION) {
       const refreshed = mockState()
       saveState(refreshed)
-      return { state: refreshed, corrupted: false }
+      return { state: refreshed, corrupted: false, skipped: 0 }
     }
     // Schrijf gemigreerde data direct terug zodat oude localStorage-data
     // maar één keer gemigreerd hoeft te worden.
     if (parsed.schemaVersion !== SCHEMA_VERSION) saveState(migrated)
-    return { state: migrated, corrupted: false }
+    return { state: migrated, corrupted: false, skipped: report.skippedDependencies ?? 0 }
   } catch {
     try {
       localStorage.setItem(CORRUPT_STORAGE_KEY, rawText)
@@ -635,7 +655,7 @@ export function loadState() {
       // Quotum vol o.i.d. — dan kan de ruwe tekst ook niet bewaard worden;
       // de waarschuwing verschijnt evengoed, alleen zonder downloadoptie.
     }
-    return { state: mockState(), corrupted: true }
+    return { state: mockState(), corrupted: true, skipped: 0 }
   }
 }
 

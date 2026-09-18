@@ -75,6 +75,8 @@ function AppContent() {
     dismissSaveError,
     corruptedOnLoad,
     dismissCorruptedNotice,
+    skippedOnLoad,
+    dismissSkippedNotice,
   } = useAppContext()
   const { t } = useLanguage()
   const [activeTab, setActiveTab] = useState(() => {
@@ -256,7 +258,23 @@ function AppContent() {
           </span>
         </div>
       )}
-      {!corruptedOnLoad && saveError && (
+      {/* Losse balk naast de corrupt-melding: hier is de data juist wél
+          gewoon geladen, alleen zijn er records overgeslagen. Daarom een
+          andere, minder alarmerende toon en geen downloadknop — er valt niets
+          te redden aan een null of een losse tekst. */}
+      {!corruptedOnLoad && skippedOnLoad > 0 && (
+        <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+          <span>{t('skipped.message', { count: skippedOnLoad })}</span>
+          <button
+            type="button"
+            onClick={dismissSkippedNotice}
+            className="shrink-0 rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+          >
+            {t('skipped.dismiss')}
+          </button>
+        </div>
+      )}
+      {!corruptedOnLoad && skippedOnLoad === 0 && saveError && (
         <div className="fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('saveError.message')}</span>
           <button
