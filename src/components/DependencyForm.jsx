@@ -89,6 +89,28 @@ function FieldError({ id, message }) {
   )
 }
 
+// Verplichte velden in de volgorde waarin ze in het formulier staan, met het
+// id van het element waar de cursor naartoe moet. De volgorde is hier
+// vastgelegd en niet afgeleid uit Object.keys(errors): die volgt de volgorde
+// waarin de controles toevallig draaien, en dan springt het scherm naar een
+// veld verderop terwijl er bovenaan nog iets ontbreekt.
+//
+// geraakte_team_extern en geraaktPartijId delen een element: het zijn de twee
+// kanten van dezelfde keuze (bestaand team of externe partij).
+const VELD_VOLGORDE = [
+  ['teamIds', 'dep-team'],
+  ['titel', 'dep-titel'],
+  ['flowtype', 'dep-flowtype'],
+  ['categorie', 'dep-categorie'],
+  ['geraakte_team_extern', 'dep-geraakt'],
+  ['geraaktPartijId', 'dep-geraakt'],
+  ['workflowStap', 'dep-workflowstap'],
+  ['impact', 'dep-impact'],
+  ['frequentie', 'dep-frequentie'],
+  ['deadlineTekst', 'dep-deadline-tekst'],
+  ['status', 'dep-status'],
+]
+
 const inputClass =
   'w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none'
 
@@ -179,6 +201,11 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
     errors.deadlineTekst = t('form.required')
   }
 
+  // Aantal ontbrekende velden na een mislukte opslagpoging. null = nog niet
+  // geprobeerd; de melding verschijnt dus pas als de gebruiker echt op
+  // Opslaan heeft gedrukt.
+  const [ontbrekend, setOntbrekend] = useState(null)
+
   function markTouched(field) {
     setTouched((prev) => ({ ...prev, [field]: true }))
   }
@@ -213,7 +240,26 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
         [...requiredFields, 'teamIds', 'workflowStap', 'geraakte_team_extern', 'geraaktPartijId', 'deadlineTekst'].map((f) => [f, true]),
       ),
     )
-    if (Object.keys(errors).length > 0) return
+    const foutVelden = Object.keys(errors)
+    if (foutVelden.length > 0) {
+      setOntbrekend(foutVelden.length)
+      // Naar het eerste ontbrekende veld springen. Zonder dit gebeurde er bij
+      // een fout buiten beeld zichtbaar niets: het scherm sprong niet, de
+      // cursor bleef op de knop staan en er kwam geen samenvatting bovenaan.
+      const eerste = VELD_VOLGORDE.find(([veld]) => errors[veld])
+      if (eerste) {
+        const el = document.getElementById(eerste[1])
+        if (el) {
+          el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+          // Het element is soms een wrapper (teamkeuze, flowtype-knoppenrij);
+          // dan liever het eerste echte bedieningselement erin focussen.
+          const focusDoel = el.matches('input, select, textarea, button') ? el : el.querySelector('input, select, textarea, button')
+          focusDoel?.focus({ preventScroll: true })
+        }
+      }
+      return
+    }
+    setOntbrekend(null)
     const { teamIds, ...rest } = form
     const [teamId, ...extraTeamIds] = teamIds
     const payload = { ...rest, teamId }
@@ -292,6 +338,11 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             beeld liet vallen. */}
         <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4">
+          {ontbrekend > 0 && (
+            <p role="alert" className="rounded-md bg-[#9a3b2e]/5 px-3 py-2 text-xs font-medium text-[#9a3b2e]">
+              {ontbrekend === 1 ? t('form.missingOne') : t('form.missingCount', { count: ontbrekend })}
+            </p>
+          )}
           {adminSettings.uitgebreideAnalyse && (
             <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatIsHet')}</p>
           )}
@@ -396,7 +447,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 <Label required>{t('form.flowtype')}</Label>
                 <InfoIcon tooltip={t('form.flowtypeHelper')} />
               </div>
-              <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
+              <div id="dep-flowtype" className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
                 {FLOWTYPE_LEVELS.map((value) => (
                   <button
                     key={value}
