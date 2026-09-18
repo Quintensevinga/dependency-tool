@@ -3,6 +3,41 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-14
+- **Merge remote-tracking branch 'origin/main' into claude/versie-cache-reset-976a71** (Quinten)
+
+  # Conflicts:
+  #	src/lib/storage.js
+
+- **Versie: melding bij een nieuwere versie, demodata-hash en ?reset=1** (Quinten)
+
+  Wie de tool al eens geopend had, bleef de oude versie zien. Twee losse
+  oorzaken, want de code zelf was het probleem niet: index.html werd al met
+  must-revalidate geserveerd en de assets zijn gehasht, dus één herlaadbeurt
+  gaf altijd de nieuwste app. Wat bleef hangen was (1) een tab die dagenlang
+  openstaat en dus nooit herlaadt, en (2) de data in localStorage.
+
+  De buildversie (commit-sha, of het buildmoment zonder git) wordt nu
+  ingebakken én als /version.json meegepubliceerd. De app vergelijkt die twee
+  elke vijf minuten en zodra je terugkeert op de tab, en toont dan een balk
+  "Er staat een nieuwere versie klaar · Herladen". De draaiende versie en het
+  buildmoment staan in Instellingen & privacy, zodat "heb jij de nieuwste?"
+  beantwoordbaar is.
+
+  De verversing van de voorbeelddata hing aan MOCK_DATA_VERSION, een getal dat
+  je bij elke wijziging van mockData.js handmatig moest ophogen — precies de
+  footgun waar de comment erboven zelf al voor waarschuwde. Het is nu een hash
+  van dat bestand, berekend bij het bouwen: elke inhoudelijke wijziging levert
+  vanzelf een andere handtekening op. Eigen ingevoerde data (usingMockData:
+  false) blijft onaangeroerd, net als voorheen.
+
+  Voor wie tóch vastzit is er ?reset=1 als deelbare link: die wist alles onder
+  de dependency-insight:-prefix (data, taal, navigatie, rondleiding) en start
+  met verse voorbeelddata. In vercel.json staan de cache-regels nu expliciet:
+  /assets onbeperkt (gehashte namen), al het andere no-cache.
+
+  Bijvangst: de meldingsbalken stonden op z-30, net als de zijbalk, die later
+  in de DOM staat en het begin van de tekst afdekte — alle drie nu z-40.
+
 - **Merge remote-tracking branch 'origin/main' into claude/dependency-insight-mockdata-dfc292** (Quinten)
 
 - **Changelogregel over de opschoning zelf neutraal formuleren** (Quinten)
