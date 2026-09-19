@@ -5,6 +5,10 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-19
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
 
+- **CI: de reden van npm ci tonen, niet de usage-tekst eronder** (Lars Hoogland)
+
+- **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
+
 - **CI: annotatie regel voor regel in plaats van een geescapete blok** (Lars Hoogland)
 
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
