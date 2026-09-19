@@ -3,6 +3,54 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Beurt 9 samengevoegd: Instellingen als eigen pagina** (Lars Hoogland)
+
+  28 -- Instellingen wordt /instellingen met zeven subtabs, en de twee
+        wachtrijen (externe partijen en koppelingsverzoeken) komen samen op een
+        eigen subtab met filter, bovengrens en een teller op precies twee plekken.
+
+- **Punt 28: Instellingen wordt een pagina met subtabs en een gezamenlijke wachtrij** (Lars Hoogland)
+
+  Instellingen was een zwevend paneel van 384px breed waarin alles achter elkaar
+  stond: versie, demodata, teambeheer, exporteren, importeren, gevarenzone en --
+  achter een wachtwoord -- het adminblok met het log, de partijen en veertien
+  zichtbaarheidsvinkjes. Bij dertig teams is het teambeheer alleen al langer dan
+  het paneel hoog is.
+
+  - eigen pagina op /instellingen, met zeven subtabs: Algemeen, Teams, Wachtrij,
+    Data, Partijen, Zichtbaarheid en Log. De wachtwoordgrens verhuist ongewijzigd
+    mee naar de drie subtabs die er nu achter zitten; alleen de extra 'Admin ›'
+    uitklapper erboven is weg, want de subtab is al de onthulling;
+  - de zijbalkknop navigeert nu naar die pagina in plaats van een paneel te
+    openen. Het zwevende paneel is verdwenen, inclusief de positioneringstrucs
+    die het nodig had.
+
+  De reviewwachtrij brengt twee wachtrijen samen die niets met elkaar te maken
+  hadden: externe partijen 'in afwachting' (stonden in een sectie die standaard
+  dicht was, dus je moest 'm opendoen om te weten of er iets lag) en
+  koppelingsverzoeken 'voorgesteld' (alleen zichtbaar op de teampagina van het
+  ontvangende team, organisatiebreed geen totaal). Met een eigen schakelaar, een
+  filter op soort en een bovengrens van 50 regels.
+
+  De berekening van die verzoeken stond vastgeklonken in TeamPage met het teamId
+  van die pagina erin gebakken. Die is uitgetild naar src/lib/koppelverzoeken.js
+  met het ontvangende team als optionele parameter, zodat de teampagina en de
+  wachtrij dezelfde functie gebruiken en niet uit elkaar kunnen lopen.
+
+  Een getal, twee plekken: de teller in de zijbalk en die op de subtab komen
+  allebei uit useReviewwachtrij. Staat de wachtrij uit, dan verdwijnen de subtab
+  en de teller samen.
+
+  Gecontroleerd op de voorbeelddata (2 partijen + 2 verzoeken): teller staat op 4
+  en loopt bij goedkeuren naar 3 en bij accepteren naar 2; de filters laten 2
+  respectievelijk 2 regels over; accepteren vanuit de wachtrij maakt het
+  tegenhanger-item bij het ontvangende team aan en koppelt beide kanten (twee
+  records op twee teams, geen duplicaat) en het verzoekvak op de teampagina is
+  daarna weg; de wachtrij uitzetten laat de subtab en de teller verdwijnen terwijl
+  2 partijen en 1 verzoek gewoon blijven staan; op 390px vallen alle zeven tabs op
+  twee rijen zonder horizontaal scrollen; en het getal staat op precies twee
+  plekken.
+
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
 
 - **CI repareren: Node 22 en een volledige lockfile** (Lars Hoogland)
