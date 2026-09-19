@@ -5,6 +5,13 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-19
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
 
+- **CI: npm-uitvoer ook als annotatie** (Lars Hoogland)
+
+  Het job summary blijkt net zo min zonder login te lezen als de log zelf;
+  annotaties wel. Tijdelijk, gaat eruit zodra de oorzaak bekend is.
+
+- **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
+
 - **CI: npm-uitvoer tijdelijk naar het job summary** (Lars Hoogland)
 
 - **CI: npm-uitvoer tijdelijk naar het job summary** (Lars Hoogland)
