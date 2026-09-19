@@ -31,7 +31,25 @@ jobs:
       # lege node_modules legt bloot dat een pakket wel geïmporteerd wordt maar
       # niet (of in de verkeerde sectie) in package.json staat.
       - name: Installeren
-        run: npm ci
+        run: |
+          set -o pipefail
+          npm ci 2>&1 | tee /tmp/npm-ci.log
+
+      # Tijdelijk: de foutuitvoer van npm staat alleen in de CI-log, en die is
+      # niet zonder login te lezen. Het job summary komt wel publiek terug via
+      # de API, dus daar zetten we 'm bij een mislukking neer. Weghalen zodra
+      # de oorzaak bekend is.
+      - name: Npm-uitvoer bij mislukking
+        if: failure()
+        run: |
+          echo '### npm ci' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          tail -80 /tmp/npm-ci.log >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo '### omgeving' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          { node -v; npm -v; ls -la; } >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Lint
         run: npm run lint
