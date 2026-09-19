@@ -2,6 +2,584 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-19
+- **Merge origin/main: beurten 1 t/m 4 samengevoegd met het ketenoverzicht-werk** (Lars Hoogland)
+
+  De andere sessie heeft intussen Matrix-overzicht en Relatiekaart verwijderd,
+  GraphView.jsx vervangen door HeatmapView.jsx, het ketenoverzicht herzien,
+  routes/URL's toegevoegd en een versiemelding met demodata-hash gebouwd.
+
+  Conflicten per bestand:
+
+  vite.config.js - beide kanten nodig. Zijn versiemanifest en het define-blok
+  (__APP_VERSION__, __BUILD_TIME__, __MOCK_DATA_SIGNATURE__) blijven; daarnaast
+  mijn test-blok. defineConfig komt uit vitest/config, dat is dezelfde functie
+  en zijn plugins/define werken er ongewijzigd in.
+
+  GraphView.jsx - door hem verwijderd, door mij gewijzigd. Verwijdering
+  geaccepteerd en mijn twee wijzigingen opnieuw aangebracht op de nieuwe
+  HeatmapView.jsx: de maximale hoogte met een vastgezette teamnaamkolom (punt
+  9) en de behandeling van een onbekende werkstap als 'niet ingevuld' in het
+  stapfilter (punt 27, onderdeel 4).
+
+  App.jsx - beide meldingsbalken naast elkaar gezet. Die van hem gaat over een
+  nieuwere versie van de APP, die van mij over nieuwere DATA in de opslag; de
+  zijne wijkt nu uit voor alle meldingen die over de opslag zelf gaan, want die
+  zijn urgenter. Verder zijn z-40 aangehouden met mijn no-print-klasse erbij, en
+  zijn max-none met mijn app-main-klasse.
+
+  Sidebar.jsx - zijn propslijst (graphViewMode is vervallen met de
+  Relatiekaart) plus mijn exportingPng.
+
+  Opgemerkt: de regelnummers in de opdracht voor HeatmapView.jsx, appVersion.js
+  en het define-blok in vite.config.js kloppen nu wel. Die verwezen niet naar
+  verouderde code - mijn checkout liep achter. Mijn eerdere notitie daarover
+  trek ik in.
+
+  Geverifieerd in de browser na de merge: heatmap met max-hoogte 768px en een
+  dekkende, vastgezette teamnaamkolom; Ketenoverzicht en Analyse openen zonder
+  fouten; het formulier toont vier secties, knoppenrijen en Procesoverstijgend
+  in de werkstaplijst; de teampagina tekent zijn canvas. Nul console-fouten.
+  114 tests, build, lint en check-i18n groen.
+
+- **I2: niets naamloos komt er meer in** (Lars Hoogland)
+
+  Twee klikken op 'Input toevoegen' en daarna Opslaan leverde een permanent
+  naamloos item op: een streepje op het canvas en een teller die oploopt.
+  Hetzelfde gold voor een rol. Een naam van alleen spaties ontsnapte zelfs aan
+  dat streepje. Bij applicaties was het erger: het record werd al weggeschreven
+  op het moment dat je op de knop klikte, dus voordat het venster uberhaupt
+  open was. Ondertussen weigerde dezelfde pagina wel een leeg opsommingspuntje.
+
+  Nu is de naam verplicht in het input/output-venster en het rolvenster, met
+  dezelfde rode regel als in het hoofdformulier; spaties tellen niet mee.
+  Alleen de naam, bewust niet de bron - meer verplichte velden verleiden mensen
+  tot 'xx' invullen.
+
+  Kies je een bestaand item van een ander team, dan wordt de naam daarvan
+  automatisch overgenomen (zolang er nog geen eigen naam staat), zodat de
+  verplichting geen extra denkstap kost.
+
+  Een applicatie ontstaat pas zodra er een naam getypt is: de knop opent nu
+  eerst een klein venster dat om de naam vraagt (ApplicationNameModal), en
+  addApplication weigert een lege naam.
+
+  De controle zit alleen bij de bron. Een naamloos koppelverzoek kan daardoor
+  niet meer ontstaan; bestaande data kan er nog hebben, en die toont het
+  ontvangende team als 'Onvolledig: het andere team moet eerst een naam
+  invullen', met de Accepteren-knop uit en de reden erbij - anders klikt dat
+  team op Accepteren en gebeurt er zichtbaar niets. Bestaande lege records
+  blijven gewoon te openen en te repareren; er wordt niets automatisch
+  opgeruimd.
+
+  Geverifieerd in de browser, telkens met de opslag ernaast gemeten:
+    input leeg opslaan  -> rode regel, venster blijft open, inputs 6 -> 6
+    alleen spaties      -> zelfde melding, 6 -> 6
+    met een echte naam  -> 6 -> 7
+    rol leeg / spaties  -> rode regel, capaciteit 5 -> 5; met rol -> 6
+    applicatievenster openen laat de teller op 4 staan (eerder liep die meteen
+    op); leeg opslaan 4 -> 4; annuleren laat geen naamloos record achter;
+    met naam 4 -> 5
+    bestaand naamloos verzoek bij het ontvangende team: reden zichtbaar en
+    Accepteren disabled
+    bestaand item kiezen vult de naam automatisch ('Polisstatus-terugkoppeling')
+
+- **I5: status wijzigen vanuit het detailpaneel** (Lars Hoogland)
+
+  De status van een dependency was in het detailpaneel alleen te lezen; om 'm
+  te wijzigen moest het hele formulier open. Dat is precies het werk dat een
+  team wekelijks doet en daarmee de duurste handeling van allemaal.
+
+  De status is nu rechtstreeks aanpasbaar, met dezelfde drie waarden als in het
+  formulier, en loopt via updateDependency - dezelfde weg als het formulier -
+  zodat de historie en het wijzigingenlog gevuld blijven. De risicoberekening
+  eronder beweegt meteen mee, want de statuscorrectie zit in die berekening.
+
+  Geverifieerd in de browser vanuit de heatmap: status van 'bekend risico' naar
+  'actief blokkerend' laat de eindscore direct van 6 (Laag) naar 8 (Gemiddeld)
+  gaan. Precies een record wijzigt (ti-dep-14), de historie krijgt een item
+  {datum: 2026-09-19, veld: status, van: bekend risico, naar: actief
+  blokkerend}, het wijzigingenlog een regel dependency_updated met velden
+  ['status'], en na herladen staat de wijziging er nog.
+
+- **Punt 27: records die nergens passen bij de bron oplossen** (Lars Hoogland)
+
+  Op vier plekken verdwenen records stilzwijgend uit beeld, waardoor het
+  scherm compleet leek terwijl het dat niet was.
+
+  1. 'Procesoverstijgend' is nu een echte keuze in de workflowstap-lijst,
+     naast de zes fasen. De lane 'Proces-overstijgend' op het canvas geeft
+     daarmee een gekozen waarde weer in plaats van een gat. PROCESOVERSTIJGEND
+     staat bewust NIET in WORKFLOW_STAP_TO_STAGE: de lookup levert undefined
+     op, en precies daarop selecteert het canvas die lane.
+
+  2. Eenmalige omzetting in migrateDependency: een ontwikkelflow-record met een
+     ontbrekende of onbekende werkstap krijgt die expliciete waarde. Alleen
+     ontwikkelflow - een applicatieflow-record heeft zijn werkstap bewust leeg,
+     en zou bij een te ruime voorwaarde een werkstap krijgen die daar
+     conceptueel niet bestaat. Idempotent, want de nieuwe waarde staat zelf in
+     WORKFLOW_STAP_LEVELS.
+
+  3. Bij het canvas staat nu hoeveel records er niet getekend worden en waarom,
+     met een verwijzing naar de sectie in de lijst eronder. Die sectie vertelt
+     nu ook dat de records niet op het canvas staan.
+
+  4. Het stapfilter van de heatmap behandelt een onbekende waarde als 'niet
+     ingevuld'. Zo'n waarde was noch bekend noch leeg en viel door beide mazen.
+
+  5. Een applicatieverbinding die naar een verwijderde applicatie wijst wordt
+     meegeteld in diezelfde melding bij het canvas.
+
+  6. Capaciteitsregels zonder fase werden bij het opbouwen van het canvas
+     overgeslagen; ze staan nu in een eigen strook 'Nog niet aan een fase
+     gekoppeld'. Het veld blijft in het formulier 'Fase (optioneel)' heten.
+
+  DROOGLOOP, op de voorbeelddata (225 dependencies), vóór uitvoeren:
+    wordt omgezet: 7 records, alle zeven flowtype ontwikkelflow, alle zeven met
+    een lege werkstap
+    applicatieflow-records in die groep: 0
+    records zonder flowtype in die groep: 0 (de 4 die er zijn blijven ongemoeid)
+    nogmaals draaien raakt: 0 records
+
+  Daarna in de browser bevestigd met de vier testgevallen uit de opdracht: een
+  record zonder flowtype blijft {flowtype: null, workflowStap: null}; een
+  ontwikkelflow-record met 'oude_stap' wordt 'procesoverstijgend' en verschijnt
+  op het canvas; een applicatieflow-record blijft ongewijzigd; en de
+  capaciteitsregel zonder fase staat in de strook. De melding bij het canvas
+  luidt '3 record(s) staan niet op het canvas. 2 zonder flowtype - zie de
+  sectie onder het canvas. 1 applicatieverbinding(en) wijzen naar een
+  verwijderde applicatie.' Het stapfilter toont de zes fasen plus
+  Procesoverstijgend plus Niet ingevuld.
+
+  Negen migratietests toegevoegd (114 totaal), inclusief het controlegeval dat
+  applicatieflow ongemoeid blijft.
+
+  Eén ding om te weten: loadState schrijft alleen terug als de opgeslagen
+  schemaversie afwijkt. Bij gelijke versie is de state in het geheugen wel
+  omgezet (en dus ook elke export), maar staat de oude waarde nog in
+  localStorage tot de eerstvolgende wijziging. Dat is hoe elke migratie in deze
+  app al werkt.
+
+- **Punt 33: dependencyformulier opdelen in vier secties met een eigen vlak** (Lars Hoogland)
+
+  Het formulier was een doorlopende scrollkolom met zo'n negentien velden. Er
+  stonden wel vier tekstuele blokkopjes, maar dat waren losse regels met een
+  scheidingslijntje - er was geen zichtbaar vlak dat liet zien waar een groep
+  begon en ophield.
+
+  Nu vier VASTE secties met een eigen achtergrondvlak en ruimte eromheen,
+  langs de blokindeling die er tekstueel al lag. 'Wat doen we ermee' stond
+  eerder genest binnen 'Hoe erg & wat kost het' en is er nu uit getild, met
+  Actie/afspraak en Mitigatie erbij.
+
+  Nadrukkelijk geen wizard: geen stappen, geen voortgangsbalk, geen
+  Volgende/Vorige. Het formulier blijft een scrollend geheel en de
+  informatiedichtheid blijft zoals hij was. De validatie per veld is
+  ongewijzigd, en de secties zijn niet inklapbaar - dus een fout kan nooit in
+  een dichtgeklapte sectie verdwijnen.
+
+  Twee keuzes om te benoemen:
+  - Een neutrale tint voor alle vier de secties en niet vier verschillende
+    kleuren. In deze app draagt kleur betekenis (de warme, ordinale
+    risicoschaal); vier gekleurde vlakken zouden de vraag oproepen welk
+    risiconiveau ze aanduiden. De drie infoblokjes binnen de secties
+    (categorie-uitleg, workflowstap-uitleg, kwadrant) stonden zelf op
+    bg-slate-50 en zijn wit gemaakt, anders vielen ze weg tegen het sectievlak.
+  - 'Effect op flow' staat in 'Hoe erg & wat kost het' en niet in 'Waar in de
+    flow'. De opsomming in de opdracht zet 'm in dat tweede blok, maar het veld
+    verschijnt alleen als er een wachttijd is ingevuld, en dat veld staat in
+    'Hoe erg'. Zou het elders staan, dan popt er een veld op in een sectie
+    waar de invuller al voorbij is gescrold. De opdracht zegt ook 'langs de
+    blokindeling die er tekstueel al ligt', en die zette het hier.
+
+  Geverifieerd in de browser: vier secties met het vinkje aan en uit, in
+  dezelfde volgorde en op dezelfde plek (alleen 'Hoe erg' groeit van 400 naar
+  628px met de extra velden erbij); geen stapnummer, voortgangsbalk of
+  Volgende/Vorige-knop; doorscrollen tot onderaan zonder ergens te klikken;
+  acht foutmeldingen bij de juiste velden, geen enkele met hoogte 0 en dus
+  geen verstopte fout; op telefoonbreedte (390px) vallen de vier secties onder
+  elkaar zonder overlap; en een volledig ingevuld formulier slaat alle
+  gekozen waarden ongewijzigd op.
+
+- **I7: een formulierstand voor iedereen** (Lars Hoogland)
+
+  Een verborgen beheerdersvinkje bepaalde drie dingen tegelijk: of de vier
+  blokkopjes verschenen, of de inschattingen voorbeeldzinnen kregen, en of de
+  extra analysevelden meekwamen. Dat vinkje leeft per browser, dus twee mensen
+  in hetzelfde team konden naast elkaar een ander formulier invullen zonder
+  het te merken. En de standaardwaarde in de code stond uit terwijl de
+  meegeleverde voorbeelddata hem juist aanzette: demo en een verse start waren
+  twee verschillende formulieren.
+
+  Die drie dingen zijn nu uit elkaar getrokken. De blokkopjes en de
+  voorbeeldzinnen bij Impact, Frequentie, Status en Oplosbaarheid staan altijd
+  aan; het vinkje bepaalt alleen nog of Wachttijd, Effect op flow, Deadline en
+  de deadlinetoelichting meekomen. De hele compacte dropdown-variant is
+  daarmee vervallen en verwijderd - dat scheelt ook een tweede, parallelle
+  kopie van dezelfde velden die uit de pas kon lopen.
+
+  DEFAULT_ADMIN_SETTINGS staat nu op true, gelijk aan MOCK_ADMIN_SETTINGS. Aan
+  en niet uit, omdat de velden die er nog achter zitten allemaal optioneel zijn
+  - ze maken het opslaan geen stap zwaarder - terwijl de demodataset ze wel
+  vult en de analysepagina erop leunt.
+
+  Eén controle op het vinkje blijft bewust staan: de verplichting op de
+  deadlinetoelichting in de validatie. Staat het vinkje uit, dan is dat veld
+  niet zichtbaar, en een verplichting op een onzichtbaar veld levert een
+  Opslaan-knop op die niets lijkt te doen.
+
+  Geverifieerd in de browser met een volledig gewiste opslag en daarna met de
+  voorbeelddata: beide tonen exact hetzelfde formulier (alle vier de
+  blokkopjes, alle vier de inschattingen als knoppenrij, breedte 672). Met het
+  vinkje uit blijven de kopjes en de voorbeeldzinnen staan en verdwijnen
+  alleen Wachttijd en Deadline.
+
+## 2026-09-18
+- **I9: geen onterechte melding meer dat 'effect op flow' leeg is** (Lars Hoogland)
+
+  De analysepagina rekende teams aan dat effectOpFlow leeg was, ook als dat
+  veld voor hen nooit zichtbaar was. Het veld is DUBBEL afgeschermd in het
+  formulier: het verschijnt alleen bij de uitgebreide analyse en alleen als er
+  een wachttijd is die niet 'geen' is. Een dependency zonder wachttijd kan het
+  dus per definitie niet hebben en werd toch als onvolledig geteld.
+
+  De check stond buiten het uitgebreideAnalyse-blok en keek alleen of de
+  waarde leeg was. Hij staat nu binnen dat blok en eist daarnaast een
+  wachttijd die niet 'geen' is - beide voorwaarden, want alleen de uitgebreide
+  analyse meenemen lost het maar half op.
+
+  Gemeten met vier records (zonder wachttijd, wachttijd 'geen', wachttijd
+  'dagen' zonder effect, wachttijd 'dagen' met effect):
+    oude filter: a, b en c gemarkeerd
+    nieuwe filter: alleen c, het enige record waar het veld ook echt getoond
+    kon worden
+  Met de uitgebreide analyse uit bestaat de check helemaal niet meer.
+
+- **I6: sterretjes rechtzetten en twee velden een opschrift geven** (Lars Hoogland)
+
+  Twee sterretjes logen. Scope heeft er een maar kan niet fout zijn: er staat
+  altijd een waarde en het veld staat niet in requiredFields. Workflowstap had
+  er altijd een terwijl dat veld alleen bij Ontwikkelflow geldt - bij
+  Applicatieflow wordt het veld zelfs helemaal niet gerenderd.
+
+  Het tekstveld bij de deadline had alleen grijze voorbeeldtekst en geen
+  opschrift: zodra je begon te typen verdween die tekst en wist je niet meer
+  wat er gevraagd werd. Het heeft nu een echt opschrift, met de voorbeeldtekst
+  als aanvulling.
+
+  En passant de drie velden uit punt 14 nagelopen, die hadden geen opschrift:
+  de applicatienaam in de lijst, het naamveld in de applicatie-detailmodal en
+  de canvasnotitie. Bewust een toegankelijk opschrift (aria-label) en geen
+  zichtbaar label: elke rij in de applicatielijst is de applicatie zelf, dus
+  een label erboven zou bij tien applicaties tien keer hetzelfde woord
+  opleveren.
+
+  Geverifieerd in de browser: Scope heeft geen sterretje meer; bij
+  Applicatieflow is het workflowstapveld er niet; bij Ontwikkelflow staat er
+  'Workflowstap*'; en het deadlineveld toont 'Welke datum, en waarom die
+  datum?*' dat gewoon blijft staan terwijl je typt.
+
+- **I1: bij Opslaan springen naar het eerste ontbrekende veld** (Lars Hoogland)
+
+  handleSubmit eindigde bij een fout op een kale return: geen scroll, geen
+  focus, geen melding. Stond het ontbrekende veld buiten beeld, dan gebeurde er
+  zichtbaar niets - gemeten stond Impact 296px boven het zichtbare deel.
+
+  Nu springt het formulier naar het eerste ontbrekende veld, zet de cursor
+  erin en toont bovenaan hoeveel velden er ontbreken, in de bestaande
+  foutstijl (#9a3b2e).
+
+  De volgorde staat als vaste tabel in de code en wordt niet uit
+  Object.keys(errors) afgeleid: die volgt de volgorde waarin de controles
+  toevallig draaien, en dan springt het scherm naar een veld verderop terwijl
+  er bovenaan nog iets ontbreekt. De flowtype-knoppenrij had nog geen id en
+  heeft er nu een, zodat er ook naartoe gesprongen kan worden.
+
+  Geverifieerd in de browser: alles ingevuld behalve Impact, doorgescrold tot
+  Impact op y=-196 stond (zichtbaar gebied 99-689), dan Opslaan. Bovenaan
+  verschijnt 'Er ontbreekt nog 1 verplicht veld.', Impact schuift naar y=425
+  en de cursor staat in dat veld. Een volledig ingevuld formulier slaat
+  gewoon op (225 -> 226 records, dialoog sluit).
+
+- **Punt 10: kaartoverlap in de in- en uitvoerkolommen van de teampagina weg** (Lars Hoogland)
+
+  De input-kaarten van de applicatieflow en die van de ontwikkelflow staan op
+  exact dezelfde x, en stackCenteredInZone stapelde elke groep gecentreerd
+  binnen zijn zone zonder begrenzing aan de onderkant. Paste een stapel niet,
+  dan liep hij de volgende zone in - en omdat de x gelijk is, kwamen de
+  kaarten over elkaar heen.
+
+  stackCenteredInZone leidt nu uit de zonehoogte en IO_Y_GAP af hoeveel
+  kaarten er in een kolom passen en begint daarna een kolom NAAST de vorige:
+  naar buiten toe, dus inputs verder naar links en outputs verder naar rechts
+  (IO_COLUMN_STEP = 196, kaartbreedte 176 plus tussenruimte). Elke kolom wordt
+  apart gecentreerd, zodat een laatste halfvolle kolom niet scheef onderaan
+  hangt. De zones blijven los van elkaar. Een eigen kolom per zone is bewust
+  niet gebouwd.
+
+  Gemeten met computeWorkflowLayout zonder browser, op alle acht demoteams in
+  beide standen (zestien gevallen), overlap geteld als |dx| < 176 en |dy| < 80:
+    voor  4 overlappende paren, ergste geval 57px
+          (Wakanda samengevoegd 1, Stark Industries samengevoegd 3)
+    na    0 overlappende paren
+
+  In de browser op Team Stark Industries bevestigd: 0 overlappende paren in
+  zowel Samengevoegd als Split, alle 61 lijnen nog aanwezig en geen hangende
+  lijnen. Een handmatig versleepte kaart wordt bewaard, overleeft een
+  herlading en wint van de berekende kolomindeling (opgeslagen {x:18,y:-201}
+  is ook de werkelijk gebruikte canvaspositie).
+
+- **Punt 14: drie invoervelden bufferen i.p.v. bij elke toetsaanslag opslaan** (Lars Hoogland)
+
+  De applicatienaam in de lijst, het naam- en toelichtingveld in de
+  applicatie-detailmodal en de canvasnotitie schreven bij elke ingetypte letter
+  de complete dataset via JSON.stringify naar localStorage. De lokale draft in
+  de modal hielp daar niets tegen: die riep onSave meteen weer aan.
+
+  Nieuw hulpmiddel src/lib/useBufferedText.js: houdt de tekst lokaal bij en
+  schrijft weg bij onBlur en automatisch 400ms na de laatste toetsaanslag, met
+  een flush bij unmount. De opslaglaag zelf blijft ongemoeid - het uitstellen
+  van localStorage-schrijfacties daar is een aparte, geparkeerde keuze.
+
+  De drie valkuilen uit de opdracht afgevangen:
+  - ander record in hetzelfde veld: de applicatienaam zit nu in een eigen
+    component met een key op de applicatie-id, zodat React het veld vers
+    opbouwt i.p.v. de vorige naam te laten staan;
+  - modal sluit: de flush bij unmount schrijft een openstaande wijziging
+    alsnog weg;
+  - notitie verwijderd terwijl er tekst openstaat: de verwijderknop roept
+    eerst cancel() aan, anders schrijft die unmount-flush de zojuist
+    verwijderde aantekening weer terug.
+
+  Geverifieerd in de browser, alle zes de controles uit de opdracht, telkens
+  met een herlading: blur-pad bewaart, pauze-pad bewaart zonder blur, snel
+  wisselen tussen twee applicaties houdt beide namen goed gescheiden, de
+  modal-toelichting overleeft direct sluiten, en een binnen 120ms verwijderde
+  notitie komt na herladen niet terug.
+
+  Gemeten op een dataset van 1046 KB, 20 tekens typen in hetzelfde veld:
+    voor  40 schrijfacties, 42136 KB geserialiseerd, typen duurde 1978 ms
+    na     2 schrijfacties,  2107 KB geserialiseerd, typen duurde  954 ms
+
+- **Punt 9: heatmap krijgt een maximale hoogte en een vastgezette teamnaamkolom** (Lars Hoogland)
+
+  LET OP - de opdracht verwijst naar src/components/HeatmapView.jsx, dat
+  bestand bestaat niet: de heatmap zit in GraphView.jsx. Het beschreven
+  probleem klopte wel precies.
+
+  Gemeten voor de wijziging, met de dataset opgeblazen naar 40 teams: het
+  scrollende element was .app-main, dus de hele pagina, en niet het
+  heatmap-vak zelf. Na 600px verticaal scrollen stond de categoriekop op
+  top -464 terwijl het vak op 0 begon: de sticky top-0 plakte aan een vak dat
+  zelf nooit beweegt, dus de koppen verdwenen gewoon uit beeld. De
+  teamnaamkolom had helemaal geen vastzetting.
+
+  Het vak heeft nu een MAX-hoogte (max(360px, calc(100vh - 232px))) in plaats
+  van geen hoogte. Een maximum en geen vaste hoogte, zodat de oorspronkelijke
+  reden voor die keuze - geen groot wit vlak bij weinig teams - overeind
+  blijft: bij 4 teams is het vak 341px bij 269px inhoud, dus 72px waarvan 32px
+  padding. Het dubbele scrollgebied is weg (het binnenvak had ook
+  overflow-auto), de teamnaamkolom staat op sticky left-0 met een DEKKENDE
+  achtergrond (de hover-tint bg-[#2a5f8a]/10 was half doorzichtig; #e9eff3 is
+  diezelfde tint plat op wit) en de hoekcel staat in beide richtingen vast.
+  z-indexen: hoek 30, kolomkoppen 20, teamnamen 10, datacellen eronder.
+
+  Na de wijziging bij 40 teams: de scroller is het heatmap-vak zelf (566px),
+  de categoriekop blijft na verticaal scrollen op 120 staan tegen een vakrand
+  van 119, en na 500px horizontaal scrollen staat de teamnaam nog op 241 tegen
+  een vakrand van 240 terwijl de datacel naar 19 is doorgeschoven. De pagina
+  zelf scrolt niet mee. Kleurgebruik ongemoeid.
+
+- **Punt 15: printstijlblad zodat afdrukken meer dan een pagina oplevert** (Lars Hoogland)
+
+  Ctrl+P leverde altijd precies een pagina op: de app-schil staat op h-screen
+  met overflow-hidden, alleen <main> scrolt, en de vaste koptekst, zijbalk en
+  meldingsbalken namen op die ene pagina ook nog ruimte in. src/index.css had
+  geen enkel @media print-blok.
+
+  Toegevoegd: klassen app-shell en app-main in App.jsx (een Tailwind-utility
+  overschrijven vanuit een stijlblad is fragiel, een eigen klassenaam niet),
+  no-print op de koptekst, de zijbalk en alle vier de meldingsbalken, en een
+  @media print-blok dat de hoogtebeperkingen opheft, de padding-top van 73px
+  weghaalt, achtergrondkleuren laat meeprinten (de risicoweergave leunt
+  volledig op kleur - zonder dat blijft er een tabel met witte vakjes over) en
+  break-inside: avoid op kaarten en tabelrijen zet.
+
+  Ketenoverzicht en teamcanvas tekenen in een eigen viewport en komen op
+  papier hoe dan ook afgekapt; die worden bij printen verborgen en vervangen
+  door een regel die naar de PNG-exportknop verwijst.
+
+  Geverifieerd met geemuleerde printmedia: koptekst en zijbalk verdwijnen, de
+  padding-top gaat van 73px naar 0, overflow van hidden naar visible, en een
+  gekleurd vlak houdt zijn kleur. Met de dataset opgeblazen naar 40 teams gaat
+  de documenthoogte van 900px (scherm, afgekapt) naar 2427px en levert de
+  heatmap 4 PDF-paginas op, met de laatste teamrij er ook echt op. Op het
+  ketenoverzicht is het canvas verborgen en staat de verwijzing naar de
+  PNG-export er in plaats van. Het scherm zelf is onveranderd.
+
+  Alleen in Chromium gecontroleerd; het meeprinten van achtergrondkleuren
+  wordt niet in elke browser hetzelfde behandeld.
+
+- **Punt 11: PNG-exportknop uitschakelen tijdens exporteren, met bezig-indicatie** (Lars Hoogland)
+
+  handleExportPng laadt html2canvas-pro dynamisch bij en tekent het scherm op
+  schaal 2; op een vol canvas duurt dat merkbaar lang, maar er was geen
+  bezig-stand. Er gebeurde zichtbaar niets, je klikte nog eens, en er liepen
+  twee exports tegelijk.
+
+  Nu een exportingPng-stand in App.jsx, gezet als eerste regel en in een
+  finally weer vrijgegeven zodat ook een mislukte export de knop teruggeeft;
+  een nieuwe aanroep wordt overgeslagen zolang die stand aanstaat. De knop in
+  Instellingen is disabled met een gedimde stijl en de tekst 'Bezig met
+  exporteren...'.
+
+  Onderweg gerepareerd: exportElementAsPng geeft alleen false terug bij een
+  ontbrekend element - een mislukte dynamische import of een fout in
+  html2canvas gooit, en daar ving niemand iets van op. De gebruiker zag dan
+  niets gebeuren, precies de klacht van dit punt. Er is nu een catch met een
+  eigen melding; de bestaande tekst hergebruiken zou misleidend zijn geweest
+  ('er was niets zichtbaars om te exporteren' klopt niet bij een laadfout).
+
+  Geverifieerd in de browser op het ketenoverzicht: na de React-render staat
+  de knop op 'Bezig met exporteren...' met disabled=true, vijf klikken in
+  snelle opeenvolging leveren exact 1 PNG op, en na afloop is de knop weer
+  normaal. Met het html2canvas-verzoek geblokkeerd verschijnt de melding en
+  komt de knop weer vrij (finally werkt), zonder onafgevangen fout in de
+  console.
+
+- **Punt 2 en 3: importbevestiging met veiligheidskopie, en exportdatum tonen** (Lars Hoogland)
+
+  Beide punten grijpen in dezelfde regels van SettingsPanel (handleExportJson
+  en de knoppenrij), vandaar een commit.
+
+  Punt 2 - importeren is in deze werkwijze dagelijks werk en tegelijk het
+  enige pad dat in een klik alles wist, maar stond onopvallend tussen de twee
+  exportknoppen en ging meteen door naar importState. Nu twee trappen: na
+  readJsonFile blijft validateImportShape de eerste horde, daarna komt een
+  bevestigingsblok met aantal teams, dependencies, externe partijen,
+  logregels en de schemaversie uit het bestand. Pas bij bevestigen wordt eerst
+  automatisch een kopie van de HUIDIGE data gedownload als
+  voor-import-<datum>.json, en daarna pas vervangen. De importknop staat nu
+  vlak boven de gevarenzone in dezelfde waarschuwstijl (#9a3b2e).
+
+  De payload van een export en die van de veiligheidskopie komen uit een
+  gedeelde exportPayload(), zodat de kopie niet stilzwijgend kan afwijken van
+  een handmatige export.
+
+  Punt 3 - bij elke geslaagde JSON-export wordt een ISO-tijdstempel gezet in
+  een eigen kleine sleutel 'dependency-insight:last-export', bewust niet in de
+  hoofdstate: dit is geen inhoudelijke data en hoort niet mee in export,
+  import of migratie (zelfde patroon en motivering als NAV_STORAGE_KEY in
+  App.jsx). Boven de exportknop staat nu 'Laatste export: N dagen geleden
+  (datum)' of 'Nog nooit geexporteerd', vanaf 14 dagen en bij 'nog nooit' in
+  de waarschuwkleur.
+
+  Geverifieerd in de browser: bevestigingsscherm toont de juiste aantallen en
+  de opslag is op dat moment nog onveranderd (8 teams / 225 deps); annuleren
+  laat alles staan; bevestigen levert 7/198 plus een gedownloade
+  voor-import-2026-09-18.json die 8/225 bevat en teruggezet exact op 8/225
+  uitkomt; een bestand met {"teams":1} geeft de bestaande foutmelding zonder
+  bevestigingsscherm en zonder download. De exportregel slaat na exporteren om
+  naar vandaag, reist niet mee met een import, en kleurt bij 20 dagen terug in
+  rgb(154,59,46). Geen console-fouten.
+
+- **Punt 5: data met een hogere schemaversie weigeren i.p.v. stil uitkleden** (Lars Hoogland)
+
+  migrateState bouwt de state onvoorwaardelijk opnieuw op uit de velden die
+  deze versie kent en zet schemaVersion hard op 6. Alles wat een nieuwere
+  versie extra meebrengt viel daarmee weg - en loadState schreef dat resultaat
+  ook nog eens meteen terug, dus dat verlies was onherstelbaar.
+
+  validateImportShape weigert nu een bestand met een hogere schemaVersion, met
+  beide nummers in de melding. Een ontbrekende of niet-numerieke schemaVersion
+  gaat gewoon door: oude exports hebben dat veld niet altijd.
+
+  loadState migreert bij een hogere versie niet en schrijft vooral niet terug;
+  het geval gaat als futureVersion langs dezelfde weg als het bestaande
+  corrupted-signaal naar de UI, met een melding en bewust geen knop die alsnog
+  overschrijft.
+
+  Eén gat dat de opdracht niet noemt, wel gedicht: de app blijft daarna gewoon
+  bruikbaar op demodata, en de eerstvolgende wijziging zou de nieuwere data via
+  saveState alsnog overschrijven. Daarom wordt de ruwe tekst weggezet onder
+  'dependency-insight:v1:nieuwere-versie' en biedt de melding die kopie aan om
+  te downloaden.
+
+  Geverifieerd in de browser: met schemaVersion 99 in de opslag verschijnt de
+  melding, en na herladen staat er in localStorage nog steeds 99 met het extra
+  veld intact plus de kopie. Terugzetten op 6 laat alles weer normaal werken.
+  Geen console-fouten. 105 tests groen.
+
+- **Punt 6: leeg record in de dependencylijst kost niet langer de hele dataset** (Lars Hoogland)
+
+  resolveTeamId las dep.teamId zonder te controleren of dep een object is. Een
+  null of losse tekst in de lijst gooide daardoor een TypeError, en bij het
+  opstarten zit die in de try van loadState: de complete opslag werd als
+  onleesbaar bestempeld, weggezet onder de corrupt-sleutel en vervangen door
+  demodata. Een leeg element kostte dus alles.
+
+  migrateState filtert de lijst nu eerst op echte objecten (arrays tellen niet
+  mee), resolveTeamId heeft daarnaast een eigen controle zodat hij ook los
+  veilig blijft, en het aantal overgeslagen records gaat via een losse
+  report-parameter naar loadState en van daar als eigen meldingsbalk naar de
+  UI. Bewust niet via de returnwaarde van migrateState: die returnwaarde is de
+  state die naar localStorage gaat, en dit is een melding over een migratie,
+  geen inhoud voor de opslag of een export.
+
+  De strengere importcontrole (validateImportShape) blijft ongemoeid en is in
+  de test vastgelegd: bij importeren hoort een leeg record een duidelijke fout
+  te geven, niet stilzwijgend minder records.
+
+  Geverifieerd in de browser met eigen data (8 teams, 2 dependencies) plus een
+  null en een losse tekst in de opslag: voor de fix verscheen de
+  corrupt-melding en was alles weg, erna blijft de data staan met de melding
+  '2 dependency-record(s) ... overgeslagen', die te sluiten is. Geen
+  console-fouten. 100 tests groen.
+
+- **Punt 13: vijf tests die het risicomodel en de datamigratie vastleggen** (Lars Hoogland)
+
+  risk.test.js  - gouden tabel over alle 48 combinaties van calculateRisk
+                  (score, niveau en het volledige breakdown-object), plus
+                  MAX_RISK_SCORE = 18, plus het gedrag op onzinwaarden
+                  ('constructor'/'toString' blijven undefined dankzij
+                  Object.create(null)). De verwachtingen staan met de hand
+                  uitgeschreven en worden NIET uit de puntentabellen afgeleid:
+                  anders wijzigt de verwachting mee met wat hij moet bewaken.
+  analysis.test.js - de niveaugrenzen van flowverlies, urgentie en kwadrant,
+                  inclusief het verschil tussen 'wachttijd niet ingevuld'
+                  (null) en wachttijd 'geen' (score 0, Laag).
+  storage.test.js  - migratie van een oude export (teamtekst -> team met
+                  geslugd id, hoog->zwaar, incidenteel->soms,
+                  build->ontwikkeling_configuratie, Procesafhankelijkheid->
+                  Governance/proces-afhankelijkheid, flowtype afgeleid) met
+                  een vaste klok, en idempotentie van migrateState.
+
+  94 tests, alle drie aantoonbaar scherp gemaakt door ze een keer te laten
+  falen: een cijfer in IMPACT_POINTS wijzigen maakt 13 gevallen rood, een
+  regel in IMPACT_MIGRATIE wijzigen maakt test 4 rood, en de Laag-drempel in
+  analysis.js verschuiven maakt test 3 rood.
+
+  Opgemerkt: de flowverlies-drempel van 5 naar 4 verschuiven verandert niets
+  en is geen gat in de test - de producten van {0,1,2,3}x{1,2,3,4} leveren
+  nooit 5 of 7 op, dus die drempelwaarde is gedragsmatig niet waarneembaar.
+
+- **Punt 12: vitest toevoegen plus CI-workflow met lint, build en tests** (Lars Hoogland)
+
+  Vitest als devDependency, test/test:watch in package.json, en een test-blok
+  in vite.config.js (environment 'node' — de eerste tests raken geen scherm,
+  dus jsdom is onnodige ballast). Eén configuratie voor build en tests, geen
+  losse vitest.config.js die uit de pas kan lopen.
+
+  Nieuwe workflow .github/workflows/ci.yml, bewust apart van changelog.yml:
+  die heeft schrijfrechten nodig om terug te pushen en dat wil je niet
+  uitbreiden naar een workflow met build- en teststappen. Draait npm ci (niet
+  npm install), lint, build, test en check-i18n. audit-relations.mjs draait
+  niet mee: dat verwacht een geexporteerd JSON-bestand als argument.
+
+  Onderweg gerepareerd: check-i18n.mjs liep op Windows vast met
+  ERR_UNSUPPORTED_ESM_URL_SCHEME doordat een dynamische import een kaal
+  'C:\...'-pad kreeg in plaats van een file://-URL.
+
 ## 2026-09-14
 - **Merge remote-tracking branch 'origin/main' into claude/versie-cache-reset-976a71** (Quinten)
 
