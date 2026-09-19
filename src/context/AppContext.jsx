@@ -10,7 +10,6 @@ import {
   uniqueSlug,
   emptyTeamWorkflow,
   emptyApplicatieflow,
-  deepClone,
 } from '../lib/storage'
 import { buildTeamLabels } from '../lib/teamLabels'
 

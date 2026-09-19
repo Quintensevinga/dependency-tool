@@ -43,10 +43,6 @@ function isoDatumOf(value) {
   return typeof value === 'string' && value && !Number.isNaN(Date.parse(value)) ? value : null
 }
 
-export function deepClone(value) {
-  return JSON.parse(JSON.stringify(value))
-}
-
 export function emptyApplicatieflow() {
   return { connecties: [], details: {}, layout: {} }
 }

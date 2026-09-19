@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import SettingsPanel from './SettingsPanel'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
+import { LijstZoekveld, ToonMeerKnop, useZoekbareLijst } from './ZoekbareLijst'
 
 function ChainIcon() {
   return (
@@ -251,6 +252,14 @@ function TeamsSection({ activeTeamId, onNavigateToTeam }) {
   const { activeTeams } = useAppContext()
   const { t } = useLanguage()
   const [open, setOpen] = useState(true)
+  // Het team waar je nu op staat blijft altijd in de lijst, ook voorbij de
+  // afkapgrens: anders verdwijnt de pagina waar je op kijkt uit de navigatie.
+  const lijst = useZoekbareLijst({
+    items: activeTeams,
+    labelVan: (team) => team.naam,
+    isGekozen: (team) => team.id === activeTeamId,
+    zichtbaar: open,
+  })
 
   return (
     <div className="mt-1">
@@ -266,12 +275,29 @@ function TeamsSection({ activeTeamId, onNavigateToTeam }) {
 
       {open && (
         <div>
+          {lijst.zoekveldZichtbaar && (
+            <LijstZoekveld
+              waarde={lijst.zoek}
+              onChange={lijst.setZoek}
+              label={t('lijst.zoekTeam')}
+              className="mb-1.5 w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:border-white/30 focus:outline-none"
+            />
+          )}
           <ul className="max-h-72 space-y-0.5 overflow-y-auto px-1">
             {activeTeams.length === 0 && <li className="px-2 py-1.5 text-xs text-slate-500">{t('team.noTeams')}</li>}
-            {activeTeams.map((team) => (
+            {activeTeams.length > 0 && lijst.getoond.length === 0 && (
+              <li className="px-2 py-1.5 text-xs text-slate-500">{t('lijst.geenTeamGevonden')}</li>
+            )}
+            {lijst.getoond.map((team) => (
               <TeamRow key={team.id} team={team} active={team.id === activeTeamId} onNavigateToTeam={onNavigateToTeam} />
             ))}
           </ul>
+          <ToonMeerKnop
+            verborgen={lijst.verborgen}
+            uitgeklapt={lijst.uitgeklapt}
+            onToggle={() => lijst.setUitgeklapt((v) => !v)}
+            className="mt-1 px-3 py-1 text-xs font-medium text-slate-400 hover:text-slate-200"
+          />
         </div>
       )}
     </div>
