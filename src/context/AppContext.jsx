@@ -12,6 +12,7 @@ import {
   emptyApplicatieflow,
 } from '../lib/storage'
 import { buildTeamLabels } from '../lib/teamLabels'
+import { begrensLog } from '../lib/changeLog'
 
 const AppContext = createContext(null)
 
@@ -108,9 +109,10 @@ export function AppProvider({ children }) {
   const persist = useCallback((updater) => {
     setState((prev) => {
       const next = typeof updater === 'function' ? updater(prev) : updater
-      if (next !== prev) lastSaveOkRef.current = saveState(next)
-      stateRef.current = next
-      return next
+      const begrensd = next === prev ? next : begrensLog(next)
+      if (begrensd !== prev) lastSaveOkRef.current = saveState(begrensd)
+      stateRef.current = begrensd
+      return begrensd
     })
   }, [])
 
@@ -815,6 +817,19 @@ export function AppProvider({ children }) {
     [persist],
   )
 
+  // Verwijdert de meegegeven logregels definitief. Wordt alleen aangeroepen
+  // nadat de gebruiker in Instellingen heeft bevestigd dat het archiefbestand
+  // op zijn schijf staat -- de downloadroute geeft zelf geen bevestiging terug,
+  // dus die stap kan de app niet zelf vaststellen.
+  const verwijderLogregels = useCallback(
+    (ids) => {
+      const weg = new Set(ids)
+      if (weg.size === 0) return
+      persist((prev) => ({ ...prev, changeLog: prev.changeLog.filter((c) => !weg.has(c.id)) }))
+    },
+    [persist],
+  )
+
   const value = useMemo(
     () => ({
       schemaVersion: state.schemaVersion,
@@ -839,6 +854,7 @@ export function AppProvider({ children }) {
       usingMockData: state.usingMockData,
       adminSettings: state.adminSettings,
       updateAdminSettings,
+      verwijderLogregels,
       currentTeamId,
       setCurrentTeamId,
       teamName,
@@ -897,6 +913,7 @@ export function AppProvider({ children }) {
       acceptLinkRequest,
       rejectLinkRequest,
       updateAdminSettings,
+      verwijderLogregels,
       addExternalParty,
       renameExternalParty,
       approveExternalParty,

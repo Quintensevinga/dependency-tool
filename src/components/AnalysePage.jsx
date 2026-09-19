@@ -256,6 +256,7 @@ const TEKST = {
     kEffect: 'Per effect op de flow',
     uVerdeling: 'Aantal open dependencies.',
     kHotspots: 'Hotspots team × categorie',
+    topVan: 'top {{n}} van {{total}}',
     uHotspots: 'Cellen met de meeste dependencies; factor = aantal gedeeld door het gemiddelde van alle gevulde cellen.',
     factor: 'factor',
     hoogste: 'hoogste',
@@ -296,6 +297,37 @@ const TEKST = {
     kCycli: 'Cycli in de keten',
     uCycli: 'Teams die via koppelingen bij zichzelf terugkomen. Eén cyclus aan het eind is normaal; meer cycli maken de keten onleesbaar.',
     geenCycli: 'Geen cycli.',
+    sigFilterErnst: 'Ernst',
+    sigFilterSoort: 'Soort',
+    sigFilterAlleSoorten: 'Alle soorten',
+    sigFilterZoek: 'Zoek in de signalen…',
+    sigAantal: '{{n}} van de {{total}} signalen',
+    sigGeenNaFilter: 'Geen signaal voldoet aan deze filters.',
+    sig_blokkerendVerouderd: 'Blokkerend en verouderd',
+    sig_dubbeleRegistratie: 'Dubbele registratie',
+    sig_geaccepteerdHoog: 'Geaccepteerd maar hoog risico',
+    sig_gedeeldeApp: 'Gedeelde applicatie',
+    sig_gemitigeerdNietGesloten: 'Gemitigeerd, niet gesloten',
+    sig_hardeDeadlineZonderAfspraak: 'Deadline zonder afspraak',
+    sig_heropend: 'Heropend',
+    sig_hoogVerouderd: 'Hoog en verouderd',
+    sig_kennisBusFactor: 'Kennisconcentratie',
+    sig_ketenRisico: 'Hoog ketenrisico',
+    sig_kritiekZonderAfspraak: 'Kritiek zonder afspraak',
+    sig_langBlokkerend: 'Lang blokkerend',
+    sig_partijGeweigerd: 'Partij geweigerd',
+    sig_partijHub: 'Partij raakt veel teams',
+    sig_reviewOud: 'Review blijft liggen',
+    sig_slapendTeam: 'Slapend team',
+    sig_sluimerend: 'Sluimerend',
+    sig_spofZonderDetail: 'Kwetsbare applicatie zonder detail',
+    sig_stilRisico: 'Stil risico',
+    sig_teamVerouderd: 'Team met verouderde records',
+    sig_teruggevallen: 'Teruggevallen',
+    sig_verslechterd: 'Verslechterd',
+    sig_verzoekOud: 'Koppelverzoek blijft liggen',
+    sig_wederzijds: 'Wederzijdse afhankelijkheid',
+    cycliAfgekapt: 'Meer dan {{n}} cycli gevonden; alleen de eerste {{n}} zijn doorzocht en worden hier getoond.',
     kLos: 'Losse inputs en onbenutte outputs',
     uLos: 'Inputs zonder koppeling of partij, en outputs die niemand afneemt. Niet fout, wel een teken van een onvolledige kaart.',
     losseInputs: 'Losse inputs',
@@ -603,6 +635,7 @@ const TEKST = {
     kEffect: 'Per effect on the flow',
     uVerdeling: 'Number of open dependencies.',
     kHotspots: 'Hotspots team × category',
+    topVan: 'top {{n}} of {{total}}',
     uHotspots: 'Cells with the most dependencies; factor = count divided by the average of all filled cells.',
     factor: 'factor',
     hoogste: 'highest',
@@ -641,6 +674,37 @@ const TEKST = {
     kCycli: 'Cycles in the chain',
     uCycli: 'Teams that come back to themselves via links. One cycle at the end is normal; more cycles make the chain unreadable.',
     geenCycli: 'No cycles.',
+    sigFilterErnst: 'Severity',
+    sigFilterSoort: 'Type',
+    sigFilterAlleSoorten: 'All types',
+    sigFilterZoek: 'Search the signals…',
+    sigAantal: '{{n}} of {{total}} signals',
+    sigGeenNaFilter: 'No signal matches these filters.',
+    sig_blokkerendVerouderd: 'Blocking and stale',
+    sig_dubbeleRegistratie: 'Duplicate registration',
+    sig_geaccepteerdHoog: 'Accepted but high risk',
+    sig_gedeeldeApp: 'Shared application',
+    sig_gemitigeerdNietGesloten: 'Mitigated, not closed',
+    sig_hardeDeadlineZonderAfspraak: 'Deadline without agreement',
+    sig_heropend: 'Reopened',
+    sig_hoogVerouderd: 'High and stale',
+    sig_kennisBusFactor: 'Knowledge concentration',
+    sig_ketenRisico: 'High chain risk',
+    sig_kritiekZonderAfspraak: 'Critical without agreement',
+    sig_langBlokkerend: 'Blocking for a long time',
+    sig_partijGeweigerd: 'Party rejected',
+    sig_partijHub: 'Party touches many teams',
+    sig_reviewOud: 'Review left waiting',
+    sig_slapendTeam: 'Dormant team',
+    sig_sluimerend: 'Simmering',
+    sig_spofZonderDetail: 'Vulnerable application without detail',
+    sig_stilRisico: 'Silent risk',
+    sig_teamVerouderd: 'Team with stale records',
+    sig_teruggevallen: 'Fallen back',
+    sig_verslechterd: 'Worsened',
+    sig_verzoekOud: 'Link request left waiting',
+    sig_wederzijds: 'Mutual dependency',
+    cycliAfgekapt: 'More than {{n}} cycles found; only the first {{n}} were searched and are shown here.',
     kLos: 'Loose inputs and unused outputs',
     uLos: 'Inputs without link or party, and outputs nobody consumes. Not wrong, but a sign of an incomplete map.',
     losseInputs: 'Loose inputs',
@@ -905,22 +969,86 @@ function Staven({ punten, reeksen, hoogte = 140 }) {
   )
 }
 
+// Hoeveel regels een analysetabel standaard toont. Eronder komt 'toon alle N';
+// negentien tabellen op deze pagina delen dit component, en verschillende
+// daarvan groeien met een regel per team of per record.
+const TABEL_MAX = 15
+
+// De sorteerwaarde van een cel. Bewust niet de weergegeven tekst: kolommen als
+// de factor ('3x') en het partnerpaar ('2/5') zijn opgemaakte strings, en
+// alfabetisch komt '10x' dan voor '2x'. Een kolom kan daarom een eigen
+// `sorteer(rij)` meegeven; zonder dat wordt de ruwe celwaarde gebruikt.
+function sorteerWaarde(kolom, rij) {
+  if (typeof kolom.sorteer === 'function') return kolom.sorteer(rij)
+  const waarde = rij[kolom.key]
+  return waarde ?? ''
+}
+
 function Tabel({ kolommen, rijen, leeg }) {
+  const { language } = useLanguage()
+  const tx = (key, vars) => vul(TEKST[language]?.[key] ?? TEKST.nl[key] ?? key, vars)
+  const [sortering, setSortering] = useState({ key: null, aflopend: false })
+  const [alle, setAlle] = useState(false)
+
+  // Kolommen zonder zinnige ordening (een knop, een badge) zetten
+  // sorteerbaar: false; de rest is sorteerbaar.
+  const kanSorteren = (k) => k.sorteerbaar !== false
+
+  const gesorteerd = useMemo(() => {
+    const kolom = kolommen.find((k) => k.key === sortering.key)
+    if (!kolom) return rijen
+    const richting = sortering.aflopend ? -1 : 1
+    return [...rijen].sort((a, b) => {
+      const va = sorteerWaarde(kolom, a)
+      const vb = sorteerWaarde(kolom, b)
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * richting
+      return String(va).localeCompare(String(vb), language === 'en' ? 'en' : 'nl', { numeric: true }) * richting
+    })
+  }, [rijen, kolommen, sortering, language])
+
   if (rijen.length === 0) return <p className="text-xs text-slate-400">{leeg ?? '—'}</p>
+
+  const zichtbaar = alle ? gesorteerd : gesorteerd.slice(0, TABEL_MAX)
+
+  function klikKop(k) {
+    if (!kanSorteren(k)) return
+    setSortering((vorig) => (vorig.key === k.key ? { key: k.key, aflopend: !vorig.aflopend } : { key: k.key, aflopend: false }))
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-[10px] uppercase tracking-wide text-slate-400">
-            {kolommen.map((k) => (
-              <th key={k.key} className={`pb-1.5 pr-3 font-medium ${k.rechts ? 'text-right' : ''}`}>
-                {k.label}
-              </th>
-            ))}
+            {kolommen.map((k) => {
+              const actief = sortering.key === k.key
+              return (
+                <th
+                  key={k.key}
+                  className={`pb-1.5 pr-3 font-medium ${k.rechts ? 'text-right' : ''}`}
+                  aria-sort={actief ? (sortering.aflopend ? 'descending' : 'ascending') : 'none'}
+                >
+                  {kanSorteren(k) ? (
+                    <button
+                      type="button"
+                      onClick={() => klikKop(k)}
+                      className={`inline-flex items-center gap-1 uppercase tracking-wide ${actief ? 'text-[#2a5f8a]' : 'hover:text-slate-600'}`}
+                    >
+                      {k.label}
+                      <span aria-hidden="true" className={actief ? '' : 'text-slate-300'}>
+                        {actief && sortering.aflopend ? '▾' : '▴'}
+                      </span>
+                    </button>
+                  ) : (
+                    k.label
+                  )}
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {rijen.map((rij, i) => (
+          {zichtbaar.map((rij, i) => (
             <tr key={rij.key ?? i} className={rij.onClick ? 'cursor-pointer hover:bg-slate-50' : ''} onClick={rij.onClick}>
               {kolommen.map((k) => (
                 <td key={k.key} className={`py-1.5 pr-3 text-slate-700 ${k.rechts ? 'text-right tabular-nums' : ''}`}>
@@ -931,6 +1059,11 @@ function Tabel({ kolommen, rijen, leeg }) {
           ))}
         </tbody>
       </table>
+      {rijen.length > TABEL_MAX && (
+        <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
+          {alle ? tx('toonMinder') : tx('toonAlle', { n: rijen.length })}
+        </button>
+      )}
     </div>
   )
 }
@@ -983,31 +1116,154 @@ function Uitklap({ label, aantal, children }) {
 }
 
 const ERNST_LABEL = { hoog: 'ernstHoog', midden: 'ernstMidden', laag: 'ernstLaag' }
+// Korte naam per signaalsoort staat in het TEKST-blok als sig_<key>; ontbreekt
+// die, dan valt tx() terug op de kale sleutel en blijft de knop leesbaar.
+const SOORT_LABEL_KEY = (key) => `sig_${key}`
+
+// Standaard staan alleen hoog en midden aan: de lage signalen zijn hygiene-
+// meldingen die de belangrijkste tussen zich in laten verdwijnen zodra er
+// tientallen teams zijn. Ze zijn met een klik terug te halen.
+const ERNST_STANDAARD = ['hoog', 'midden']
 
 function Waarschuwingen({ signalen, ctx, onSelect, onNavigateToTeam, tx }) {
   const [alle, setAlle] = useState(false)
+  const [ernsten, setErnsten] = useState(ERNST_STANDAARD)
+  const [soort, setSoort] = useState('')
+  const [zoek, setZoek] = useState('')
+
+  // De zin wordt pas bij het renderen samengesteld, dus zoeken gebeurt op de
+  // uitkomst van signaalZin en niet op de ruwe parameters.
+  const metZin = useMemo(() => signalen.map((sig) => ({ sig, zin: signaalZin(sig, ctx) })), [signalen, ctx])
+
+  const perErnst = useMemo(() => {
+    const telling = { hoog: 0, midden: 0, laag: 0 }
+    for (const { sig } of metZin) telling[sig.ernst] = (telling[sig.ernst] ?? 0) + 1
+    return telling
+  }, [metZin])
+
+  // Alleen soorten die er echt zijn, met hun aantal erachter: een keuzelijst
+  // met dertig soorten waarvan er drie voorkomen helpt niemand.
+  const soorten = useMemo(() => {
+    const telling = new Map()
+    for (const { sig } of metZin) telling.set(sig.key, (telling.get(sig.key) ?? 0) + 1)
+    return [...telling.entries()]
+      .map(([key, n]) => ({ key, n, label: tx(SOORT_LABEL_KEY(key)) }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metZin])
+
+  const naald = zoek.trim().toLowerCase()
+  const gefilterd = useMemo(
+    () =>
+      metZin.filter(({ sig, zin }) => {
+        if (!ernsten.includes(sig.ernst)) return false
+        if (soort && sig.key !== soort) return false
+        if (naald && !zin.toLowerCase().includes(naald)) return false
+        return true
+      }),
+    [metZin, ernsten, soort, naald],
+  )
+
+  function wisselErnst(e) {
+    setErnsten((vorig) => (vorig.includes(e) ? vorig.filter((x) => x !== e) : [...vorig, e]))
+  }
+
   if (signalen.length === 0) return <p className="text-xs text-slate-400">{tx('waarschuwingenGeen')}</p>
-  const zichtbaar = alle ? signalen : signalen.slice(0, 25)
+
+  const zichtbaar = alle ? gefilterd : gefilterd.slice(0, 25)
   return (
     <div>
+      <div className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-100 pb-2.5">
+        <span className="text-xs font-medium text-slate-600">{tx('sigAantal', { n: gefilterd.length, total: signalen.length })}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{tx('sigFilterErnst')}</span>
+          {['hoog', 'midden', 'laag'].map((e) => {
+            const aan = ernsten.includes(e)
+            return (
+              <button
+                key={e}
+                type="button"
+                onClick={() => wisselErnst(e)}
+                aria-pressed={aan}
+                className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase transition-colors ${
+                  aan ? ERNST_STIJL[e] : 'border-slate-200 text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {tx(ERNST_LABEL[e])} {perErnst[e] ?? 0}
+              </button>
+            )
+          })}
+        </span>
+        <label className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{tx('sigFilterSoort')}</span>
+          <select
+            value={soort}
+            onChange={(e) => setSoort(e.target.value)}
+            className="max-w-[220px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+          >
+            <option value="">{tx('sigFilterAlleSoorten')}</option>
+            {soorten.map((so) => (
+              <option key={so.key} value={so.key}>
+                {so.label} ({so.n})
+              </option>
+            ))}
+          </select>
+        </label>
+        <input
+          type="search"
+          value={zoek}
+          onChange={(e) => setZoek(e.target.value)}
+          placeholder={tx('sigFilterZoek')}
+          aria-label={tx('sigFilterZoek')}
+          className="min-w-[160px] flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+        />
+      </div>
+      {gefilterd.length === 0 && <p className="text-xs text-slate-400">{tx('sigGeenNaFilter')}</p>}
       <ul className="divide-y divide-slate-100">
-        {zichtbaar.map((s, i) => {
-          const dep = s.params?.dep
-          const teamId = s.params?.teamId ?? s.params?.teamIdA
+        {zichtbaar.map(({ sig, zin }, i) => {
+          const dep = sig.params?.dep
+          const teamId = sig.params?.teamId ?? sig.params?.teamIdA
           const klik = dep ? () => onSelect(dep) : teamId ? () => onNavigateToTeam(teamId) : null
           return (
-            <li key={`${s.key}:${dep?.id ?? teamId ?? ''}:${i}`}>
+            <li key={`${sig.key}:${dep?.id ?? teamId ?? ''}:${i}`}>
               <button type="button" disabled={!klik} onClick={klik ?? undefined} className="flex w-full items-start gap-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent">
-                <span className={`mt-px shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${ERNST_STIJL[s.ernst]}`}>{tx(ERNST_LABEL[s.ernst])}</span>
-                <span className="text-slate-700">{signaalZin(s, ctx)}</span>
+                <span className={`mt-px shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${ERNST_STIJL[sig.ernst]}`}>{tx(ERNST_LABEL[sig.ernst])}</span>
+                <span className="text-slate-700">{zin}</span>
               </button>
             </li>
           )
         })}
       </ul>
-      {signalen.length > 25 && (
+      {/* Het aantal na filteren, niet het totaal: anders belooft de knop meer
+          dan er onder dit filter te zien is. */}
+      {gefilterd.length > 25 && (
         <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
-          {alle ? tx('toonMinder') : tx('toonAlle', { n: signalen.length })}
+          {alle ? tx('toonMinder') : tx('toonAlle', { n: gefilterd.length })}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Cycli in de keten. Twee afkappingen die allebei benoemd worden: de zoektocht
+// zelf stopt bij 200 gevonden cycli (zie MAX_CYCLI in analytics.js) en deze
+// lijst toont er 25 met een knop eronder. Stil afkappen zou hier het ergst
+// zijn: dan lijkt een keten met honderden cycli net zo rustig als een met drie.
+function CycliLijst({ cycli, afgekapt, maxCycli, teamName, tx }) {
+  const [alle, setAlle] = useState(false)
+  if (cycli.length === 0) return <p className="text-xs text-slate-400">{tx('geenCycli')}</p>
+  const zichtbaar = alle ? cycli : cycli.slice(0, 25)
+  return (
+    <div>
+      {afgekapt && <p className="mb-1.5 text-[11px] font-medium text-[#8a5a12]">{tx('cycliAfgekapt', { n: maxCycli })}</p>}
+      <ul className="space-y-1 text-xs text-slate-700">
+        {zichtbaar.map((c) => (
+          <li key={c.join('|')}>{[...c, c[0]].map((id) => teamName(id)).join(' → ')}</li>
+        ))}
+      </ul>
+      {cycli.length > 25 && (
+        <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
+          {alle ? tx('toonMinder') : tx('toonAlle', { n: cycli.length })}
         </button>
       )}
     </div>
@@ -1559,13 +1815,13 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
             <Kaart titel={tx('kEffect')} uitleg={tx('uVerdeling')}>
               <Balken rijen={a.port.perEffect.map(([e, n]) => ({ label: translateEffectOpFlow(e, language), waarde: n, kleur: WARM }))} />
             </Kaart>
-            <Kaart titel={tx('kHotspots')} uitleg={tx('uHotspots')}>
+            <Kaart titel={`${tx('kHotspots')} · ${tx('topVan', { n: 12, total: a.hotspots.length })}`} uitleg={tx('uHotspots')}>
               <Tabel
                 kolommen={[
                   { key: 'team', label: tx('team') },
                   { key: 'categorie', label: tx('categorie') },
                   { key: 'aantal', label: tx('aantal'), rechts: true },
-                  { key: 'factor', label: tx('factor'), rechts: true },
+                  { key: 'factor', label: tx('factor'), rechts: true, sorteer: (r) => r.factorWaarde },
                   { key: 'hoogste', label: tx('hoogste') },
                 ]}
                 rijen={a.hotspots.slice(0, 12).map((c) => ({
@@ -1574,6 +1830,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                   categorie: translateCategorie(c.categorie, language),
                   aantal: c.aantal,
                   factor: `${c.factor}×`,
+                  factorWaarde: c.factor,
                   hoogste: translateRiskLevel(c.hoogste, language),
                   onClick: () => onSelect(c.deps[0]),
                 }))}
@@ -1770,21 +2027,13 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                   { key: 'team', label: tx('team') },
                   { key: 'inkomend', label: tx('inkomend'), rechts: true },
                   { key: 'uitgaand', label: tx('uitgaand'), rechts: true },
-                  { key: 'partners', label: tx('partners'), rechts: true },
+                  { key: 'partners', label: tx('partners'), rechts: true, sorteer: (r) => r.partnersWaarde },
                 ]}
-                rijen={a.keten.perTeam.map((r) => ({ key: r.teamId, team: teamName(r.teamId), inkomend: r.inkomend, uitgaand: r.uitgaand, partners: `${r.partnersIn}/${r.partnersUit}`, onClick: () => onNavigateToTeam(r.teamId) }))}
+                rijen={a.keten.perTeam.map((r) => ({ key: r.teamId, team: teamName(r.teamId), inkomend: r.inkomend, uitgaand: r.uitgaand, partners: `${r.partnersIn}/${r.partnersUit}`, partnersWaarde: r.partnersIn + r.partnersUit, onClick: () => onNavigateToTeam(r.teamId) }))}
               />
             </Kaart>
             <Kaart titel={tx('kCycli')} uitleg={tx('uCycli')}>
-              {a.keten.cycli.length === 0 ? (
-                <p className="text-xs text-slate-400">{tx('geenCycli')}</p>
-              ) : (
-                <ul className="space-y-1 text-xs text-slate-700">
-                  {a.keten.cycli.map((c) => (
-                    <li key={c.join('|')}>{[...c, c[0]].map((id) => teamName(id)).join(' → ')}</li>
-                  ))}
-                </ul>
-              )}
+              <CycliLijst cycli={a.keten.cycli} afgekapt={a.keten.cycliAfgekapt} maxCycli={a.keten.maxCycli} teamName={teamName} tx={tx} />
             </Kaart>
             <Kaart titel={tx('kLos')} uitleg={tx('uLos')}>
               <div className="space-y-2">
@@ -1850,7 +2099,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                 </div>
               </div>
             </Kaart>
-            <Kaart titel={tx('kSpof')} uitleg={tx('uSpof')} breed>
+            <Kaart titel={`${tx('kSpof')} · ${tx('topVan', { n: 15, total: a.keten.spof.length })}`} uitleg={tx('uSpof')} breed>
               <Tabel
                 kolommen={[
                   { key: 'team', label: tx('team') },
@@ -1987,10 +2236,10 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
             <Kaart titel={tx('kFlowTeam')} uitleg={tx('uFlow')}>
               <Balken rijen={a.flowverlies.perTeam.map((r) => ({ label: teamName(r.teamId), waarde: r.som, tekst: `${r.som}${r.onvolledig ? ` (${r.onvolledig} ${tx('onvolledig')})` : ''}`, kleur: WARM }))} />
             </Kaart>
-            <Kaart titel={tx('kFlowCategorie')} uitleg={tx('uFlow')}>
+            <Kaart titel={`${tx('kFlowCategorie')} · ${tx('topVan', { n: 10, total: a.flowverlies.perCategorie.length })}`} uitleg={tx('uFlow')}>
               <Balken rijen={a.flowverlies.perCategorie.slice(0, 10).map((r) => ({ label: translateCategorie(r.categorie, language), waarde: r.som, kleur: WARM }))} />
             </Kaart>
-            <Kaart titel={tx('kFlowPartij')} uitleg={tx('uFlow')}>
+            <Kaart titel={`${tx('kFlowPartij')} · ${tx('topVan', { n: 10, total: a.flowverlies.perPartij.filter((r) => r.som > 0).length })}`} uitleg={tx('uFlow')}>
               <Balken rijen={a.flowverlies.perPartij.filter((r) => r.som > 0).slice(0, 10).map((r) => ({ label: r.naam, waarde: r.som, kleur: WARM }))} />
             </Kaart>
           </div>

@@ -2,6 +2,8 @@ import { useRef, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { APP_VERSION, BUILD_TIME } from '../lib/appVersion'
 import { useLanguage } from '../context/LanguageContext'
+import { splitsArchief } from '../lib/changeLog'
+import { STORAGE_KEY } from '../lib/storage'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
 import { emptyTeamWorkflow, validateImportShape, telOnvolledigeNamen } from '../lib/storage'
 import { useModalA11y } from '../lib/a11y'
@@ -82,6 +84,53 @@ const ADMIN_PAGE_CONFIG = [
     ],
   },
 ]
+
+// Wat er in een browser aan localStorage past. Vijf MB is de gangbare waarde
+// in Chrome, Firefox en Safari, maar het is geen harde belofte: de browser mag
+// het per profiel of per herkomst anders instellen. Daarom een zichtbare
+// constante met deze kanttekening, en geen getal dat ergens verstopt zit.
+const OPSLAG_BUDGET_BYTES = 5 * 1024 * 1024
+
+// Boven deze vulling kleurt de regel en komt er een advies bij. Meten gebeurt
+// op de lengte van de opgeslagen tekst maal twee, want browsers bewaren
+// localStorage als UTF-16.
+const OPSLAG_WAARSCHUWING = 0.6
+
+function meetOpslag(changeLog) {
+  let ruw = ''
+  try {
+    ruw = localStorage.getItem(STORAGE_KEY) ?? ''
+  } catch {
+    // Opslag geblokkeerd (privacymodus, site-data uit): dan valt er niets te
+    // meten en tonen we de regel gewoon niet.
+    return null
+  }
+  const totaal = ruw.length * 2
+  if (totaal === 0) return null
+  let log = 0
+  try {
+    log = JSON.stringify(changeLog ?? []).length * 2
+  } catch {
+    log = 0
+  }
+  return {
+    totaal,
+    log: Math.min(log, totaal),
+    rest: Math.max(0, totaal - Math.min(log, totaal)),
+    budget: OPSLAG_BUDGET_BYTES,
+    deel: totaal / OPSLAG_BUDGET_BYTES,
+  }
+}
+
+// Onder 1 MB in kB: met een decimaal in MB telt '0,1 + 0,5' zichtbaar niet op
+// tot '0,5', en dan lijkt de uitsplitsing fout terwijl alleen de afronding
+// grof was.
+function toonOmvang(bytes, language) {
+  const locale = language === 'en' ? 'en-GB' : 'nl-NL'
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024).toLocaleString(locale)} kB`
+  const mb = bytes / (1024 * 1024)
+  return `${mb.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`
+}
 
 // Moment van de laatste geslaagde JSON-export. Bewust een eigen, kleine
 // localStorage-sleutel en NIET onderdeel van de hoofdstate: dit is geen
@@ -498,6 +547,7 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     deleteTeam,
     adminSettings,
     updateAdminSettings,
+    verwijderLogregels,
     externalParties,
     changeLog,
     addExternalParty,
@@ -574,6 +624,36 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     // back-up — na terugzetten waren het tabblad 'Gesloten' en de
     // sluitingshistorie op de analysepagina leeg.
     return { teams, dependencies: alleDependencies, teamWorkflows, externalParties, changeLog, usingMockData, schemaVersion, adminSettings }
+  }
+
+  // Bij elke render opnieuw meten: het paneel is klein en gaat na een import of
+  // een archiveeractie meteen over de nieuwe stand.
+  const opslag = meetOpslag(changeLog)
+
+  // Archiveren gaat in twee stappen, en dat is geen omslachtigheid: de
+  // downloadroute maakt een blob en klikt een link aan, maar geeft geen
+  // bevestiging terug dat het bestand ook echt is opgeslagen. De app kan dus
+  // niet zelf vaststellen dat de gebruiker het archief heeft. Daarom eerst
+  // downloaden, dan pas -- na een expliciete 'ik heb het bestand' -- wissen.
+  const [archief, setArchief] = useState(null)
+  const [archiefKlaar, setArchiefKlaar] = useState(0)
+  const teArchiveren = splitsArchief(changeLog, alleDependencies)
+
+  function handleArchiveerDownload() {
+    const { archief: regels, oudsteResterend } = splitsArchief(changeLog, alleDependencies)
+    if (regels.length === 0) return
+    exportDataAsJson(
+      { gearchiveerdOp: new Date().toISOString(), aantal: regels.length, changeLog: regels },
+      `dependency-insight-logarchief-${new Date().toISOString().slice(0, 10)}.json`,
+    )
+    setArchief({ ids: regels.map((r) => r.id), aantal: regels.length, oudsteResterend })
+  }
+
+  function handleArchiveerBevestig() {
+    if (!archief) return
+    verwijderLogregels(archief.ids)
+    setArchiefKlaar(archief.aantal)
+    setArchief(null)
   }
 
   function handleExportJson() {
@@ -664,6 +744,39 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
           {t('settings.versionLatest')}
         </p>
 
+        {/* Hoe vol zit de opslag? Zonder dit merk je het pas op het moment dat
+            opslaan mislukt, en dan is die ene wijziging al weg. */}
+        {opslag && (
+          <div className="rounded-md border border-slate-200 px-3 py-2.5">
+            <p className={`text-xs ${opslag.deel >= OPSLAG_WAARSCHUWING ? 'font-medium text-[#9a3b2e]' : 'text-slate-600'}`}>
+              {t('settings.storageUsed', {
+                gebruikt: toonOmvang(opslag.totaal, language),
+                budget: toonOmvang(opslag.budget, language),
+                pct: Math.round(opslag.deel * 100),
+              })}
+            </p>
+            <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${Math.min(100, Math.round(opslag.deel * 100))}%`,
+                  backgroundColor: opslag.deel >= OPSLAG_WAARSCHUWING ? '#9a3b2e' : '#2a5f8a',
+                }}
+              />
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400">
+              {t('settings.storageBreakdown', {
+                log: toonOmvang(opslag.log, language),
+                rest: toonOmvang(opslag.rest, language),
+              })}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{t('settings.storageBudgetNote')}</p>
+            {opslag.deel >= OPSLAG_WAARSCHUWING && (
+              <p className="mt-1.5 text-[11px] font-medium leading-relaxed text-[#9a3b2e]">{t('settings.storageWarning')}</p>
+            )}
+          </div>
+        )}
+
         <div className="rounded-md border border-slate-200 px-3 py-2.5">
           <div className="text-xs font-medium text-slate-600">
             {usingMockData ? t('settings.mockActive') : t('settings.ownActive')}
@@ -706,6 +819,54 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
           >
             {t('settings.exportJson')}
           </button>
+          {/* Archiveren van oude logregels: downloaden en pas na een
+              expliciete bevestiging wissen. De knop staat bewust hier, naast
+              de exportknoppen -- een volledige export is de enige echte
+              vangnet, en die maak je op dezelfde plek. */}
+          <button
+            type="button"
+            onClick={handleArchiveerDownload}
+            disabled={teArchiveren.archief.length === 0 || Boolean(archief)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:bg-slate-50"
+          >
+            {teArchiveren.archief.length === 0
+              ? t('settings.archiveLogNothing')
+              : t('settings.archiveLog', { count: teArchiveren.archief.length })}
+          </button>
+          {archief && (
+            <div className="space-y-2 rounded-md border border-[#c98a2e]/40 bg-[#c98a2e]/10 p-3">
+              <p className="text-[11px] leading-relaxed text-[#8a5a12]">
+                {t('settings.archiveLogDownloaded', { count: archief.aantal })}
+              </p>
+              <p className="text-[11px] leading-relaxed text-[#8a5a12]">{t('settings.archiveLogExportFirst')}</p>
+              <p className="text-[11px] leading-relaxed text-slate-600">
+                {archief.oudsteResterend
+                  ? t('settings.archiveLogKeepsFrom', {
+                      datum: archief.oudsteResterend.toLocaleDateString(language === 'en' ? 'en-GB' : 'nl-NL', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      }),
+                    })
+                  : t('settings.archiveLogKeepsNothing')}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleArchiveerBevestig}
+                  className="rounded-md bg-[#9a3b2e] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#7e2f24]"
+                >
+                  {t('settings.archiveLogConfirm')}
+                </button>
+                <button type="button" onClick={() => setArchief(null)} className="text-xs font-medium text-slate-500 hover:underline">
+                  {t('form.cancel')}
+                </button>
+              </div>
+            </div>
+          )}
+          {archiefKlaar > 0 && !archief && (
+            <p className="px-0.5 text-[11px] text-slate-500">{t('settings.archiveLogDone', { count: archiefKlaar })}</p>
+          )}
           {/* Ouderdom van de laatste back-up. Alle data staat uitsluitend in
               deze ene browser, dus dit is geen detail: bij 14 dagen of langer,
               en bij 'nog nooit', kleurt de regel in de waarschuwkleur. */}

@@ -420,6 +420,12 @@ export function kennisConcentratie(open, teamWorkflows, teams) {
 // zodat 'koppeling zonder dependency' niet vals alarm slaat voor dependencies
 // die het andere team heeft geregistreerd. Met `teamFilter` worden de
 // uitkomsten na afloop teruggebracht tot wat dat team raakt.
+// Harde bovengrens op het aantal gevonden cycli. Zonder rem kan de zoektocht
+// bij veel ketenpartners per team minutenlang doorrekenen aan een lijst die
+// toch niemand uitleest. Bij 200 stopt hij en meldt het scherm dat er afgekapt
+// is -- liever een expliciete afkapping dan stil dooranalyseren.
+const MAX_CYCLI = 200
+
 export function ketenKengetallen({ teams, teamWorkflows, open, openAlle = open, vandaag = new Date(), teamFilter = null }) {
   const nu = isoDag(vandaag)
   const inScope = (teamId) => !teamFilter || teamId === teamFilter
@@ -439,12 +445,22 @@ export function ketenKengetallen({ teams, teamWorkflows, open, openAlle = open, 
       totaal: inkomend.length + uitgaand.length,
     }
   })
-  // Cycli: DFS over teamniveau.
+  // Cycli: DFS over teamniveau. Dit is de zwaarste stap van de hele analyse.
+  // De kosten groeien niet met het aantal teams maar met het aantal
+  // ketenpartners per team: bij elke stap vertakt de zoektocht over alle
+  // uitgaande partners, dus ruwweg teams x partners^6. Acht teams met twee
+  // partners is niets, dertig teams met zes partners een heel ander getal.
+  // Vandaar de twee remmen hieronder.
   const adj = new Map(teams.map((tm) => [tm.id, new Set()]))
   for (const e of edges) if (ids.has(e.sourceTeam) && ids.has(e.targetTeam) && e.sourceTeam !== e.targetTeam) adj.get(e.sourceTeam).add(e.targetTeam)
   const cycli = []
   const seen = new Set()
+  let afgekapt = false
   function dfs(start, node, pad) {
+    if (cycli.length >= MAX_CYCLI) {
+      afgekapt = true
+      return
+    }
     for (const next of adj.get(node) ?? []) {
       if (next === start) {
         const cyc = [...pad]
@@ -452,13 +468,26 @@ export function ketenKengetallen({ teams, teamWorkflows, open, openAlle = open, 
         if (!seen.has(key)) {
           seen.add(key)
           cycli.push(cyc)
+          if (cycli.length >= MAX_CYCLI) {
+            afgekapt = true
+            return
+          }
         }
       } else if (!pad.includes(next) && pad.length < 6) {
         dfs(start, next, [...pad, next])
+        if (afgekapt) return
       }
     }
   }
-  for (const tm of teams) dfs(tm.id, tm.id, [tm.id])
+  // Rem 2: met een gekozen team hoeft er alleen vanaf dat team gezocht te
+  // worden. Een cyclus waar dat team in zit kun je altijd vanaf dat team zelf
+  // lopen, dus er gaat er geen verloren -- en de zoektocht wordt een factor
+  // 'aantal teams' kleiner. Het filter verderop blijft als vangnet staan.
+  const startTeams = teamFilter ? teams.filter((tm) => tm.id === teamFilter) : teams
+  for (const tm of startTeams) {
+    dfs(tm.id, tm.id, [tm.id])
+    if (afgekapt) break
+  }
   // Losse items en verzoeken.
   const losseInputs = []
   const losseOutputs = []
@@ -522,6 +551,8 @@ export function ketenKengetallen({ teams, teamWorkflows, open, openAlle = open, 
     edges,
     perTeam: perTeam.filter((r) => inScope(r.teamId)).sort((a, b) => b.totaal - a.totaal),
     cycli: teamFilter ? cycli.filter((c) => c.includes(teamFilter)) : cycli,
+    cycliAfgekapt: afgekapt,
+    maxCycli: MAX_CYCLI,
     losseInputs: losseInputs.filter((x) => inScope(x.teamId)),
     losseOutputs: losseOutputs.filter((x) => inScope(x.teamId)),
     verzoeken: verzoeken.filter((v) => raakt(v.teamId, v.item)).sort((a, b) => (b.leeftijd ?? 0) - (a.leeftijd ?? 0)),
