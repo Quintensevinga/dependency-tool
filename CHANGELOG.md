@@ -3,6 +3,135 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Beurt 7 samengevoegd: register en lange lijsten** (Lars Hoogland)
+
+  Drie keer hetzelfde probleem -- een lijst die te lang wordt om in te kiezen --
+  met een gedeeld zoek-en-afkaponderdeel als antwoord.
+
+  I3  -- zoekveld en duplicaatwaarschuwing in de partijkiezer, met een gedeelde
+         vergelijkingsregel voor namen (src/lib/namen.js, met tests).
+  22  -- zoeken en afkappen op de vier teamlijsten: filterpaneel, zijbalk,
+         teamsmenu van het ketenoverzicht en de teamkeuze in het formulier.
+  24  -- nieuwe pagina 'Alle dependencies' met een organisatiebrede zoekfunctie,
+         filters en een sorteerbare tabel.
+
+- **Punt 24: pagina 'Alle dependencies' met organisatiebrede zoekfunctie** (Lars Hoogland)
+
+  Je kon nergens door alle dependencies van alle teams tegelijk zoeken. De drie
+  zoekvelden die er waren kijken elk maar naar een deel: binnen de externe
+  partijen, binnen een team, of binnen de applicaties van een team. Wie een
+  dependency zocht en niet wist bij welk team hij hoorde, moest team voor team
+  langs.
+
+  - nieuwe pagina op /dependencies, met een zoekveld over titel, toelichting,
+    teamnaam, categorie en de betrokken partij, plus dezelfde filters als de
+    heatmap (team, risiconiveau, workflowstap, scope);
+  - daaronder de bestaande gedeelde DependencyTable, niet opnieuw gebouwd. Die
+    heeft er sorteerbare kolomkoppen en een bovengrens van 100 rijen met 'toon
+    meer' bij gekregen -- alleen waar de aanroeper erom vraagt, zodat de
+    voorgefilterde lijsten op de heatmap en de teampagina onveranderd blijven;
+  - schakelaar in de bestaande instellingen (pagina + filtersectie), zodat hij
+    meeverhuist wanneer punt 28 de instellingen omzet naar een eigen pagina.
+
+  Sorteren gebeurt op de getoonde waarde, niet op het ruwe veld: een vertaalde
+  categorie staat in een andere volgorde dan de interne sleutel. Risico sorteert
+  op de score en niet op het niveaulabel, anders komt 'Hoog' voor 'Kritiek'.
+
+  Onderweg een echte fout gevonden en verholpen: de lijst met herstelbare
+  tabbladen in App.jsx was hard opgesomd en kende de nieuwe pagina niet, waardoor
+  /dependencies bij een verse laadbeurt altijd op de heatmap uitkwam -- ook met de
+  pagina aan. Dat leek eerst te kloppen omdat de opdracht bij (f) juist een
+  terugval vraagt; het was toeval. Nu werkt de diepe link, en de terugval is
+  expliciet: staat de pagina uit, dan valt /dependencies terug op de heatmap
+  inclusief de URL. Dat is voor deze pagina de betere uitkomst dan de melding die
+  de drie oudere pagina's tonen, want het item staat dan ook niet in de zijbalk en
+  er is geen weg terug. De drie oudere pagina's houden bewust hun melding.
+
+  Gecontroleerd met drie proefdependencies in drie teams en het woord 'zoekproef'
+  in precies een ervan: zonder zoekopdracht staan er dependencies van meerdere
+  teams (201 open records, niet voorgefilterd), 'zoekproef' laat exact een rij uit
+  het juiste team over, alle teams uitvinken geeft een nette lege melding in plaats
+  van een fout, een klik op 'Titel' sorteert op en neer, een rij aanklikken opent
+  het detail, terug/vooruit in de browser werkt, en in het Engels staat er geen
+  enkele onvertaalde sleutel in beeld.
+
+  De opslagvorm kreeg er een pagina-schakelaar bij; daar zijn drie tests bij
+  gekomen (een oude export zonder die sleutel krijgt de standaardwaarde, een
+  bewust uitgezette pagina blijft uit, en sleutels van verdwenen pagina's worden
+  nog steeds weggegooid).
+
+- **Punt 22: teamlijsten hanteerbaar houden met zoeken en afkappen** (Lars Hoogland)
+
+  Op vier plekken werd de teamlijst volledig uitgeschreven, zonder zoekveld en
+  zonder afkapping: het teamblok in het filterpaneel, de zijbalk, het teamsmenu
+  van het ketenoverzicht en de teamkeuze bij 'meerdere teams' in het formulier.
+  Bij acht teams valt dat niet op; bij dertig lees je elke lijst regel voor regel.
+
+  De gedeelde logica staat in src/components/ZoekbareLijst.jsx: een hook plus twee
+  kleine presentatiecomponenten. Bewust geen kant-en-klaar lijstcomponent -- die
+  vier plekken tekenen hun rijen alle vier anders, en al die varianten als props
+  terugbouwen zou het onleesbaar maken. Zoeken gebeurt op de getoonde naam
+  (teamLabels), niet op het opgeslagen veld.
+
+  Twee dingen die ik onderweg heb bijgesteld, allebei gevonden in de browser:
+
+  - 'een aangevinkt team blijft altijd zichtbaar' (zoals de opdracht vraagt) zette
+    de afkapping volledig buiten werking op de twee filters, want daar staat
+    standaard alles aan: dertig van de dertig in beeld. De regel is nu 'wat van de
+    rest afwijkt blijft zichtbaar', en dat is steeds de minderheid -- staan er drie
+    teams aan van de dertig, dan die drie; staat er een uit, dan die ene. Zo raak
+    je nooit uit beeld wat je zelf hebt aangeraakt en blijft de lijst kort.
+  - de zoektekst overleefde het dichtklappen van een paneel, terwijl de opdracht
+    bij (d) vraagt dat hij weg is bij heropenen. De hook krijgt daarvoor een
+    `zichtbaar`-vlag; het teamsmenu van het ketenoverzicht lost het anders op --
+    de inhoud staat nu in een eigen component, dat BarMenu alleen mount zolang het
+    menu openstaat.
+
+  Gecontroleerd met 30 teams, op alle vier de plekken: zoekveld vanaf meer dan
+  acht teams en filteren werkt direct, standaard twaalf rijen met 'Toon meer (nog
+  18)', een team onderaan aan- of uitvinken houdt het zichtbaar na inklappen, de
+  zoektekst is weg na dichtklappen en heropenen, en zowel de teamgroep in het
+  filterpaneel als de teamsectie in de zijbalk staat bij binnenkomst nog steeds
+  open. Ook in het Engels ('Show more (17 left)'). De lijst in het formulier heeft
+  nu een maximumhoogte van 224px en duwt de rest van het formulier niet meer weg.
+
+  Meegenomen: een ongebruikte deepClone uit AppContext en storage.js, een restje
+  van punt 26.
+
+- **I3: zoekveld en duplicaatwaarschuwing bij externe partijen** (Lars Hoogland)
+
+  De partijkiezer was een platte lijst zonder zoekveld, en dat is de werkelijke
+  reden dat mensen 'nieuwe partij' kiezen in plaats van de bestaande te zoeken.
+  Twee teams voeren dan los van elkaar dezelfde partij in, en het ketenoverzicht
+  telt de concentratie dubbel -- precies de vraag waarvoor dat scherm bestaat.
+  Achteraf opruimen kan niet: een gekoppelde duplicaat is niet te verwijderen en
+  samenvoegen bestaat niet.
+
+  - Zoekveld boven de lijst, vanaf meer dan acht partijen (zelfde grens als de
+    partijfilter van het ketenoverzicht). De al gekozen partij blijft altijd in de
+    lijst staan, anders springt de select stil naar de eerste optie. Ingetypte
+    tekst wordt gewist zodra het veld verdwijnt.
+  - Duplicaatwaarschuwing tijdens het typen van een nieuwe naam: 'Bestaat al:
+    <naam>, voorgesteld door <team>' met een knop om de bestaande te kiezen. Een
+    waarschuwing, geen blokkade -- twee echte partijen mogen dezelfde naam hebben.
+    Geweigerde partijen tellen mee, anders stelt de app voor iets opnieuw aan te
+    maken wat een admin net heeft afgewezen.
+  - Het soort dat het omringende formulier al kent wordt overgenomen in plaats van
+    teruggezet op de standaardwaarde.
+
+  De vergelijkingsregel (hoofdletters, streepjes, spaties en onderstrepingen
+  negeren) staat in src/lib/namen.js, met tests. Bewust een gedeelde plek: het
+  formulier en de controlelijst moeten dezelfde regel gebruiken, anders waarschuwt
+  de een wel en de ander niet. Punten die later op dubbele namen controleren
+  kunnen 'm hergebruiken.
+
+  Gecontroleerd met het scenario uit de opdracht: partij 'Ketenregie Bureau'
+  aangemaakt vanuit een inputvenster op Team Asgard (soort stond meteen op
+  'systeem', niet op 'stakeholder'), daarna 'ketenregie-bureau' getypt in het
+  hoofdformulier -> 'Bestaat al: Ketenregie Bureau, voorgesteld door Team Asgard'
+  met een werkende knop, en de beheerlijst houdt een regel. Filteren op 'bank'
+  laat 1 van de 22 partijen over, wissen zet alles terug.
+
 - **Beurt 6 samengevoegd: het ketenoverzicht** (Lars Hoogland)
 
   1   -- een tekening levert weer een lay-outberekening op in plaats van ongeveer
