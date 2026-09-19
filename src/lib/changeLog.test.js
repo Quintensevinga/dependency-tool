@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { begrensLog, splitsArchief, MAX_LOGREGELS } from './changeLog'
+import { migrateState } from './storage'
 
 function regel(i, extra = {}) {
   return {
@@ -133,5 +134,62 @@ describe('splitsArchief', () => {
     const log = [opDatum('oud', '2024-01-01T00:00:00.000Z'), opDatum('nieuw', '2026-03-05T00:00:00.000Z')]
     const { oudsteResterend } = splitsArchief(log, [], nu)
     expect(oudsteResterend.toISOString().slice(0, 10)).toBe('2026-03-05')
+  })
+})
+
+// importState in AppContext schrijft rechtstreeks naar de opslag en gaat niet
+// langs persist. Deze test legt de samenstelling vast die daar gebruikt wordt:
+// begrensLog(migrateState(bestand)). Zonder die begrenzing landde een bestand
+// met 8000 logregels ongemoeid in de opslag (in de browser gemeten) en sloeg de
+// bovengrens pas toe bij de eerstvolgende wijziging -- terwijl juist die eerste
+// schrijfactie op het opslagquotum kan stuklopen.
+describe('een import komt ook langs de bovengrens', () => {
+  const team = { id: 'team-1', naam: 'Team 1', actief: true }
+  const dep = { id: 'dep-1', teamId: 'team-1', titel: 'Een dependency' }
+
+  function importBestand(aantalLogregels, extraLog = []) {
+    return {
+      teams: [team],
+      dependencies: [dep],
+      teamWorkflows: {},
+      externalParties: [],
+      changeLog: [
+        ...extraLog,
+        ...Array.from({ length: aantalLogregels }, (_, i) => ({
+          id: `imp-${i}`,
+          timestamp: new Date(2026, 0, 1, 0, 0, i).toISOString(),
+          teamId: 'team-1',
+          type: 'dependency_updated',
+          dependencyId: 'dep-1',
+          titel: `Regel ${i}`,
+        })),
+      ],
+    }
+  }
+
+  it('kapt een te lang log uit een importbestand meteen af', () => {
+    const uit = begrensLog(migrateState(importBestand(8000)))
+    expect(uit.changeLog).toHaveLength(MAX_LOGREGELS)
+    // De nieuwste blijven staan: de laatste regel van het bestand is de nieuwste.
+    expect(uit.changeLog.at(-1).id).toBe('imp-7999')
+  })
+
+  it('houdt een reviewregel uit dat bestand overeind', () => {
+    const wachtend = {
+      id: 'review-import',
+      timestamp: new Date(2020, 0, 1).toISOString(),
+      teamId: 'team-1',
+      type: 'dependency_created',
+      dependencyId: 'dep-1',
+      titel: 'Wacht op review',
+      status: 'pending',
+    }
+    const uit = begrensLog(migrateState(importBestand(8000, [wachtend])))
+    expect(uit.changeLog.some((c) => c.id === 'review-import')).toBe(true)
+  })
+
+  it('laat een import onder de grens ongemoeid', () => {
+    const gemigreerd = migrateState(importBestand(50))
+    expect(begrensLog(gemigreerd)).toBe(gemigreerd)
   })
 })
