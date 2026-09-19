@@ -3,6 +3,143 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Beurt 6 samengevoegd: het ketenoverzicht** (Lars Hoogland)
+
+  1   -- een tekening levert weer een lay-outberekening op in plaats van ongeveer
+         een per kaart in beeld (33 -> 1 bij het openen van het scherm).
+  7   -- teller 'X van de Y teams in beeld' naast de dieptemeter, opvallend zodra
+         er teams buiten beeld vallen.
+  8   -- zoomondergrens van 0,2 naar 0,05 en de minikaart aan, plus een melding
+         zodra de kaarten niet meer te lezen zijn.
+  35  -- ELK rekent in een aparte rekendraad, met terugval op de hoofdthread en
+         een bezig-indicatie. Gemeten, niet aangenomen.
+
+- **Punt 35: ketenlay-out naar een aparte rekendraad** (Lars Hoogland)
+
+  De opdracht zegt: meet eerst, en vervalt dit punt als het scherm korter dan
+  ongeveer 200 ms achter elkaar vastzit. Gemeten na punt 1, met een teller om de
+  twee ELK-rondes heen:
+
+    dataset                        ELK-tijd   langste taak hoofdthread
+    8 teams / 31 kaarten             353 ms          290 ms
+    40 teams / 63 kaarten            545 ms          772 ms
+    40 teams, 4x processorvertraging 4557 ms       18962 ms
+
+  Ruim boven de drempel, dus verplaatst. elkjs levert er een kant-en-klare
+  variant voor; Vite bouwt het workerbestand met de ?worker-import.
+
+  Terugval en indicatie, zoals de opdracht vraagt:
+  - start de rekendraad niet (of mislukt een berekening erin), dan wordt de
+    gebundelde ELK alsnog opgehaald en draait het op de hoofdthread -- eenmalig
+    gemarkeerd, zodat niet elke tekening die omweg maakt. Gecontroleerd door
+    window.Worker te laten gooien: de tekening komt gewoon compleet (31 kaarten,
+    90 lijnen, niets op 0,0), met een waarschuwing in de console.
+  - zolang er een lay-out onderweg is staat er 'Tekening berekenen...' onderaan
+    het canvas. Bovenaan kon niet: daar ligt de canvasbalk over de volle breedte
+    en die dekte de melding af (eerst zo gebouwd, gezien, verplaatst).
+  - de bestaande noodlay-out bij een mislukte ELK-aanroep is ongemoeid.
+
+  Resultaat, gemeten op de productiebuild (vite preview, 40 teams):
+
+    langste taak op de hoofdthread   voor 289 ms (plus een tweede van 278 ms)
+                                     na   134 ms, en dat is de enige
+
+  En tijdens het rekenen reageert het canvas nu op slepen (gecontroleerd met 4x
+  vertraging: de weergave verschuift terwijl de melding nog staat).
+
+  Twee dingen om eerlijk bij te noteren. De totale doorlooptijd wordt iets langer
+  -- de rekendraad moet eenmalig een bestand van 1,4 MB laden -- maar die tijd
+  blokkeert niets meer. En de taak die overblijft is geen ELK: dat is React die de
+  kaarten tekent. Dat is een ander probleem dan dit punt.
+
+  Het commentaar bovenaan het bestand is bijgewerkt met deze meting.
+
+- **Punt 8: zoomondergrens naar 0,05 en de minikaart aan** (Lars Hoogland)
+
+  Bij veel teams paste de tekening niet meer binnen de ondergrens van 0,2, en dan
+  maakte 'passend maken' stilzwijgend niet passend: je kreeg een uitsnede zonder
+  dat iets dat zei. Een manier om te zien waar je was, was er ook niet.
+
+  - minZoom 0,05, zowel op het canvas als in de fit-aanroep, zodat de knop en het
+    handmatig uitzoomen even ver komen;
+  - showMinimap aan; het gedeelde canvascomponent regelt de rest. Rechtsonder is
+    vrij: knoppenbalk linksonder, canvasbalk linksboven, legenda rechtsboven,
+    detailvak onder het canvas.
+
+  Gemeten met 160 teams (183 kaarten) uit het kopieerscript van punt 35: met de
+  oude ondergrens bleven na 'passend maken' 16 kaarten buiten beeld, met 0,05
+  geen enkele. Ook in volledig scherm (80 teams): alles in beeld en de minikaart
+  botst met geen enkel ander paneel. Uitzoomen loopt netjes tot exact 0,05.
+
+  Erbij, want mijn eigen wijziging maakt ver uitzoomen nu pas mogelijk: onder een
+  zoomfactor van 0,2 verschijnt een korte melding dat de kaarten niet meer te
+  lezen zijn. De opdracht schatte die drempel op 0,55, maar dit scherm past
+  zichzelf bij de voorbeelddata al op 0,32 tot 0,42 in -- dan zou de melding
+  permanent blijven staan. 0,2 is bovendien niet willekeurig: dat was tot nu toe
+  de ondergrens, dus de melding verschijnt precies zodra je verder uitzoomt dan
+  vroeger kon. De vereenvoudigde kaart onder die grens is bewust niet gebouwd; dat
+  is het grotere werk dat de opdracht apart noemt.
+
+  Afwijking van de opdracht: 'klikken in de minikaart verplaatst het beeld' klopt
+  niet -- reactflow hangt bij `pannable` een sleep-handler op, geen klik-handler.
+  Slepen in de minikaart verplaatst het beeld wel (gecontroleerd), een losse klik
+  niet. Geen fout in onze code.
+
+- **Punt 7: teller 'X van de Y teams in beeld' bij de dieptemeter** (Lars Hoogland)
+
+  In de weergave 'Een team' rolt de tekening vanaf het focusteam uit en wordt hij
+  op de dieptemeter afgekapt. Stond die op 1, dan zag je het focusteam plus zijn
+  directe buren en verder niets -- zonder dat iets meldde dat er teams buiten
+  beeld vielen. De tellers op 'Partijen' en 'Kies teams' tellen wat er aangevinkt
+  is, niet wat er getekend wordt; bij de andere twee weergaven is dat hetzelfde,
+  bij deze niet.
+
+  Nu staat er naast de dieptemeter een regel met het aantal getekende teams en het
+  aantal actieve teams. Zodra er teams buiten beeld vallen is die opvallend (in de
+  accentkleur, met 'verhoog de diepte of kies Hele keten' erachter); staat alles in
+  beeld, dan blijft hij rustig grijs zonder hint.
+
+  Gecontroleerd op de voorbeelddata: voor alle acht focusteams is het eerste getal
+  exact gelijk aan het aantal getekende teamkaarten (kaartjes van externe partijen
+  tellen niet mee), op elke diepte. De rustige variant is apart uitgelokt door het
+  enige team dat Asgard niet bereikt te archiveren: dan staat er '7 van de 7 teams
+  in beeld' in slate-400 zonder hint. De regel verschijnt niet bij 'Hele keten' en
+  'Meerdere teams', en toont in het Engels een echte zin.
+
+- **Punt 1: een tekening is weer een lay-outberekening** (Lars Hoogland)
+
+  De maten-Map werd bij elke maat-melding van React Flow opnieuw opgebouwd, ook
+  als er niets aan die maat veranderd was. Die Map zit in de afhankelijkheden van
+  het lay-out-effect, dus elke melding startte een eigen ELK-ronde -- ongeveer een
+  per kaart in beeld.
+
+  Drie ingrepen:
+  - op waarde vergelijken; is alles gelijk, dan dezelfde Map terug, zodat React
+    geen nieuwe waarde ziet en het effect blijft staan;
+  - binnenkomende maten verzamelen in een ref en een keer per beeldframe
+    verwerken, in plaats van een setDims per melding (frame-aanvraag wordt bij
+    unmount opgeruimd);
+  - maten van kaarten die niet meer in de tekening zitten weggooien, zodat er na
+    een wisseling van weergave niet eerst op resten van de vorige tekening
+    gerekend wordt.
+
+  Gemeten op de voorbeelddata, weergave Hele keten, 31 kaarten in beeld:
+
+    handeling               voor    na
+    scherm openen             33     1
+    klik op een teamkaart     10     2
+    wisselen van weergave   5-15   0-2
+
+  Voor de ingreep stond de tekening na drie seconden nog niet: alle 31 kaarten op
+  0,0 en geen enkele lijn. Erna staat hij er binnen het eerste halve seconde.
+
+  De 2 bij een klik is geen restje van dit probleem maar de aard van de zaak: een
+  kaart die uitklapt verandert van hoogte, en die hoogte is pas bekend nadat hij
+  getekend en gemeten is. Ronde 1 rekent op de oude hoogte, ronde 2 op de nieuwe.
+  De opdracht rekent hier op 1; dat is alleen haalbaar door de lay-out te laten
+  wachten op een hermeting die er misschien nooit komt (React Flow meldt niets als
+  de maat toevallig gelijk blijft), en dat weegt niet op tegen een ronde.
+
 - **Beurt 5 samengevoegd: naamcontrole bij importeren en momentopnamen eruit** (Lars Hoogland)
 
   I8  -- een import telt vooraf de items zonder naam en meldt dat in het
