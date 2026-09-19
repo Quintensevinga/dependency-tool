@@ -11,7 +11,6 @@ import {
   emptyTeamWorkflow,
   emptyApplicatieflow,
   deepClone,
-  MAX_SNAPSHOTS_PER_TEAM,
 } from '../lib/storage'
 import { buildTeamLabels } from '../lib/teamLabels'
 
@@ -175,7 +174,6 @@ export function AppProvider({ children }) {
           ...prev,
           teams: [...prev.teams, team],
           teamWorkflows: { ...prev.teamWorkflows, [id]: emptyTeamWorkflow() },
-          teamSnapshots: { ...prev.teamSnapshots, [id]: [] },
         }
       })
       if (newId) setCurrentTeamId(newId)
@@ -237,9 +235,7 @@ export function AppProvider({ children }) {
         if (isBlocked(prev)) return prev
         const teamWorkflows = { ...prev.teamWorkflows }
         delete teamWorkflows[id]
-        const teamSnapshots = { ...prev.teamSnapshots }
-        delete teamSnapshots[id]
-        return { ...prev, teams: prev.teams.filter((t) => t.id !== id), teamWorkflows, teamSnapshots }
+        return { ...prev, teams: prev.teams.filter((t) => t.id !== id), teamWorkflows }
       })
       setCurrentTeamId((prevCurrent) => (prevCurrent === id ? firstActiveTeamId(stateRef.current.teams.filter((t) => t.id !== id)) : prevCurrent))
       return true
@@ -298,82 +294,6 @@ export function AppProvider({ children }) {
       })
     },
     [persist],
-  )
-
-  // Momentopnamen: een losstaande, volledige kopie van teamWorkflows[teamId]
-  // op een moment in de tijd. Bewust een deep clone zodat latere wijzigingen
-  // aan de live workflow de bewaarde momentopname nooit aliassen. Maximaal
-  // MAX_SNAPSHOTS_PER_TEAM per team — de oudste rolt er automatisch uit.
-  const saveSnapshot = useCallback(
-    (teamId, naam) => {
-      persistData((prev) => {
-        const workflow = prev.teamWorkflows[teamId] ?? emptyTeamWorkflow()
-        const existing = prev.teamSnapshots[teamId] ?? []
-        const snapshot = {
-          id: generateId(),
-          // Datum+tijd i.p.v. 'Momentopname N': een oplopend nummer blijft
-          // hangen op het hoogste nummer zodra de limiet bereikt is (de
-          // oudste rolt eruit, maar 'length + 1' bleef daarna altijd
-          // hetzelfde getal opleveren) — zie B-11.
-          naam: naam?.trim() || `Momentopname ${new Date().toLocaleString('nl-NL', { dateStyle: 'short', timeStyle: 'medium' })}`,
-          timestamp: new Date().toISOString(),
-          data: deepClone(workflow),
-        }
-        const next = [...existing, snapshot].slice(-MAX_SNAPSHOTS_PER_TEAM)
-        return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
-      })
-    },
-    [persistData],
-  )
-
-  const renameSnapshot = useCallback(
-    (teamId, snapshotId, naam) => {
-      const trimmed = naam.trim()
-      if (!trimmed) return
-      persistData((prev) => {
-        const existing = prev.teamSnapshots[teamId] ?? []
-        const next = existing.map((s) => (s.id === snapshotId ? { ...s, naam: trimmed } : s))
-        return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
-      })
-    },
-    [persistData],
-  )
-
-  // Zie B-12: vóór het overschrijven van de live workflow wordt automatisch
-  // een momentopname van de HUIDIGE stand bewaard, zodat 'terugzetten' altijd
-  // omkeerbaar blijft (zelf ook weer terug te zetten).
-  const restoreSnapshot = useCallback(
-    (teamId, snapshotId) => {
-      persistData((prev) => {
-        const existing = prev.teamSnapshots[teamId] ?? []
-        const snapshot = existing.find((s) => s.id === snapshotId)
-        if (!snapshot) return prev
-        const currentWorkflow = prev.teamWorkflows[teamId] ?? emptyTeamWorkflow()
-        const autoSnapshot = {
-          id: generateId(),
-          naam: 'Automatisch bewaard voor herstel',
-          timestamp: new Date().toISOString(),
-          data: deepClone(currentWorkflow),
-        }
-        const nextSnapshots = [...existing, autoSnapshot].slice(-MAX_SNAPSHOTS_PER_TEAM)
-        return {
-          ...prev,
-          teamWorkflows: { ...prev.teamWorkflows, [teamId]: deepClone(snapshot.data) },
-          teamSnapshots: { ...prev.teamSnapshots, [teamId]: nextSnapshots },
-        }
-      })
-    },
-    [persistData],
-  )
-
-  const deleteSnapshot = useCallback(
-    (teamId, snapshotId) => {
-      persistData((prev) => {
-        const next = (prev.teamSnapshots[teamId] ?? []).filter((s) => s.id !== snapshotId)
-        return { ...prev, teamSnapshots: { ...prev.teamSnapshots, [teamId]: next } }
-      })
-    },
-    [persistData],
   )
 
   // --- externe partijen (centrale, admin-beheerde lijst) ---
@@ -907,7 +827,6 @@ export function AppProvider({ children }) {
       reopenDependency,
       logEvent,
       teamWorkflows: state.teamWorkflows,
-      teamSnapshots: state.teamSnapshots,
       externalParties: state.externalParties,
       addExternalParty,
       renameExternalParty,
@@ -942,10 +861,6 @@ export function AppProvider({ children }) {
       unlinkCounterparts,
       acceptLinkRequest,
       rejectLinkRequest,
-      saveSnapshot,
-      renameSnapshot,
-      restoreSnapshot,
-      deleteSnapshot,
       saveError,
       dismissSaveError,
       corruptedOnLoad,
@@ -982,10 +897,6 @@ export function AppProvider({ children }) {
       unlinkCounterparts,
       acceptLinkRequest,
       rejectLinkRequest,
-      saveSnapshot,
-      renameSnapshot,
-      restoreSnapshot,
-      deleteSnapshot,
       updateAdminSettings,
       addExternalParty,
       renameExternalParty,

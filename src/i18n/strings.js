@@ -214,6 +214,10 @@ export const STRINGS = {
     'settings.importCountLog': '{{count}} logregels',
     'settings.importSchemaVersion': 'Schemaversie: {{version}}',
     'settings.importBackupNote': 'Bij bevestigen wordt eerst automatisch een kopie van je huidige data gedownload.',
+    'settings.importZonderNaam': '{{count}} record(s) missen nog een naam — die komen mee en zijn daarna te repareren.',
+    'settings.importZonderNaamNa': 'Geïmporteerd. {{count}} record(s) missen nog een naam:',
+    'settings.importZonderNaamRegel': '{{io}} input/output-item(s), {{cap}} capaciteitsregel(s)',
+    'settings.importZonderNaamSluiten': 'Begrepen, sluiten',
     'settings.importConfirm': 'Vervang mijn data',
     'settings.importCancel': 'Annuleren',
     'settings.dangerZoneTitle': 'Gevaarlijke acties',
@@ -240,7 +244,7 @@ export const STRINGS = {
     'update.reload': 'Herladen',
     'update.dismiss': 'Later',
 
-    'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data of verwijder oude momentopnamen.',
+    'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data en maak ruimte vrij.',
     'saveError.dismiss': 'Sluiten',
 
     'corrupted.message': 'De opgeslagen data kon niet gelezen worden en is teruggevallen op demodata. De onleesbare data is bewaard — download die hieronder voordat je verdergaat, anders kan die alsnog verloren gaan.',
@@ -861,6 +865,10 @@ export const STRINGS = {
     'settings.importCountLog': '{{count}} log entries',
     'settings.importSchemaVersion': 'Schema version: {{version}}',
     'settings.importBackupNote': 'On confirm, a copy of your current data is downloaded automatically first.',
+    'settings.importZonderNaam': '{{count}} record(s) still have no name — they are imported and can be fixed afterwards.',
+    'settings.importZonderNaamNa': 'Imported. {{count}} record(s) still have no name:',
+    'settings.importZonderNaamRegel': '{{io}} input/output item(s), {{cap}} capacity row(s)',
+    'settings.importZonderNaamSluiten': 'Got it, close',
     'settings.importConfirm': 'Replace my data',
     'settings.importCancel': 'Cancel',
     'settings.dangerZoneTitle': 'Dangerous actions',
@@ -887,7 +895,7 @@ export const STRINGS = {
     'update.reload': 'Reload',
     'update.dismiss': 'Later',
 
-    'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data or delete old snapshots.',
+    'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data and free up space.',
     'saveError.dismiss': 'Close',
 
     'corrupted.message': 'The stored data could not be read and has fallen back to demo data. The unreadable data has been kept — download it below before continuing, otherwise it may be lost.',

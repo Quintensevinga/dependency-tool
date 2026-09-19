@@ -67,6 +67,9 @@ const IO_Y_GAP = 90
 // Kaartbreedte (w-44 = 176px) plus tussenruimte: de stap opzij wanneer een
 // IO-kolom vol is en er een kolom naast begint (zie stackCenteredInZone).
 const IO_COLUMN_STEP = 196
+// Kaartbreedte (w-44). Nodig om overlap te kunnen meten in de
+// ontdubbelingspas hieronder.
+const IO_CARD_WIDTH = 176
 
 const HIGH_RISK_LEVELS = ['Hoog', 'Kritiek']
 // Node-types die meedimmen zodra er canvas-focus actief is (zie
@@ -1664,6 +1667,36 @@ function computeWorkflowLayout(
   // die extra ruimte (naar boven) telt hier mee zodat het canvas niet te
   // krap oogt met meerdere gesplitste applicatie-lanes.
   const canvasHeight = Math.max(420, annotationBaseY + annotationRows * 190 + 100, STAGE_Y - applicatieflowTop + 300)
+
+  // Sluitend vangnet tegen kaartoverlap in de in- en uitvoerkolommen.
+  // stackCenteredInZone laat een te volle stapel al doorlopen naar een kolom
+  // ernaast, maar dat gold alleen voor de niet-lane-gekoppelde items. De
+  // lane-gekoppelde stapels (stackCenteredOnPoint) staan op dezelfde x en
+  // konden daar alsnog doorheen lopen: op de demodata viel dat niet op (nul
+  // overlap), maar één extra input per team leverde er al twee op.
+  //
+  // Deze pas schuift een overlappende kaart naar buiten toe (inputs naar
+  // links, outputs naar rechts) tot hij vrij staat. Handmatig versleepte
+  // kaarten blijven staan: die keuze van de gebruiker wint altijd. Veilig na
+  // het opbouwen van de edges, want de IO-lijnen dragen geen vaste punten —
+  // React Flow leidt die af uit de uiteindelijke node-posities.
+  const ioNodes = nodes.filter((n) => /^(input|output):/.test(n.id))
+  for (const node of ioNodes) {
+    if (savedLayout?.[node.id]) continue
+    const naarBuiten = node.id.startsWith('input:') ? -1 : 1
+    const botst = () =>
+      ioNodes.some(
+        (ander) =>
+          ander !== node &&
+          Math.abs(ander.position.x - node.position.x) < IO_CARD_WIDTH &&
+          Math.abs(ander.position.y - node.position.y) < IO_CARD_HEIGHT_ESTIMATE,
+      )
+    // Bovengrens puur als noodrem: zonder vrije plek stopt hij liever dan
+    // eindeloos door te schuiven.
+    for (let poging = 0; poging < 12 && botst(); poging++) {
+      node.position = { ...node.position, x: node.position.x + naarBuiten * IO_COLUMN_STEP }
+    }
+  }
 
   // smoothstep i.p.v. de standaard bezier-lijn: minder kriskras op een druk
   // teamcanvas met veel gelijktijdige input/output/dependency-verbindingen.

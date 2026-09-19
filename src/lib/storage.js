@@ -30,8 +30,6 @@ export const SCHEMA_VERSION = 6
 // (node-scripts), waar de define niet bestaat.
 export const MOCK_DATA_SIGNATURE = typeof __MOCK_DATA_SIGNATURE__ === 'string' ? __MOCK_DATA_SIGNATURE__ : 'dev'
 
-export const MAX_SNAPSHOTS_PER_TEAM = 10
-
 export { slugify, uniqueSlug }
 
 function todayIso() {
@@ -372,7 +370,6 @@ export function migrateState(raw, report) {
   if (report) report.skippedDependencies = ruweDependencies.length - bruikbaar.length
   const dependencies = bruikbaar.map((dep) => migrateDependency(dep, teamsState))
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
-  const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
   const externalParties = migrateExternalParties(source.externalParties)
   const changeLog = migrateChangeLog(source.changeLog)
 
@@ -383,7 +380,6 @@ export function migrateState(raw, report) {
     teams: teamsState.teams,
     dependencies,
     teamWorkflows,
-    teamSnapshots,
     externalParties,
     changeLog,
     usingMockData: Boolean(source.usingMockData),
@@ -485,15 +481,6 @@ function migrateExternalParties(raw) {
     }))
 }
 
-function migrateTeamSnapshots(rawSnapshots, teams) {
-  const source = rawSnapshots && typeof rawSnapshots === 'object' ? rawSnapshots : {}
-  const result = {}
-  for (const team of teams) {
-    result[team.id] = Array.isArray(source[team.id]) ? source[team.id] : []
-  }
-  return result
-}
-
 // Wijzigingenlog voor de admin-logpagina: één entry per aangemaakte
 // dependency, met een eventuele markering als mogelijk duplicaat van een
 // dependency op een ander team (zie AppContext.jsx addDependency/
@@ -575,6 +562,33 @@ export function validateImportShape(parsed) {
   }
 }
 
+// Telt records die binnenkomen zonder naam. Bewust TELLEN en niet weigeren of
+// weggooien: de naamplicht geldt voor wat iemand nieuw invoert, niet voor wat
+// er al was. Bij een bestand dat van hand tot hand gaat is de import bovendien
+// de enige kopie — weggooien is dan definitief, en bestaande lege records
+// moeten juist te openen en te repareren blijven.
+//
+// Dependencies zitten er niet bij: die worden bij het inlezen al gewéigerd als
+// de titel ontbreekt (validateImportShape hierboven), en dat blijft zo.
+export function telOnvolledigeNamen(parsed) {
+  const teams = new Map((Array.isArray(parsed?.teams) ? parsed.teams : []).map((tm) => [tm?.id ?? tm, tm?.naam ?? tm]))
+  const perTeam = []
+  let ioItems = 0
+  let capaciteitsregels = 0
+
+  for (const [teamId, wf] of Object.entries(parsed?.teamWorkflows ?? {})) {
+    if (!wf || typeof wf !== 'object') continue
+    const io = [...(wf.inputs ?? []), ...(wf.outputs ?? [])].filter((item) => item && !item.label?.trim()).length
+    const cap = (wf.capacity ?? []).filter((row) => row && !row.rol?.trim()).length
+    if (io === 0 && cap === 0) continue
+    ioItems += io
+    capaciteitsregels += cap
+    perTeam.push({ teamId, teamNaam: teams.get(teamId) ?? teamId, ioItems: io, capaciteitsregels: cap })
+  }
+
+  return { ioItems, capaciteitsregels, totaal: ioItems + capaciteitsregels, perTeam }
+}
+
 // --- publieke API ---
 
 function emptyState() {
@@ -583,7 +597,6 @@ function emptyState() {
     teams: [],
     dependencies: [],
     teamWorkflows: {},
-    teamSnapshots: {},
     externalParties: [],
     changeLog: [],
     usingMockData: false,
