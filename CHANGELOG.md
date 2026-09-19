@@ -5,6 +5,25 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-19
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
 
+- **CI: Node 24, zodat npm in CI dezelfde versie is als waarmee de lock gemaakt is** (Lars Hoogland)
+
+  Dit is de werkelijke oorzaak van acht mislukte runs. Niet de lockfile zelf en
+  niet de Node-versie op zichzelf, maar de npm-versie:
+
+    npm error Missing: @emnapi/runtime@1.11.3 from lock file
+    npm error code EUSAGE
+
+  Node 22 brengt npm 10.9.8 mee; hier wordt ontwikkeld op Node 24 met npm 11.6.2.
+  Die twee schrijven de gebundelde subafhankelijkheden van
+  @tailwindcss/oxide-wasm32-wasi verschillend: npm 10 verwacht @emnapi/runtime in
+  de lock, npm 11 zet 'm er niet in. npm ci weigert dan met EUSAGE, nog voordat
+  lint, build of tests draaien.
+
+  Node 24 is ook de versie waarop hier lokaal gewerkt wordt, dus CI test nu
+  dezelfde combinatie in plaats van een andere.
+
+- **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
+
 - **CI: de reden van npm ci tonen, niet de usage-tekst eronder** (Lars Hoogland)
 
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
