@@ -80,6 +80,26 @@ function InfoIcon({ tooltip }) {
   )
 }
 
+// Vier vaste secties met een eigen vlak eromheen, langs de blokindeling die
+// er tekstueel al lag. Nadrukkelijk GEEN wizard: geen stappen, geen
+// voortgangsbalk, geen Volgende/Vorige. Het formulier blijft een scrollend
+// geheel en de informatiedichtheid blijft zoals hij was — er komt alleen
+// visuele groepering bij, er wordt niets weggelaten of verstopt.
+//
+// Een neutrale tint voor alle vier, en niet vier verschillende kleuren: in
+// deze app draagt kleur betekenis (de warme, ordinale risicoschaal in
+// lib/riskStyles.js). Vier gekleurde vlakken zouden de vraag oproepen welk
+// risiconiveau ze aanduiden.
+function Sectie({ titel, note, children }) {
+  return (
+    <section className="rounded-lg bg-slate-50 px-4 py-3.5 ring-1 ring-slate-200/70">
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{titel}</p>
+      {note && <p className="mt-0.5 text-xs text-slate-400">{note}</p>}
+      <div className="mt-3 space-y-4">{children}</div>
+    </section>
+  )
+}
+
 function FieldError({ id, message }) {
   if (!message) return null
   return (
@@ -347,308 +367,300 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               {ontbrekend === 1 ? t('form.missingOne') : t('form.missingCount', { count: ontbrekend })}
             </p>
           )}
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatIsHet')}</p>
-          <div>
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <Label required htmlFor="dep-team">{isEditing || !multiTeamMode ? t('form.team') : t('form.teams')}</Label>
-              {!isEditing && (
-                <button
-                  type="button"
-                  onClick={() => setMultiTeamMode((v) => !v)}
-                  className="text-[11px] font-medium text-[#2a5f8a] hover:underline"
-                >
-                  {multiTeamMode ? t('form.teamsModeSingle') : t('form.teamsModeMulti')}
-                </button>
-              )}
-            </div>
-            {!isEditing && multiTeamMode && <p className="mb-1.5 text-xs text-slate-400">{t('form.teamsHelper')}</p>}
-            {isEditing || !multiTeamMode ? (
-              <select
-                id="dep-team"
-                value={form.teamIds[0] ?? ''}
-                onChange={(e) => update('teamIds', e.target.value ? [e.target.value] : [])}
-                onBlur={() => markTouched('teamIds')}
-                aria-describedby={touched.teamIds && errors.teamIds ? 'err-team' : undefined}
-                className={inputClass}
-              >
-                <option value="">{t('form.teamPlaceholder')}</option>
-                {teamChoices.map((tm) => (
-                  <option key={tm.id} value={tm.id}>
-                    {teamLabels[tm.id] ?? tm.naam}
-                    {!tm.actief ? ` (${t('settings.archived')})` : ''}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div id="dep-team" onBlur={() => markTouched('teamIds')} tabIndex={-1}>
-                {teamChoices.length === 0 ? (
-                  <p className="text-xs text-slate-400">{t('form.teamsEmpty')}</p>
-                ) : (
-                  <div className="space-y-0.5 rounded-md border border-slate-300 bg-white p-1.5">
-                    {teamChoices.map((tm) => {
-                      const checked = form.teamIds.includes(tm.id)
-                      return (
-                        <label key={tm.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 hover:bg-slate-50">
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleTeamId(tm.id)}
-                            className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
-                          />
-                          {teamLabels[tm.id] ?? tm.naam}
-                          {!tm.actief ? ` (${t('settings.archived')})` : ''}
-                        </label>
-                      )
-                    })}
-                  </div>
-                )}
-                {form.teamIds.length > 1 && (
-                  <p className="mt-1.5 text-[11px] text-[#2a5f8a]">{t('form.teamsCount', { count: form.teamIds.length })}</p>
+
+          <Sectie titel={t('form.blokWatIsHet')}>
+            <div>
+              <div className="mb-1 flex items-center justify-between gap-2">
+                <Label required htmlFor="dep-team">{isEditing || !multiTeamMode ? t('form.team') : t('form.teams')}</Label>
+                {!isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => setMultiTeamMode((v) => !v)}
+                    className="text-[11px] font-medium text-[#2a5f8a] hover:underline"
+                  >
+                    {multiTeamMode ? t('form.teamsModeSingle') : t('form.teamsModeMulti')}
+                  </button>
                 )}
               </div>
-            )}
-            {touched.teamIds && <FieldError id="err-team" message={errors.teamIds} />}
-          </div>
+              {!isEditing && multiTeamMode && <p className="mb-1.5 text-xs text-slate-400">{t('form.teamsHelper')}</p>}
+              {isEditing || !multiTeamMode ? (
+                <select
+                  id="dep-team"
+                  value={form.teamIds[0] ?? ''}
+                  onChange={(e) => update('teamIds', e.target.value ? [e.target.value] : [])}
+                  onBlur={() => markTouched('teamIds')}
+                  aria-describedby={touched.teamIds && errors.teamIds ? 'err-team' : undefined}
+                  className={inputClass}
+                >
+                  <option value="">{t('form.teamPlaceholder')}</option>
+                  {teamChoices.map((tm) => (
+                    <option key={tm.id} value={tm.id}>
+                      {teamLabels[tm.id] ?? tm.naam}
+                      {!tm.actief ? ` (${t('settings.archived')})` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div id="dep-team" onBlur={() => markTouched('teamIds')} tabIndex={-1}>
+                  {teamChoices.length === 0 ? (
+                    <p className="text-xs text-slate-400">{t('form.teamsEmpty')}</p>
+                  ) : (
+                    <div className="space-y-0.5 rounded-md border border-slate-300 bg-white p-1.5">
+                      {teamChoices.map((tm) => {
+                        const checked = form.teamIds.includes(tm.id)
+                        return (
+                          <label key={tm.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 hover:bg-slate-50">
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleTeamId(tm.id)}
+                              className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                            />
+                            {teamLabels[tm.id] ?? tm.naam}
+                            {!tm.actief ? ` (${t('settings.archived')})` : ''}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {form.teamIds.length > 1 && (
+                    <p className="mt-1.5 text-[11px] text-[#2a5f8a]">{t('form.teamsCount', { count: form.teamIds.length })}</p>
+                  )}
+                </div>
+              )}
+              {touched.teamIds && <FieldError id="err-team" message={errors.teamIds} />}
+            </div>
 
-          <div>
-            <Label required htmlFor="dep-titel">{t('form.titel')}</Label>
-            <input
-              id="dep-titel"
-              value={form.titel}
-              onChange={(e) => update('titel', e.target.value)}
-              onBlur={() => markTouched('titel')}
-              placeholder={t('form.titelPlaceholder')}
-              aria-describedby={touched.titel && errors.titel ? 'err-titel' : undefined}
-              className={inputClass}
-            />
-            {touched.titel && <FieldError id="err-titel" message={errors.titel} />}
-          </div>
-
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              {/* Geen sterretje: scope heeft altijd een waarde (intern is de
-                  startwaarde) en staat dan ook niet in requiredFields — het
-                  kan dus nooit een fout opleveren. */}
-              <Label>{t('form.scope')}</Label>
-              <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
-                {['intern', 'extern'].map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => update('scope', value)}
-                    aria-pressed={form.scope === value}
-                    className={`rounded px-3 py-1 capitalize transition-colors ${
-                      form.scope === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {value === 'intern' ? t('form.scopeIntern') : t('form.scopeExtern')}
-                  </button>
-                ))}
+              <Label required htmlFor="dep-titel">{t('form.titel')}</Label>
+              <input
+                id="dep-titel"
+                value={form.titel}
+                onChange={(e) => update('titel', e.target.value)}
+                onBlur={() => markTouched('titel')}
+                placeholder={t('form.titelPlaceholder')}
+                aria-describedby={touched.titel && errors.titel ? 'err-titel' : undefined}
+                className={inputClass}
+              />
+              {touched.titel && <FieldError id="err-titel" message={errors.titel} />}
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                {/* Geen sterretje: scope heeft altijd een waarde (intern is de
+                    startwaarde) en staat dan ook niet in requiredFields — het
+                    kan dus nooit een fout opleveren. */}
+                <Label>{t('form.scope')}</Label>
+                <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.scope')}>
+                  {['intern', 'extern'].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => update('scope', value)}
+                      aria-pressed={form.scope === value}
+                      className={`rounded px-3 py-1 capitalize transition-colors ${
+                        form.scope === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {value === 'intern' ? t('form.scopeIntern') : t('form.scopeExtern')}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1 flex items-center gap-1.5">
+                  <Label required>{t('form.flowtype')}</Label>
+                  <InfoIcon tooltip={t('form.flowtypeHelper')} />
+                </div>
+                <div id="dep-flowtype" className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
+                  {FLOWTYPE_LEVELS.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => update('flowtype', value)}
+                      onBlur={() => markTouched('flowtype')}
+                      aria-pressed={form.flowtype === value}
+                      className={`rounded px-3 py-1 transition-colors ${
+                        form.flowtype === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {value === 'ontwikkelflow' ? t('form.flowtypeOntwikkelflow') : t('form.flowtypeApplicatieflow')}
+                    </button>
+                  ))}
+                </div>
+                {touched.flowtype && <FieldError id="err-flowtype" message={errors.flowtype} />}
               </div>
             </div>
 
             <div>
               <div className="mb-1 flex items-center gap-1.5">
-                <Label required>{t('form.flowtype')}</Label>
-                <InfoIcon tooltip={t('form.flowtypeHelper')} />
+                <Label required htmlFor="dep-categorie">{t('form.categorie')}</Label>
+                <InfoIcon tooltip={t('form.categorieIconTooltip')} />
               </div>
-              <div id="dep-flowtype" className="inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-sm" role="group" aria-label={t('form.flowtype')}>
-                {FLOWTYPE_LEVELS.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => update('flowtype', value)}
-                    onBlur={() => markTouched('flowtype')}
-                    aria-pressed={form.flowtype === value}
-                    className={`rounded px-3 py-1 transition-colors ${
-                      form.flowtype === value ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {value === 'ontwikkelflow' ? t('form.flowtypeOntwikkelflow') : t('form.flowtypeApplicatieflow')}
-                  </button>
+              <p className="mb-1.5 text-xs text-slate-400">{t('form.categorieHelper')}</p>
+              <select
+                id="dep-categorie"
+                value={form.categorie}
+                onChange={(e) => update('categorie', e.target.value)}
+                onBlur={() => markTouched('categorie')}
+                aria-describedby={touched.categorie && errors.categorie ? 'err-categorie' : undefined}
+                className={inputClass}
+              >
+                <option value="">{t('form.categoriePlaceholder')}</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat} title={getCategoryDescription(cat, form.scope, language)}>
+                    {translateCategorie(cat, language)}
+                  </option>
                 ))}
-              </div>
-              {touched.flowtype && <FieldError id="err-flowtype" message={errors.flowtype} />}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-1 flex items-center gap-1.5">
-              <Label required htmlFor="dep-categorie">{t('form.categorie')}</Label>
-              <InfoIcon tooltip={t('form.categorieIconTooltip')} />
-            </div>
-            <p className="mb-1.5 text-xs text-slate-400">{t('form.categorieHelper')}</p>
-            <select
-              id="dep-categorie"
-              value={form.categorie}
-              onChange={(e) => update('categorie', e.target.value)}
-              onBlur={() => markTouched('categorie')}
-              aria-describedby={touched.categorie && errors.categorie ? 'err-categorie' : undefined}
-              className={inputClass}
-            >
-              <option value="">{t('form.categoriePlaceholder')}</option>
-              {categories.map((cat) => (
-                <option key={cat} value={cat} title={getCategoryDescription(cat, form.scope, language)}>
-                  {translateCategorie(cat, language)}
-                </option>
-              ))}
-            </select>
-            {/* Beschrijving van de gekozen categorie blijft nu gewoon in
-                beeld staan i.p.v. alleen bij hover — zo hoeft de gebruiker
-                niet te gokken of terug te hoveren om te checken of de keuze
-                klopt. */}
-            {form.categorie && (
-              <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
-                <div className="font-medium text-slate-700">{translateCategorie(form.categorie, language)}</div>
-                <div className="mt-0.5 leading-relaxed">{getCategoryDescription(form.categorie, form.scope, language)}</div>
-              </div>
-            )}
-            {touched.categorie && <FieldError id="err-categorie" message={errors.categorie} />}
-          </div>
-
-          <div>
-            <Label htmlFor="dep-toelichting">{t('form.toelichting')}</Label>
-            <textarea
-              id="dep-toelichting"
-              value={form.toelichting}
-              onChange={(e) => update('toelichting', e.target.value)}
-              rows={2}
-              placeholder={t('form.toelichtingPlaceholder')}
-              className={inputClass}
-            />
-          </div>
-
-          {form.scope === 'extern' && (
-            <div>
-              <Label required htmlFor="dep-geraakt">{t('form.geraaktTeam')}</Label>
-              <p className="mb-1.5 text-xs text-slate-400">{t('form.geraaktTeamHelper')}</p>
-              <div className="mb-1.5 inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" role="group" aria-label={t('form.geraaktTeam')}>
-                {['team', 'extern'].map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => {
-                      setGeraaktMode(mode)
-                      if (mode === 'extern') {
-                        setSelectedGeraaktTeamId('')
-                        // Terug naar 'Extern' met een nog gekoppelde partij: de
-                        // naam weer uit die partij halen i.p.v. leeg laten —
-                        // anders werd het record opgeslagen met wél een
-                        // partij-id maar zonder naam.
-                        setForm((f) => ({
-                          ...f,
-                          geraakte_team_extern: externalParties.find((p) => p.id === f.geraaktPartijId)?.naam ?? '',
-                        }))
-                      } else if (selectedGeraaktTeamId) {
-                        update('geraakte_team_extern', teamLabels[selectedGeraaktTeamId] ?? '')
-                      } else {
-                        update('geraakte_team_extern', '')
-                      }
-                    }}
-                    aria-pressed={geraaktMode === mode}
-                    className={`rounded px-2.5 py-1 transition-colors ${
-                      geraaktMode === mode ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    {mode === 'team' ? t('form.geraaktModeTeam') : t('form.geraaktModeExtern')}
-                  </button>
-                ))}
-              </div>
-              {geraaktMode === 'team' ? (
-                <select
-                  id="dep-geraakt"
-                  value={selectedGeraaktTeamId}
-                  onChange={(e) => {
-                    const tm = teams.find((t) => t.id === e.target.value)
-                    setSelectedGeraaktTeamId(e.target.value)
-                    update('geraakte_team_extern', tm ? (teamLabels[tm.id] ?? tm.naam) : '')
-                  }}
-                  onBlur={() => markTouched('geraakte_team_extern')}
-                  aria-describedby={touched.geraakte_team_extern && errors.geraakte_team_extern ? 'err-geraakt' : undefined}
-                  className={inputClass}
-                >
-                  <option value="">{t('form.teamPlaceholder')}</option>
-                  {teams.map((tm) => (
-                    <option key={tm.id} value={tm.id}>
-                      {teamLabels[tm.id] ?? tm.naam}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div onBlur={() => markTouched('geraaktPartijId')}>
-                  <PartyPicker
-                    value={form.geraaktPartijId}
-                    onChange={(id, naam) => setForm((f) => ({ ...f, geraaktPartijId: id, geraakte_team_extern: naam }))}
-                    externalParties={externalParties}
-                    addExternalParty={addExternalParty}
-                    currentTeamId={form.teamIds[0] ?? defaultTeamId ?? null}
-                    t={t}
-                    language={language}
-                  />
+              </select>
+              {/* Beschrijving van de gekozen categorie blijft nu gewoon in
+                  beeld staan i.p.v. alleen bij hover — zo hoeft de gebruiker
+                  niet te gokken of terug te hoveren om te checken of de keuze
+                  klopt. */}
+              {form.categorie && (
+                <div className="mt-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-600">
+                  <div className="font-medium text-slate-700">{translateCategorie(form.categorie, language)}</div>
+                  <div className="mt-0.5 leading-relaxed">{getCategoryDescription(form.categorie, form.scope, language)}</div>
                 </div>
               )}
-              {touched.geraakte_team_extern && <FieldError id="err-geraakt" message={errors.geraakte_team_extern} />}
-              {touched.geraaktPartijId && <FieldError id="err-geraakt-partij" message={errors.geraaktPartijId} />}
+              {touched.categorie && <FieldError id="err-categorie" message={errors.categorie} />}
             </div>
-          )}
 
-          {form.flowtype !== 'applicatieflow' && (
-            <p className="border-t border-slate-200 pt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              {t('form.blokWaarInFlow')}
-            </p>
-          )}
+            <div>
+              <Label htmlFor="dep-toelichting">{t('form.toelichting')}</Label>
+              <textarea
+                id="dep-toelichting"
+                value={form.toelichting}
+                onChange={(e) => update('toelichting', e.target.value)}
+                rows={2}
+                placeholder={t('form.toelichtingPlaceholder')}
+                className={inputClass}
+              />
+            </div>
 
-          <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>
-            {/* Applicatieflow hoort bij een draaiende applicatie/keten, niet bij
-                een fase van het ontwikkelproces — het veld is daarom niet
-                optioneel-maar-verborgen, maar volledig weg, en wordt nooit
-                opgeslagen (zie update()/handleSubmit hierboven). */}
-            {form.flowtype !== 'applicatieflow' && (
+            {form.scope === 'extern' && (
               <div>
-                <div className="mb-1 flex items-center gap-1.5">
-                  {/* Alleen verplicht bij Ontwikkelflow; Applicatieflow kent
-                      conceptueel geen workflowstap. Het sterretje volgt die
-                      voorwaarde nu, i.p.v. er altijd te staan. */}
-                  <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
-                    {t('form.workflowStap')}
-                  </Label>
-                  <InfoIcon tooltip={t('form.workflowStapRequiredHelper')} />
-                </div>
-                <select
-                  id="dep-workflowstap"
-                  value={form.workflowStap}
-                  onChange={(e) => update('workflowStap', e.target.value)}
-                  onBlur={() => markTouched('workflowStap')}
-                  aria-describedby={touched.workflowStap && errors.workflowStap ? 'err-workflowstap' : undefined}
-                  className={inputClass}
-                >
-                  <option value="">—</option>
-                  {WORKFLOW_STAP_LEVELS.map((lvl) => (
-                    <option key={lvl} value={lvl}>
-                      {translateWorkflowStap(lvl, language)}
-                    </option>
+                <Label required htmlFor="dep-geraakt">{t('form.geraaktTeam')}</Label>
+                <p className="mb-1.5 text-xs text-slate-400">{t('form.geraaktTeamHelper')}</p>
+                <div className="mb-1.5 inline-flex rounded-md border border-slate-300 bg-white p-0.5 text-xs" role="group" aria-label={t('form.geraaktTeam')}>
+                  {['team', 'extern'].map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => {
+                        setGeraaktMode(mode)
+                        if (mode === 'extern') {
+                          setSelectedGeraaktTeamId('')
+                          // Terug naar 'Extern' met een nog gekoppelde partij: de
+                          // naam weer uit die partij halen i.p.v. leeg laten —
+                          // anders werd het record opgeslagen met wél een
+                          // partij-id maar zonder naam.
+                          setForm((f) => ({
+                            ...f,
+                            geraakte_team_extern: externalParties.find((p) => p.id === f.geraaktPartijId)?.naam ?? '',
+                          }))
+                        } else if (selectedGeraaktTeamId) {
+                          update('geraakte_team_extern', teamLabels[selectedGeraaktTeamId] ?? '')
+                        } else {
+                          update('geraakte_team_extern', '')
+                        }
+                      }}
+                      aria-pressed={geraaktMode === mode}
+                      className={`rounded px-2.5 py-1 transition-colors ${
+                        geraaktMode === mode ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      {mode === 'team' ? t('form.geraaktModeTeam') : t('form.geraaktModeExtern')}
+                    </button>
                   ))}
-                </select>
-                {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
+                </div>
+                {geraaktMode === 'team' ? (
+                  <select
+                    id="dep-geraakt"
+                    value={selectedGeraaktTeamId}
+                    onChange={(e) => {
+                      const tm = teams.find((t) => t.id === e.target.value)
+                      setSelectedGeraaktTeamId(e.target.value)
+                      update('geraakte_team_extern', tm ? (teamLabels[tm.id] ?? tm.naam) : '')
+                    }}
+                    onBlur={() => markTouched('geraakte_team_extern')}
+                    aria-describedby={touched.geraakte_team_extern && errors.geraakte_team_extern ? 'err-geraakt' : undefined}
+                    className={inputClass}
+                  >
+                    <option value="">{t('form.teamPlaceholder')}</option>
+                    {teams.map((tm) => (
+                      <option key={tm.id} value={tm.id}>
+                        {teamLabels[tm.id] ?? tm.naam}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <div onBlur={() => markTouched('geraaktPartijId')}>
+                    <PartyPicker
+                      value={form.geraaktPartijId}
+                      onChange={(id, naam) => setForm((f) => ({ ...f, geraaktPartijId: id, geraakte_team_extern: naam }))}
+                      externalParties={externalParties}
+                      addExternalParty={addExternalParty}
+                      currentTeamId={form.teamIds[0] ?? defaultTeamId ?? null}
+                      t={t}
+                      language={language}
+                    />
+                  </div>
+                )}
+                {touched.geraakte_team_extern && <FieldError id="err-geraakt" message={errors.geraakte_team_extern} />}
+                {touched.geraaktPartijId && <FieldError id="err-geraakt-partij" message={errors.geraaktPartijId} />}
               </div>
             )}
-            {form.workflowStap && form.flowtype !== 'applicatieflow' && (
-              <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
-                <div className="font-medium text-slate-700">{translateWorkflowStap(form.workflowStap, language)}</div>
-                <div className="mt-0.5 leading-relaxed">{t(`form.workflowStapUitleg.${form.workflowStap}`)}</div>
-              </div>
-            )}
-            {form.flowtype === 'applicatieflow' && (
-              <p className="text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
-            )}          </div>
+          </Sectie>
 
-          {/* Bij uitgebreide analyse worden de inschattingen knoppenrijen met
-              ankertekst i.p.v. dropdowns: je ziet de hele schaal in één keer
-              en per optie staat er wat hij betekent, met een voorbeeld.
-              Zonder de toggle blijft het compacte drie-koloms dropdownblok. */}
-          <div className="space-y-3 border-t border-slate-200 pt-4">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokHoeErg')}</p>
-            <p className="-mt-1.5 text-xs text-slate-400">{t('form.blokHoeErgNote')}</p>
+          <Sectie titel={t('form.blokWaarInFlow')}>
+            <div className={`grid grid-cols-1 gap-3 ${form.flowtype === 'applicatieflow' ? '' : 'sm:grid-cols-2'}`}>
+              {/* Applicatieflow hoort bij een draaiende applicatie/keten, niet bij
+                  een fase van het ontwikkelproces — het veld is daarom niet
+                  optioneel-maar-verborgen, maar volledig weg, en wordt nooit
+                  opgeslagen (zie update()/handleSubmit hierboven). */}
+              {form.flowtype !== 'applicatieflow' && (
+                <div>
+                  <div className="mb-1 flex items-center gap-1.5">
+                    {/* Alleen verplicht bij Ontwikkelflow; Applicatieflow kent
+                        conceptueel geen workflowstap. Het sterretje volgt die
+                        voorwaarde nu, i.p.v. er altijd te staan. */}
+                    <Label required={form.flowtype === 'ontwikkelflow'} htmlFor="dep-workflowstap">
+                      {t('form.workflowStap')}
+                    </Label>
+                    <InfoIcon tooltip={t('form.workflowStapRequiredHelper')} />
+                  </div>
+                  <select
+                    id="dep-workflowstap"
+                    value={form.workflowStap}
+                    onChange={(e) => update('workflowStap', e.target.value)}
+                    onBlur={() => markTouched('workflowStap')}
+                    aria-describedby={touched.workflowStap && errors.workflowStap ? 'err-workflowstap' : undefined}
+                    className={inputClass}
+                  >
+                    <option value="">—</option>
+                    {WORKFLOW_STAP_LEVELS.map((lvl) => (
+                      <option key={lvl} value={lvl}>
+                        {translateWorkflowStap(lvl, language)}
+                      </option>
+                    ))}
+                  </select>
+                  {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
+                </div>
+              )}
+              {form.workflowStap && form.flowtype !== 'applicatieflow' && (
+                <div className="mt-1.5 rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-600">
+                  <div className="font-medium text-slate-700">{translateWorkflowStap(form.workflowStap, language)}</div>
+                  <div className="mt-0.5 leading-relaxed">{t(`form.workflowStapUitleg.${form.workflowStap}`)}</div>
+                </div>
+              )}
+              {form.flowtype === 'applicatieflow' && (
+                <p className="text-xs text-slate-400">{t('form.workflowStapNotApplicable')}</p>
+              )}          </div>
+          </Sectie>
+
+          <Sectie titel={t('form.blokHoeErg')} note={t('form.blokHoeErgNote')}>
 
             <SegmentedField
               id="dep-impact"
@@ -771,65 +783,59 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               required
             />
             {touched.status && <FieldError id="err-status" message={errors.status} />}
+          </Sectie>
 
-            <div className="border-t border-slate-200 pt-4">
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatNu')}</p>
-              <SegmentedField
-                id="dep-oplosbaarheid"
-                label={t('form.oplosbaarheid')}
-                dimension="oplosbaarheid"
-                options={OPLOSBAARHEID_LEVELS}
-                value={form.oplosbaarheid}
-                onChange={(v) => update('oplosbaarheid', v)}
-                translate={translateOplosbaarheid}
-                language={language}
-                t={t}
-              >
-                <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
-              </SegmentedField>
-              {/* Wat de combinatie flowverlies x oplosbaarheid betekent voor
-                  de vervolgstap — zo doet het veld meteen iets zichtbaars
-                  i.p.v. alleen geregistreerd te worden. */}
-              {bepaalKwadrant(form) && (
-                <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                  <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                    {t('kwadrant.titel')}
-                  </span>
-                  <span className="font-semibold text-slate-700">{t(`kwadrant.${bepaalKwadrant(form)}`)}</span>
-                  <span className="text-slate-500"> — {t(`kwadrant.${bepaalKwadrant(form)}Uitleg`)}</span>
-                </p>
-              )}
+          <Sectie titel={t('form.blokWatNu')}>
+            <SegmentedField
+              id="dep-oplosbaarheid"
+              label={t('form.oplosbaarheid')}
+              dimension="oplosbaarheid"
+              options={OPLOSBAARHEID_LEVELS}
+              value={form.oplosbaarheid}
+              onChange={(v) => update('oplosbaarheid', v)}
+              translate={translateOplosbaarheid}
+              language={language}
+              t={t}
+            >
+              <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
+            </SegmentedField>
+            {/* Wat de combinatie flowverlies x oplosbaarheid betekent voor
+                de vervolgstap — zo doet het veld meteen iets zichtbaars
+                i.p.v. alleen geregistreerd te worden. */}
+            {bepaalKwadrant(form) && (
+              <p className="mt-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs">
+                <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                  {t('kwadrant.titel')}
+                </span>
+                <span className="font-semibold text-slate-700">{t(`kwadrant.${bepaalKwadrant(form)}`)}</span>
+                <span className="text-slate-500"> — {t(`kwadrant.${bepaalKwadrant(form)}Uitleg`)}</span>
+              </p>
+            )}
+
+            <div>
+              <Label htmlFor="dep-actie">{t('form.actieAfspraak')}</Label>
+              <textarea
+                id="dep-actie"
+                value={form.actieAfspraak}
+                onChange={(e) => update('actieAfspraak', e.target.value)}
+                rows={2}
+                placeholder={t('form.actieAfspraakPlaceholder')}
+                className={inputClass}
+              />
             </div>
-          </div>
 
-          <div>
-            <Label htmlFor="dep-actie">{t('form.actieAfspraak')}</Label>
-            <textarea
-              id="dep-actie"
-              value={form.actieAfspraak}
-              onChange={(e) => update('actieAfspraak', e.target.value)}
-              rows={2}
-              placeholder={t('form.actieAfspraakPlaceholder')}
-              className={inputClass}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="dep-mitigatie">{t('form.mitigatie')}</Label>
-            <textarea
-              id="dep-mitigatie"
-              value={form.mitigatie}
-              onChange={(e) => update('mitigatie', e.target.value)}
-              rows={2}
-              placeholder={t('form.mitigatiePlaceholder')}
-              className={inputClass}
-            />
-          </div>
-
-
-
-
-
+            <div>
+              <Label htmlFor="dep-mitigatie">{t('form.mitigatie')}</Label>
+              <textarea
+                id="dep-mitigatie"
+                value={form.mitigatie}
+                onChange={(e) => update('mitigatie', e.target.value)}
+                rows={2}
+                placeholder={t('form.mitigatiePlaceholder')}
+                className={inputClass}
+              />
+            </div>
+          </Sectie>
         </div>
 
           <div className="flex shrink-0 justify-end gap-2 border-t border-slate-200 px-5 py-4">
