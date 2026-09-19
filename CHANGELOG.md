@@ -5,6 +5,36 @@ Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 ## 2026-09-19
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
 
+- **CI repareren: Node 22 en een volledige lockfile** (Lars Hoogland)
+
+- **CI repareren: Node 22 en een volledige lockfile** (Lars Hoogland)
+
+  De CI-workflow die ik in beurt 1 (punt 12) toevoegde is nooit geslaagd. Zeven
+  runs, allemaal afgebroken op dezelfde stap: 'Installeren' (npm ci), dus voor
+  lint, build en tests uberhaupt draaiden. Over de app zegt dat niets -- die is
+  lokaal groen -- maar de workflow deed daardoor ook niets nuttigs.
+
+  Twee dingen gerepareerd:
+
+  1. De lockfile was onvolledig. Hij miste de gebundelde subafhankelijkheden van
+     @tailwindcss/oxide-wasm32-wasi (48 regels). Zo'n gat valt niet op waar de
+     lock gemaakt is, maar laat npm ci op een schone runner vallen. Opnieuw
+     gegenereerd met npm install --package-lock-only.
+
+  2. De workflow draaide op Node 20, en dat is een versie die de toolchain zelf
+     niet ondersteunt: vitest 5 vereist ^22.12.0 || ^24.0.0 || >=26.0.0, en vite,
+     rolldown en oxlint vragen ^20.19.0 || >=22.12.0. Nu Node 22. In package.json
+     staat er een engines-veld bij, zodat dezelfde scheefstand voortaan lokaal al
+     opvalt in plaats van pas in CI.
+
+  Eerlijk erbij: ik kan de foutregel uit de CI-log van hier niet lezen (geen gh en
+  geen toegang tot GitHub), dus ik heb geen bewijs welke van de twee de run liet
+  struikelen. Beide zijn op zichzelf fout en allebei aantoonbaar: de lock kreeg 48
+  regels terug die er hoorden te staan, en vitest draaide op een niet-ondersteunde
+  Node. De volgende run wijst uit of er nog iets onder ligt.
+
+- **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
+
 - **Nagekomen bij punt 16: een import komt ook langs de bovengrens** (Lars Hoogland)
 
 - **Punt 16 nagekomen: een import komt ook langs de bovengrens** (Lars Hoogland)
