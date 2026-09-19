@@ -3,6 +3,32 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Punt 9 en stapfilter opnieuw aanbrengen op HeatmapView na de merge** (Lars Hoogland)
+
+  Hoort bij de merge hiervoor en was daar per ongeluk niet in meegenomen: ik
+  had HeatmapView.jsx bewerkt nadat de merge het bestand al gestaged had, en
+  committe zonder het opnieuw toe te voegen. De merge op main was daardoor wel
+  sluitend, maar zonder deze twee wijzigingen.
+
+  Het gaat om het werk dat eerder in GraphView.jsx stond en dat bij de merge
+  opnieuw moest worden aangebracht omdat dat bestand is vervangen:
+
+  Punt 9 - het rastervak had geen hoogtebeperking, dus het scrolde zelf nooit
+  en de hele pagina scrolde mee. De vastgezette kolomkoppen plakten daardoor
+  aan een vak dat niet beweegt en verdwenen uit beeld. Nu een MAX-hoogte (zodat
+  het vak bij weinig teams nog steeds meekrimpt), een enkel scrollgebied in
+  plaats van twee geneste, een in beide richtingen vastgezette hoekcel, en een
+  teamnaamkolom op sticky left-0 met een DEKKENDE achtergrond - de vorige
+  hover-tint was half doorzichtig en liet de gekleurde cellen erdoorheen
+  schijnen.
+
+  Punt 27, onderdeel 4 - een werkstap die noch bekend noch leeg is viel door
+  beide mazen van het stapfilter en verdween stil uit de heatmap. Onbekend
+  telt nu als 'niet ingevuld'.
+
+  Geverifieerd in de browser: max-hoogte 768px, teamnaamkolom sticky met
+  rgb(255,255,255) als achtergrond.
+
 - **Merge origin/main: beurten 1 t/m 4 samengevoegd met het ketenoverzicht-werk** (Lars Hoogland)
 
   De andere sessie heeft intussen Matrix-overzicht en Relatiekaart verwijderd,
