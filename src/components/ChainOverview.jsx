@@ -10,6 +10,7 @@ import {
   getSmoothStepPath,
   internalsSymbol,
   useNodesInitialized,
+  useViewport,
   useReactFlow,
   useStoreApi,
   useUpdateNodeInternals,
@@ -75,6 +76,14 @@ const BACK_EDGE_STYLE = { strokeDasharray: '5 4' }
 const AGG_COLOR = '#64748b'
 // Hoeveel ketenstappen vanaf het focusteam maximaal in beeld komen.
 const MAX_DEPTH = 3
+
+// Onder deze zoomfactor staan er alleen nog blokjes op het canvas en is de
+// tekst op de kaarten weg. 0,2 is niet willekeurig: dat was tot nu toe de
+// ondergrens voor uitzoomen, dus de melding verschijnt precies zodra je verder
+// uitzoomt dan vroeger uberhaupt kon. Hoger kan niet: dit scherm past zichzelf
+// bij de voorbeelddata al op 0,32 tot 0,42 in, dus een drempel van bijvoorbeeld
+// 0,55 (de schatting in de opdracht) zou de melding permanent laten staan.
+const LEESBARE_ZOOM = 0.2
 
 function ExternalPartyNode({ id, data }) {
   const { t, language } = useLanguage()
@@ -395,6 +404,7 @@ function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   const store = useStoreApi()
   const { t } = useLanguage()
   const toolbarRef = useRef(null)
+  const { zoom } = useViewport()
 
   const fit = useCallback(() => {
     const el = toolbarRef.current
@@ -405,7 +415,10 @@ function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
       safeAreaWidth,
       safeAreaHeight,
       padding: 0.12,
-      minZoom: 0.2,
+      // 0,05 en niet de standaard 0,2: bij enkele tientallen teams past de
+      // tekening niet binnen 0,2, en dan maakt 'passend maken' stilzwijgend
+      // niet passend -- je krijgt een uitsnede zonder dat iets dat zegt.
+      minZoom: 0.05,
       maxZoom: 1.5,
       duration: 200,
     })
@@ -438,6 +451,11 @@ function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   const btnClass = 'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700'
   return (
     <Panel position="bottom-left">
+      {zoom < LEESBARE_ZOOM && (
+        <div className="mb-1.5 max-w-[190px] rounded-lg border border-slate-200 bg-white/95 px-2 py-1.5 text-[11px] leading-snug text-[#2a5f8a] shadow-md backdrop-blur-sm">
+          {t('chain.zoomUnreadable')}
+        </div>
+      )}
       <div ref={toolbarRef} className="flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur-sm">
         <button type="button" onClick={() => instance.zoomOut()} title={t('teampage.canvasZoomOut')} aria-label={t('teampage.canvasZoomOut')} className={btnClass}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -701,6 +719,13 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
       elevateEdgesOnSelect
       nodesDraggable={false}
       hideControls
+      // Zelfde ondergrens als 'passend maken' hierboven, zodat handmatig
+      // uitzoomen net zo ver komt als de knop.
+      minZoom={0.05}
+      // De minikaart staat rechtsonder in het canvas; daar is het vrij (de
+      // knoppenbalk zit linksonder, de canvasbalk linksboven, de legenda
+      // rechtsboven en het detailvak onder het canvas).
+      showMinimap
       onNodesChange={onNodesChange}
       {...handlers}
     >
