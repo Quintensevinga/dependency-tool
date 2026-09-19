@@ -197,6 +197,10 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   if (form.flowtype === 'ontwikkelflow' && !form.workflowStap?.trim()) {
     errors.workflowStap = t('form.required')
   }
+  // De enige plek buiten het veldenblok waar het vinkje nog toe doet, en dat
+  // moet zo blijven: staat het uit, dan is dit veld niet zichtbaar, en een
+  // verplichting op een onzichtbaar veld levert een Opslaan-knop op die niets
+  // lijkt te doen zonder dat de gebruiker er iets aan kan veranderen.
   if (adminSettings.uitgebreideAnalyse && DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && !form.deadlineTekst?.trim()) {
     errors.deadlineTekst = t('form.required')
   }
@@ -311,7 +315,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
         role="dialog"
         aria-modal="true"
         aria-labelledby="dependency-form-title"
-        className={`flex max-h-[90vh] w-full flex-col overflow-hidden rounded-xl bg-white shadow-2xl ${adminSettings.uitgebreideAnalyse ? 'max-w-2xl' : 'max-w-lg'}`}
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
       >
         <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div>
@@ -343,9 +347,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               {ontbrekend === 1 ? t('form.missingOne') : t('form.missingCount', { count: ontbrekend })}
             </p>
           )}
-          {adminSettings.uitgebreideAnalyse && (
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatIsHet')}</p>
-          )}
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatIsHet')}</p>
           <div>
             <div className="mb-1 flex items-center justify-between gap-2">
               <Label required htmlFor="dep-team">{isEditing || !multiTeamMode ? t('form.team') : t('form.teams')}</Label>
@@ -590,7 +592,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
             </div>
           )}
 
-          {adminSettings.uitgebreideAnalyse && form.flowtype !== 'applicatieflow' && (
+          {form.flowtype !== 'applicatieflow' && (
             <p className="border-t border-slate-200 pt-4 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
               {t('form.blokWaarInFlow')}
             </p>
@@ -630,7 +632,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                 {touched.workflowStap && <FieldError id="err-workflowstap" message={errors.workflowStap} />}
               </div>
             )}
-            {adminSettings.uitgebreideAnalyse && form.workflowStap && form.flowtype !== 'applicatieflow' && (
+            {form.workflowStap && form.flowtype !== 'applicatieflow' && (
               <div className="mt-1.5 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2 text-xs text-slate-600">
                 <div className="font-medium text-slate-700">{translateWorkflowStap(form.workflowStap, language)}</div>
                 <div className="mt-0.5 leading-relaxed">{t(`form.workflowStapUitleg.${form.workflowStap}`)}</div>
@@ -644,235 +646,161 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
               ankertekst i.p.v. dropdowns: je ziet de hele schaal in één keer
               en per optie staat er wat hij betekent, met een voorbeeld.
               Zonder de toggle blijft het compacte drie-koloms dropdownblok. */}
-          {adminSettings.uitgebreideAnalyse ? (
-            <div className="space-y-3 border-t border-slate-200 pt-4">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokHoeErg')}</p>
-              <p className="-mt-1.5 text-xs text-slate-400">{t('form.blokHoeErgNote')}</p>
+          <div className="space-y-3 border-t border-slate-200 pt-4">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokHoeErg')}</p>
+            <p className="-mt-1.5 text-xs text-slate-400">{t('form.blokHoeErgNote')}</p>
 
-              <SegmentedField
-                id="dep-impact"
-                label={t('form.impact')}
-                dimension="impact"
-                options={IMPACT_LEVELS}
-                value={form.impact}
-                onChange={(v) => update('impact', v)}
-                onBlur={() => markTouched('impact')}
-                translate={translateImpact}
-                language={language}
-                t={t}
-                required
-              />
-              {touched.impact && <FieldError id="err-impact" message={errors.impact} />}
+            <SegmentedField
+              id="dep-impact"
+              label={t('form.impact')}
+              dimension="impact"
+              options={IMPACT_LEVELS}
+              value={form.impact}
+              onChange={(v) => update('impact', v)}
+              onBlur={() => markTouched('impact')}
+              translate={translateImpact}
+              language={language}
+              t={t}
+              required
+            />
+            {touched.impact && <FieldError id="err-impact" message={errors.impact} />}
 
-              <SegmentedField
-                id="dep-frequentie"
-                label={t('form.frequentie')}
-                dimension="frequentie"
-                options={FREQUENCY_LEVELS}
-                value={form.frequentie}
-                onChange={(v) => update('frequentie', v)}
-                onBlur={() => markTouched('frequentie')}
-                translate={translateFrequentie}
-                language={language}
-                t={t}
-                required
-              />
-              {touched.frequentie && <FieldError id="err-frequentie" message={errors.frequentie} />}
+            <SegmentedField
+              id="dep-frequentie"
+              label={t('form.frequentie')}
+              dimension="frequentie"
+              options={FREQUENCY_LEVELS}
+              value={form.frequentie}
+              onChange={(v) => update('frequentie', v)}
+              onBlur={() => markTouched('frequentie')}
+              translate={translateFrequentie}
+              language={language}
+              t={t}
+              required
+            />
+            {touched.frequentie && <FieldError id="err-frequentie" message={errors.frequentie} />}
 
-              <SegmentedField
-                id="dep-wachttijd"
-                label={t('form.wachttijd')}
-                dimension="wachttijd"
-                options={WACHTTIJD_LEVELS}
-                value={form.wachttijd}
-                onChange={(v) => update('wachttijd', v)}
-                translate={translateWachttijd}
-                language={language}
-                t={t}
-              />
-
-              {/* Wat voor soort verlies het is, heeft alleen betekenis als er
-                  uberhaupt wachttijd is — wachten wijst op coordinatie,
-                  herwerk op kwaliteit, contextswitch op planning. */}
-              {form.wachttijd && form.wachttijd !== 'geen' && (
-                <div>
-                <div>
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
-                    <InfoIcon tooltip={t('form.effectOpFlowHelper')} />
-                  </div>
-                  <select id="dep-effect" value={form.effectOpFlow} onChange={(e) => update('effectOpFlow', e.target.value)} className={inputClass}>
-                    <option value="">—</option>
-                    {EFFECT_OP_FLOW_LEVELS.map((lvl) => (
-                      <option key={lvl} value={lvl}>
-                        {translateEffectOpFlow(lvl, language)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                </div>
-              )}
-
-              <SegmentedField
-                id="dep-deadline"
-                label={t('form.deadline')}
-                dimension="deadline"
-                options={DEADLINE_LEVELS}
-                value={form.deadline}
-                onChange={(v) => update('deadline', v)}
-                translate={translateDeadline}
-                language={language}
-                t={t}
-              />
-              {DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && (
-                <div>
-                  {/* Had alleen grijze voorbeeldtekst en geen opschrift: zodra
-                      je begon te typen verdween die tekst en wist je niet meer
-                      wat er gevraagd werd. De placeholder blijft staan als
-                      aanvulling, niet als vervanging. */}
-                  <Label required={DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && adminSettings.uitgebreideAnalyse} htmlFor="dep-deadline-tekst">
-                    {t('form.deadlineTekstLabel')}
-                  </Label>
-                  <input
-                    id="dep-deadline-tekst"
-                    value={form.deadlineTekst}
-                    onChange={(e) => update('deadlineTekst', e.target.value)}
-                    onBlur={() => markTouched('deadlineTekst')}
-                    placeholder={t('form.deadlineTekstPlaceholder')}
-                    className={inputClass}
-                  />
-                  {touched.deadlineTekst && <FieldError id="err-deadline-tekst" message={errors.deadlineTekst} />}
-                </div>
-              )}
-
-              <SegmentedField
-                id="dep-status"
-                label={t('form.status')}
-                dimension="status"
-                options={STATUS_LEVELS}
-                value={form.status}
-                onChange={(v) => update('status', v)}
-                onBlur={() => markTouched('status')}
-                translate={translateStatus}
-                language={language}
-                t={t}
-                required
-              />
-              {touched.status && <FieldError id="err-status" message={errors.status} />}
-
-              <div className="border-t border-slate-200 pt-4">
-                <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatNu')}</p>
+            {/* Het enige wat nog achter het beheerdersvinkje zit: de extra
+                analysevelden. De voorbeeldzinnen bij Impact, Frequentie,
+                Status en Oplosbaarheid en de vier blokkopjes staan vanaf nu
+                altijd aan. Eerder bepaalde datzelfde vinkje alle drie tegelijk,
+                en omdat het per browser leeft konden twee mensen in hetzelfde
+                team naast elkaar een ander formulier invullen zonder het te
+                merken. */}
+            {adminSettings.uitgebreideAnalyse && (
+              <>
                 <SegmentedField
-                  id="dep-oplosbaarheid"
-                  label={t('form.oplosbaarheid')}
-                  dimension="oplosbaarheid"
-                  options={OPLOSBAARHEID_LEVELS}
-                  value={form.oplosbaarheid}
-                  onChange={(v) => update('oplosbaarheid', v)}
-                  translate={translateOplosbaarheid}
+                  id="dep-wachttijd"
+                  label={t('form.wachttijd')}
+                  dimension="wachttijd"
+                  options={WACHTTIJD_LEVELS}
+                  value={form.wachttijd}
+                  onChange={(v) => update('wachttijd', v)}
+                  translate={translateWachttijd}
                   language={language}
                   t={t}
-                >
-                  <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
-                </SegmentedField>
-                {/* Wat de combinatie flowverlies x oplosbaarheid betekent voor
-                    de vervolgstap — zo doet het veld meteen iets zichtbaars
-                    i.p.v. alleen geregistreerd te worden. */}
-                {bepaalKwadrant(form) && (
-                  <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
-                    <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-                      {t('kwadrant.titel')}
-                    </span>
-                    <span className="font-semibold text-slate-700">{t(`kwadrant.${bepaalKwadrant(form)}`)}</span>
-                    <span className="text-slate-500"> — {t(`kwadrant.${bepaalKwadrant(form)}Uitleg`)}</span>
-                  </p>
+                />
+
+                {/* Wat voor soort verlies het is, heeft alleen betekenis als er
+                    uberhaupt wachttijd is — wachten wijst op coordinatie,
+                    herwerk op kwaliteit, contextswitch op planning. */}
+                {form.wachttijd && form.wachttijd !== 'geen' && (
+                  <div>
+                  <div>
+                    <div className="mb-1 flex items-center gap-1.5">
+                      <Label htmlFor="dep-effect">{t('form.effectOpFlow')}</Label>
+                      <InfoIcon tooltip={t('form.effectOpFlowHelper')} />
+                    </div>
+                    <select id="dep-effect" value={form.effectOpFlow} onChange={(e) => update('effectOpFlow', e.target.value)} className={inputClass}>
+                      <option value="">—</option>
+                      {EFFECT_OP_FLOW_LEVELS.map((lvl) => (
+                        <option key={lvl} value={lvl}>
+                          {translateEffectOpFlow(lvl, language)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  </div>
                 )}
-              </div>
-            </div>
-          ) : (
-            <>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <Label required htmlFor="dep-impact">{t('form.impact')}</Label>
-              <select
-                id="dep-impact"
-                value={form.impact}
-                onChange={(e) => update('impact', e.target.value)}
-                onBlur={() => markTouched('impact')}
-                aria-describedby={touched.impact && errors.impact ? 'err-impact' : undefined}
-                className={inputClass}
+
+                <SegmentedField
+                  id="dep-deadline"
+                  label={t('form.deadline')}
+                  dimension="deadline"
+                  options={DEADLINE_LEVELS}
+                  value={form.deadline}
+                  onChange={(v) => update('deadline', v)}
+                  translate={translateDeadline}
+                  language={language}
+                  t={t}
+                />
+                {DEADLINE_TEKST_VERPLICHT.includes(form.deadline) && (
+                  <div>
+                    {/* Had alleen grijze voorbeeldtekst en geen opschrift: zodra
+                        je begon te typen verdween die tekst en wist je niet meer
+                        wat er gevraagd werd. De placeholder blijft staan als
+                        aanvulling, niet als vervanging. */}
+                    <Label required htmlFor="dep-deadline-tekst">
+                      {t('form.deadlineTekstLabel')}
+                    </Label>
+                    <input
+                      id="dep-deadline-tekst"
+                      value={form.deadlineTekst}
+                      onChange={(e) => update('deadlineTekst', e.target.value)}
+                      onBlur={() => markTouched('deadlineTekst')}
+                      placeholder={t('form.deadlineTekstPlaceholder')}
+                      className={inputClass}
+                    />
+                    {touched.deadlineTekst && <FieldError id="err-deadline-tekst" message={errors.deadlineTekst} />}
+                  </div>
+                )}
+              </>
+            )}
+
+            <SegmentedField
+              id="dep-status"
+              label={t('form.status')}
+              dimension="status"
+              options={STATUS_LEVELS}
+              value={form.status}
+              onChange={(v) => update('status', v)}
+              onBlur={() => markTouched('status')}
+              translate={translateStatus}
+              language={language}
+              t={t}
+              required
+            />
+            {touched.status && <FieldError id="err-status" message={errors.status} />}
+
+            <div className="border-t border-slate-200 pt-4">
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-slate-400">{t('form.blokWatNu')}</p>
+              <SegmentedField
+                id="dep-oplosbaarheid"
+                label={t('form.oplosbaarheid')}
+                dimension="oplosbaarheid"
+                options={OPLOSBAARHEID_LEVELS}
+                value={form.oplosbaarheid}
+                onChange={(v) => update('oplosbaarheid', v)}
+                translate={translateOplosbaarheid}
+                language={language}
+                t={t}
               >
-                <option value="">—</option>
-                {IMPACT_LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {translateImpact(lvl, language)}
-                  </option>
-                ))}
-              </select>
-              {touched.impact && <FieldError id="err-impact" message={errors.impact} />}
-            </div>
-            <div>
-              <Label required htmlFor="dep-frequentie">{t('form.frequentie')}</Label>
-              <select
-                id="dep-frequentie"
-                value={form.frequentie}
-                onChange={(e) => update('frequentie', e.target.value)}
-                onBlur={() => markTouched('frequentie')}
-                aria-describedby={touched.frequentie && errors.frequentie ? 'err-frequentie' : undefined}
-                className={inputClass}
-              >
-                <option value="">—</option>
-                {FREQUENCY_LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {translateFrequentie(lvl, language)}
-                  </option>
-                ))}
-              </select>
-              {touched.frequentie && <FieldError id="err-frequentie" message={errors.frequentie} />}
-            </div>
-            <div>
-              <Label required htmlFor="dep-status">{t('form.status')}</Label>
-              <select
-                id="dep-status"
-                value={form.status}
-                onChange={(e) => update('status', e.target.value)}
-                onBlur={() => markTouched('status')}
-                aria-describedby={touched.status && errors.status ? 'err-status' : undefined}
-                className={inputClass}
-              >
-                <option value="">—</option>
-                {STATUS_LEVELS.map((lvl) => (
-                  <option key={lvl} value={lvl}>
-                    {translateStatus(lvl, language)}
-                  </option>
-                ))}
-              </select>
-              {touched.status && <FieldError id="err-status" message={errors.status} />}
+                <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
+              </SegmentedField>
+              {/* Wat de combinatie flowverlies x oplosbaarheid betekent voor
+                  de vervolgstap — zo doet het veld meteen iets zichtbaars
+                  i.p.v. alleen geregistreerd te worden. */}
+              {bepaalKwadrant(form) && (
+                <p className="mt-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs">
+                  <span className="mr-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                    {t('kwadrant.titel')}
+                  </span>
+                  <span className="font-semibold text-slate-700">{t(`kwadrant.${bepaalKwadrant(form)}`)}</span>
+                  <span className="text-slate-500"> — {t(`kwadrant.${bepaalKwadrant(form)}Uitleg`)}</span>
+                </p>
+              )}
             </div>
           </div>
-
-          <div>
-            <div className="mb-1 flex items-center gap-1.5">
-              <Label htmlFor="dep-oplosbaarheid">{t('form.oplosbaarheid')}</Label>
-              <InfoIcon tooltip={t('form.oplosbaarheidHelper')} />
-            </div>
-            <select
-              id="dep-oplosbaarheid"
-              value={form.oplosbaarheid}
-              onChange={(e) => update('oplosbaarheid', e.target.value)}
-              className={inputClass}
-            >
-              <option value="">—</option>
-              {OPLOSBAARHEID_LEVELS.map((lvl) => (
-                <option key={lvl} value={lvl}>
-                  {translateOplosbaarheid(lvl, language)}
-                </option>
-              ))}
-            </select>
-          </div>
-
-            </>
-          )}
 
           <div>
             <Label htmlFor="dep-actie">{t('form.actieAfspraak')}</Label>

@@ -93,7 +93,13 @@ export const DEFAULT_ADMIN_SETTINGS = {
   // uitgebreide analysemodel (flowverlies/urgentie naast de risicoscore) aan
   // of uit. Uit = de app gedraagt zich exact zoals vandaag, geen fallback-
   // code nodig — zie src/lib/analysis.js.
-  uitgebreideAnalyse: false,
+  // Gelijk aan MOCK_ADMIN_SETTINGS in data/mockData.js: demo en een verse
+  // start hoorden hetzelfde formulier te tonen, en deden dat niet — de code
+  // stond op false, de meegeleverde voorbeelddata zette 'm op true. Aan, niet
+  // uit: de velden die hier nog achter zitten zijn allemaal optioneel, dus ze
+  // maken het opslaan geen stap zwaarder, terwijl de demodataset ze wel vult
+  // en de analysepagina erop leunt.
+  uitgebreideAnalyse: true,
   pages: {
     matrix: true,
     netwerk: true,
