@@ -3,6 +3,73 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Beurt 5 samengevoegd: naamcontrole bij importeren en momentopnamen eruit** (Lars Hoogland)
+
+  I8  -- een import telt vooraf de items zonder naam en meldt dat in het
+         bevestigingsscherm, zodat je niet pas na het vervangen ontdekt dat er
+         naamloze records in zaten.
+  10  -- gat gedicht: de kolomverspringing raakte alleen de niet-gekoppelde
+         stapel, waardoor lane-gekoppelde input/output-kaarten elkaar bij meer
+         dan een handvol items alsnog overlapten.
+  26  -- momentopnamen volledig weg uit opslag, context, export en teksten.
+
+- **Punt 26: momentopnamen volledig uit de code** (Lars Hoogland)
+
+  De momentopnamen-functie had geen enkel aanknopingspunt meer in de UI: vier
+  functies in AppContext die niemand aanriep, een migratie die het veld bij elke
+  laadbeurt bijwerkte, en een foutmelding die de gebruiker aanraadde momentopnamen
+  te verwijderen om ruimte vrij te maken -- advies dat niet op te volgen was.
+
+  Weg: MAX_SNAPSHOTS_PER_TEAM, migrateTeamSnapshots (+ aanroep), het teamSnapshots-
+  veld in migrateState en emptyState, saveSnapshot/renameSnapshot/restoreSnapshot/
+  deleteSnapshot, de teamSnapshots-regels in addTeam/deleteTeam, en het veld uit de
+  export. De opslagfoutmelding noemt nu alleen nog exporteren.
+
+  Een bestaand bestand of een bestaande opslag mét teamSnapshots blijft gewoon
+  laden -- het veld wordt genegeerd en verdwijnt bij de eerste schrijfactie.
+
+- **I8: naamcontrole bij importeren, en een gat in punt 10 gedicht** (Lars Hoogland)
+
+  I8 - alle regels uit I2 golden niet bij importeren: de enige controle op een
+  importbestand was dat elke dependency een titel heeft. Via de achterdeur
+  kwamen naamloze records dus alsnog binnen, en dat gebeurt makkelijk omdat het
+  bestand van hand tot hand gaat.
+
+  Nieuwe functie telOnvolledigeNamen in lib/storage.js telt input/output-items
+  zonder naam en capaciteitsregels zonder rol. Bewust TELLEN en niet weigeren
+  of weggooien: de naamplicht geldt voor wat iemand nieuw invoert, niet voor wat
+  er al was, en bij een bestand dat van hand tot hand gaat is de import vaak de
+  enige kopie - weggooien is dan definitief. Dependencies zitten er niet bij,
+  die worden bij een ontbrekende titel nog steeds gewoon geweigerd.
+
+  Het aantal staat in het bevestigingsscherm vóór de import, en na afloop
+  verschijnt een melding met het totaal en per team hoeveel er missen - zonder
+  die verwijzing weet je wel dat er iets onvolledig is, maar niet waar je het
+  moet repareren.
+
+  ONDERWEG GEVONDEN, EN GEREPAREERD: punt 10 was niet af. De kolomdoorloop die
+  ik daar bouwde gold alleen voor de niet-lane-gekoppelde stapel; de
+  lane-gekoppelde stapels staan op dezelfde x en liepen daar alsnog doorheen. Op
+  de demodata viel dat niet op (nul overlap, precies wat de opdracht als
+  acceptatie noemde), maar met één extra input+output per team waren het er al
+  2 en met drie extra al 8. Er staat nu een sluitende ontdubbelingspas achteraan
+  computeWorkflowLayout die een overlappende kaart naar buiten toe opschuift tot
+  hij vrij staat.
+
+  Gemeten met de pure lay-outfunctie op alle acht demoteams in beide standen:
+    voor de reparatie: 0 / 2 / 8 overlappende paren bij 0 / 1 / 3 extra items
+    na de reparatie:   0 / 0 / 0 / 0 bij 0 / 1 / 3 / 8 extra items
+  Handmatig versleepte kaarten blijven exact staan: twee kaarten met dezelfde
+  opgeslagen positie houden allebei {x:999,y:999} - de keuze van de gebruiker
+  wint.
+
+  I8 geverifieerd in de browser met een zelfgemaakt exportbestand met één
+  naamloos input-item en één naamloze capaciteitsregel: het bevestigingsscherm
+  meldt '2 record(s) missen nog een naam', na de import staat er 'Geimporteerd.
+  2 record(s) missen nog een naam: Team Fantastic Four: 1 input/output-item(s),
+  1 capaciteitsregel(s)', beide records zitten daadwerkelijk in de opslag en
+  staan er bij een volgende export nog in. Vijf tests toegevoegd (119 totaal).
+
 - **Punt 9 en stapfilter opnieuw aanbrengen op HeatmapView na de merge** (Lars Hoogland)
 
   Hoort bij de merge hiervoor en was daar per ongeluk niet in meegenomen: ik
