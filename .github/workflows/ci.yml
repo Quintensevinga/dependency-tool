@@ -50,14 +50,11 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           { node -v; npm -v; ls -la; } >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          # En als annotatie, want dat is de enige uitvoer die zonder login
-          # op te halen is.
-          UIT=$(tail -30 /tmp/npm-ci.log; echo '--- omgeving ---'; node -v; npm -v; ls -la)
-          UIT="${UIT//'%'/'%25'}"
-          UIT="${UIT//$'
-'/'%0A'}"
-          UIT="${UIT//$''/'%0D'}"
-          echo "::error::$UIT"
+          # En als annotatie: dat is de enige uitvoer die zonder login op te
+          # halen is. Regel voor regel, dan hoeft er niets ge-escaped te worden.
+          { node -v; npm -v; echo "--- npm ci ---"; tail -12 /tmp/npm-ci.log; } | while IFS= read -r r; do
+            echo "::error::$r"
+          done
 
       - name: Lint
         run: npm run lint
