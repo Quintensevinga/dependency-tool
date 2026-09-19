@@ -76,7 +76,6 @@ export function AppProvider({ children }) {
     useState(() => loadState())
   const [state, setState] = useState(initialState)
   const [currentTeamId, setCurrentTeamId] = useState(() => firstActiveTeamId(initialState.teams))
-  const [scope, setScope] = useState('intern')
   // Zie B-05: localStorage was onleesbaar bij het opstarten en is stilzwijgend
   // vervangen door demodata — de UI (App.jsx) toont hierop een waarschuwing
   // met een downloadoptie voor de bewaarde ruwe tekst (getCorruptRawData).
@@ -924,8 +923,6 @@ export function AppProvider({ children }) {
       updateAdminSettings,
       currentTeamId,
       setCurrentTeamId,
-      scope,
-      setScope,
       teamName,
       teamLabels,
       addTeam,
@@ -966,7 +963,6 @@ export function AppProvider({ children }) {
       reopenDependency,
       logEvent,
       currentTeamId,
-      scope,
       teamName,
       teamLabels,
       addTeam,

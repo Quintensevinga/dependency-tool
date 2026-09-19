@@ -17,7 +17,7 @@ const FOCUSABLE_SELECTOR =
 const openPanels = []
 
 // trapFocus: false voor een inline paneel (bv. de selectielijst onder de
-// Relatiekaart) — dat krijgt wél Escape-om-te-sluiten en focus bij openen,
+// Heatmap) — dat krijgt wél Escape-om-te-sluiten en focus bij openen,
 // maar geen focus-trap: een sectie in de pagina is geen modal, en Tab moet
 // gewoon verder de pagina in kunnen.
 export function useModalA11y({ open, onClose, containerRef, trapFocus = true }) {

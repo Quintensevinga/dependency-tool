@@ -134,34 +134,96 @@ export const ELK_LAYOUT_OPTIONS = {
 // DAG ziet; bij het terugvertalen (applyElkLayout) worden de punten weer
 // omgedraaid. `sizes` is per node-id { width, height, handles: Map<handleId,
 // { x, y, side }> } (x/y = middelpunt van de handle t.o.v. de node).
-export function buildElkGraph(graph, sizes, layoutOptions = ELK_LAYOUT_OPTIONS) {
-  const usedHandles = new Map()
-  const use = (nodeId, handleId) => {
-    if (!usedHandles.has(nodeId)) usedHandles.set(nodeId, new Set())
-    usedHandles.get(nodeId).add(handleId)
+//
+// Vertrekpunten zijn gedeeld: alle lijnen die uit hetzelfde blokje
+// vertrekken (fan-out van één output naar meerdere teams, één kleur) delen
+// één poort en lopen samen tot ze uit elkaar moeten — dat leest als een
+// vertakking. Aankomstpunten niet: `fanIn` (zie fanInOffsets) geeft elke lijn
+// die op hetzelfde blokje aankomt een eigen poortje, een paar pixels boven of
+// onder het handle-midden, zodat lijnen van verschillende bronnen (andere
+// kleuren) naast elkaar het blokje in lopen i.p.v. over elkaar heen, waarbij
+// de bovenste de rest verborg. Zonder `fanIn` (eerste ronde) delen ook de
+// aankomstpunten één poort.
+export function buildElkGraph(graph, sizes, layoutOptions = ELK_LAYOUT_OPTIONS, fanIn = null) {
+  const ports = new Map() // nodeId -> Map<portId, { handleId, offset }>
+  const port = (nodeId, handleId, ownEdgeId = null, offset = 0) => {
+    if (!ports.has(nodeId)) ports.set(nodeId, new Map())
+    const id = ownEdgeId ? `${nodeId}#${handleId}#${ownEdgeId}` : `${nodeId}#${handleId}`
+    ports.get(nodeId).set(id, { handleId, offset })
+    return id
   }
   const edges = graph.edges.map((edge) => {
+    // Poort aan de echte bron en het echte doel (waar de pijl landt) — los van
+    // de omkering voor ELK hieronder.
+    const sourcePort = port(edge.source, edge.sourceHandle)
+    const own = fanIn?.get(`${edge.target}#${edge.targetHandle}`)?.get(edge.id)
+    const targetPort = own === undefined ? port(edge.target, edge.targetHandle) : port(edge.target, edge.targetHandle, edge.id, own)
     const back = edge.data?.back === true
-    const source = back ? edge.target : edge.source
-    const sourceHandle = back ? edge.targetHandle : edge.sourceHandle
-    const target = back ? edge.source : edge.target
-    const targetHandle = back ? edge.sourceHandle : edge.targetHandle
-    use(source, sourceHandle)
-    use(target, targetHandle)
-    return { id: edge.id, sources: [`${source}#${sourceHandle}`], targets: [`${target}#${targetHandle}`] }
+    return { id: edge.id, sources: [back ? targetPort : sourcePort], targets: [back ? sourcePort : targetPort] }
   })
   const children = graph.nodes.map((node) => {
     const size = sizes.get(node.id)
-    const ports = [...(usedHandles.get(node.id) ?? [])].map((handleId) => {
+    const elkPorts = [...(ports.get(node.id) ?? [])].map(([id, { handleId, offset }]) => {
       const measured = size.handles.get(handleId)
       const side = measured?.side ?? handleSide(handleId)
       const x = measured?.x ?? (side === 'EAST' ? size.width : 0)
-      const y = measured?.y ?? size.height / 2
-      return { id: `${node.id}#${handleId}`, x: x - 0.5, y: y - 0.5, width: 1, height: 1, layoutOptions: { 'elk.port.side': side } }
+      const y = (measured?.y ?? size.height / 2) + offset
+      return { id, x: x - 0.5, y: y - 0.5, width: 1, height: 1, layoutOptions: { 'elk.port.side': side } }
     })
-    return { id: node.id, width: size.width, height: size.height, ports, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } }
+    return { id: node.id, width: size.width, height: size.height, ports: elkPorts, layoutOptions: { 'elk.portConstraints': 'FIXED_POS' } }
   })
   return { id: 'root', layoutOptions, children, edges }
+}
+
+// Afstand tussen lijnen die naast elkaar op één blokje aankomen, en de
+// maximale breedte van zo'n band — bij veel lijnen op één punt (bv. vijftien
+// gebundelde partij-lijnen op een ingeklapte kaart) schuiven ze dichter op
+// elkaar i.p.v. de halve kaart te beslaan. De band mag hooguit een deel van
+// de kaarthoogte beslaan: op een itemrij (~45px) blijft 'ie zo binnen de rij,
+// op een ingeklapte kaart (~96px) is er wat meer ruimte.
+const FAN_IN_GAP = 5
+const FAN_IN_MAX_BAND = 40
+const fanInMaxBand = (height) => Math.min(FAN_IN_MAX_BAND, height * 0.4)
+
+// Per aankomstpunt (node + handle) met twee of meer lijnen: een verticale
+// verschuiving per lijn, zodat ze naast elkaar landen. Volgorde = de hoogte
+// van hun vertrekpunt in de eerste ELK-ronde (`positions`), van boven naar
+// beneden — de lijn die van boven komt landt bovenaan, die van onder
+// onderaan, zodat ze elkaar vlak vóór het blokje niet hoeven te kruisen. De
+// band blijft binnen de kaart (een ingeklapte kaart heeft zijn aankomstpunt
+// dicht bij de bovenrand). Levert Map<`${node}#${handle}`, Map<edgeId,
+// offsetY>>; leeg als geen enkel punt meer dan één lijn ontvangt.
+export function fanInOffsets(graph, sizes, positions) {
+  const groups = new Map()
+  for (const edge of graph.edges) {
+    const key = `${edge.target}#${edge.targetHandle}`
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(edge)
+  }
+  const sourceY = (edge) => {
+    const position = positions.get(edge.source)
+    const size = sizes.get(edge.source)
+    if (!position || !size) return 0
+    return position.y + (size.handles.get(edge.sourceHandle)?.y ?? size.height / 2)
+  }
+  const result = new Map()
+  for (const [key, edges] of groups) {
+    if (edges.length < 2) continue
+    const [nodeId, handleId] = key.split('#')
+    const size = sizes.get(nodeId)
+    if (!size) continue
+    const handleY = size.handles.get(handleId)?.y ?? size.height / 2
+    const gap = Math.min(FAN_IN_GAP, fanInMaxBand(size.height) / (edges.length - 1))
+    let first = -((edges.length - 1) * gap) / 2
+    // Band binnen de kaart houden (4px van de rand).
+    const top = handleY + first
+    const bottom = handleY + first + (edges.length - 1) * gap
+    if (top < 4) first += 4 - top
+    else if (bottom > size.height - 4) first -= bottom - (size.height - 4)
+    const ordered = [...edges].sort((a, b) => sourceY(a) - sourceY(b))
+    result.set(key, new Map(ordered.map((edge, i) => [edge.id, first + i * gap])))
+  }
+  return result
 }
 
 // Vertaalt ELK's resultaat terug: posities per node en de lijnpunten per edge

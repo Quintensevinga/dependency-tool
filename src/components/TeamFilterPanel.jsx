@@ -111,7 +111,7 @@ export default function TeamFilterPanel({
 
   const anyNarrowed =
     selected.length < teams.length ||
-    riskLevels.length < RISK_LEVELS.length ||
+    (riskLevels && riskLevels.length < RISK_LEVELS.length) ||
     [workflowStap, effectOpFlow].some((group) => group && group.selected.length < group.options.length)
 
   if (collapsed) {
@@ -167,25 +167,27 @@ export default function TeamFilterPanel({
         }
       />
 
-      <CheckboxGroup
-        title={t('filter.riskLevel')}
-        options={RISK_LEVELS.slice().reverse()}
-        selected={riskLevels}
-        onToggle={onToggleRisk}
-        defaultOpen
-        renderLabel={(level) => translateRiskLevel(level, language)}
-        renderDot={(level) => <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />}
-        footer={
-          <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
-            <button type="button" onClick={onHideLowRisk} className="font-medium text-[#2a5f8a] hover:underline">
-              {t('filter.hideLowRisk')}
-            </button>
-            <button type="button" onClick={onShowAllRisk} className="font-medium text-slate-400 hover:underline">
-              {t('filter.selectAll')}
-            </button>
-          </div>
-        }
-      />
+      {riskLevels && (
+        <CheckboxGroup
+          title={t('filter.riskLevel')}
+          options={RISK_LEVELS.slice().reverse()}
+          selected={riskLevels}
+          onToggle={onToggleRisk}
+          defaultOpen
+          renderLabel={(level) => translateRiskLevel(level, language)}
+          renderDot={(level) => <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: riskStyle(level).hex }} />}
+          footer={
+            <div className="mt-3 flex gap-3 border-t border-slate-100 pt-3 text-xs">
+              <button type="button" onClick={onHideLowRisk} className="font-medium text-[#2a5f8a] hover:underline">
+                {t('filter.hideLowRisk')}
+              </button>
+              <button type="button" onClick={onShowAllRisk} className="font-medium text-slate-400 hover:underline">
+                {t('filter.selectAll')}
+              </button>
+            </div>
+          }
+        />
+      )}
 
       {workflowStap && (
         <CheckboxGroup
@@ -208,6 +210,7 @@ export default function TeamFilterPanel({
           footer={<AllNoneFooter onSelectAll={effectOpFlow.onSelectAll} onSelectNone={effectOpFlow.onSelectNone} t={t} />}
         />
       )}
+
 
     </div>
   )

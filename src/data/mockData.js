@@ -7,8 +7,8 @@
 // keuzes per team.
 //
 // De keten (intake tot uitbetaling): Fantastic Four (klantcontact & intake)
-// → Wakanda (polisadministratie) → Avengers (aanvraag- en claimbeoordeling)
-// → Stark Industries (betaalverwerking & uitkeringen) → Daily Bugle
+// → Wakanda (abonnementenadministratie) → Avengers (aanvraag- en claimbeoordeling)
+// → Stark Industries (betaalverwerking & vergoedingen) → Daily Bugle
 // (rapportage & BI), ondersteund door Asgard (platform & releasekalender),
 // S.H.I.E.L.D. (IAM, platform, integraties) en Nova Corps (test &
 // kwaliteit). Daarin zit bewust:
@@ -21,8 +21,8 @@
 //   S.H.I.E.L.D. → Wakanda);
 // - een koppeling die lagen overslaat (Fantastic Four → Stark Industries,
 //   klantmelding bij spoed, langs Wakanda én Avengers heen);
-// - externe input aan het begin (DigiD, BRP), externe partijen midden in de
-//   keten (Belastingdienst, SSD-loket, Security Office) en externe output aan
+// - externe input aan het begin (Externe inlogdienst, klantregister), externe partijen midden in de
+//   keten (dataleverancier, SSD-loket, Security Office) en externe output aan
 //   het eind (bankpartner, toezichthouder, directie);
 // - koppelingsverzoeken in alle statussen: in afwachting op een bestaand item
 //   (Nova Corps → Asgard), in afwachting om een nieuw item (Stark Industries
@@ -56,9 +56,9 @@
 //   als hygiënegevallen.
 // - Enkele outputs blijven onbenut (Asgard 'Signalen naar ketenoverzicht',
 //   Fantastic Four 'Releasekandidaat intakeproces', Wakanda
-//   'Polisstatus-terugkoppeling', Daily Bugle 'Rapportagebundel' en
+//   'Abonnementsstatus-terugkoppeling', Daily Bugle 'Rapportagebundel' en
 //   'Kwaliteitsrapportage testdekking'): normaal, geen foutstatus.
-// - 'Leverancier legacy polissysteem' is een geweigerde partij die nog wél
+// - 'Leverancier legacy abonnementssysteem' is een geweigerde partij die nog wél
 //   door twee dependencies genoemd wordt (rode waarschuwing in het detail).
 // - Eén goedgekeurd duplicaat (Avengers + Stark Industries op de leverancier
 //   regelmotor) bestaat als gekoppeld paar met een gedeelde dedupGroupId.
@@ -96,7 +96,7 @@ function tijdstipGeleden(dagen, uur = 10) {
 
 export const MOCK_TEAMS = [
   { id: 'team-tiem', naam: 'Team Fantastic Four', actief: true },
-  { id: 'team-polis', naam: 'Team Wakanda', actief: true },
+  { id: 'team-abonnement', naam: 'Team Wakanda', actief: true },
   { id: 'team-superheroes', naam: 'Team Avengers', actief: true },
   { id: 'team-casio', naam: 'Team Stark Industries', actief: true },
   { id: 'team-sterke-verhalen', naam: 'Team Daily Bugle', actief: true },
@@ -107,7 +107,7 @@ export const MOCK_TEAMS = [
 
 const T = {
   tiem: 'team-tiem',
-  polis: 'team-polis',
+  abonnement: 'team-abonnement',
   superheroes: 'team-superheroes',
   casio: 'team-casio',
   sv: 'team-sterke-verhalen',
@@ -130,23 +130,23 @@ export const MOCK_EXTERNAL_PARTIES = [
   { id: 'party-omgevingen', naam: 'Omgevingenbeheer (OTAP)', type: 'team', status: 'actief' },
   { id: 'party-security', naam: 'Security Office', type: 'team', status: 'actief' },
   { id: 'party-ssd', naam: 'SSD-aanvraagloket (server, storage, database)', type: 'team', status: 'actief' },
-  { id: 'party-brp', naam: 'Basisregistratie Personen (BRP)', type: 'systeem', status: 'actief' },
-  { id: 'party-digid', naam: 'DigiD', type: 'systeem', status: 'actief' },
+  { id: 'party-klantregister', naam: 'Centraal klantregister', type: 'systeem', status: 'actief' },
+  { id: 'party-inlog', naam: 'Externe inlogdienst', type: 'systeem', status: 'actief' },
   { id: 'party-bank', naam: 'Bankpartner (betaalverkeer)', type: 'systeem', status: 'actief' },
-  { id: 'party-belastingdienst', naam: 'Belastingdienst (loonaangifte)', type: 'systeem', status: 'actief' },
+  { id: 'party-dataleverancier', naam: 'Externe dataleverancier', type: 'systeem', status: 'actief' },
   { id: 'party-toezicht', naam: 'Toezichthouder (rapportageplicht)', type: 'stakeholder', status: 'actief' },
   { id: 'party-directie', naam: 'Directie en MT', type: 'stakeholder', status: 'actief' },
   { id: 'party-regelmotor', naam: 'Leverancier regelmotor', type: 'team', status: 'actief' },
   { id: 'party-privacy', naam: 'Privacy- en complianceteam', type: 'team', status: 'actief' },
   { id: 'party-inkoop', naam: 'Inkoop & Contractmanagement', type: 'team', status: 'actief' },
   { id: 'party-business-klantcontact', naam: 'Business opdrachtgever Klantcontact', type: 'stakeholder', status: 'actief' },
-  { id: 'party-business-verzekeringen', naam: 'Business opdrachtgever Verzekeringen', type: 'stakeholder', status: 'actief' },
+  { id: 'party-business-contracten', naam: 'Business opdrachtgever Contracten', type: 'stakeholder', status: 'actief' },
   { id: 'party-datateam', naam: 'Extern data- en rapportageteam', type: 'team', status: 'actief' },
   { id: 'party-infra', naam: 'Extern specialistenteam Infra', type: 'team', status: 'actief' },
   { id: 'party-accountant', naam: 'Externe accountant', type: 'stakeholder', status: 'actief' },
   { id: 'party-testteam', naam: 'Extern testteam', type: 'team', status: 'in_afwachting', voorgesteldDoorTeamId: 'team-freggels' },
   { id: 'party-datacenter', naam: 'Extern datacenter', type: 'omgeving', status: 'in_afwachting', voorgesteldDoorTeamId: 'team-smurfen' },
-  { id: 'party-legacyleverancier', naam: 'Leverancier legacy polissysteem', type: 'team', status: 'geweigerd' },
+  { id: 'party-legacyleverancier', naam: 'Leverancier legacy abonnementssysteem', type: 'team', status: 'geweigerd' },
 ]
 
 const P = Object.fromEntries(MOCK_EXTERNAL_PARTIES.map((p) => [p.id, p.naam]))
@@ -230,21 +230,21 @@ export const MOCK_TEAM_WORKFLOWS = {
   [T.tiem]: {
     applications: [
       { id: 'ti-app-klant', naam: 'Klantcontactmodule' },
-      { id: 'ti-app-zaak', naam: 'Zaakregistratie' },
+      { id: 'ti-app-dossier', naam: 'Dossierregistratie' },
       { id: 'ti-app-bericht', naam: 'Berichtendienst' },
       // Bewust zonder enige relatie (geen koppeling, geen dependency-label).
       { id: 'ti-app-kennisbank', naam: 'Kennisbank klantcontact' },
     ],
     applicatieflowConnecties: [
-      { id: 'ti-conn-1', van: 'ti-app-klant', naar: 'ti-app-zaak', punten: ['Realtime via REST, geen batch', 'Bij storing: handmatige zaakaanmaak via beheerscherm'] },
-      { id: 'ti-conn-2', van: 'ti-app-zaak', naar: 'ti-app-bericht', punten: ['Statuswijziging triggert klantbericht'] },
+      { id: 'ti-conn-1', van: 'ti-app-klant', naar: 'ti-app-dossier', punten: ['Realtime via REST, geen batch', 'Bij storing: handmatige zaakaanmaak via beheerscherm'] },
+      { id: 'ti-conn-2', van: 'ti-app-dossier', naar: 'ti-app-bericht', punten: ['Statuswijziging triggert klantbericht'] },
       { id: 'ti-conn-3', van: 'ti-app-klant', naar: 'ti-app-bericht' },
     ],
     applicatieflowDetails: {
-      'ti-app-zaak': {
+      'ti-app-dossier': {
         toelichting: 'Kern van de intake: elke klantvraag krijgt hier een zaaknummer en een eigenaar.',
         risico_bij_uitval: 'ja',
-        risico_toelichting: 'Zonder zaakregistratie kan geen enkele klantvraag de keten in.',
+        risico_toelichting: 'Zonder dossierregistratie kan geen enkele klantvraag de keten in.',
       },
       'ti-app-kennisbank': {
         toelichting: 'Statische kennisbank voor medewerkers; wordt uitgefaseerd naar het intranet.',
@@ -260,20 +260,20 @@ export const MOCK_TEAM_WORKFLOWS = {
       cap('ti-cap5', 'Functioneel beheerder', 'medior', 1, 'beheer_nazorg', 'nee'),
     ],
     inputs: [
-      io({ id: 'ti-in-digid', label: 'Ingelogde klant via DigiD', bron_type: 'systeem', applicatieId: 'ti-app-klant', ...extern('party-digid') }),
+      io({ id: 'ti-in-inlog', label: 'Ingelogde klant via Externe inlogdienst', bron_type: 'systeem', applicatieId: 'ti-app-klant', ...extern('party-inlog') }),
       io({ id: 'ti-in-telefoon', label: 'Klantvraag via telefoon of chat', bron_type: 'persoon', applicatieId: 'ti-app-klant', punten: ['Piek op maandagochtend', 'Gemiddeld 900 contacten per dag'] }),
       io({ id: 'ti-in-platform', label: 'Platform- en releasekalender', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.equinox, linkedOutputId: 'eq-out-release' }),
       // Bewust NIET gekoppeld aan de output van Wakanda: Fantastic Four → Wakanda → Fantastic Four zou
       // een tweede cyclus zijn, en alles stroomafwaarts van een cyclus belandt
       // in de gelaagde ketenweergave in de "cyclus-laag" (Kahn). De enige
       // cyclus zit bewust aan het eind: Stark Industries ↔ Daily Bugle.
-      io({ id: 'ti-in-polisstatus', label: 'Polisstatus-terugkoppeling', bron_type: 'team', applicatieId: 'ti-app-zaak', punten: ['Elke statuswijziging binnen 5 minuten zichtbaar in de zaak'] }),
+      io({ id: 'ti-in-abonnementsstatus', label: 'Abonnementsstatus-terugkoppeling', bron_type: 'team', applicatieId: 'ti-app-dossier', punten: ['Elke statuswijziging binnen 5 minuten zichtbaar in de zaak'] }),
       io({ id: 'ti-in-api', label: 'Technische API-toegang klantdata', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'ti-app-klant' }),
       io({ id: 'ti-in-refinement', label: 'Refinementvraag vanuit PO', flowtype: 'ontwikkelflow', bron_type: 'rol' }),
     ],
     outputs: [
       io({ id: 'ti-out-klantvraag', label: 'Klantvraagbundel doorgezet', bron_type: 'team', applicatieId: 'ti-app-klant', punten: ['Dagelijkse batch om 06:00', 'Spoedgevallen direct via bericht'] }),
-      io({ id: 'ti-out-melding', label: 'Klantmelding uitkering (intake)', bron_type: 'team', applicatieId: 'ti-app-zaak' }),
+      io({ id: 'ti-out-melding', label: 'Klantmelding vergoeding (intake)', bron_type: 'team', applicatieId: 'ti-app-dossier' }),
       // Bewust onbenut: niemand neemt dit af.
       io({ id: 'ti-out-releasekandidaat', label: 'Releasekandidaat intakeproces', flowtype: 'ontwikkelflow', bron_type: 'team' }),
     ],
@@ -284,11 +284,11 @@ export const MOCK_TEAM_WORKFLOWS = {
     layout: {},
   },
 
-  [T.polis]: {
+  [T.abonnement]: {
     applications: [
       { id: 'po-app-klantportaal', naam: 'Klantportaal' },
-      { id: 'po-app-polis', naam: 'Polisadministratiesysteem' },
-      { id: 'po-app-premie', naam: 'Premieberekeningsengine' },
+      { id: 'po-app-abonnement', naam: 'Abonnementenadministratiesysteem' },
+      { id: 'po-app-tarief', naam: 'Tariefberekeningsengine' },
       { id: 'po-app-document', naam: 'Documentservice' },
       { id: 'po-app-archief', naam: 'Archiefservice' },
       { id: 'po-app-gateway', naam: 'Integratie Gateway' },
@@ -296,22 +296,22 @@ export const MOCK_TEAM_WORKFLOWS = {
     ],
     applicatieflowConnecties: [
       { id: 'po-conn-1', van: 'po-app-gateway', naar: 'po-app-klantportaal', punten: ['Alle externe koppelingen lopen via de gateway', 'Rate limit 50 requests per seconde'] },
-      { id: 'po-conn-2', van: 'po-app-klantportaal', naar: 'po-app-polis' },
-      { id: 'po-conn-3', van: 'po-app-polis', naar: 'po-app-premie', punten: ['Premieherberekening bij elke mutatie', 'Nachtelijke herberekening voor de hele portefeuille'] },
-      { id: 'po-conn-4', van: 'po-app-polis', naar: 'po-app-mutatie' },
+      { id: 'po-conn-2', van: 'po-app-klantportaal', naar: 'po-app-abonnement' },
+      { id: 'po-conn-3', van: 'po-app-abonnement', naar: 'po-app-tarief', punten: ['Tariefherberekening bij elke mutatie', 'Nachtelijke herberekening voor de hele portefeuille'] },
+      { id: 'po-conn-4', van: 'po-app-abonnement', naar: 'po-app-mutatie' },
       { id: 'po-conn-5', van: 'po-app-mutatie', naar: 'po-app-document' },
       { id: 'po-conn-6', van: 'po-app-document', naar: 'po-app-archief', punten: ['Archivering na 30 dagen', 'Bewaartermijn 7 jaar'] },
     ],
     applicatieflowDetails: {
-      'po-app-polis': {
-        toelichting: 'Bron van de waarheid voor alle polissen; legacy-kern met een moderne schil.',
+      'po-app-abonnement': {
+        toelichting: 'Bron van de waarheid voor alle abonnementen; legacy-kern met een moderne schil.',
         risico_bij_uitval: 'ja',
-        risico_toelichting: 'Zonder polisadministratie stopt de hele keten van premie tot uitkering.',
+        risico_toelichting: 'Zonder abonnementenadministratie stopt de hele keten van tarief tot vergoeding.',
       },
       'po-app-gateway': {
         toelichting: 'Alle in- en uitgaande koppelingen van het team lopen hier doorheen.',
         risico_bij_uitval: 'ja',
-        risico_toelichting: 'Uitval betekent geen klantportaal én geen koppeling met BRP en Belastingdienst.',
+        risico_toelichting: 'Uitval betekent geen klantportaal én geen koppeling met klantregister en dataleverancier.',
       },
       'po-app-archief': {
         toelichting: 'Alleen-lezen archief van definitieve documenten.',
@@ -321,7 +321,7 @@ export const MOCK_TEAM_WORKFLOWS = {
     },
     capacity: [
       cap('po-cap1', 'Architect', 'senior', 1, 'analyse_refinement', 'ja', 'Enige die het volledige koppelingenlandschap overziet.'),
-      cap('po-cap2', 'Developer', 'senior', 2, 'ontwikkeling_configuratie', 'ja', 'Enige kennishouders van de polisadministratiekern.'),
+      cap('po-cap2', 'Developer', 'senior', 2, 'ontwikkeling_configuratie', 'ja', 'Enige kennishouders van de abonnementenadministratiekern.'),
       cap('po-cap3', 'Developer', 'junior', 1, 'ontwikkeling_configuratie', 'nee'),
       cap('po-cap4', 'Tester', 'medior', 1, 'testen', 'nee'),
       cap('po-cap5', 'Release-coördinator', 'medior', 1, 'release_overdracht', 'nee'),
@@ -331,29 +331,29 @@ export const MOCK_TEAM_WORKFLOWS = {
       io({ id: 'po-in-platform', label: 'Platform- en releasekalender', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.equinox, linkedOutputId: 'eq-out-release' }),
       io({ id: 'po-in-klantvraag', label: 'Klantvraag vanuit Team Fantastic Four', bron_type: 'team', linkedTeam: T.tiem, linkedOutputId: 'ti-out-klantvraag', applicatieId: 'po-app-klantportaal', punten: ['Bundel bevat zaaknummer en klant-id', 'Onvolledige bundels gaan terug naar Fantastic Four'] }),
       io({ id: 'po-in-api', label: 'Technische API-toegang (S.H.I.E.L.D.)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'po-app-gateway' }),
-      io({ id: 'po-in-iam', label: 'IAM-rollenset polisbeheer', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-iamrollen', applicatieId: 'po-app-polis' }),
+      io({ id: 'po-in-iam', label: 'IAM-rollenset abonnementsbeheer', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-iamrollen', applicatieId: 'po-app-abonnement' }),
       io({ id: 'po-in-testbevindingen', label: 'Testbevindingen Nova Corps', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.freggels, linkedOutputId: 'fr-out-testbevindingen' }),
-      io({ id: 'po-in-brp', label: 'Klantgegevens uit BRP', bron_type: 'systeem', applicatieId: 'po-app-klantportaal', ...extern('party-brp'), punten: ['Dagelijkse synchronisatie 04:00', 'Bij afwijking: handmatige controle door beheer'] }),
-      io({ id: 'po-in-inkomen', label: 'Inkomensgegevens Belastingdienst', bron_type: 'systeem', applicatieId: 'po-app-polis', ...extern('party-belastingdienst') }),
-      io({ id: 'po-in-wijziging', label: 'Wijzigingsverzoek polisvoorwaarden', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-business-verzekeringen') }),
+      io({ id: 'po-in-klantregister', label: 'Klantgegevens uit klantregister', bron_type: 'systeem', applicatieId: 'po-app-klantportaal', ...extern('party-klantregister'), punten: ['Dagelijkse synchronisatie 04:00', 'Bij afwijking: handmatige controle door beheer'] }),
+      io({ id: 'po-in-inkomen', label: 'Inkomensgegevens dataleverancier', bron_type: 'systeem', applicatieId: 'po-app-abonnement', ...extern('party-dataleverancier') }),
+      io({ id: 'po-in-wijziging', label: 'Wijzigingsverzoek abonnementsvoorwaarden', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-business-contracten') }),
     ],
     outputs: [
-      // Bewust onbenut (zie de toelichting bij Fantastic Four 'ti-in-polisstatus').
-      io({ id: 'po-out-polisstatus', label: 'Polisstatus-terugkoppeling', bron_type: 'team', applicatieId: 'po-app-polis' }),
-      io({ id: 'po-out-betaalopdracht', label: 'Betaalopdracht polis', bron_type: 'team', applicatieId: 'po-app-premie', punten: ['Alleen op werkdagen', 'Maximaal 2 uur vertraging toegestaan'] }),
-      io({ id: 'po-out-mutaties', label: 'Polismutaties voor incasso', bron_type: 'team', applicatieId: 'po-app-mutatie' }),
-      io({ id: 'po-out-aanvraag', label: 'Aanvraagdossier compleet', bron_type: 'team', applicatieId: 'po-app-document', punten: ['Compleet = polis, inkomen en identiteit gecontroleerd', 'Incomplete dossiers blijven bij Wakanda'] }),
+      // Bewust onbenut (zie de toelichting bij Fantastic Four 'ti-in-abonnementsstatus').
+      io({ id: 'po-out-abonnementsstatus', label: 'Abonnementsstatus-terugkoppeling', bron_type: 'team', applicatieId: 'po-app-abonnement' }),
+      io({ id: 'po-out-betaalopdracht', label: 'Betaalopdracht abonnement', bron_type: 'team', applicatieId: 'po-app-tarief', punten: ['Alleen op werkdagen', 'Maximaal 2 uur vertraging toegestaan'] }),
+      io({ id: 'po-out-mutaties', label: 'Abonnementsmutaties voor incasso', bron_type: 'team', applicatieId: 'po-app-mutatie' }),
+      io({ id: 'po-out-aanvraag', label: 'Aanvraagdossier compleet', bron_type: 'team', applicatieId: 'po-app-document', punten: ['Compleet = abonnement, inkomen en identiteit gecontroleerd', 'Incomplete dossiers blijven bij Wakanda'] }),
       // Bewust onbenut.
-      io({ id: 'po-out-premiemodel', label: 'Nieuw premiemodel gepubliceerd', bron_type: 'stakeholder', applicatieId: 'po-app-premie' }),
-      io({ id: 'po-out-releasekandidaat', label: 'Releasekandidaat polismodule', flowtype: 'ontwikkelflow', bron_type: 'team' }),
+      io({ id: 'po-out-tariefmodel', label: 'Nieuw tariefmodel gepubliceerd', bron_type: 'stakeholder', applicatieId: 'po-app-tarief' }),
+      io({ id: 'po-out-releasekandidaat', label: 'Releasekandidaat abonnementsmodule', flowtype: 'ontwikkelflow', bron_type: 'team' }),
       io({ id: 'po-out-nazorg', label: 'Nazorgactie beheer', flowtype: 'ontwikkelflow', bron_type: 'rol' }),
     ],
     stageNotes: {
-      ontwikkeling_configuratie: 'Wijzigingen aan de polisadministratiekern altijd in pair met een senior developer.',
+      ontwikkeling_configuratie: 'Wijzigingen aan de abonnementenadministratiekern altijd in pair met een senior developer.',
       release_overdracht: 'Release alleen in het maandelijkse venster van de releasekalender; CAB-stuk uiterlijk een week vooraf.',
     },
     annotations: [
-      { id: 'po-ann-1', kind: 'note', text: 'Q4: premiemodel-wijziging is de grootste release van het jaar', color: '#d97706', position: { x: 60, y: 900 } },
+      { id: 'po-ann-1', kind: 'note', text: 'Q4: tariefmodel-wijziging is de grootste release van het jaar', color: '#d97706', position: { x: 60, y: 900 } },
       { id: 'po-ann-2', kind: 'shape', shape: 'circle', text: 'Kern', color: '#4338ca', position: { x: 300, y: 900 } },
     ],
     layout: {},
@@ -384,14 +384,14 @@ export const MOCK_TEAM_WORKFLOWS = {
       cap('sh-cap5', 'Release-coördinator', 'medior', 1, 'release_overdracht', 'nee'),
     ],
     inputs: [
-      io({ id: 'sh-in-aanvraag', label: 'Aanvraagdossier vanuit Wakanda', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-aanvraag', applicatieId: 'sh-app-dossier', punten: ['Doorlooptijdnorm: besluit binnen 8 weken na compleet dossier'] }),
+      io({ id: 'sh-in-aanvraag', label: 'Aanvraagdossier vanuit Wakanda', bron_type: 'team', linkedTeam: T.abonnement, linkedOutputId: 'po-out-aanvraag', applicatieId: 'sh-app-dossier', punten: ['Doorlooptijdnorm: besluit binnen 8 weken na compleet dossier'] }),
       io({ id: 'sh-in-api', label: 'Technische API-toegang (S.H.I.E.L.D.)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'sh-app-beoordeel' }),
       io({ id: 'sh-in-test', label: 'Testbevindingen beoordelingsketen', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.freggels, linkedOutputId: 'fr-out-testbevindingen' }),
       io({ id: 'sh-in-regels', label: 'Regelrelease van de leverancier', bron_type: 'team', applicatieId: 'sh-app-regels', ...extern('party-regelmotor') }),
-      io({ id: 'sh-in-beleid', label: 'Beleidswijziging beoordelingskader', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-business-verzekeringen') }),
+      io({ id: 'sh-in-beleid', label: 'Beleidswijziging beoordelingskader', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-business-contracten') }),
     ],
     outputs: [
-      io({ id: 'sh-out-beschikking', label: 'Beschikking (toekenning of afwijzing)', bron_type: 'team', applicatieId: 'sh-app-beoordeel', punten: ['Toekenningen dezelfde dag naar Stark Industries', 'Afwijzingen met motivering naar de klant'] }),
+      io({ id: 'sh-out-besluit', label: 'Besluit (toekenning of afwijzing)', bron_type: 'team', applicatieId: 'sh-app-beoordeel', punten: ['Toekenningen dezelfde dag naar Stark Industries', 'Afwijzingen met motivering naar de klant'] }),
       io({ id: 'sh-out-releasekandidaat', label: 'Releasekandidaat beoordelingsmodule', flowtype: 'ontwikkelflow', bron_type: 'team' }),
     ],
     stageNotes: {
@@ -404,26 +404,26 @@ export const MOCK_TEAM_WORKFLOWS = {
   [T.casio]: {
     applications: [
       { id: 'ca-app-betaal', naam: 'Betaalengine' },
-      { id: 'ca-app-uitkering', naam: 'Uitkeringsservice' },
+      { id: 'ca-app-vergoeding', naam: 'Vergoedingsservice' },
       { id: 'ca-app-batch', naam: 'Batchverwerker' },
       { id: 'ca-app-regel', naam: 'Regelservice' },
-      { id: 'ca-app-loon', naam: 'Loonaangiftekoppeling' },
+      { id: 'ca-app-aanlever', naam: 'Aanleverkoppeling' },
       // Heeft een koppeling maar geen Applicatieflow-dependency: geen lane,
       // dus de lijn Regelservice → Fraudecheck is op het canvas onzichtbaar.
       { id: 'ca-app-fraude', naam: 'Fraudecheck-service' },
     ],
     applicatieflowConnecties: [
-      { id: 'ca-conn-1', van: 'ca-app-uitkering', naar: 'ca-app-regel', punten: ['Elke uitkering langs de regelservice vóór betaling'] },
+      { id: 'ca-conn-1', van: 'ca-app-vergoeding', naar: 'ca-app-regel', punten: ['Elke vergoeding langs de regelservice vóór betaling'] },
       { id: 'ca-conn-2', van: 'ca-app-regel', naar: 'ca-app-betaal' },
       { id: 'ca-conn-3', van: 'ca-app-betaal', naar: 'ca-app-batch', punten: ['Nachtelijke batch 23:00', 'Herstart alleen door technisch beheer'] },
-      { id: 'ca-conn-4', van: 'ca-app-betaal', naar: 'ca-app-loon' },
+      { id: 'ca-conn-4', van: 'ca-app-betaal', naar: 'ca-app-aanlever' },
       { id: 'ca-conn-5', van: 'ca-app-regel', naar: 'ca-app-fraude' },
     ],
     applicatieflowDetails: {
       'ca-app-betaal': {
         toelichting: 'Maakt de betaalbestanden voor de bank; verwerkt dagelijks tienduizenden betalingen.',
         risico_bij_uitval: 'ja',
-        risico_toelichting: 'Uitval betekent dat uitkeringen niet op tijd op de rekening staan.',
+        risico_toelichting: 'Uitval betekent dat vergoedingen niet op tijd op de rekening staan.',
       },
       'ca-app-fraude': {
         toelichting: 'Nieuwe service in pilot; nog niet in de dagelijkse stroom.',
@@ -440,22 +440,22 @@ export const MOCK_TEAM_WORKFLOWS = {
     ],
     inputs: [
       io({ id: 'ca-in-platform', label: 'Platform- en releasekalender', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.equinox, linkedOutputId: 'eq-out-release' }),
-      io({ id: 'ca-in-betaalopdracht', label: 'Betaalopdracht vanuit Wakanda', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-betaalopdracht', applicatieId: 'ca-app-betaal', punten: ['Controle op dubbele opdrachten vóór verwerking'] }),
-      io({ id: 'ca-in-mutaties', label: 'Polismutaties voor incasso', bron_type: 'team', linkedTeam: T.polis, linkedOutputId: 'po-out-mutaties', applicatieId: 'ca-app-batch' }),
-      io({ id: 'ca-in-beschikking', label: 'Beschikking vanuit beoordeling', bron_type: 'team', linkedTeam: T.superheroes, linkedOutputId: 'sh-out-beschikking', applicatieId: 'ca-app-uitkering', punten: ['Alleen toegekende beschikkingen leiden tot betaling', 'Afwijzingen gaan naar klantcommunicatie'] }),
-      io({ id: 'ca-in-melding', label: 'Klantmelding uitkering vanuit intake', bron_type: 'team', linkedTeam: T.tiem, linkedOutputId: 'ti-out-melding', applicatieId: 'ca-app-uitkering', punten: ['Slaat Wakanda en beoordeling bewust over: directe melding bij spoed'] }),
+      io({ id: 'ca-in-betaalopdracht', label: 'Betaalopdracht vanuit Wakanda', bron_type: 'team', linkedTeam: T.abonnement, linkedOutputId: 'po-out-betaalopdracht', applicatieId: 'ca-app-betaal', punten: ['Controle op dubbele opdrachten vóór verwerking'] }),
+      io({ id: 'ca-in-mutaties', label: 'Abonnementsmutaties voor incasso', bron_type: 'team', linkedTeam: T.abonnement, linkedOutputId: 'po-out-mutaties', applicatieId: 'ca-app-batch' }),
+      io({ id: 'ca-in-besluit', label: 'Besluit vanuit beoordeling', bron_type: 'team', linkedTeam: T.superheroes, linkedOutputId: 'sh-out-besluit', applicatieId: 'ca-app-vergoeding', punten: ['Alleen toegekende besluiten leiden tot betaling', 'Afwijzingen gaan naar klantcommunicatie'] }),
+      io({ id: 'ca-in-melding', label: 'Klantmelding vergoeding vanuit intake', bron_type: 'team', linkedTeam: T.tiem, linkedOutputId: 'ti-out-melding', applicatieId: 'ca-app-vergoeding', punten: ['Slaat Wakanda en beoordeling bewust over: directe melding bij spoed'] }),
       io({ id: 'ca-in-api', label: 'Technische API-toegang (S.H.I.E.L.D.)', bron_type: 'team', linkedTeam: T.smurfen, linkedOutputId: 'sm-out-api', applicatieId: 'ca-app-regel' }),
       io({ id: 'ca-in-test', label: 'Testbevindingen betaalketen', flowtype: 'ontwikkelflow', bron_type: 'team', linkedTeam: T.freggels, linkedOutputId: 'fr-out-testbevindingen' }),
-      io({ id: 'ca-in-correctie', label: 'Correctiesignalen uit rapportage', bron_type: 'team', linkedTeam: T.sv, linkedOutputId: 'sv-out-correctie', applicatieId: 'ca-app-uitkering' }),
+      io({ id: 'ca-in-correctie', label: 'Correctiesignalen uit rapportage', bron_type: 'team', linkedTeam: T.sv, linkedOutputId: 'sv-out-correctie', applicatieId: 'ca-app-vergoeding' }),
       io({ id: 'ca-in-bank', label: 'Betaalinstructies en retourberichten bank', bron_type: 'systeem', applicatieId: 'ca-app-betaal', ...extern('party-bank') }),
     ],
     outputs: [
       io({ id: 'ca-out-betaalstatus', label: 'Betaalstatusbericht', bron_type: 'team', applicatieId: 'ca-app-betaal', punten: ['Per betaling één statusbericht', 'Retourboekingen apart gemarkeerd'] }),
       io({ id: 'ca-out-sepa', label: 'Betaalbestand (SEPA) naar bank', bron_type: 'systeem', applicatieId: 'ca-app-betaal', ...extern('party-bank') }),
-      io({ id: 'ca-out-loonaangifte', label: 'Loonaangifte uitkeringen', bron_type: 'systeem', applicatieId: 'ca-app-loon', ...extern('party-belastingdienst') }),
-      io({ id: 'ca-out-beschikking', label: 'Uitkeringsbeschikking', bron_type: 'persoon', applicatieId: 'ca-app-uitkering' }),
+      io({ id: 'ca-out-periodeaanlevering', label: 'Periodeaanlevering vergoedingen', bron_type: 'systeem', applicatieId: 'ca-app-aanlever', ...extern('party-dataleverancier') }),
+      io({ id: 'ca-out-besluit', label: 'Vergoedingsbesluit', bron_type: 'persoon', applicatieId: 'ca-app-vergoeding' }),
       // Koppelingsverzoek om een nieuw item bij Daily Bugle — wacht op akkoord.
-      io({ id: 'ca-out-statistiek', label: 'Uitkeringsstatistiek per maand', bron_type: 'team', applicatieId: 'ca-app-uitkering', linkedTeam: T.sv, linkNieuw: true, linkStatus: 'voorgesteld' }),
+      io({ id: 'ca-out-statistiek', label: 'Vergoedingsstatistiek per maand', bron_type: 'team', applicatieId: 'ca-app-vergoeding', linkedTeam: T.sv, linkNieuw: true, linkStatus: 'voorgesteld' }),
     ],
     stageNotes: {
       hardening: 'Betaalengine: penetratietest en hardening-checklist verplicht vóór elke release.',
@@ -490,7 +490,7 @@ export const MOCK_TEAM_WORKFLOWS = {
       cap('sv-cap4', 'Product Owner', 'medior', 1, 'analyse_refinement', 'nee'),
     ],
     inputs: [
-      io({ id: 'sv-in-betaalstatus', label: 'Betaalstatus vanuit Stark Industries', bron_type: 'team', linkedTeam: T.casio, linkedOutputId: 'ca-out-betaalstatus', applicatieId: 'sv-app-dwh', punten: ['Bron voor het uitkeringsdashboard'] }),
+      io({ id: 'sv-in-betaalstatus', label: 'Betaalstatus vanuit Stark Industries', bron_type: 'team', linkedTeam: T.casio, linkedOutputId: 'ca-out-betaalstatus', applicatieId: 'sv-app-dwh', punten: ['Bron voor het vergoedingsdashboard'] }),
       io({ id: 'sv-in-brondata', label: 'Brondata nachtelijke batch', bron_type: 'systeem', applicatieId: 'sv-app-dwh' }),
       io({ id: 'sv-in-vraag', label: 'Rapportagevraag vanuit directie', flowtype: 'ontwikkelflow', bron_type: 'stakeholder', ...extern('party-directie') }),
     ],
@@ -771,8 +771,8 @@ function finalize(raw) {
 const DEPS_TIEM = [
   {
     id: 'ti-dep-01', teamId: T.tiem, categorie: 'Kennis-concentratie',
-    titel: 'Kennis zaakregistratie-koppelingen zit bij één developer',
-    toelichting: 'Alleen één developer kent de koppelingen tussen zaakregistratie en de berichtendienst; bij afwezigheid stokt elke wijziging.',
+    titel: 'Kennis dossierregistratie-koppelingen zit bij één developer',
+    toelichting: 'Alleen één developer kent de koppelingen tussen dossierregistratie en de berichtendienst; bij afwezigheid stokt elke wijziging.',
     impact: 'duidelijk', frequentie: 'structureel', status: 'bekend risico',
     workflowStap: 'ontwikkeling_configuratie', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
@@ -784,7 +784,7 @@ const DEPS_TIEM = [
     titel: 'Handmatige controle-stap vertraagt doorlooptijd intake',
     toelichting: 'Elke zaak wordt handmatig gecontroleerd voordat hij de keten in mag; bij drukte loopt de wachtrij op tot twee dagen.',
     impact: 'zwaar', frequentie: 'regelmatig', status: 'actief blokkerend',
-    flowtype: 'applicatieflow', applicatieIds: ['ti-app-zaak'], effectOpFlow: 'vertraging',
+    flowtype: 'applicatieflow', applicatieIds: ['ti-app-dossier'], effectOpFlow: 'vertraging',
     wachttijd: 'kort', deadline: 'interne_afspraak', oplosbaarheid: 'meerdere_teams',
     aangemaakt: 210, bijgewerkt: 12,
   },
@@ -801,9 +801,9 @@ const DEPS_TIEM = [
   {
     id: 'ti-dep-04', teamId: T.tiem, categorie: 'Data-afhankelijkheid',
     titel: 'Contactgeschiedenis niet centraal doorzoekbaar',
-    toelichting: 'Klantcontactmodule en zaakregistratie hielden elk hun eigen contacthistorie bij.',
+    toelichting: 'Klantcontactmodule en dossierregistratie hielden elk hun eigen contacthistorie bij.',
     impact: 'beperkt', frequentie: 'soms', status: 'gemitigeerd',
-    flowtype: 'applicatieflow', applicatieIds: ['ti-app-klant', 'ti-app-zaak'], effectOpFlow: 'onduidelijkheid',
+    flowtype: 'applicatieflow', applicatieIds: ['ti-app-klant', 'ti-app-dossier'], effectOpFlow: 'onduidelijkheid',
     wachttijd: 'geen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
     mitigatie: 'Zoekindex over beide modules opgeleverd.', geaccepteerd: true,
     aangemaakt: 600, bijgewerkt: 200,
@@ -856,7 +856,7 @@ const DEPS_TIEM = [
   {
     id: 'ti-dep-10', teamId: T.tiem, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
     titel: 'Autorisatieaanvraag nieuwe medewerker duurt gemiddeld drie weken',
-    toelichting: 'Nieuwe klantcontactmedewerkers kunnen pas na drie weken in de zaakregistratie; tot die tijd werken ze op een collega-account.',
+    toelichting: 'Nieuwe klantcontactmedewerkers kunnen pas na drie weken in de dossierregistratie; tot die tijd werken ze op een collega-account.',
     impact: 'beperkt', frequentie: 'structureel', status: 'bekend risico',
     workflowStap: 'beheer_nazorg', effectOpFlow: 'niet_startklaar',
     wachttijd: 'sprint_of_meer', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
@@ -866,9 +866,9 @@ const DEPS_TIEM = [
   {
     id: 'ti-dep-11', teamId: T.tiem, scope: 'extern', categorie: 'Capaciteit specialistisch team',
     titel: 'Technisch applicatiebeheer plant wijzigingen pas na twee sprints in',
-    toelichting: 'Databasewijzigingen voor de zaakregistratie worden door TAB uitgevoerd, met een vaste doorlooptijd van twee sprints.',
+    toelichting: 'Databasewijzigingen voor de dossierregistratie worden door TAB uitgevoerd, met een vaste doorlooptijd van twee sprints.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['ti-app-zaak'], effectOpFlow: 'wachten',
+    flowtype: 'applicatieflow', applicatieIds: ['ti-app-dossier'], effectOpFlow: 'wachten',
     wachttijd: 'sprint_of_meer', deadline: 'interne_afspraak', oplosbaarheid: 'team_overstijgend',
     ...partij('party-techbeheer'), aangemaakt: 150, bijgewerkt: 20,
   },
@@ -892,17 +892,17 @@ const DEPS_TIEM = [
   },
   {
     id: 'ti-dep-14', teamId: T.tiem, scope: 'extern', categorie: 'Data-afhankelijkheid',
-    titel: 'Klantgegevens uit DigiD-koppeling onvolledig bij nieuwe klanten',
+    titel: 'Klantgegevens uit inlogkoppeling onvolledig bij nieuwe klanten',
     toelichting: 'Bij eerste inlog ontbreken adresgegevens; medewerkers vullen die handmatig aan.',
     impact: 'duidelijk', frequentie: 'soms', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['ti-app-klant'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'team_overstijgend',
-    ...partij('party-digid'), aangemaakt: 75, bijgewerkt: 70,
+    ...partij('party-inlog'), aangemaakt: 75, bijgewerkt: 70,
   },
   {
     id: 'ti-dep-15', teamId: T.tiem, scope: 'extern', categorie: 'Wetgevingsafhankelijkheid',
-    titel: 'Nieuwe bewaartermijn contactgegevens vraagt aanpassing zaakregistratie',
-    toelichting: 'De bewaartermijn van contactgegevens gaat van zeven naar vijf jaar; de zaakregistratie kent nog geen automatische opschoning.',
+    titel: 'Nieuwe bewaartermijn contactgegevens vraagt aanpassing dossierregistratie',
+    toelichting: 'De bewaartermijn van contactgegevens gaat van zeven naar vijf jaar; de dossierregistratie kent nog geen automatische opschoning.',
     impact: 'zwaar', frequentie: 'eenmalig', status: 'bekend risico',
     workflowStap: 'analyse_refinement', effectOpFlow: 'niet_startklaar',
     wachttijd: 'geen', deadline: 'harde_deadline', deadlineTekst: 'Wettelijke ingangsdatum 1 januari', oplosbaarheid: 'organisatorisch',
@@ -995,11 +995,11 @@ const DEPS_TIEM = [
 // ============================================================
 // Team Wakanda — groot, applicatierijk, kennisrisico-zwaartepunt, 3× CAB
 // ============================================================
-const DEPS_POLIS = [
+const DEPS_ABONNEMENT = [
   {
-    id: 'po-dep-01', teamId: T.polis, categorie: 'Kennis-concentratie',
-    titel: 'Kennis polisverwerkingsproces zit bij één architect',
-    toelichting: 'De volledige samenhang van polisadministratie, premie en mutaties zit in het hoofd van de architect; zonder haar staat elk ontwerpbesluit stil.',
+    id: 'po-dep-01', teamId: T.abonnement, categorie: 'Kennis-concentratie',
+    titel: 'Kennis abonnementsverwerkingsproces zit bij één architect',
+    toelichting: 'De volledige samenhang van abonnementenadministratie, tarief en mutaties zit in het hoofd van de architect; zonder haar staat elk ontwerpbesluit stil.',
     impact: 'zwaar', frequentie: 'structureel', status: 'actief blokkerend',
     workflowStap: 'analyse_refinement', effectOpFlow: 'blokkade',
     wachttijd: 'sprint_of_meer', deadline: 'interne_afspraak', oplosbaarheid: 'meerdere_teamleden',
@@ -1007,16 +1007,16 @@ const DEPS_POLIS = [
     aangemaakt: 540, bijgewerkt: 6,
   },
   {
-    id: 'po-dep-02', teamId: T.polis, categorie: 'Kennis-concentratie',
+    id: 'po-dep-02', teamId: T.abonnement, categorie: 'Kennis-concentratie',
     titel: 'Enige senior developer met kennis van het releaseproces',
-    toelichting: 'Het releasedraaiboek van de polismodule staat nergens beschreven; één senior developer voert het uit zijn hoofd uit.',
+    toelichting: 'Het releasedraaiboek van de abonnementsmodule staat nergens beschreven; één senior developer voert het uit zijn hoofd uit.',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
     workflowStap: 'release_overdracht', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
     aangemaakt: 400, bijgewerkt: 60,
   },
   {
-    id: 'po-dep-03', teamId: T.polis, categorie: 'Kennis-concentratie',
+    id: 'po-dep-03', teamId: T.abonnement, categorie: 'Kennis-concentratie',
     titel: 'Configuratiekennis integratie gateway beperkt gedeeld',
     toelichting: 'Routeringsregels en certificaten van de gateway werden door één beheerder bijgehouden.',
     impact: 'duidelijk', frequentie: 'structureel', status: 'gemitigeerd',
@@ -1026,19 +1026,19 @@ const DEPS_POLIS = [
     aangemaakt: 700, bijgewerkt: 250,
   },
   {
-    id: 'po-dep-04', teamId: T.polis, categorie: 'Kennis-concentratie',
-    titel: 'Premieberekeningsregels alleen begrepen door twee developers',
-    toelichting: 'De rekenregels in de premieberekeningsengine zijn historisch gegroeid; twee developers kunnen ze nog verklaren.',
+    id: 'po-dep-04', teamId: T.abonnement, categorie: 'Kennis-concentratie',
+    titel: 'Tariefberekeningsregels alleen begrepen door twee developers',
+    toelichting: 'De rekenregels in de tariefberekeningsengine zijn historisch gegroeid; twee developers kunnen ze nog verklaren.',
     impact: 'duidelijk', frequentie: 'structureel', status: 'actief blokkerend',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-premie'], effectOpFlow: 'blokkade',
-    wachttijd: 'dagen', deadline: 'vaste_datum', deadlineTekst: 'Premiemodel-release in het novembervenster', oplosbaarheid: 'meerdere_teamleden',
-    actieAfspraak: 'Derde developer draait mee op alle premiewijzigingen.',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-tarief'], effectOpFlow: 'blokkade',
+    wachttijd: 'dagen', deadline: 'vaste_datum', deadlineTekst: 'Tariefmodel-release in het novembervenster', oplosbaarheid: 'meerdere_teamleden',
+    actieAfspraak: 'Derde developer draait mee op alle tariefwijzigingen.',
     aangemaakt: 320, bijgewerkt: 4,
   },
   {
-    id: 'po-dep-05', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    id: 'po-dep-05', teamId: T.abonnement, categorie: 'Technische afhankelijkheid',
     titel: 'Technische schuld legacy-validatiemodule',
-    toelichting: 'De validatiemodule van de polisadministratie is niet te testen zonder de hele kern op te starten.',
+    toelichting: 'De validatiemodule van de abonnementenadministratie is niet te testen zonder de hele kern op te starten.',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
     workflowStap: 'ontwikkeling_configuratie', effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
@@ -1046,16 +1046,16 @@ const DEPS_POLIS = [
     aangemaakt: 800, bijgewerkt: 200,
   },
   {
-    id: 'po-dep-06', teamId: T.polis, categorie: 'Technische afhankelijkheid',
-    titel: 'Gedeelde caching-laag premie- en klantportaal',
-    toelichting: 'Een cache-flush voor het klantportaal maakt ook de premiecache leeg, met trage berekeningen tot gevolg.',
+    id: 'po-dep-06', teamId: T.abonnement, categorie: 'Technische afhankelijkheid',
+    titel: 'Gedeelde caching-laag tarief- en klantportaal',
+    toelichting: 'Een cache-flush voor het klantportaal maakt ook de tariefcache leeg, met trage berekeningen tot gevolg.',
     impact: 'zwaar', frequentie: 'regelmatig', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-premie', 'po-app-klantportaal'], effectOpFlow: 'vertraging',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-tarief', 'po-app-klantportaal'], effectOpFlow: 'vertraging',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
     aangemaakt: 260, bijgewerkt: 45,
   },
   {
-    id: 'po-dep-07', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    id: 'po-dep-07', teamId: T.abonnement, categorie: 'Technische afhankelijkheid',
     titel: 'IAM-token vernieuwing raakt drie applicaties',
     toelichting: 'Klantportaal, documentservice en de integratie gateway zijn alle drie afhankelijk van dezelfde tokenvernieuwing.',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
@@ -1064,25 +1064,25 @@ const DEPS_POLIS = [
     aangemaakt: 380, bijgewerkt: 30,
   },
   {
-    id: 'po-dep-08', teamId: T.polis, scope: 'extern', categorie: 'Data-afhankelijkheid',
-    titel: 'Testdata voor premieberekeningsengine ontbreekt',
-    toelichting: 'Team Nova Corps levert de geanonimiseerde testsets; voor premieberekening bestaat nog geen set met randgevallen.',
+    id: 'po-dep-08', teamId: T.abonnement, scope: 'extern', categorie: 'Data-afhankelijkheid',
+    titel: 'Testdata voor tariefberekeningsengine ontbreekt',
+    toelichting: 'Team Nova Corps levert de geanonimiseerde testsets; voor tariefberekening bestaat nog geen set met randgevallen.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'actief blokkerend',
     workflowStap: 'testen', effectOpFlow: 'niet_startklaar',
     wachttijd: 'dagen', deadline: 'interne_afspraak', oplosbaarheid: 'meerdere_teams',
     ...team('Team Nova Corps'), aangemaakt: 150, bijgewerkt: 9,
   },
   {
-    id: 'po-dep-09', teamId: T.polis, categorie: 'Proces-/workflow-afhankelijkheid',
-    titel: 'Onvolledige testdekking randgevallen premieberekening',
-    toelichting: 'Randgevallen zoals premievrijstelling worden niet geautomatiseerd getest; fouten komen in acceptatie naar boven.',
+    id: 'po-dep-09', teamId: T.abonnement, categorie: 'Proces-/workflow-afhankelijkheid',
+    titel: 'Onvolledige testdekking randgevallen tariefberekening',
+    toelichting: 'Randgevallen zoals tariefvrijstelling worden niet geautomatiseerd getest; fouten komen in acceptatie naar boven.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'testen', effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
     aangemaakt: 230, bijgewerkt: 100,
   },
   {
-    id: 'po-dep-10', teamId: T.polis, categorie: 'Rol-afhankelijkheid',
+    id: 'po-dep-10', teamId: T.abonnement, categorie: 'Rol-afhankelijkheid',
     titel: 'Testcoördinator gedeeld met Nova Corps',
     toelichting: 'De testcoördinator werkt voor beide teams; de ketentest van Nova Corps krijgt in de praktijk voorrang.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
@@ -1091,7 +1091,7 @@ const DEPS_POLIS = [
     aangemaakt: 300, bijgewerkt: 120,
   },
   {
-    id: 'po-dep-11', teamId: T.polis, categorie: 'Besluitvormingsafhankelijkheid',
+    id: 'po-dep-11', teamId: T.abonnement, categorie: 'Besluitvormingsafhankelijkheid',
     titel: 'Enige mandaathouder acceptatiecriteria',
     toelichting: 'Alleen de functioneel beheerder mag acceptatiecriteria vaststellen; bij vakantie stokt de acceptatie.',
     impact: 'beperkt', frequentie: 'soms', status: 'bekend risico',
@@ -1100,16 +1100,16 @@ const DEPS_POLIS = [
     aangemaakt: 190, bijgewerkt: 50,
   },
   {
-    id: 'po-dep-12', teamId: T.polis, categorie: 'Omgevingsafhankelijkheid',
-    titel: 'Acceptatieomgeving polis wordt gedeeld met Fantastic Four',
-    toelichting: 'Dezelfde acceptatieomgeving als het intake-team; deploys van Fantastic Four zetten de polis-acceptatietest stil.',
+    id: 'po-dep-12', teamId: T.abonnement, categorie: 'Omgevingsafhankelijkheid',
+    titel: 'Acceptatieomgeving abonnement wordt gedeeld met Fantastic Four',
+    toelichting: 'Dezelfde acceptatieomgeving als het intake-team; deploys van Fantastic Four zetten de abonnement-acceptatietest stil.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'acceptatie', effectOpFlow: 'blokkade',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
     aangemaakt: 260, bijgewerkt: 40,
   },
   {
-    id: 'po-dep-13', teamId: T.polis, categorie: 'Overig intern',
+    id: 'po-dep-13', teamId: T.abonnement, categorie: 'Overig intern',
     titel: 'Onduidelijk wie eigenaar is van batchverwerking',
     toelichting: 'Het is niet formeel belegd wie verantwoordelijk is voor de nachtelijke mutatiebatch richting Stark Industries.',
     impact: 'beperkt', frequentie: 'soms', status: 'bekend risico',
@@ -1118,16 +1118,16 @@ const DEPS_POLIS = [
     aangemaakt: 170, bijgewerkt: 95,
   },
   {
-    id: 'po-dep-14', teamId: T.polis, categorie: 'Overig intern',
+    id: 'po-dep-14', teamId: T.abonnement, categorie: 'Overig intern',
     titel: 'Nog te beoordelen: nieuwe fraudecheck-koppeling',
-    toelichting: 'Stark Industries wil de fraudecheck-service ook op polismutaties laten draaien; impact nog niet beoordeeld.',
+    toelichting: 'Stark Industries wil de fraudecheck-service ook op abonnementsmutaties laten draaien; impact nog niet beoordeeld.',
     impact: 'klein', frequentie: 'eenmalig', status: 'bekend risico',
     flowtype: null, effectOpFlow: '',
     wachttijd: 'geen', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
     aangemaakt: 12, bijgewerkt: 12,
   },
   {
-    id: 'po-dep-15', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    id: 'po-dep-15', teamId: T.abonnement, categorie: 'Technische afhankelijkheid',
     titel: 'Archiefservice zonder actief onderhoudsplan',
     toelichting: 'De archiefservice draait stabiel maar heeft geen eigenaar meer voor structureel onderhoud.',
     impact: 'klein', frequentie: 'structureel', status: 'bekend risico',
@@ -1136,9 +1136,9 @@ const DEPS_POLIS = [
     aangemaakt: 450, bijgewerkt: 130,
   },
   {
-    id: 'po-dep-16', teamId: T.polis, categorie: 'Data-afhankelijkheid',
-    titel: 'Klantgegevens in portaal liepen achter op BRP-synchronisatie',
-    toelichting: 'Adreswijzigingen uit de BRP waren pas de volgende dag zichtbaar in het klantportaal.',
+    id: 'po-dep-16', teamId: T.abonnement, categorie: 'Data-afhankelijkheid',
+    titel: 'Klantgegevens in portaal liepen achter op klantregistersynchronisatie',
+    toelichting: 'Adreswijzigingen uit de klantregister waren pas de volgende dag zichtbaar in het klantportaal.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'gemitigeerd',
     flowtype: 'applicatieflow', applicatieIds: ['po-app-klantportaal'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
@@ -1146,7 +1146,7 @@ const DEPS_POLIS = [
     aangemaakt: 330, bijgewerkt: 60, heropend: { gesloten: 200, heropend: 70 },
   },
   {
-    id: 'po-dep-17', teamId: T.polis, categorie: 'Proces-/workflow-afhankelijkheid',
+    id: 'po-dep-17', teamId: T.abonnement, categorie: 'Proces-/workflow-afhankelijkheid',
     titel: 'Handmatige controle documentservice bij elke mutatie',
     toelichting: 'Elk gegenereerd document wordt door beheer gecontroleerd voordat het naar het archief mag.',
     impact: 'beperkt', frequentie: 'structureel', status: 'bekend risico',
@@ -1155,7 +1155,7 @@ const DEPS_POLIS = [
     aangemaakt: 210, bijgewerkt: 15,
   },
   {
-    id: 'po-dep-18', teamId: T.polis, categorie: 'Rol-afhankelijkheid',
+    id: 'po-dep-18', teamId: T.abonnement, categorie: 'Rol-afhankelijkheid',
     titel: 'Release-coördinator ook verantwoordelijk voor nazorg',
     toelichting: 'In de week na een release is de release-coördinator niet beschikbaar voor de volgende releasevoorbereiding.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
@@ -1164,7 +1164,7 @@ const DEPS_POLIS = [
     aangemaakt: 100, bijgewerkt: 20,
   },
   {
-    id: 'po-dep-19', teamId: T.polis, categorie: 'Kennis-concentratie',
+    id: 'po-dep-19', teamId: T.abonnement, categorie: 'Kennis-concentratie',
     titel: 'Alleen de architect kent de gateway-routeringsregels',
     toelichting: 'Nieuwe routes op de integratie gateway worden altijd door de architect zelf ingericht.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
@@ -1173,16 +1173,16 @@ const DEPS_POLIS = [
     aangemaakt: 500, bijgewerkt: 300,
   },
   {
-    id: 'po-dep-20', teamId: T.polis, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
-    titel: 'CAB-goedkeuring premiemodel-wijziging',
-    toelichting: 'Het nieuwe premiemodel moet als hoog-risico-change door het CAB; de behandeling bepaalt of het novembervenster haalbaar is.',
+    id: 'po-dep-20', teamId: T.abonnement, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
+    titel: 'CAB-goedkeuring tariefmodel-wijziging',
+    toelichting: 'Het nieuwe tariefmodel moet als hoog-risico-change door het CAB; de behandeling bepaalt of het novembervenster haalbaar is.',
     impact: 'duidelijk', frequentie: 'soms', status: 'bekend risico',
     workflowStap: 'release_overdracht', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'vaste_datum', deadlineTekst: 'CAB-behandeling in de vergadering vóór het novembervenster', oplosbaarheid: 'organisatorisch',
     ...partij('party-cab'), aangemaakt: 120, bijgewerkt: 7,
   },
   {
-    id: 'po-dep-21', teamId: T.polis, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
+    id: 'po-dep-21', teamId: T.abonnement, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
     titel: 'CAB vraagt een impactanalyse bij elke gateway-wijziging',
     toelichting: 'Ook een nieuwe route op de gateway vraagt een schriftelijke impactanalyse voor het CAB.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
@@ -1191,71 +1191,71 @@ const DEPS_POLIS = [
     ...partij('party-cab'), aangemaakt: 280, bijgewerkt: 80,
   },
   {
-    id: 'po-dep-22', teamId: T.polis, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
-    titel: 'CAB-vensters vallen samen met de drukste polisperiode',
-    toelichting: 'Het CAB plant zijn vensters zonder rekening te houden met de jaarovergang van premies.',
+    id: 'po-dep-22', teamId: T.abonnement, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
+    titel: 'CAB-vensters vallen samen met de drukste abonnementsperiode',
+    toelichting: 'Het CAB plant zijn vensters zonder rekening te houden met de jaarovergang van tarieven.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'actief blokkerend',
     workflowStap: 'release_overdracht', effectOpFlow: 'vertraging',
-    wachttijd: 'sprint_of_meer', deadline: 'harde_deadline', deadlineTekst: 'Jaarovergang premies: 31 december', oplosbaarheid: 'organisatorisch',
+    wachttijd: 'sprint_of_meer', deadline: 'harde_deadline', deadlineTekst: 'Jaarovergang tarieven: 31 december', oplosbaarheid: 'organisatorisch',
     ...partij('party-cab'), aangemaakt: 90, bijgewerkt: 3,
   },
   {
-    id: 'po-dep-23', teamId: T.polis, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
-    titel: 'IAM-autorisatie voor beheerrechten polisadministratie',
-    toelichting: 'Beheerrechten op de polisadministratie worden per persoon door IAM-beheer toegekend, met weken doorlooptijd.',
+    id: 'po-dep-23', teamId: T.abonnement, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
+    titel: 'IAM-autorisatie voor beheerrechten abonnementenadministratie',
+    toelichting: 'Beheerrechten op de abonnementenadministratie worden per persoon door IAM-beheer toegekend, met weken doorlooptijd.',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-polis'], effectOpFlow: 'wachten',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-abonnement'], effectOpFlow: 'wachten',
     wachttijd: 'sprint_of_meer', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
-    actieAfspraak: 'Rollenprofiel polisbeheer vastgelegd; aanvraag via het standaardformulier.',
+    actieAfspraak: 'Rollenprofiel abonnementsbeheer vastgelegd; aanvraag via het standaardformulier.',
     ...partij('party-iam'), aangemaakt: 360, bijgewerkt: 22,
   },
   {
-    id: 'po-dep-24', teamId: T.polis, scope: 'extern', categorie: 'Capaciteit specialistisch team',
+    id: 'po-dep-24', teamId: T.abonnement, scope: 'extern', categorie: 'Capaciteit specialistisch team',
     titel: 'Technisch applicatiebeheer voert databasewijzigingen alleen in het weekend uit',
-    toelichting: 'Schemawijzigingen op de polisdatabase worden door TAB uitsluitend in het weekendvenster uitgevoerd.',
+    toelichting: 'Schemawijzigingen op de abonnementsdatabase worden door TAB uitsluitend in het weekendvenster uitgevoerd.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-polis'], effectOpFlow: 'wachten',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-abonnement'], effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'team_overstijgend',
     ...partij('party-techbeheer'), aangemaakt: 240, bijgewerkt: 35,
   },
   {
-    id: 'po-dep-25', teamId: T.polis, scope: 'extern', categorie: 'Omgevingsafhankelijkheid',
+    id: 'po-dep-25', teamId: T.abonnement, scope: 'extern', categorie: 'Omgevingsafhankelijkheid',
     titel: 'Ketentestomgeving wordt maar eens per maand ververst',
-    toelichting: 'Omgevingenbeheer ververst de ketentestomgeving maandelijks; tussentijdse polisreleases zijn dan niet te testen.',
+    toelichting: 'Omgevingenbeheer ververst de ketentestomgeving maandelijks; tussentijdse abonnementsreleases zijn dan niet te testen.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'testen', effectOpFlow: 'niet_startklaar',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'team_overstijgend',
     ...partij('party-omgevingen'), aangemaakt: 200, bijgewerkt: 70,
   },
   {
-    id: 'po-dep-26', teamId: T.polis, scope: 'extern', categorie: 'Data-afhankelijkheid',
-    titel: 'Inkomensgegevens Belastingdienst komen met twee weken vertraging',
-    toelichting: 'De maandelijkse inkomenslevering loopt structureel twee weken achter; premievaststellingen wachten daarop.',
+    id: 'po-dep-26', teamId: T.abonnement, scope: 'extern', categorie: 'Data-afhankelijkheid',
+    titel: 'Inkomensgegevens dataleverancier komen met twee weken vertraging',
+    toelichting: 'De maandelijkse inkomenslevering loopt structureel twee weken achter; tariefvaststellingen wachten daarop.',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-polis'], effectOpFlow: 'wachten',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-abonnement'], effectOpFlow: 'wachten',
     wachttijd: 'sprint_of_meer', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
-    ...partij('party-belastingdienst'), aangemaakt: 430, bijgewerkt: 140,
+    ...partij('party-dataleverancier'), aangemaakt: 430, bijgewerkt: 140,
   },
   {
-    id: 'po-dep-27', teamId: T.polis, scope: 'extern', categorie: 'Contract-/inkoopafhankelijkheid',
-    titel: 'Leverancier legacy polissysteem levert geen patches meer',
-    toelichting: 'De oorspronkelijke leverancier van de poliskern ondersteunt de versie niet meer; beveiligingsissues blijven open.',
+    id: 'po-dep-27', teamId: T.abonnement, scope: 'extern', categorie: 'Contract-/inkoopafhankelijkheid',
+    titel: 'Leverancier legacy abonnementssysteem levert geen patches meer',
+    toelichting: 'De oorspronkelijke leverancier van de abonnementskern ondersteunt de versie niet meer; beveiligingsissues blijven open.',
     impact: 'zwaar', frequentie: 'soms', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-polis'], effectOpFlow: 'anders',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-abonnement'], effectOpFlow: 'anders',
     wachttijd: 'geen', deadline: 'vaste_datum', deadlineTekst: 'Ondersteuning stopt definitief per 30 juni', oplosbaarheid: 'organisatorisch',
     ...partij('party-legacyleverancier'), aangemaakt: 160, bijgewerkt: 10,
   },
   {
-    id: 'po-dep-28', teamId: T.polis, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
-    titel: 'Stakeholder-akkoord nieuwe polisvoorwaarden',
+    id: 'po-dep-28', teamId: T.abonnement, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
+    titel: 'Stakeholder-akkoord nieuwe abonnementsvoorwaarden',
     toelichting: 'De business opdrachtgever moet de nieuwe voorwaarden formeel goedkeuren voordat het team mag bouwen.',
     impact: 'beperkt', frequentie: 'eenmalig', status: 'bekend risico',
     workflowStap: 'analyse_refinement', effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'interne_afspraak', oplosbaarheid: 'team_overstijgend',
-    ...partij('party-business-verzekeringen'), aangemaakt: 50, bijgewerkt: 14,
+    ...partij('party-business-contracten'), aangemaakt: 50, bijgewerkt: 14,
   },
   {
-    id: 'po-dep-29', teamId: T.polis, scope: 'extern', categorie: 'Technische afhankelijkheid',
+    id: 'po-dep-29', teamId: T.abonnement, scope: 'extern', categorie: 'Technische afhankelijkheid',
     titel: 'API-toegang klantdata afhankelijk van Team S.H.I.E.L.D.',
     toelichting: 'Elke nieuwe koppeling van klantportaal of gateway vraagt configuratie op het platform van S.H.I.E.L.D..',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
@@ -1264,16 +1264,16 @@ const DEPS_POLIS = [
     ...team('Team S.H.I.E.L.D.'), aangemaakt: 330, bijgewerkt: 33,
   },
   {
-    id: 'po-dep-30', teamId: T.polis, scope: 'extern', categorie: 'Kennis-afhankelijkheid extern',
+    id: 'po-dep-30', teamId: T.abonnement, scope: 'extern', categorie: 'Kennis-afhankelijkheid extern',
     titel: 'Rapportagevalidatie afhankelijk van kennis bij Daily Bugle',
-    toelichting: 'Alleen Daily Bugle kan controleren of polisrapportages kloppen; Wakanda kan de acceptatie niet zelf afronden.',
+    toelichting: 'Alleen Daily Bugle kan controleren of abonnementsrapportages kloppen; Wakanda kan de acceptatie niet zelf afronden.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'acceptatie', effectOpFlow: 'extra_afstemming',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
     ...team('Team Daily Bugle'), aangemaakt: 140, bijgewerkt: 28,
   },
   {
-    id: 'po-dep-31', teamId: T.polis, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
+    id: 'po-dep-31', teamId: T.abonnement, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
     titel: 'Security-review verplicht bij wijziging klantportaal',
     toelichting: 'Het klantportaal is internetgericht; Security Office reviewt elke release.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
@@ -1282,25 +1282,25 @@ const DEPS_POLIS = [
     ...partij('party-security'), aangemaakt: 220, bijgewerkt: 61,
   },
   {
-    id: 'po-dep-32', teamId: T.polis, scope: 'extern', categorie: 'Wetgevingsafhankelijkheid',
-    titel: 'Wijziging pensioenwetgeving raakt premieberekening',
-    toelichting: 'Nieuwe wetgeving verandert de grondslag van de premieberekening; de definitieve regeling is nog niet gepubliceerd.',
+    id: 'po-dep-32', teamId: T.abonnement, scope: 'extern', categorie: 'Wetgevingsafhankelijkheid',
+    titel: 'Wijziging pensioenwetgeving raakt tariefberekening',
+    toelichting: 'Nieuwe wetgeving verandert de grondslag van de tariefberekening; de definitieve regeling is nog niet gepubliceerd.',
     impact: 'zwaar', frequentie: 'eenmalig', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-premie'], effectOpFlow: 'niet_startklaar',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-tarief'], effectOpFlow: 'niet_startklaar',
     wachttijd: 'geen', deadline: 'harde_deadline', deadlineTekst: 'Wettelijke ingangsdatum 1 juli', oplosbaarheid: 'organisatorisch',
     ...partij('party-privacy'), aangemaakt: 70, bijgewerkt: 2,
   },
   {
-    id: 'po-dep-33', teamId: T.polis, scope: 'extern', categorie: 'Capaciteit specialistisch team',
-    titel: 'SSD-aanvraag database-uitbreiding polisadministratie wacht op capaciteit',
-    toelichting: 'De polisdatabase loopt tegen de opslaggrens; de SSD-aanvraag is ingediend maar nog niet ingepland.',
+    id: 'po-dep-33', teamId: T.abonnement, scope: 'extern', categorie: 'Capaciteit specialistisch team',
+    titel: 'SSD-aanvraag database-uitbreiding abonnementenadministratie wacht op capaciteit',
+    toelichting: 'De abonnementsdatabase loopt tegen de opslaggrens; de SSD-aanvraag is ingediend maar nog niet ingepland.',
     impact: 'duidelijk', frequentie: 'eenmalig', status: 'actief blokkerend',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-polis'], effectOpFlow: 'blokkade',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-abonnement'], effectOpFlow: 'blokkade',
     wachttijd: 'sprint_of_meer', deadline: 'interne_afspraak', oplosbaarheid: 'organisatorisch',
     ...partij('party-ssd'), aangemaakt: 40, bijgewerkt: 1,
   },
   {
-    id: 'po-dep-34', teamId: T.polis, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
+    id: 'po-dep-34', teamId: T.abonnement, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
     titel: 'Leesrechten archiefservice voor Daily Bugle liepen via IAM',
     toelichting: 'Elke BI-medewerker moest apart leesrechten op het archief aanvragen.',
     impact: 'klein', frequentie: 'soms', status: 'gemitigeerd',
@@ -1346,7 +1346,7 @@ const DEPS_SUPERHEROES = [
   {
     id: 'sh-dep-04', teamId: T.superheroes, categorie: 'Rol-afhankelijkheid',
     titel: 'Tekenbevoegdheid ligt bij drie senior beoordelaars',
-    toelichting: 'Alleen de drie senior beoordelaars mogen beschikkingen tekenen; bij vakanties loopt de doorlooptijd op.',
+    toelichting: 'Alleen de drie senior beoordelaars mogen besluiten tekenen; bij vakanties loopt de doorlooptijd op.',
     impact: 'zwaar', frequentie: 'structureel', status: 'bekend risico',
     workflowStap: 'acceptatie', effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'team_overstijgend',
@@ -1425,7 +1425,7 @@ const DEPS_SUPERHEROES = [
     impact: 'duidelijk', frequentie: 'soms', status: 'bekend risico',
     workflowStap: 'analyse_refinement', effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
-    ...partij('party-business-verzekeringen'), aangemaakt: 150, bijgewerkt: 50,
+    ...partij('party-business-contracten'), aangemaakt: 150, bijgewerkt: 50,
   },
   {
     id: 'sh-dep-13', teamId: T.superheroes, scope: 'extern', categorie: 'Technische afhankelijkheid',
@@ -1485,7 +1485,7 @@ const DEPS_SUPERHEROES = [
 ]
 
 // ============================================================
-// Team Stark Industries — betaalverwerking & uitkeringen: zwaarste risico's, 3× CAB
+// Team Stark Industries — betaalverwerking & vergoedingen: zwaarste risico's, 3× CAB
 // ============================================================
 const DEPS_CASIO = [
   {
@@ -1501,7 +1501,7 @@ const DEPS_CASIO = [
   {
     id: 'ca-dep-02', teamId: T.casio, categorie: 'Technische afhankelijkheid',
     titel: 'Nachtelijke batch heeft geen automatische herstart',
-    toelichting: 'Als de batch om 23:00 uur faalt, ontdekt het team dat pas de volgende ochtend en zijn uitkeringen een dag te laat.',
+    toelichting: 'Als de batch om 23:00 uur faalt, ontdekt het team dat pas de volgende ochtend en zijn vergoedingen een dag te laat.',
     impact: 'zwaar', frequentie: 'structureel', status: 'actief blokkerend',
     flowtype: 'applicatieflow', applicatieIds: ['ca-app-batch'], effectOpFlow: 'blokkade',
     wachttijd: 'sprint_of_meer', deadline: 'vaste_datum', deadlineTekst: 'Herstartmechanisme in het decembervenster', oplosbaarheid: 'meerdere_teams',
@@ -1510,7 +1510,7 @@ const DEPS_CASIO = [
   {
     id: 'ca-dep-03', teamId: T.casio, categorie: 'Kennis-concentratie',
     titel: 'Legacy kennis nodig voor regelservice',
-    toelichting: 'De regellogica van de uitkeringsservice stamt uit het oude systeem en is nauwelijks gedocumenteerd.',
+    toelichting: 'De regellogica van de vergoedingsservice stamt uit het oude systeem en is nauwelijks gedocumenteerd.',
     impact: 'duidelijk', frequentie: 'structureel', status: 'gemitigeerd',
     flowtype: 'applicatieflow', applicatieIds: ['ca-app-regel'], effectOpFlow: 'vertraging',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
@@ -1537,10 +1537,10 @@ const DEPS_CASIO = [
   },
   {
     id: 'ca-dep-06', teamId: T.casio, categorie: 'Technische afhankelijkheid',
-    titel: 'Uitkeringsservice gebruikt verouderde bibliotheek voor PDF-beschikkingen',
+    titel: 'Vergoedingsservice gebruikt verouderde bibliotheek voor PDF-besluiten',
     toelichting: 'De PDF-bibliotheek krijgt geen updates meer; vervanging is niet ingepland.',
     impact: 'beperkt', frequentie: 'structureel', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering'], effectOpFlow: 'anders',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-vergoeding'], effectOpFlow: 'anders',
     wachttijd: 'geen', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
     aangemaakt: 420, bijgewerkt: 200,
   },
@@ -1582,10 +1582,10 @@ const DEPS_CASIO = [
   },
   {
     id: 'ca-dep-11', teamId: T.casio, categorie: 'Proces-/workflow-afhankelijkheid',
-    titel: 'Loonaangifte vroeg handmatige controle vóór verzending',
-    toelichting: 'Elke maandelijkse loonaangifte werd regel voor regel nagelopen.',
+    titel: 'Periodeaanlevering vroeg handmatige controle vóór verzending',
+    toelichting: 'Elke maandelijkse periodeaanlevering werd regel voor regel nagelopen.',
     impact: 'beperkt', frequentie: 'structureel', status: 'gemitigeerd',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-loon'], effectOpFlow: 'wachten',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-aanlever'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
     mitigatie: 'Geautomatiseerde plausibiliteitscheck toegevoegd.',
     aangemaakt: 290, bijgewerkt: 45,
@@ -1593,7 +1593,7 @@ const DEPS_CASIO = [
   {
     id: 'ca-dep-12', teamId: T.casio, categorie: 'Technische afhankelijkheid',
     titel: 'Regelservice en fraudecheck delen dezelfde regelset zonder versiebeheer',
-    toelichting: 'Een regelwijziging voor de fraudecheck-pilot kan onbedoeld de uitkeringsregels raken.',
+    toelichting: 'Een regelwijziging voor de fraudecheck-pilot kan onbedoeld de vergoedingsregels raken.',
     impact: 'duidelijk', frequentie: 'soms', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['ca-app-regel'], effectOpFlow: 'onduidelijkheid',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
@@ -1611,7 +1611,7 @@ const DEPS_CASIO = [
   {
     id: 'ca-dep-14', teamId: T.casio, scope: 'extern', categorie: 'Contract-/inkoopafhankelijkheid',
     titel: 'Leverancier regelmotor levert regelreleases later dan afgesproken',
-    toelichting: 'De regelservice gebruikt dezelfde ingekochte regelmotor als de beoordeling; late releases raken ook de uitkeringsregels.',
+    toelichting: 'De regelservice gebruikt dezelfde ingekochte regelmotor als de beoordeling; late releases raken ook de vergoedingsregels.',
     impact: 'zwaar', frequentie: 'regelmatig', status: 'actief blokkerend',
     flowtype: 'applicatieflow', applicatieIds: ['ca-app-regel'], effectOpFlow: 'blokkade',
     wachttijd: 'sprint_of_meer', deadline: 'vaste_datum', deadlineTekst: 'Regelrelease Q4 uiterlijk 15 november', oplosbaarheid: 'organisatorisch',
@@ -1620,8 +1620,8 @@ const DEPS_CASIO = [
   },
   {
     id: 'ca-dep-15', teamId: T.casio, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
-    titel: 'CAB-goedkeuring uitkeringsregels',
-    toelichting: 'Elke wijziging in uitkeringsregels is een hoog-risico-change voor het CAB.',
+    titel: 'CAB-goedkeuring vergoedingsregels',
+    toelichting: 'Elke wijziging in vergoedingsregels is een hoog-risico-change voor het CAB.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'release_overdracht', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
@@ -1639,7 +1639,7 @@ const DEPS_CASIO = [
   {
     id: 'ca-dep-17', teamId: T.casio, scope: 'extern', categorie: 'Governance/proces-afhankelijkheid',
     titel: 'CAB-venster valt in de uitbetaalweek',
-    toelichting: 'Het maandelijkse CAB-venster valt precies in de week waarin uitkeringen worden uitbetaald; releases schuiven daardoor een maand.',
+    toelichting: 'Het maandelijkse CAB-venster valt precies in de week waarin vergoedingen worden uitbetaald; releases schuiven daardoor een maand.',
     impact: 'zwaar', frequentie: 'regelmatig', status: 'actief blokkerend',
     workflowStap: 'release_overdracht', effectOpFlow: 'vertraging',
     wachttijd: 'sprint_of_meer', deadline: 'harde_deadline', deadlineTekst: 'Uitbetaling altijd op de 23e van de maand', oplosbaarheid: 'organisatorisch',
@@ -1665,19 +1665,19 @@ const DEPS_CASIO = [
   },
   {
     id: 'ca-dep-20', teamId: T.casio, scope: 'extern', categorie: 'Data-afhankelijkheid',
-    titel: 'Loonaangiftespecificaties Belastingdienst wijzigen jaarlijks',
-    toelichting: 'De specificatie van de loonaangifte verandert elk jaar; de koppeling moet mee.',
+    titel: 'Aanleverspecificaties dataleverancier wijzigen jaarlijks',
+    toelichting: 'De specificatie van de periodeaanlevering verandert elk jaar; de koppeling moet mee.',
     impact: 'duidelijk', frequentie: 'eenmalig', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-loon'], effectOpFlow: 'herwerk',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-aanlever'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'harde_deadline', deadlineTekst: 'Nieuwe specificatie geldt vanaf 1 januari', oplosbaarheid: 'organisatorisch',
-    ...partij('party-belastingdienst'), aangemaakt: 200, bijgewerkt: 60,
+    ...partij('party-dataleverancier'), aangemaakt: 200, bijgewerkt: 60,
   },
   {
     id: 'ca-dep-21', teamId: T.casio, scope: 'extern', categorie: 'Technische afhankelijkheid',
     titel: 'Toegang tot claimdata via de gateway van S.H.I.E.L.D.',
-    toelichting: 'Uitkeringsservice en regelservice halen claimdata via de API-gateway; nieuwe velden vragen configuratie bij S.H.I.E.L.D..',
+    toelichting: 'Vergoedingsservice en regelservice halen claimdata via de API-gateway; nieuwe velden vragen configuratie bij S.H.I.E.L.D..',
     impact: 'duidelijk', frequentie: 'structureel', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering', 'ca-app-regel'], effectOpFlow: 'wachten',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-vergoeding', 'ca-app-regel'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
     ...team('Team S.H.I.E.L.D.'), aangemaakt: 340, bijgewerkt: 34,
   },
@@ -1686,7 +1686,7 @@ const DEPS_CASIO = [
     titel: 'Correctiesignalen van Daily Bugle komen zonder prioriteit binnen',
     toelichting: 'De wekelijkse correctielijst maakt geen onderscheid tussen spoed en regulier.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering'], effectOpFlow: 'onduidelijkheid',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-vergoeding'], effectOpFlow: 'onduidelijkheid',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
     ...team('Team Daily Bugle'), aangemaakt: 80, bijgewerkt: 16,
   },
@@ -1728,10 +1728,10 @@ const DEPS_CASIO = [
   },
   {
     id: 'ca-dep-27', teamId: T.casio, scope: 'extern', categorie: 'Wetgevingsafhankelijkheid',
-    titel: 'Nieuwe beslagvrije-voet-regels raken de uitkeringsberekening',
-    toelichting: 'De berekening van de beslagvrije voet verandert; uitkeringsservice en regelservice moeten beide worden aangepast.',
+    titel: 'Nieuwe inhoudingsregels raken de vergoedingsberekening',
+    toelichting: 'De berekening van de inhoudingsregel verandert; vergoedingsservice en regelservice moeten beide worden aangepast.',
     impact: 'zwaar', frequentie: 'eenmalig', status: 'bekend risico',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering', 'ca-app-regel'], effectOpFlow: 'niet_startklaar',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-vergoeding', 'ca-app-regel'], effectOpFlow: 'niet_startklaar',
     wachttijd: 'geen', deadline: 'harde_deadline', deadlineTekst: 'Ingangsdatum 1 januari', oplosbaarheid: 'organisatorisch',
     ...partij('party-privacy'), aangemaakt: 60, bijgewerkt: 3,
   },
@@ -1836,7 +1836,7 @@ const DEPS_SV = [
   },
   {
     id: 'sv-dep-07', teamId: T.sv, categorie: 'Besluitvormingsafhankelijkheid',
-    titel: 'Definitie van een afgehandelde uitkering verschilt per rapport',
+    titel: 'Definitie van een afgehandelde vergoeding verschilt per rapport',
     toelichting: 'Drie rapportages hanteren drie definities; niemand heeft het mandaat er één te kiezen.',
     impact: 'duidelijk', frequentie: 'soms', status: 'bekend risico',
     workflowStap: 'analyse_refinement', effectOpFlow: 'onduidelijkheid',
@@ -1873,10 +1873,10 @@ const DEPS_SV = [
   {
     id: 'sv-dep-11', teamId: T.sv, scope: 'extern', categorie: 'Capaciteit specialistisch team',
     titel: 'Extern data- en rapportageteam levert bronaansluitingen op',
-    toelichting: 'Nieuwe bronaansluitingen op het datawarehouse worden door een extern team gebouwd; de polisdata-aansluiting is al twee sprints over tijd.',
+    toelichting: 'Nieuwe bronaansluitingen op het datawarehouse worden door een extern team gebouwd; de abonnementsdata-aansluiting is al twee sprints over tijd.',
     impact: 'zwaar', frequentie: 'regelmatig', status: 'actief blokkerend',
     flowtype: 'applicatieflow', applicatieIds: ['sv-app-dwh'], effectOpFlow: 'wachten',
-    wachttijd: 'sprint_of_meer', deadline: 'vaste_datum', deadlineTekst: 'Bronaansluiting polisdata vóór de kwartaalrapportage', oplosbaarheid: 'organisatorisch',
+    wachttijd: 'sprint_of_meer', deadline: 'vaste_datum', deadlineTekst: 'Bronaansluiting abonnementsdata vóór de kwartaalrapportage', oplosbaarheid: 'organisatorisch',
     ...partij('party-datateam'), aangemaakt: 120, bijgewerkt: 4,
   },
   {
@@ -1899,7 +1899,7 @@ const DEPS_SV = [
   },
   {
     id: 'sv-dep-14', teamId: T.sv, scope: 'extern', categorie: 'Toegang/rechten-blokkade',
-    titel: 'Leesrechten op polis- en betaaldata via IAM per bron apart',
+    titel: 'Leesrechten op abonnement- en betaaldata via IAM per bron apart',
     toelichting: 'Voor elke nieuwe bron moet per BI-medewerker apart een leesrol via IAM-beheer worden aangevraagd.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['sv-app-dwh'], effectOpFlow: 'wachten',
@@ -2442,8 +2442,8 @@ const DEPS_FREGGELS = [
   },
   {
     id: 'fr-dep-04', teamId: T.freggels, categorie: 'Technische afhankelijkheid',
-    titel: 'Testdata Generator maakt geen data voor uitkeringsscenario’s',
-    toelichting: 'Uitkeringsscenario’s worden nog met handmatig samengestelde datasets getest.',
+    titel: 'Testdata Generator maakt geen data voor vergoedingsscenario’s',
+    toelichting: 'Vergoedingsscenario’s worden nog met handmatig samengestelde datasets getest.',
     impact: 'duidelijk', frequentie: 'regelmatig', status: 'bekend risico',
     flowtype: 'applicatieflow', applicatieIds: ['fr-app-testdata'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
@@ -2561,7 +2561,7 @@ const DEPS_FREGGELS = [
   {
     id: 'fr-dep-17', teamId: T.freggels, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
     titel: 'Wakanda levert testscenario’s te laat aan',
-    toelichting: 'Scenario’s voor de polismodule komen vaak pas op de dag van de ketentest.',
+    toelichting: 'Scenario’s voor de abonnementsmodule komen vaak pas op de dag van de ketentest.',
     impact: 'beperkt', frequentie: 'regelmatig', status: 'bekend risico',
     workflowStap: 'analyse_refinement', effectOpFlow: 'wachten',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teams',
@@ -2624,7 +2624,7 @@ const DEPS_GESLOTEN = [
     titel: 'Dubbele klantregistratie bij gelijktijdige chat en telefoon',
     toelichting: 'Een klant die tegelijk belde en chatte kreeg twee klantrecords.',
     impact: 'beperkt', frequentie: 'regelmatig',
-    flowtype: 'applicatieflow', applicatieIds: ['ti-app-klant', 'ti-app-zaak'], effectOpFlow: 'herwerk',
+    flowtype: 'applicatieflow', applicatieIds: ['ti-app-klant', 'ti-app-dossier'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
     mitigatie: 'Ontdubbeling op klant-id ingebouwd.',
     aangemaakt: 320, escalatie: 250, gemitigeerd: 200, gesloten: 170,
@@ -2650,17 +2650,17 @@ const DEPS_GESLOTEN = [
     aangemaakt: 120, gemitigeerd: 40, gesloten: 20,
   }),
   afgehandeld({
-    id: 'po-gesl-01', teamId: T.polis, categorie: 'Technische afhankelijkheid',
-    titel: 'Premieherberekening liep vast op schrikkeljaar',
+    id: 'po-gesl-01', teamId: T.abonnement, categorie: 'Technische afhankelijkheid',
+    titel: 'Tariefherberekening liep vast op schrikkeljaar',
     toelichting: 'De nachtelijke herberekening faalde op 29 februari.',
     impact: 'zwaar', frequentie: 'eenmalig',
-    flowtype: 'applicatieflow', applicatieIds: ['po-app-premie'], effectOpFlow: 'blokkade',
+    flowtype: 'applicatieflow', applicatieIds: ['po-app-tarief'], effectOpFlow: 'blokkade',
     wachttijd: 'dagen', deadline: 'harde_deadline', deadlineTekst: 'Herberekening 1 maart', oplosbaarheid: 'meerdere_teamleden',
     mitigatie: 'Datumlogica gecorrigeerd en getest.',
     aangemaakt: 200, escalatie: 195, gemitigeerd: 190, gesloten: 175,
   }),
   afgehandeld({
-    id: 'po-gesl-02', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    id: 'po-gesl-02', teamId: T.abonnement, categorie: 'Technische afhankelijkheid',
     titel: 'Certificaat integratie gateway verlopen',
     toelichting: 'Alle externe koppelingen vielen uit toen het gateway-certificaat verliep.',
     impact: 'zwaar', frequentie: 'eenmalig',
@@ -2670,17 +2670,17 @@ const DEPS_GESLOTEN = [
     aangemaakt: 95, escalatie: 94, gemitigeerd: 93, gesloten: 80,
   }),
   afgehandeld({
-    id: 'po-gesl-03', teamId: T.polis, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
-    titel: 'Handmatige polisoverdracht bij fusie van een verzekeraar',
-    toelichting: 'De overdracht van polissen vroeg wekenlang afstemming met de business.',
+    id: 'po-gesl-03', teamId: T.abonnement, scope: 'extern', categorie: 'Stakeholderafhankelijkheid',
+    titel: 'Handmatige abonnementsoverdracht bij fusie van een dienstverlener',
+    toelichting: 'De overdracht van abonnementen vroeg wekenlang afstemming met de business.',
     impact: 'duidelijk', frequentie: 'eenmalig',
     workflowStap: 'analyse_refinement', effectOpFlow: 'extra_afstemming',
     wachttijd: 'dagen', deadline: 'vaste_datum', deadlineTekst: 'Overdracht vóór 1 oktober', oplosbaarheid: 'organisatorisch',
     mitigatie: 'Overdracht afgerond in twee batches.',
-    ...partij('party-business-verzekeringen'), aangemaakt: 340, gemitigeerd: 260, gesloten: 240,
+    ...partij('party-business-contracten'), aangemaakt: 340, gemitigeerd: 260, gesloten: 240,
   }),
   afgehandeld({
-    id: 'po-gesl-04', teamId: T.polis, categorie: 'Technische afhankelijkheid',
+    id: 'po-gesl-04', teamId: T.abonnement, categorie: 'Technische afhankelijkheid',
     titel: 'Documentservice genereerde lege PDFs bij speciale tekens',
     toelichting: 'Namen met diakritische tekens leverden een leeg document op.',
     impact: 'beperkt', frequentie: 'regelmatig',
@@ -2717,7 +2717,7 @@ const DEPS_GESLOTEN = [
     workflowStap: 'analyse_refinement', effectOpFlow: 'onduidelijkheid',
     wachttijd: 'kort', deadline: 'interne_afspraak', oplosbaarheid: 'organisatorisch',
     mitigatie: 'Wijzigingsoverzicht is nu vast onderdeel van elke beleidsupdate.',
-    ...partij('party-business-verzekeringen'), aangemaakt: 110, gemitigeerd: 70, gesloten: 45,
+    ...partij('party-business-contracten'), aangemaakt: 110, gemitigeerd: 70, gesloten: 45,
   }),
   afgehandeld({
     id: 'ca-gesl-01', teamId: T.casio, scope: 'extern', categorie: 'Technische afhankelijkheid',
@@ -2732,7 +2732,7 @@ const DEPS_GESLOTEN = [
   afgehandeld({
     id: 'ca-gesl-02', teamId: T.casio, categorie: 'Data-afhankelijkheid',
     titel: 'Batchverwerker liep vast op dubbele mutaties',
-    toelichting: 'Dubbele polismutaties uit dezelfde nacht blokkeerden de batch.',
+    toelichting: 'Dubbele abonnementsmutaties uit dezelfde nacht blokkeerden de batch.',
     impact: 'duidelijk', frequentie: 'soms',
     flowtype: 'applicatieflow', applicatieIds: ['ca-app-batch'], effectOpFlow: 'herwerk',
     wachttijd: 'dagen', deadline: 'geen_datum', oplosbaarheid: 'meerdere_teamleden',
@@ -2741,20 +2741,20 @@ const DEPS_GESLOTEN = [
   }),
   afgehandeld({
     id: 'ca-gesl-03', teamId: T.casio, scope: 'extern', categorie: 'Data-afhankelijkheid',
-    titel: 'Testcertificaat loonaangifte-koppeling verlopen',
-    toelichting: 'De testkoppeling met de Belastingdienst werkte een maand niet.',
+    titel: 'Testcertificaat periodeaanlevering-koppeling verlopen',
+    toelichting: 'De testkoppeling met de dataleverancier werkte een maand niet.',
     impact: 'beperkt', frequentie: 'eenmalig',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-loon'], effectOpFlow: 'wachten',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-aanlever'], effectOpFlow: 'wachten',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'organisatorisch',
     mitigatie: 'Nieuw testcertificaat ontvangen.',
-    ...partij('party-belastingdienst'), aangemaakt: 70, gemitigeerd: 50, gesloten: 35,
+    ...partij('party-dataleverancier'), aangemaakt: 70, gemitigeerd: 50, gesloten: 35,
   }),
   afgehandeld({
     id: 'ca-gesl-04', teamId: T.casio, categorie: 'Proces-/workflow-afhankelijkheid',
-    titel: 'Uitkeringsbeschikkingen zonder rekeningnummer',
-    toelichting: 'Beschikkingen zonder rekeningnummer kwamen pas bij de betaling aan het licht.',
+    titel: 'Vergoedingsbesluiten zonder rekeningnummer',
+    toelichting: 'Besluiten zonder rekeningnummer kwamen pas bij de betaling aan het licht.',
     impact: 'duidelijk', frequentie: 'soms',
-    flowtype: 'applicatieflow', applicatieIds: ['ca-app-uitkering'], effectOpFlow: 'herwerk',
+    flowtype: 'applicatieflow', applicatieIds: ['ca-app-vergoeding'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
     mitigatie: 'Verplichte validatie op rekeningnummer.',
     aangemaakt: 400, gemitigeerd: 350, gesloten: 330,
@@ -2781,8 +2781,8 @@ const DEPS_GESLOTEN = [
   }),
   afgehandeld({
     id: 'sv-gesl-03', teamId: T.sv, categorie: 'Data-afhankelijkheid',
-    titel: 'Laadproces polisdata dubbel geregistreerd',
-    toelichting: 'Polisdata werd twee keer per nacht geladen, met dubbele tellingen in de rapportages.',
+    titel: 'Laadproces abonnementsdata dubbel geregistreerd',
+    toelichting: 'Abonnementsdata werd twee keer per nacht geladen, met dubbele tellingen in de rapportages.',
     impact: 'beperkt', frequentie: 'soms',
     flowtype: 'applicatieflow', applicatieIds: ['sv-app-dwh'], effectOpFlow: 'herwerk',
     wachttijd: 'kort', deadline: 'geen_datum', oplosbaarheid: 'teamlid',
@@ -2890,7 +2890,7 @@ const DEPS_GESLOTEN = [
 
 export const RAW_MOCK_DEPENDENCIES = [
   ...DEPS_TIEM,
-  ...DEPS_POLIS,
+  ...DEPS_ABONNEMENT,
   ...DEPS_SUPERHEROES,
   ...DEPS_CASIO,
   ...DEPS_SV,
@@ -2917,7 +2917,7 @@ const REVIEW_LOG = [
   { id: 'log-2', timestamp: tijdstipGeleden(2, 14), teamId: T.casio, type: 'dependency_created', dependencyId: 'ca-dep-28', titel: 'Fraudecheck-pilot leest productiedata zonder anonimisering', duplicateOfId: null, status: 'pending' },
   { id: 'log-3', timestamp: tijdstipGeleden(3, 11), teamId: T.tiem, type: 'dependency_created', dependencyId: 'ti-dep-23', titel: 'SSD-aanvraag extra opslag gespreksopnames wacht al een maand', duplicateOfId: 'ca-dep-26', status: 'pending' },
   { id: 'log-4', timestamp: tijdstipGeleden(6, 16), teamId: T.superheroes, type: 'dependency_created', dependencyId: 'sh-dep-09', titel: 'Leverancier regelmotor levert regelreleases later dan afgesproken', duplicateOfId: 'ca-dep-14', status: 'approved' },
-  { id: 'log-5', timestamp: tijdstipGeleden(9, 10), teamId: T.polis, type: 'dependency_created', dependencyId: 'po-dep-33', titel: 'SSD-aanvraag database-uitbreiding polisadministratie wacht op capaciteit', duplicateOfId: null, status: 'edited' },
+  { id: 'log-5', timestamp: tijdstipGeleden(9, 10), teamId: T.abonnement, type: 'dependency_created', dependencyId: 'po-dep-33', titel: 'SSD-aanvraag database-uitbreiding abonnementenadministratie wacht op capaciteit', duplicateOfId: null, status: 'edited' },
   { id: 'log-6', timestamp: tijdstipGeleden(12, 15), teamId: T.sv, type: 'dependency_created', dependencyId: 'sv-dep-21', titel: 'Correctiesignalen naar Stark Industries worden niet teruggekoppeld', duplicateOfId: null, status: 'rejected' },
   { id: 'log-7', timestamp: tijdstipGeleden(14, 9), teamId: T.smurfen, type: 'dependency_created', dependencyId: 'sm-dep-27', titel: 'Nog te beoordelen: zero-trust netwerkmodel', duplicateOfId: null, status: 'approved' },
 ]
@@ -2925,7 +2925,7 @@ const REVIEW_LOG = [
 // Koppelingsverzoeken als gebeurtenis, passend bij de items in de workflows.
 const LINK_LOG = [
   { id: 'log-link-1', timestamp: tijdstipGeleden(5, 11), teamId: T.freggels, type: 'link_proposed', titel: 'Releasekalender voor testplanning', details: { targetTeamId: T.equinox, kind: 'input' } },
-  { id: 'log-link-2', timestamp: tijdstipGeleden(8, 14), teamId: T.casio, type: 'link_proposed', titel: 'Uitkeringsstatistiek per maand', details: { targetTeamId: T.sv, kind: 'output' } },
+  { id: 'log-link-2', timestamp: tijdstipGeleden(8, 14), teamId: T.casio, type: 'link_proposed', titel: 'Vergoedingsstatistiek per maand', details: { targetTeamId: T.sv, kind: 'output' } },
   { id: 'log-link-3', timestamp: tijdstipGeleden(31, 10), teamId: T.freggels, type: 'link_proposed', titel: 'Testrapport per release', details: { targetTeamId: T.tiem, kind: 'output' } },
   { id: 'log-link-4', timestamp: tijdstipGeleden(26, 15), teamId: T.tiem, type: 'link_rejected', titel: 'Testrapport per release', details: { proposerTeamId: T.freggels, kind: 'output' } },
 ]

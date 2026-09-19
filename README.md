@@ -1,10 +1,10 @@
 # Dependency Insight
 
 Standalone webapplicatie voor Scrum Masters / Agile coaches om team- en
-ketenafhankelijkheden in kaart te brengen: een matrix-overzicht en een
-interactieve netwerkweergave, met automatisch berekende risicoscores en
-regel-gebaseerde observaties. Draait volledig client-side — geen backend,
-geen server, geen internetverbinding nodig na installatie.
+ketenafhankelijkheden in kaart te brengen: een heatmap van teams tegen
+categorieën, een ketenoverzicht en een analysepagina, met automatisch
+berekende risicoscores. Draait volledig client-side — geen backend, geen
+server, geen internetverbinding nodig na installatie.
 
 ## Vereisten
 
@@ -22,8 +22,30 @@ Open daarna de URL die in de terminal verschijnt (meestal `http://localhost:5173
 ## Data en privacy
 
 - Alle data wordt lokaal opgeslagen in de browser (localStorage) — er wordt niets naar een server verstuurd.
-- De app start met fictieve demo-data (8 teams in één keten, ruim 190 dependencies, een register van externe partijen en een gevulde wijzigingenlog). Via het tandwiel-icoon (Instellingen) kun je alle data wissen en desgewenst teruggaan naar de demo-data.
+- De app start met fictieve demo-data (8 teams in één keten, ruim 190 dependencies, een register van externe partijen en een gevulde wijzigingenlog). Via "Instellingen & privacy" onderaan de zijbalk kun je alle data wissen en desgewenst teruggaan naar de demo-data.
 - Het datamodel bevat bewust geen namen van personen, alleen rol-aanduidingen.
+
+## Versies: hoe iedereen de nieuwste versie krijgt
+
+Er zijn twee dingen die "oud" kunnen blijven, en ze worden apart opgelost:
+
+- **De code.** `index.html` en `version.json` worden met `no-cache, must-revalidate`
+  geserveerd (zie `vercel.json`), de gehashte bestanden onder `/assets` juist onbeperkt.
+  Een herlaadbeurt levert dus altijd de nieuwste app op. Een tab die dágenlang openstaat
+  herlaadt alleen nooit uit zichzelf: daarom vergelijkt de app periodiek (en bij het
+  terugkeren naar de tab) `/version.json` met de versie waarop hij draait, en toont hij
+  een balk "Er staat een nieuwere versie klaar · Herladen". De draaiende versie staat ook
+  in Instellingen & privacy, zodat je kunt vergelijken wie wat ziet.
+- **De data.** Die staat in localStorage en blijft dus per apparaat staan. Meegeleverde
+  voorbeelddata ververst automatisch: bij het bouwen wordt een hash van `src/data/mockData.js`
+  ingebakken, en wie nog nooit zelf iets wijzigde (`usingMockData: true`) krijgt bij een
+  afwijkende hash de nieuwe demodata. Wie wél eigen data heeft ingevoerd houdt die — die
+  wordt nooit automatisch overschreven.
+
+Zit iemand toch vast (eigen data, of een rommelige lokale staat), dan wist
+`https://dependency-tool.vercel.app/?reset=1` alles wat de app lokaal bewaart en start de
+app opnieuw met verse voorbeelddata. Dat is een harde reset: eigen data is daarna weg,
+dus exporteer eerst de JSON als die nog nodig is.
 
 ## Admin-afscherming (geen echte beveiliging)
 
@@ -35,8 +57,8 @@ af te schermen tegen iemand die dat probeert.
 
 ## Belangrijkste functionaliteit
 
-- **Matrix-overzicht**: sorteerbare tabel per team/keten-niveau, met filters op team en risiconiveau.
-- **Netwerkweergave**: teams en categorieën als sleepbare blokjes, klikbare categorie-legenda, en de mogelijkheid om een nieuwe dependency aan te maken door een lijn tussen twee blokjes te slepen.
+- **Heatmap**: teams (rijen) tegen categorieën (kolommen), elke cel gekleurd naar het hoogste risico erin; klik op een cel, rij of kolom voor de bijbehorende dependencies. Filters op team, risiconiveau, workflowstap en team-/ketenniveau.
+- **Ketenoverzicht**: de keten als samenhangend diagram, met de koppelingen tussen teams en externe partijen.
 - **Analyse**: één pagina met alle metrieken, trends, constateringen en hygiënecontroles over álle data (dependencies, historie, keten, applicaties, partijen, log), plus een rapport in lopende tekst en waarschuwingen per geval — elke kaart legt zijn eigen regel uit; filterbaar per team.
 - **Taal**: NL/EN-toggle rechtsboven.
 - **Export**: huidige weergave als PNG, of alle data als JSON (back-up/herstel).

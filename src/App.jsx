@@ -3,25 +3,25 @@ import { AppProvider, useAppContext } from './context/AppContext'
 import { LanguageProvider, useLanguage } from './context/LanguageContext'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
-import ExecutiveSummary from './components/ExecutiveSummary'
-import InsightPanel from './components/InsightPanel'
-import MatrixView from './components/MatrixView'
+import HeatmapView from './components/HeatmapView'
 import DependencyDetail from './components/DependencyDetail'
 import DependencyForm from './components/DependencyForm'
 import ErrorBoundary from './components/ErrorBoundary'
 
-// Lazy: dit zijn de enige schermen die reactflow gebruiken (het grootste
-// aandeel van de bundel, zie B-18) — MatrixView is een tabel en blijft
-// gewoon eager. Elk scherm downloadt zijn eigen chunk pas op het moment dat
+// Lazy: Ketenoverzicht en Teampagina zijn de schermen die reactflow gebruiken
+// (het grootste aandeel van de bundel, zie B-18); Analyse is zwaar op zijn
+// eigen manier. Elk scherm downloadt zijn eigen chunk pas op het moment dat
 // het echt geopend wordt, i.p.v. dat reactflow altijd meekomt in de
-// hoofdbundel ongeacht welk tabblad je als eerste opent.
-const GraphView = lazy(() => import('./components/GraphView'))
+// hoofdbundel ongeacht welk tabblad je als eerste opent. De Heatmap is een
+// tabel en blijft gewoon eager — het is ook het startscherm.
 const ChainOverview = lazy(() => import('./components/ChainOverview'))
 const AnalysePage = lazy(() => import('./components/AnalysePage'))
 const TeamPage = lazy(() => import('./components/TeamPage'))
 import { exportElementAsPng } from './lib/export'
 import { getCorruptRawData, clearCorruptRawData, getFutureVersionRawData, SCHEMA_VERSION } from './lib/storage'
 import { buildDuplicatePrefill } from './lib/duplicateDependency'
+import { pathForNav, navFromPath, sanitizeChainView, DEFAULT_CHAIN_VIEW } from './lib/routes'
+import { useNieuwereVersieBeschikbaar } from './lib/appVersion'
 
 // Bewust géén silent no-op als een pagina via Admin uitgezet is (bv. een
 // verweesde teampagina-navigatie of een handmatige URL/state-restore): een
@@ -44,13 +44,12 @@ function PageDisabledNotice({ onBack }) {
   )
 }
 
-// Onthoudt welke pagina open stond (tabblad, Heatmap/Relatiekaart-substand,
-// evt. geopende teampagina) zodat een browserherlaad — iets wat tijdens
-// ontwikkeling regelmatig gebeurt na een code-wijziging — niet steeds
-// terugvalt op de standaard Heatmap. Bewust een eigen, kleine localStorage-
-// sleutel i.p.v. onderdeel van de hoofdstate (STORAGE_KEY in lib/storage.js):
-// dit is navigatiestatus, geen inhoudelijke data, en hoeft niet mee in
-// exports/imports of de schema-migratie daarvan.
+// Onthoudt welke pagina open stond (tabblad, evt. geopende teampagina) zodat
+// een browserherlaad — iets wat tijdens ontwikkeling regelmatig gebeurt na
+// een code-wijziging — niet steeds terugvalt op de standaard Heatmap. Bewust
+// een eigen, kleine localStorage-sleutel i.p.v. onderdeel van de hoofdstate
+// (STORAGE_KEY in lib/storage.js): dit is navigatiestatus, geen inhoudelijke
+// data, en hoeft niet mee in exports/imports of de schema-migratie daarvan.
 const NAV_STORAGE_KEY = 'dependency-insight:nav'
 
 function loadNavState() {
@@ -81,43 +80,21 @@ function AppContent() {
     dismissFutureVersionNotice,
   } = useAppContext()
   const { t } = useLanguage()
+  // De URL wint van de bewaarde navigatiestatus: een gedeelde of ververste
+  // link (/ketenoverzicht, /team/<id>) opent die pagina; een onbekend of
+  // leeg pad valt terug op de laatst bewaarde pagina (zie lib/routes.js).
   const [activeTab, setActiveTab] = useState(() => {
-    const restored = loadNavState().activeTab
-    return ['graph', 'matrix', 'chain', 'analyse'].includes(restored) ? restored : 'graph'
+    const restored = navFromPath(window.location.pathname)?.activeTab ?? loadNavState().activeTab
+    return ['heatmap', 'chain', 'analyse'].includes(restored) ? restored : 'heatmap'
   })
-  // Weergavemodus van Netwerkweergave (Heatmap/Relatiekaart) leeft hier i.p.v.
-  // lokaal in GraphView, zodat de Sidebar 'm ook kan tonen/wijzigen. Heatmap
-  // is het startpunt (overzicht eerst); Relatiekaart is de verdiepende
-  // doorklik-view, al blijft hij ook los kiesbaar via de sidebar-subtab.
-  const [graphViewMode, setGraphViewMode] = useState(() => {
-    const restored = loadNavState().graphViewMode
-    return ['heatmap', 'bipartite'].includes(restored) ? restored : 'heatmap'
-  })
-  // Doorklikstatus vanuit een Heatmap-cel: pint een team+categorie-paar op de
-  // Relatiekaart totdat de gebruiker 'm zelf wist (niet enkel hover-gedreven).
-  const [graphHighlight, setGraphHighlight] = useState(null)
-
-  // team of categorie mag null zijn: een Heatmap-rijklik pint enkel het team
-  // (hele rij), een kolomklik enkel de categorie (hele kolom), een celklik
-  // pint beide (exacte combinatie).
-  function handleDrillToRelatie(team, categorie) {
-    setGraphViewMode('bipartite')
-    setGraphHighlight({ teamId: team ? team.id : null, categorie: categorie ?? null })
-  }
-
-  // Handmatig van weergavemodus wisselen (sidebar-subtab) wist een eventuele
-  // doorklik-highlight — die hoort alleen bij de Heatmap-cel die 'm zette.
-  function handleGraphViewModeChange(mode) {
-    setGraphViewMode(mode)
-    setGraphHighlight(null)
-  }
   // Drie standen i.p.v. alleen open/smal: 'open' (breed, vast), 'icons'
   // (smal, vast) en 'auto' (bijna volledig verborgen, schuift tijdelijk open
   // bij hover/focus op de handle — zie Sidebar.jsx). Niet gepersisteerd,
   // zelfde gedrag als de vorige boolean.
   const [sidebarMode, setSidebarMode] = useState('open')
   const [teamPageTeamId, setTeamPageTeamId] = useState(() => {
-    const restored = loadNavState().teamPageTeamId
+    const fromUrl = navFromPath(window.location.pathname)
+    const restored = fromUrl ? fromUrl.teamPageTeamId : loadNavState().teamPageTeamId
     // Het bewaarde team-id moet nog wel bestaan — een team dat in een andere
     // sessie verwijderd is, mag nooit naar een kapotte teampagina navigeren
     // (zelfde "nooit een foutstatus voor onvolledige/rommelige data"-
@@ -125,6 +102,21 @@ function AppContent() {
     return restored && teams.some((tm) => tm.id === restored) ? restored : null
   })
   const [exportingPng, setExportingPng] = useState(false)
+  // Weergave van het ketenoverzicht: hele keten, één team (focus) of
+  // meerdere teams — een expliciete keuze van de gebruiker (geen automatisch
+  // gekozen team: dat oogde als een eigen keuze die het niet was), in de URL
+  // en bewaard. Zie lib/routes.js voor de paden.
+  const [chainView, setChainView] = useState(() => {
+    const fromUrl = navFromPath(window.location.pathname)
+    return sanitizeChainView(fromUrl?.chainView ?? loadNavState().chainView ?? DEFAULT_CHAIN_VIEW, teams)
+  })
+  // Een tab die dagenlang openstaat draait nog op de code van het moment
+  // dat hij geopend werd; deze melding maakt dat zichtbaar i.p.v. het aan
+  // toeval (een hard refresh) over te laten. Wegklikken geldt voor deze
+  // sessie — bij de volgende laadbeurt draait de app op de nieuwe versie en
+  // is er niets meer te melden.
+  const nieuwereVersie = useNieuwereVersieBeschikbaar()
+  const [updateWeggeklikt, setUpdateWeggeklikt] = useState(false)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
@@ -137,8 +129,46 @@ function AppContent() {
   // browserherlaad (bv. na een codewijziging tijdens ontwikkelen) op dezelfde
   // pagina uitkomt i.p.v. terug te vallen op de standaard Heatmap.
   useEffect(() => {
-    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, graphViewMode, teamPageTeamId }))
-  }, [activeTab, graphViewMode, teamPageTeamId])
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, teamPageTeamId, chainView }))
+  }, [activeTab, teamPageTeamId, chainView])
+
+  // URL volgt de navigatiestatus: elke wissel van pagina is een nieuwe
+  // history-entry (pushState), zodat terug/vooruit in de browser werkt. De
+  // allereerste synchronisatie en een wijziging die zélf uit terug/vooruit
+  // komt (popstate) vervangen alleen het huidige pad, anders zou elke
+  // terug-stap weer een nieuwe entry maken en kwam je nooit meer terug.
+  const urlSyncRef = useRef({ initial: true, fromPop: false })
+  useEffect(() => {
+    const path = pathForNav({ activeTab, teamPageTeamId, chainView })
+    const sync = urlSyncRef.current
+    if (window.location.pathname !== path) {
+      if (sync.initial || sync.fromPop) window.history.replaceState(null, '', path)
+      else window.history.pushState(null, '', path)
+    }
+    sync.initial = false
+    sync.fromPop = false
+  }, [activeTab, teamPageTeamId, chainView])
+  useEffect(() => {
+    function handlePop() {
+      const nav = navFromPath(window.location.pathname)
+      if (!nav) return
+      urlSyncRef.current.fromPop = true
+      if (nav.teamPageTeamId) {
+        if (teams.some((tm) => tm.id === nav.teamPageTeamId)) setTeamPageTeamId(nav.teamPageTeamId)
+      } else {
+        setTeamPageTeamId(null)
+        setActiveTab(nav.activeTab)
+        if (nav.activeTab === 'chain') setChainView(sanitizeChainView(nav.chainView, teams))
+      }
+      // Leverde de popstate geen statuswijziging op (zelfde pagina), dan
+      // loopt het sync-effect hierboven niet en moet de vlag hier weer uit.
+      window.setTimeout(() => {
+        urlSyncRef.current.fromPop = false
+      }, 0)
+    }
+    window.addEventListener('popstate', handlePop)
+    return () => window.removeEventListener('popstate', handlePop)
+  }, [teams])
 
   // Een geopende teampagina hoort bij een bestaand team: na 'Wis alle data'
   // of een JSON-import (beide vervangen de hele teamlijst) zou de pagina
@@ -147,7 +177,10 @@ function AppContent() {
   // volgende laadbeurt (migrateTeamWorkflows) weer wegvalt.
   useEffect(() => {
     if (teamPageTeamId && !teams.some((tm) => tm.id === teamPageTeamId)) setTeamPageTeamId(null)
-  }, [teams, teamPageTeamId])
+    // Weergave van het ketenoverzicht opschonen zodra een team verdwijnt.
+    const clean = sanitizeChainView(chainView, teams)
+    if (clean.teamId !== chainView.teamId || clean.teamIds.length !== chainView.teamIds.length) setChainView(clean)
+  }, [teams, teamPageTeamId, chainView])
 
   function handleTabChange(tab) {
     setTeamPageTeamId(null)
@@ -161,14 +194,6 @@ function AppContent() {
   function handleNavigateToTeam(teamId) {
     setTeamPageTeamId(teamId)
     setCurrentTeamId(teamId)
-  }
-
-  function handleQuickCreate(sourceTeamId, categorie, scope) {
-    setFormState({
-      editing: null,
-      defaultTeamId: sourceTeamId,
-      prefill: { scope, categorie },
-    })
   }
 
   // Zelfde afhandeling als TeamPage.handleSaveDependency: 'meerdere teams'
@@ -268,11 +293,13 @@ function AppContent() {
           bij teampagina-navigatie het team te onthouden). */}
       <Header onNewDependency={() => setFormState({ editing: null })} />
 
-      {/* Boven de sidebar (z-30 tegenover Header/Sidebar's eigen z-lagen),
-          onder de 57px-hoge header — zichtbaar ongeacht welke pagina open
-          staat, want beide gaan over de opslag zelf, niet over één scherm. */}
+      {/* Onder de 57px-hoge header, maar bóven de sidebar — zichtbaar
+          ongeacht welke pagina open staat, want deze meldingen gaan over de
+          opslag/versie zelf, niet over één scherm. z-40 i.p.v. z-30: de
+          sidebar is óók z-30 en staat later in de DOM, waardoor hij het
+          begin van de melding afdekte. */}
       {corruptedOnLoad && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('corrupted.message')}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -297,7 +324,7 @@ function AppContent() {
           overschrijft — alleen een download van de bewaarde kopie, zodat de
           gebruiker 'm mee kan nemen naar een bijgewerkte app. */}
       {futureVersionOnLoad && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('futureVersion.message', { version: futureVersionOnLoad, current: SCHEMA_VERSION })}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -317,12 +344,36 @@ function AppContent() {
           </span>
         </div>
       )}
+      {/* Melding over een nieuwere versie van de APP (andere zaak dan de
+          melding hierboven, die over nieuwere DATA gaat). Wijkt uit voor alle
+          meldingen die over de opslag zelf gaan: die zijn urgenter. */}
+      {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && !saveError && nieuwereVersie && !updateWeggeklikt && (
+        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
+          <span>{t('update.message')}</span>
+          <span className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+            >
+              {t('update.reload')}
+            </button>
+            <button
+              type="button"
+              onClick={() => setUpdateWeggeklikt(true)}
+              className="rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+            >
+              {t('update.dismiss')}
+            </button>
+          </span>
+        </div>
+      )}
       {/* Losse balk naast de corrupt-melding: hier is de data juist wél
           gewoon geladen, alleen zijn er records overgeslagen. Daarom een
           andere, minder alarmerende toon en geen downloadknop — er valt niets
           te redden aan een null of een losse tekst. */}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad > 0 && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('skipped.message', { count: skippedOnLoad })}</span>
           <button
             type="button"
@@ -334,7 +385,7 @@ function AppContent() {
         </div>
       )}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && saveError && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-30 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('saveError.message')}</span>
           <button
             type="button"
@@ -353,22 +404,19 @@ function AppContent() {
         exportingPng={exportingPng}
         onNavigateToTeam={handleNavigateToTeam}
         activeTeamId={teamPageTeamId}
-        graphViewMode={graphViewMode}
-        onGraphViewModeChange={handleGraphViewModeChange}
         mode={sidebarMode}
         onModeChange={setSidebarMode}
       />
 
       {/* Topbar en sidebar staan vast (position:fixed); alleen <main> scrolt,
-          met pt-[73px] om onder de 57px-hoge fixed header uit te komen.
-          Matrix blijft op de vertrouwde leesbreedte (tabel/kaarten lezen niet
-          prettiger op ultra-brede schermen); de canvasgerichte schermen
-          (netwerk/keten/teampagina) mogen de volledige beschikbare breedte
-          benutten — daar was juist de klacht dat ze te smal/gecentreerd stonden. */}
+          met pt-[73px] om onder de 57px-hoge fixed header uit te komen. Alle
+          overgebleven schermen (heatmap/keten/teampagina) mogen de volledige
+          beschikbare breedte benutten — daar was juist de klacht dat ze te
+          smal/gecentreerd stonden. */}
       <main
-        className={`app-main mx-auto h-full space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${
+        className={`app-main mx-auto h-full max-w-none space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${
           sidebarMode === 'open' ? 'md:pl-60' : sidebarMode === 'icons' ? 'md:pl-16' : 'md:pl-8'
-        } ${teamPageTeamId || activeTab !== 'matrix' ? 'max-w-none' : 'max-w-7xl'}`}
+        }`}
       >
         {/* Ketenoverzicht en teamcanvas tekenen in een eigen viewport en komen
             op papier hoe dan ook afgekapt. Bij printen worden ze verborgen
@@ -393,51 +441,35 @@ function AppContent() {
             <PageDisabledNotice onBack={() => setTeamPageTeamId(null)} />
           )
         ) : (
-          <>
-            {activeTab === 'matrix' && adminSettings.pages.matrix && (
-              <>
-                {adminSettings.sections.matrix.samenvattingskaarten && <ExecutiveSummary />}
-                {adminSettings.sections.matrix.keyObservations && <InsightPanel />}
-              </>
-            )}
-
-            <div ref={viewRef} className="bg-[#f3f6f9]">
-              {activeTab === 'matrix' &&
-                (adminSettings.pages.matrix ? (
-                  <MatrixView onSelect={setSelectedDependency} adminSections={adminSettings.sections.matrix} />
-                ) : (
-                  <PageDisabledNotice />
-                ))}
-              {activeTab === 'graph' &&
-                (adminSettings.pages.netwerk ? (
-                  <GraphView
-                    onSelect={setSelectedDependency}
-                    onQuickCreate={handleQuickCreate}
-                    viewMode={graphViewMode}
-                    highlight={graphHighlight}
-                    onClearHighlight={() => setGraphHighlight(null)}
-                    onDrillToRelatie={handleDrillToRelatie}
-                    adminSections={adminSettings.sections.netwerk}
-                    onNavigateToTeam={handleNavigateToTeam}
-                    sidebarMode={sidebarMode}
-                  />
-                ) : (
-                  <PageDisabledNotice />
-                ))}
-              {activeTab === 'chain' &&
-                (adminSettings.pages.keten ? (
-                  <ChainOverview adminSections={adminSettings.sections.keten} sidebarMode={sidebarMode} />
-                ) : (
-                  <PageDisabledNotice />
-                ))}
-              {activeTab === 'analyse' &&
-                (adminSettings.pages.analyse !== false ? (
-                  <AnalysePage onSelect={setSelectedDependency} onNavigateToTeam={handleNavigateToTeam} />
-                ) : (
-                  <PageDisabledNotice />
-                ))}
-            </div>
-          </>
+          <div ref={viewRef} className="bg-[#f3f6f9]">
+            {activeTab === 'heatmap' &&
+              (adminSettings.pages.heatmap ? (
+                <HeatmapView
+                  onSelect={setSelectedDependency}
+                  adminSections={adminSettings.sections.heatmap}
+                  onNavigateToTeam={handleNavigateToTeam}
+                />
+              ) : (
+                <PageDisabledNotice />
+              ))}
+            {activeTab === 'chain' &&
+              (adminSettings.pages.keten ? (
+                <ChainOverview
+                  adminSections={adminSettings.sections.keten}
+                  sidebarMode={sidebarMode}
+                  view={chainView}
+                  onViewChange={setChainView}
+                />
+              ) : (
+                <PageDisabledNotice />
+              ))}
+            {activeTab === 'analyse' &&
+              (adminSettings.pages.analyse !== false ? (
+                <AnalysePage onSelect={setSelectedDependency} onNavigateToTeam={handleNavigateToTeam} />
+              ) : (
+                <PageDisabledNotice />
+              ))}
+          </div>
         )}
         </Suspense>
       </main>

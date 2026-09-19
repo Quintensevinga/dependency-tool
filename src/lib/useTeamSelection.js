@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 
-// Teamselectie voor de filterpanelen (Heatmap/Relatiekaart, Ketenoverzicht,
-// Matrix). De standaard per team volgt uit de data: actieve teams aan,
+// Teamselectie voor de filterpanelen (Heatmap, Ketenoverzicht).
+// De standaard per team volgt uit de data: actieve teams aan,
 // gearchiveerde teams uit (tenzij includeArchived) — en die standaard wordt
 // bij elke render opnieuw bepaald, niet één keer bij het openen van de
 // weergave. Archiveren of de-archiveren terwijl de weergave open staat
