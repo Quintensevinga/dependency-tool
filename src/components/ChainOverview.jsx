@@ -1505,6 +1505,10 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
     [focusChainTrace, depth, filteredTeams, chainEdgesAll],
   )
 
+  // Vallen er teams buiten de tekening? Alleen mogelijk in de weergave
+  // 'Één team': daar bepaalt de dieptemeter hoeveel kolommen er meekomen.
+  const teamsBuitenBeeld = visibleTeams.length < activeTeams.length
+
   // Hoogste risico per kaart (badge op ingeklapte kaarten), over álle
   // dependencies van het team: team- én ketenniveau samen, zonder risicofilter
   // — dependencies zijn hier geen invoer, dus zo'n filter had hier niets te
@@ -1816,6 +1820,17 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
             t('chain.depthLabel'),
             t('chain.depthHint'),
           )}
+          {/* Alleen in deze weergave zegt geen enkele teller wat er getekend
+              wordt: de tekening rolt vanaf het focusteam uit en wordt op de
+              diepte afgekapt, dus er kunnen teams buiten beeld vallen zonder
+              dat iets dat meldt. Bij 'Hele keten' en 'Meerdere teams' is wat
+              gekozen is precies wat getekend wordt. */}
+          <span
+            className={`whitespace-nowrap text-[11px] ${teamsBuitenBeeld ? 'font-medium text-[#2a5f8a]' : 'text-slate-400'}`}
+          >
+            {t('chain.teamsInView', { count: visibleTeams.length, total: activeTeams.length })}
+            {teamsBuitenBeeld && <span className="font-normal"> · {t('chain.teamsInViewHint')}</span>}
+          </span>
         </div>
       )}
       {view.mode === 'teams' && (
