@@ -3,6 +3,17 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
+
+- **CI: npm-uitvoer tijdelijk naar het job summary** (Lars Hoogland)
+
+- **CI: npm-uitvoer tijdelijk naar het job summary** (Lars Hoogland)
+
+  De foutregel van npm ci staat alleen in de CI-log en die is niet zonder login te
+  lezen; de annotaties bevatten alleen 'Process completed with exit code 1'. Het
+  job summary komt wel publiek terug via de API. Tijdelijke stap, gaat eruit zodra
+  de oorzaak bekend is.
+
 - **Beurt 9 samengevoegd: Instellingen als eigen pagina** (Lars Hoogland)
 
   28 -- Instellingen wordt /instellingen met zeven subtabs, en de twee
