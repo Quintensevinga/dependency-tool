@@ -3,6 +3,32 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
+
+- **Nagekomen bij punt 16: een import komt ook langs de bovengrens** (Lars Hoogland)
+
+- **Punt 16 nagekomen: een import komt ook langs de bovengrens** (Lars Hoogland)
+
+  De afkapping zat alleen in persist(), maar importState schrijft rechtstreeks met
+  saveState en gaat daar niet langs. Gemeten in de browser: een bestand met 8000
+  logregels landde ongemoeid in de opslag en werd pas bij de eerstvolgende
+  wijziging teruggebracht naar 2000.
+
+  Dat is niet theoretisch. In deze werkwijze gaat het JSON-bestand van hand tot
+  hand, dus importeren is het dagelijkse pad. En het faalscenario is net waar punt
+  16 voor bedoeld is: bij een fors log kan juist die eerste schrijfactie op het
+  opslagquotum stuklopen, en dan is de hele import niet bewaard.
+
+  importState past nu begrensLog toe op het gemigreerde bestand, voor het opslaan.
+
+  Gecontroleerd: dezelfde import levert nu meteen 2000 regels op in plaats van
+  8000. Een wachtende reviewregel uit het bestand blijft staan (2001 regels) en de
+  beheerpagina toont 'Wijzigingenlog 1' -- de uitzondering werkt dus ook op dit
+  pad, met de dependencies uit het geimporteerde bestand als toets.
+
+  Drie tests erbij op de samenstelling die importState gebruikt,
+  begrensLog(migrateState(bestand)); zonder de begrenzing valt de eerste om.
+
 - **Beurt 8 samengevoegd: analyse en opslag** (Lars Hoogland)
 
   19  -- cyclusdetectie begrensd op 200 en het teamfilter voor de zware stap;
