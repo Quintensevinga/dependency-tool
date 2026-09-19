@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import SettingsPanel from './SettingsPanel'
+import { useReviewwachtrij } from './SettingsPanel'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { LijstZoekveld, ToonMeerKnop, useZoekbareLijst } from './ZoekbareLijst'
@@ -112,18 +112,26 @@ function ChevronIcon({ open }) {
   )
 }
 
-function RailButton({ active, title, onClick, children, label, collapsed }) {
+function RailButton({ active, title, onClick, children, label, collapsed, badge = null }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      title={title}
-      className={`flex items-center gap-3 rounded-lg py-2.5 text-left text-sm font-medium transition-colors ${
+      title={badge ? `${title} (${badge})` : title}
+      className={`relative flex items-center gap-3 rounded-lg py-2.5 text-left text-sm font-medium transition-colors ${
         collapsed ? 'w-10 justify-center px-0' : 'w-full px-3'
       } ${active ? 'bg-[#2a5f8a] text-white' : 'text-slate-300 hover:bg-white/8 hover:text-white'}`}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">{children}</span>
       {!collapsed && <span className="truncate">{label}</span>}
+      {/* Ingeklapt past er geen getal naast het label; dan een stip op het
+          icoon, met het aantal in de tooltip. */}
+      {badge !== null &&
+        (collapsed ? (
+          <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[#c98a2e]" aria-hidden="true" />
+        ) : (
+          <span className="ml-auto rounded bg-[#c98a2e]/25 px-1.5 py-0.5 text-[10px] font-semibold text-[#f0cd92]">{badge}</span>
+        ))}
     </button>
   )
 }
@@ -315,10 +323,13 @@ function TeamsSection({ activeTeamId, onNavigateToTeam }) {
   )
 }
 
-export default function Sidebar({ activeTab, onTabChange, onExportPng, exportingPng, onNavigateToTeam, activeTeamId, mode, onModeChange }) {
-  const [settingsOpen, setSettingsOpen] = useState(false)
+export default function Sidebar({ activeTab, onTabChange, onNavigateToTeam, activeTeamId, mode, onModeChange }) {
   const { t } = useLanguage()
   const { adminSettings } = useAppContext()
+  // Eén getal, twee plekken: hier en op de subtab Wachtrij zelf, allebei uit
+  // useReviewwachtrij. Staat de wachtrij uit, dan verdwijnt de teller mee.
+  const wachtend = useReviewwachtrij().length
+  const toonWachtend = adminSettings.pages.wachtrij !== false && wachtend > 0
 
   // 'auto': bijna volledig verborgen, alleen een handle — schuift tijdelijk
   // open bij hover/focus (autoExpanded) zonder de content-padding in App.jsx
@@ -459,27 +470,16 @@ export default function Sidebar({ activeTab, onTabChange, onExportPng, exporting
         <RailButton
           title={t('header.settings')}
           label={t('header.settings')}
-          onClick={() => setSettingsOpen((v) => !v)}
+          active={activeTab === 'instellingen' && !activeTeamId}
+          badge={toonWachtend ? wachtend : null}
+          onClick={() => {
+            onTabChange('instellingen')
+            afterNavigate()
+          }}
           collapsed={collapsed}
         >
           <SettingsIcon />
         </RailButton>
-        {settingsOpen && (
-          // position:fixed (i.p.v. absolute) zodat het paneel niet wordt
-          // meegeklemd door de overflow-auto van <nav> hierboven (nodig voor
-          // de scrollbare teamlijst) — een absolute descendant die buiten
-          // nav's eigen breedte uitsteekt werd anders behandeld als scrollbare
-          // inhoud van nav zelf, waardoor nav automatisch wegscrolde zodra het
-          // paneel focus kreeg en het paneel grotendeels onzichtbaar werd.
-          // De wrapper begint exact op de rechterrand van <nav> (56px smal /
-          // 224px breed) en duwt het paneel met padding op zijn plek. Zonder
-          // die overbrugging zat er een kier van 8-12px tussen nav en paneel:
-          // een auto-hide-zijbalk kreeg daar mouseleave en klapte dicht
-          // terwijl de muis onderweg was naar het paneel.
-          <div className={collapsed ? 'fixed bottom-3 left-14 z-50 pl-3' : 'fixed bottom-3 left-56 z-50 pl-2'}>
-            <SettingsPanel onClose={() => setSettingsOpen(false)} onExportPng={onExportPng} exportingPng={exportingPng} />
-          </div>
-        )}
       </div>
     </nav>
   )

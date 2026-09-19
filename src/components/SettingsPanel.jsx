@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { APP_VERSION, BUILD_TIME } from '../lib/appVersion'
 import { useLanguage } from '../context/LanguageContext'
 import { splitsArchief } from '../lib/changeLog'
+import { openKoppelverzoeken } from '../lib/koppelverzoeken'
 import { STORAGE_KEY } from '../lib/storage'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
 import { emptyTeamWorkflow, validateImportShape, telOnvolledigeNamen } from '../lib/storage'
@@ -131,6 +132,22 @@ function toonOmvang(bytes, language) {
   const mb = bytes / (1024 * 1024)
   return `${mb.toLocaleString(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB`
 }
+
+// De subtabs van de Instellingenpagina. Vier ervan zitten achter de bestaande
+// wachtwoordgrens; die grens verhuist ongewijzigd mee.
+const SETTINGS_TABS = [
+  { key: 'algemeen', labelKey: 'settings.tab.algemeen' },
+  { key: 'teams', labelKey: 'settings.tab.teams' },
+  { key: 'wachtrij', labelKey: 'settings.tab.wachtrij' },
+  { key: 'data', labelKey: 'settings.tab.data' },
+  { key: 'partijen', labelKey: 'settings.tab.partijen' },
+  { key: 'zichtbaarheid', labelKey: 'settings.tab.zichtbaarheid' },
+  { key: 'log', labelKey: 'settings.tab.log' },
+]
+const ADMIN_TABS = ['partijen', 'zichtbaarheid', 'log']
+
+// Hoeveel regels de wachtrij toont voordat 'toon meer' het overneemt.
+const WACHTRIJ_MAX = 50
 
 // Moment van de laatste geslaagde JSON-export. Bewust een eigen, kleine
 // localStorage-sleutel en NIET onderdeel van de hoofdstate: dit is geen
@@ -529,6 +546,128 @@ function PartySection({ items, onAdd, onRename, onApprove, onReject, onDelete })
   )
 }
 
+// De twee wachtrijen die de app kent, op een hoop. Ze stonden op plekken die
+// niets met elkaar te maken hadden: partijen in een sectie die standaard dicht
+// is (dus je moest 'm opendoen om te weten of er iets lag), en
+// koppelingsverzoeken alleen op de teampagina van het ontvangende team -- er was
+// organisatiebreed geen totaal.
+//
+// Eén bron voor twee plekken: deze hook voedt zowel de teller in de zijbalk als
+// de subtab zelf. Een derde teller elders zou onvermijdelijk uit de pas lopen.
+export function useReviewwachtrij() {
+  const { externalParties, teamWorkflows } = useAppContext()
+  return useMemo(() => {
+    const partijen = (externalParties ?? [])
+      .filter((party) => party.status === 'in_afwachting')
+      .map((party) => ({ soort: 'partij', id: `partij:${party.id}`, party }))
+    const verzoeken = openKoppelverzoeken(teamWorkflows).map((req) => ({
+      soort: 'koppelverzoek',
+      id: `verzoek:${req.teamId}:${req.kind}:${req.item.id}`,
+      req,
+    }))
+    return [...partijen, ...verzoeken]
+  }, [externalParties, teamWorkflows])
+}
+
+function Reviewwachtrij() {
+  const { teamName, approveExternalParty, rejectExternalParty, acceptLinkRequest, rejectLinkRequest } = useAppContext()
+  const { t } = useLanguage()
+  const items = useReviewwachtrij()
+  const [filter, setFilter] = useState('alles')
+  const [alles, setAlles] = useState(false)
+
+  const gefilterd = items.filter((x) => filter === 'alles' || x.soort === filter)
+  const zichtbaar = alles ? gefilterd : gefilterd.slice(0, WACHTRIJ_MAX)
+
+  const knop = (waarde, label, aantal) => (
+    <button
+      key={waarde}
+      type="button"
+      onClick={() => setFilter(waarde)}
+      aria-pressed={filter === waarde}
+      className={`rounded px-2 py-1 text-xs transition-colors ${filter === waarde ? 'bg-[#2a5f8a] text-white' : 'text-slate-600 hover:text-slate-900'}`}
+    >
+      {label} {aantal}
+    </button>
+  )
+
+  if (items.length === 0) return <p className="text-xs text-slate-400">{t('settings.queue.empty')}</p>
+
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-xs font-medium text-slate-600">{t('settings.queue.count', { count: gefilterd.length, total: items.length })}</span>
+        <div className="inline-flex rounded-md border border-slate-300 bg-white p-0.5" role="group" aria-label={t('settings.queue.filter')}>
+          {knop('alles', t('settings.queue.filterAll'), items.length)}
+          {knop('partij', t('settings.queue.filterParties'), items.filter((x) => x.soort === 'partij').length)}
+          {knop('koppelverzoek', t('settings.queue.filterRequests'), items.filter((x) => x.soort === 'koppelverzoek').length)}
+        </div>
+      </div>
+
+      <ul className="divide-y divide-slate-100">
+        {zichtbaar.map((x) => (
+          <li key={x.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 py-2">
+            <span className="shrink-0 rounded border border-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-500">
+              {x.soort === 'partij' ? t('settings.queue.kindParty') : t('settings.queue.kindRequest')}
+            </span>
+            {x.soort === 'partij' ? (
+              <>
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-700" title={x.party.naam}>
+                  {x.party.naam}
+                  {x.party.voorgesteldDoorTeamId && (
+                    <span className="ml-1.5 text-slate-400">· {teamName(x.party.voorgesteldDoorTeamId)}</span>
+                  )}
+                </span>
+                <span className="flex shrink-0 gap-2">
+                  <button type="button" onClick={() => approveExternalParty(x.party.id)} className="text-xs font-medium text-[#2a5f8a] hover:underline">
+                    {t('party.approve')}
+                  </button>
+                  <button type="button" onClick={() => rejectExternalParty(x.party.id)} className="text-xs font-medium text-[#9a3b2e] hover:underline">
+                    {t('party.reject')}
+                  </button>
+                </span>
+              </>
+            ) : (
+              <>
+                <span className="min-w-0 flex-1 truncate text-xs text-slate-700" title={x.req.item.label}>
+                  {x.req.item.label || '—'}
+                  <span className="ml-1.5 text-slate-400">
+                    · {teamName(x.req.teamId)} → {teamName(x.req.ontvangerId)}
+                  </span>
+                </span>
+                <span className="flex shrink-0 gap-2">
+                  {/* Dezelfde acties als op de teampagina, met dezelfde
+                      argumenten: ontvangend team, verzendend team, soort, item. */}
+                  <button
+                    type="button"
+                    onClick={() => acceptLinkRequest(x.req.ontvangerId, x.req.teamId, x.req.kind, x.req.item.id)}
+                    className="text-xs font-medium text-[#2a5f8a] hover:underline"
+                  >
+                    {t('teampage.linkRequestAccept')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => rejectLinkRequest(x.req.ontvangerId, x.req.teamId, x.req.kind, x.req.item.id)}
+                    className="text-xs font-medium text-[#9a3b2e] hover:underline"
+                  >
+                    {t('teampage.linkRequestReject')}
+                  </button>
+                </span>
+              </>
+            )}
+          </li>
+        ))}
+      </ul>
+
+      {gefilterd.length > WACHTRIJ_MAX && (
+        <button type="button" onClick={() => setAlles((v) => !v)} className="text-[11px] font-medium text-[#2a5f8a] hover:underline">
+          {alles ? t('lijst.toonMinder') : t('lijst.toonMeer', { count: gefilterd.length - WACHTRIJ_MAX })}
+        </button>
+      )}
+    </div>
+  )
+}
+
 export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
   const {
     alleDependencies,
@@ -582,7 +721,6 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
   const [adminUnlocked, setAdminUnlocked] = useState(false)
   const [adminPasswordInput, setAdminPasswordInput] = useState('')
   const [adminPasswordError, setAdminPasswordError] = useState(false)
-  const [adminOpen, setAdminOpen] = useState(false)
 
   function handleAdminUnlock(e) {
     e.preventDefault()
@@ -625,6 +763,21 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     // sluitingshistorie op de analysepagina leeg.
     return { teams, dependencies: alleDependencies, teamWorkflows, externalParties, changeLog, usingMockData, schemaVersion, adminSettings }
   }
+
+  const [tab, setTab] = useState('algemeen')
+  const wachtrijAan = adminSettings.pages.wachtrij !== false
+  const wachtendeItems = useReviewwachtrij()
+  // Staat de wachtrij uit, dan verdwijnt de subtab mee -- en daarmee ook de
+  // teller, die uit dezelfde bron komt.
+  const zichtbareTabs = SETTINGS_TABS.filter((x) => x.key !== 'wachtrij' || wachtrijAan).map((x) => ({
+    ...x,
+    badge: x.key === 'wachtrij' ? wachtendeItems.length : 0,
+  }))
+  // Een tab die verdwijnt mag je niet op een leeg scherm achterlaten.
+  useEffect(() => {
+    if (!zichtbareTabs.some((x) => x.key === tab)) setTab('algemeen')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wachtrijAan])
 
   // Bij elke render opnieuw meten: het paneel is klein en gaat na een import of
   // een archiveeractie meteen over de nieuwe stand.
@@ -718,23 +871,42 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
   }
 
   return (
-    <div
-      ref={panelRef}
-      role="dialog"
-      aria-modal="false"
-      aria-label={t('header.settings')}
-      className="z-50 w-96 rounded-xl border border-slate-200 bg-white shadow-xl"
-    >
-      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-        <h3 className="text-sm font-semibold text-slate-800">{t('settings.title')}</h3>
-        <button type="button" onClick={onClose} aria-label={t('nav.close')} className="text-slate-400 hover:text-slate-600">
-          ✕
-        </button>
+    <div ref={panelRef} className="mx-auto max-w-3xl space-y-4">
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-800">{t('settings.title')}</h2>
+        <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{t('settings.localData')}</p>
       </div>
 
-      <div className="max-h-[70vh] space-y-4 overflow-y-auto px-4 py-3.5">
-        <p className="text-xs leading-relaxed text-slate-500">{t('settings.localData')}</p>
+      {/* Subtabs i.p.v. één lange kolom in een paneel van 384px breed. Ze
+          mogen wrappen: op telefoonbreedte vallen ze anders buiten beeld. */}
+      <div className="rounded-xl border border-slate-200 bg-white px-2 shadow-sm">
+        <div role="tablist" aria-label={t('settings.title')} className="flex flex-wrap">
+          {zichtbareTabs.map(({ key, labelKey, badge }) => {
+            const aan = key === tab
+            return (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={aan}
+                onClick={() => setTab(key)}
+                className={`-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs transition-colors ${
+                  aan ? 'border-[#2a5f8a] font-semibold text-[#2a5f8a]' : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800'
+                }`}
+              >
+                {t(labelKey)}
+                {badge > 0 && (
+                  <span className={`rounded px-1 text-[10px] font-semibold ${aan ? 'bg-[#2a5f8a]/10 text-[#2a5f8a]' : 'bg-[#c98a2e]/20 text-[#8a5a12]'}`}>{badge}</span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+      </div>
 
+      <div className="space-y-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 shadow-sm">
+        {tab === 'algemeen' && (
+        <>
         {/* Welke versie draait hier eigenlijk? Zonder dit is "heb jij de
             nieuwste?" onbeantwoordbaar — en juist dat is de vraag zodra
             twee mensen iets anders op hun scherm zien. */}
@@ -791,7 +963,12 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
           )}
         </div>
 
+        </>
+        )}
+
+        {tab === 'teams' && (
         <ManageSection
+          defaultOpen
           title={t('settings.teams.title')}
           items={teams}
           addPlaceholder={t('settings.teams.addPlaceholder')}
@@ -803,6 +980,12 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
           blockedMessage={t('settings.teams.deleteBlocked')}
         />
 
+        )}
+
+        {tab === 'wachtrij' && <Reviewwachtrij />}
+
+        {tab === 'data' && (
+        <>
         <div className="flex flex-col gap-1.5">
           <button
             type="button"
@@ -1062,20 +1245,16 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
           )}
         </div>
 
-        <div className="border-t border-slate-100 pt-3">
-          <button
-            type="button"
-            onClick={() => setAdminOpen((v) => !v)}
-            aria-expanded={adminOpen}
-            className="flex w-full items-center justify-between rounded-md px-1 py-1 text-left text-xs font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            {t('settings.admin.title')}
-            <span className={`transition-transform ${adminOpen ? 'rotate-90' : ''}`} aria-hidden="true">
-              ›
-            </span>
-          </button>
-          {adminOpen && (
-            <div className="mt-2">
+        </>
+        )}
+
+        {ADMIN_TABS.includes(tab) && (
+        <div>
+          {/* Geen uitklapper meer bovenop: de subtab zelf is al de onthulling.
+              De wachtwoordgrens blijft ongewijzigd staan -- alleen de extra
+              klik erboven is weg. */}
+          <p className="px-1 text-xs font-semibold text-slate-700">{t('settings.admin.title')}</p>
+          <div className="mt-2">
               {!adminUnlocked ? (
                 <form onSubmit={handleAdminUnlock} className="space-y-2 rounded-md border border-slate-200 bg-slate-50 p-3">
                   <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.admin.disclaimer')}</p>
@@ -1104,27 +1283,41 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
                 </form>
               ) : (
                 <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50 p-3">
-                  <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700">
-                    <input
-                      type="checkbox"
-                      checked={adminSettings.uitgebreideAnalyse}
-                      onChange={() => updateAdminSettings({ ...adminSettings, uitgebreideAnalyse: !adminSettings.uitgebreideAnalyse })}
-                      className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
-                    />
-                    {t('settings.admin.uitgebreideAnalyse')}
-                  </label>
-                  <p className="text-[11px] leading-relaxed text-slate-400">{t('settings.admin.uitgebreideAnalyseHint')}</p>
-                  <AdminLogPage />
-                  <PartySection
+                  {tab === 'zichtbaarheid' && (
+                    <>
+                      <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={adminSettings.uitgebreideAnalyse}
+                          onChange={() => updateAdminSettings({ ...adminSettings, uitgebreideAnalyse: !adminSettings.uitgebreideAnalyse })}
+                          className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                        />
+                        {t('settings.admin.uitgebreideAnalyse')}
+                      </label>
+                      <p className="text-[11px] leading-relaxed text-slate-400">{t('settings.admin.uitgebreideAnalyseHint')}</p>
+                      <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-white p-2.5 text-xs font-semibold text-slate-700">
+                        <input
+                          type="checkbox"
+                          checked={adminSettings.pages.wachtrij !== false}
+                          onChange={() => togglePage('wachtrij')}
+                          className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                        />
+                        {t('settings.queue.toggle')}
+                      </label>
+                      <p className="text-[11px] leading-relaxed text-slate-400">{t('settings.queue.toggleHint')}</p>
+                    </>
+                  )}
+                  {tab === 'log' && <AdminLogPage />}
+                  {tab === 'partijen' && <PartySection
                     items={externalParties}
                     onAdd={(naam, type) => addExternalParty(naam, type, { pending: false })}
                     onRename={renameExternalParty}
                     onApprove={approveExternalParty}
                     onReject={rejectExternalParty}
                     onDelete={deleteExternalParty}
-                  />
-                  <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.admin.toggleHint')}</p>
-                  {ADMIN_PAGE_CONFIG.map((page) => (
+                  />}
+                  {tab === 'zichtbaarheid' && <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.admin.toggleHint')}</p>}
+                  {tab === 'zichtbaarheid' && ADMIN_PAGE_CONFIG.map((page) => (
                     <div key={page.key} className="rounded-md border border-slate-200 bg-white p-2.5">
                       <label className="flex items-center gap-2 text-xs font-semibold text-slate-700">
                         <input
@@ -1155,9 +1348,9 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
                   ))}
                 </div>
               )}
-            </div>
-          )}
+          </div>
         </div>
+        )}
       </div>
     </div>
   )

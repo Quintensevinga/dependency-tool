@@ -98,6 +98,10 @@ export const DEFAULT_ADMIN_SETTINGS = {
     team: true,
     dependencies: true,
     analyse: true,
+    // De reviewwachtrij als subtab van Instellingen (punt 28). Geen eigen
+    // pagina, wel een eigen schakelaar: wie niet met goedkeuringen werkt ziet
+    // de subtab en de teller niet.
+    wachtrij: true,
   },
   sections: {
     heatmap: { categorieUitleg: true, selectiepaneel: true, filters: true },

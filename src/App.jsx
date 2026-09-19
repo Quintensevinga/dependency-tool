@@ -16,6 +16,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // tabel en blijft gewoon eager — het is ook het startscherm.
 const ChainOverview = lazy(() => import('./components/ChainOverview'))
 const AllDependenciesPage = lazy(() => import('./components/AllDependenciesPage'))
+const SettingsPage = lazy(() => import('./components/SettingsPanel'))
 const AnalysePage = lazy(() => import('./components/AnalysePage'))
 const TeamPage = lazy(() => import('./components/TeamPage'))
 import { exportElementAsPng } from './lib/export'
@@ -86,7 +87,7 @@ function AppContent() {
   // leeg pad valt terug op de laatst bewaarde pagina (zie lib/routes.js).
   const [activeTab, setActiveTab] = useState(() => {
     const restored = navFromPath(window.location.pathname)?.activeTab ?? loadNavState().activeTab
-    return ['heatmap', 'chain', 'dependencies', 'analyse'].includes(restored) ? restored : 'heatmap'
+    return ['heatmap', 'chain', 'dependencies', 'analyse', 'instellingen'].includes(restored) ? restored : 'heatmap'
   })
   // Drie standen i.p.v. alleen open/smal: 'open' (breed, vast), 'icons'
   // (smal, vast) en 'auto' (bijna volledig verborgen, schuift tijdelijk open
@@ -412,8 +413,6 @@ function AppContent() {
       <Sidebar
         activeTab={effectiveTab}
         onTabChange={handleTabChange}
-        onExportPng={handleExportPng}
-        exportingPng={exportingPng}
         onNavigateToTeam={handleNavigateToTeam}
         activeTeamId={teamPageTeamId}
         mode={sidebarMode}
@@ -475,6 +474,9 @@ function AppContent() {
               ) : (
                 <PageDisabledNotice />
               ))}
+            {effectiveTab === 'instellingen' && (
+              <SettingsPage onExportPng={handleExportPng} exportingPng={exportingPng} />
+            )}
             {effectiveTab === 'dependencies' && (
               <AllDependenciesPage
                 onSelect={setSelectedDependency}
