@@ -15,11 +15,18 @@ import {
   useStoreApi,
   useUpdateNodeInternals,
 } from 'reactflow'
-// Volledige ELK-bundel op de hoofdthread: een ketenlay-out van enkele
-// tientallen nodes rekent in milliseconden, een web worker is de complexiteit
-// (Vite-workerconfiguratie) hier niet waard. Komt alleen in de lazy chunk van
-// dit scherm terecht (zie App.jsx).
-import ELK from 'elkjs/lib/elk.bundled.js'
+// ELK rekent in een aparte rekendraad, niet op de hoofdthread. Dat was eerder
+// andersom, met als redenering dat een lay-out van enkele tientallen nodes in
+// milliseconden klaar is. Die aanname is gemeten en klopt niet: met de
+// voorbeelddata (8 teams, 31 kaarten) kost een berekening 353 ms, met 40 teams
+// (63 kaarten) 545 ms, en met een processorvertraging van 4x loopt dat op tot
+// 4,6 seconde -- allemaal ruim boven de 200 ms waarboven het scherm merkbaar
+// vastloopt. Dat is bovendien per berekening twee ELK-rondes (zie het effect in
+// ChainCanvas). Beide bestanden komen alleen in de lazy chunk van dit scherm
+// terecht (zie App.jsx); de gebundelde versie wordt pas opgehaald als de
+// rekendraad niet start.
+import ELKApi from 'elkjs/lib/elk-api.js'
+import ElkRekendraad from 'elkjs/lib/elk-worker.min.js?worker'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
@@ -399,6 +406,11 @@ function TeamsMenu({ teams, teamLabels, selectedIds, onToggle, onSelectAll, onSe
 // fitView-prop werkt alleen bij de eerste render. Fit houdt rekening met de
 // eigen footprint van deze toolbar als kleine safe area (lib/flowFit.js),
 // zodat er nooit een kaart onder de knoppen verdwijnt.
+function ChainBusyLabel() {
+  const { t } = useLanguage()
+  return <span>{t('chain.layoutBusy')}</span>
+}
+
 function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   const instance = useReactFlow()
   const store = useStoreApi()
@@ -518,7 +530,54 @@ function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   )
 }
 
-const elk = new ELK()
+// De rekendraad, met terugval op de hoofdthread. Die terugval is er niet voor
+// de sier: een omgeving die geen workers kan starten (of een build waarin het
+// workerbestand ontbreekt) zou anders helemaal geen tekening meer opleveren.
+// Na een mislukking wordt er niet telkens opnieuw een rekendraad geprobeerd --
+// dan zou elke tekening die omweg maken.
+let rekendraadElk = null
+let rekendraadKapot = false
+let hoofdthreadElk = null
+
+function geefRekendraad() {
+  if (rekendraadKapot) return null
+  if (!rekendraadElk) {
+    try {
+      rekendraadElk = new ELKApi({ workerFactory: () => new ElkRekendraad() })
+    } catch (error) {
+      rekendraadKapot = true
+      console.warn('Ketenoverzicht: rekendraad niet gestart, lay-out draait op de hoofdthread', error)
+      return null
+    }
+  }
+  return rekendraadElk
+}
+
+async function geefHoofdthread() {
+  if (!hoofdthreadElk) {
+    const { default: ELKBundled } = await import('elkjs/lib/elk.bundled.js')
+    hoofdthreadElk = new ELKBundled()
+  }
+  return hoofdthreadElk
+}
+
+// Eerst de rekendraad; lukt dat niet, dan een keer opnieuw op de hoofdthread.
+// Een fout in de rekendraad kan ook aan de graaf liggen in plaats van aan de
+// draad zelf; die tweede poging maakt het onderscheid overbodig, want faalt de
+// hoofdthread ook, dan valt de aanroeper terug op de noodlay-out.
+async function layoutGraaf(elkInvoer) {
+  const draad = geefRekendraad()
+  if (draad) {
+    try {
+      return await draad.layout(elkInvoer)
+    } catch (error) {
+      rekendraadKapot = true
+      console.warn('Ketenoverzicht: rekendraad mislukt, lay-out gaat verder op de hoofdthread', error)
+    }
+  }
+  const lokaal = await geefHoofdthread()
+  return lokaal.layout(elkInvoer)
+}
 
 // Leest de door React Flow gemeten afmetingen en handle-posities uit zijn
 // interne administratie (nodeInternals). Levert null zolang nog niet elke
@@ -568,6 +627,11 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
   const store = useStoreApi()
   const nodesInitialized = useNodesInitialized()
   const [layout, setLayout] = useState({ version: 0, graph: null, positions: new Map(), points: new Map() })
+  // Zolang dit aanstaat is er een lay-out onderweg en staan er nog geen (of nog
+  // oude) posities. Kaarten zonder positie zijn onzichtbaar, dus zonder deze
+  // melding kijk je tijdens het rekenen naar een leeg canvas zonder te weten of
+  // er iets gebeurt -- bij tientallen teams duurt dat merkbaar lang.
+  const [bezig, setBezig] = useState(false)
   const runRef = useRef(0)
 
   // Gemeten afmetingen per node, bijgehouden uit React Flow's 'dimensions'-
@@ -650,14 +714,14 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
     // zodat ze naast elkaar aankomen. Zonder zo'n punt volstaat de eerste
     // ronde. Elke ronde krijgt een verse ELK-invoer: ELK schrijft in het
     // object dat het krijgt.
-    elk
-      .layout(buildElkGraph(graph, sizes))
+    setBezig(true)
+    layoutGraaf(buildElkGraph(graph, sizes))
       .then((first) => {
         if (run !== runRef.current) return null
         const firstLayout = applyElkLayout(first, graph)
         const fanIn = fanInOffsets(graph, sizes, firstLayout.positions)
         if (fanIn.size === 0) return firstLayout
-        return elk.layout(buildElkGraph(graph, sizes, ELK_LAYOUT_OPTIONS, fanIn)).then((second) => (run === runRef.current ? applyElkLayout(second, graph) : null))
+        return layoutGraaf(buildElkGraph(graph, sizes, ELK_LAYOUT_OPTIONS, fanIn)).then((second) => (run === runRef.current ? applyElkLayout(second, graph) : null))
       })
       .then((result) => {
         if (!result || run !== runRef.current) return
@@ -667,6 +731,9 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
         if (run !== runRef.current) return
         console.error('Ketenoverzicht: ELK-lay-out mislukt, noodlay-out gebruikt', error)
         setLayout({ version: run, graph, positions: fallbackPositions(graph, sizes), points: new Map() })
+      })
+      .finally(() => {
+        if (run === runRef.current) setBezig(false)
       })
     // `dims` hoort in de deps: een kaart die van maat verandert zonder dat de
     // structuur wijzigt (bv. een nagemeten handle-set) krijgt zo ook een
@@ -729,6 +796,20 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
       onNodesChange={onNodesChange}
       {...handlers}
     >
+      {bezig && (
+        // Onderaan en niet bovenaan: bovenin ligt de canvasbalk, die zich over
+        // de volle breedte uitstrekt en de melding zou overdekken. Onderin is
+        // het midden vrij (knoppenbalk linksonder, minikaart rechtsonder).
+        <Panel position="bottom-center">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-1.5 text-xs text-slate-600 shadow-md backdrop-blur-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="animate-spin text-[#2a5f8a]">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+              <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+            <ChainBusyLabel />
+          </div>
+        </Panel>
+      )}
       <ChainCanvasToolbar fitKey={`${layout.version}:${fitKey}`} onFullscreen={onFullscreen} isFullscreen={isFullscreen} />
       {children}
     </PannableFlowCanvas>
