@@ -42,6 +42,7 @@ import DependencyDetail from './DependencyDetail'
 import SpotlightTour from './SpotlightTour'
 import FloatingTooltip from './FloatingTooltip'
 import PartyPicker from './PartyPicker'
+import { openKoppelverzoeken } from '../lib/koppelverzoeken'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
 
@@ -3838,19 +3839,8 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // Koppelingsverzoeken van andere teams aan dít team: elk input-/output-item
   // elders dat naar dit team wijst en nog op akkoord wacht (zie
   // acceptLinkRequest/rejectLinkRequest in AppContext).
-  const incomingLinkRequests = useMemo(() => {
-    const list = []
-    for (const [otherTeamId, wf] of Object.entries(teamWorkflows)) {
-      if (otherTeamId === teamId) continue
-      for (const item of wf.inputs ?? []) {
-        if (item.linkedTeam === teamId && item.linkStatus === 'voorgesteld') list.push({ kind: 'input', item, teamId: otherTeamId })
-      }
-      for (const item of wf.outputs ?? []) {
-        if (item.linkedTeam === teamId && item.linkStatus === 'voorgesteld') list.push({ kind: 'output', item, teamId: otherTeamId })
-      }
-    }
-    return list
-  }, [teamWorkflows, teamId])
+  // Zelfde bron als de reviewwachtrij in Instellingen (zie lib/koppelverzoeken).
+  const incomingLinkRequests = useMemo(() => openKoppelverzoeken(teamWorkflows, teamId), [teamWorkflows, teamId])
 
   function handleAcceptRequest(req) {
     acceptLinkRequest(teamId, req.teamId, req.kind, req.item.id)

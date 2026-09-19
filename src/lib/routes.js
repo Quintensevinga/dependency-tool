@@ -2,16 +2,16 @@
 // het delen van een link op dezelfde pagina uitkomen. Bewust zonder
 // router-library: drie tabbladen en een teampagina rechtvaardigen geen extra
 // dependency. Paden:
-//   /heatmap · /dependencies · /analyse · /team/<team-id>
+//   /heatmap · /dependencies · /analyse · /instellingen · /team/<team-id>
 //   /ketenoverzicht                       hele keten
 //   /ketenoverzicht/team                  één team, nog niet gekozen
 //   /ketenoverzicht/<team-id>             één team (focus)
 //   /ketenoverzicht/teams/<id>,<id>,…     meerdere teams
-// De overlays (dependency-detail, formulier, instellingen) zijn tijdelijke
+// De overlays (dependency-detail, formulier) zijn tijdelijke
 // toestand en krijgen bewust geen eigen URL. Op Vercel zorgt vercel.json
 // ervoor dat elk pad index.html serveert (single-page app); de Vite dev-server
 // doet dat standaard al.
-const TAB_PATHS = { heatmap: '/heatmap', chain: '/ketenoverzicht', dependencies: '/dependencies', analyse: '/analyse' }
+const TAB_PATHS = { heatmap: '/heatmap', chain: '/ketenoverzicht', dependencies: '/dependencies', analyse: '/analyse', instellingen: '/instellingen' }
 const CHAIN_VIEW_MODES = ['chain', 'team', 'teams']
 
 export const DEFAULT_CHAIN_VIEW = { mode: 'chain', teamId: '', teamIds: [] }
