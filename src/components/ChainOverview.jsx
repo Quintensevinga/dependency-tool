@@ -559,15 +559,65 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
   // terugkoppeling verloor elke kaart na de eerste lay-out zijn maat en
   // sloeg React Flow alle lijnen stilzwijgend over (getest).
   const [dims, setDims] = useState(() => new Map())
-  const onNodesChange = useCallback((changes) => {
-    const measured = changes.filter((change) => change.type === 'dimensions' && change.dimensions)
-    if (measured.length === 0) return
-    setDims((prev) => {
-      const next = new Map(prev)
-      for (const change of measured) next.set(change.id, change.dimensions)
-      return next
-    })
-  }, [])
+  // Binnengekomen maten die nog verwerkt moeten worden. React Flow meldt per
+  // kaart een aparte maat; één setDims per melding zou het lay-out-effect
+  // hieronder net zo vaak starten als er kaarten in beeld staan. Ze worden
+  // daarom verzameld en één keer aan het eind van het beeldframe verwerkt,
+  // zodat één tekening ook één lay-outberekening oplevert.
+  const pendingDims = useRef(new Map())
+  const flushFrame = useRef(0)
+  useEffect(
+    () => () => {
+      if (flushFrame.current) window.cancelAnimationFrame(flushFrame.current)
+    },
+    [],
+  )
+
+  const onNodesChange = useCallback(
+    (changes) => {
+      let gemeten = false
+      for (const change of changes) {
+        if (change.type !== 'dimensions' || !change.dimensions) continue
+        pendingDims.current.set(change.id, change.dimensions)
+        gemeten = true
+      }
+      if (!gemeten || flushFrame.current) return
+      // Welke kaarten er nú in de tekening zitten, vastgelegd op het moment
+      // van melden: één frame later kan `graph` alweer een andere zijn.
+      const huidigeIds = new Set(graph.nodes.map((node) => node.id))
+      flushFrame.current = window.requestAnimationFrame(() => {
+        flushFrame.current = 0
+        const binnen = pendingDims.current
+        pendingDims.current = new Map()
+        setDims((prev) => {
+          const next = new Map(prev)
+          let gewijzigd = false
+          // Maten van kaarten die niet meer in de tekening zitten weggooien,
+          // anders rekent de eerste ronde na een wisseling van weergave nog
+          // op resten van de vorige tekening.
+          for (const id of [...next.keys()]) {
+            if (huidigeIds.has(id) || binnen.has(id)) continue
+            next.delete(id)
+            gewijzigd = true
+          }
+          // Op waarde vergelijken, niet klakkeloos overnemen: React Flow
+          // meldt een maat ook opnieuw als er niets aan veranderd is (en dat
+          // gebeurt bij elke nieuwe nodes-array). Zonder deze vergelijking is
+          // elke melding een nieuwe Map, en dus een nieuwe lay-outronde.
+          for (const [id, maat] of binnen) {
+            const vorige = next.get(id)
+            if (vorige && vorige.width === maat.width && vorige.height === maat.height) continue
+            next.set(id, maat)
+            gewijzigd = true
+          }
+          // Dezelfde referentie terug wanneer er niets veranderd is: dan ziet
+          // React geen nieuwe waarde en blijft het lay-out-effect staan.
+          return gewijzigd ? next : prev
+        })
+      })
+    },
+    [graph],
+  )
 
   useEffect(() => {
     if (!nodesInitialized || graph.nodes.length === 0) return
