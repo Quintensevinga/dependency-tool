@@ -296,6 +296,7 @@ const TEKST = {
     kCycli: 'Cycli in de keten',
     uCycli: 'Teams die via koppelingen bij zichzelf terugkomen. Eén cyclus aan het eind is normaal; meer cycli maken de keten onleesbaar.',
     geenCycli: 'Geen cycli.',
+    cycliAfgekapt: 'Meer dan {{n}} cycli gevonden; alleen de eerste {{n}} zijn doorzocht en worden hier getoond.',
     kLos: 'Losse inputs en onbenutte outputs',
     uLos: 'Inputs zonder koppeling of partij, en outputs die niemand afneemt. Niet fout, wel een teken van een onvolledige kaart.',
     losseInputs: 'Losse inputs',
@@ -641,6 +642,7 @@ const TEKST = {
     kCycli: 'Cycles in the chain',
     uCycli: 'Teams that come back to themselves via links. One cycle at the end is normal; more cycles make the chain unreadable.',
     geenCycli: 'No cycles.',
+    cycliAfgekapt: 'More than {{n}} cycles found; only the first {{n}} were searched and are shown here.',
     kLos: 'Loose inputs and unused outputs',
     uLos: 'Inputs without link or party, and outputs nobody consumes. Not wrong, but a sign of an incomplete map.',
     losseInputs: 'Loose inputs',
@@ -1008,6 +1010,31 @@ function Waarschuwingen({ signalen, ctx, onSelect, onNavigateToTeam, tx }) {
       {signalen.length > 25 && (
         <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
           {alle ? tx('toonMinder') : tx('toonAlle', { n: signalen.length })}
+        </button>
+      )}
+    </div>
+  )
+}
+
+// Cycli in de keten. Twee afkappingen die allebei benoemd worden: de zoektocht
+// zelf stopt bij 200 gevonden cycli (zie MAX_CYCLI in analytics.js) en deze
+// lijst toont er 25 met een knop eronder. Stil afkappen zou hier het ergst
+// zijn: dan lijkt een keten met honderden cycli net zo rustig als een met drie.
+function CycliLijst({ cycli, afgekapt, maxCycli, teamName, tx }) {
+  const [alle, setAlle] = useState(false)
+  if (cycli.length === 0) return <p className="text-xs text-slate-400">{tx('geenCycli')}</p>
+  const zichtbaar = alle ? cycli : cycli.slice(0, 25)
+  return (
+    <div>
+      {afgekapt && <p className="mb-1.5 text-[11px] font-medium text-[#8a5a12]">{tx('cycliAfgekapt', { n: maxCycli })}</p>}
+      <ul className="space-y-1 text-xs text-slate-700">
+        {zichtbaar.map((c) => (
+          <li key={c.join('|')}>{[...c, c[0]].map((id) => teamName(id)).join(' → ')}</li>
+        ))}
+      </ul>
+      {cycli.length > 25 && (
+        <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
+          {alle ? tx('toonMinder') : tx('toonAlle', { n: cycli.length })}
         </button>
       )}
     </div>
@@ -1776,15 +1803,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
               />
             </Kaart>
             <Kaart titel={tx('kCycli')} uitleg={tx('uCycli')}>
-              {a.keten.cycli.length === 0 ? (
-                <p className="text-xs text-slate-400">{tx('geenCycli')}</p>
-              ) : (
-                <ul className="space-y-1 text-xs text-slate-700">
-                  {a.keten.cycli.map((c) => (
-                    <li key={c.join('|')}>{[...c, c[0]].map((id) => teamName(id)).join(' → ')}</li>
-                  ))}
-                </ul>
-              )}
+              <CycliLijst cycli={a.keten.cycli} afgekapt={a.keten.cycliAfgekapt} maxCycli={a.keten.maxCycli} teamName={teamName} tx={tx} />
             </Kaart>
             <Kaart titel={tx('kLos')} uitleg={tx('uLos')}>
               <div className="space-y-2">
