@@ -792,7 +792,14 @@ export function AppProvider({ children }) {
   // ongeldig is; de aanroeper (SettingsPanel) vangt dit af en toont het.
   const importState = useCallback((imported) => {
     validateImportShape(imported)
-    const next = migrateState(imported)
+    // Ook hier begrenzen, niet alleen in persist: een import schrijft
+    // rechtstreeks naar de opslag en is in deze werkwijze het dagelijkse pad
+    // (het JSON-bestand gaat van hand tot hand). Zonder deze regel landde een
+    // bestand met 8000 logregels ongemoeid in de opslag en sloeg de bovengrens
+    // pas toe bij de eerstvolgende wijziging -- terwijl juist die eerste
+    // schrijfactie op het opslagquotum kan stuklopen, en dan is de hele import
+    // niet bewaard.
+    const next = begrensLog(migrateState(imported))
     const ok = saveState(next)
     // Ook de ref bijwerken: het effect hierboven zet saveError na elke
     // state-wijziging opnieuw vanuit lastSaveOkRef, en zou een mislukte
