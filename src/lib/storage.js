@@ -96,11 +96,13 @@ export const DEFAULT_ADMIN_SETTINGS = {
     heatmap: true,
     keten: true,
     team: true,
+    dependencies: true,
     analyse: true,
   },
   sections: {
     heatmap: { categorieUitleg: true, selectiepaneel: true, filters: true },
     keten: { filters: true, legenda: true },
+    dependencies: { filters: true },
     team: {
       applicatieflow: true,
       ontwikkelflow: true,

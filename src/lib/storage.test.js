@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { migrateState, validateImportShape, telOnvolledigeNamen, SCHEMA_VERSION } from './storage'
+import { migrateState, migrateAdminSettings, validateImportShape, telOnvolledigeNamen, SCHEMA_VERSION } from './storage'
 
 // Een oude export zoals die vóór de huidige schemaversie uit de app kwam:
 // teams als losse tekst, en een dependency met uitsluitend oude waarden. Geen
@@ -297,5 +297,27 @@ describe('migrateState — idempotent', () => {
   it('is ook idempotent op een lege invoer', () => {
     const eenmaal = migrateState({})
     expect(migrateState(migrateState({}))).toEqual(eenmaal)
+  })
+})
+
+describe('migrateAdminSettings — pagina-schakelaars', () => {
+  it('vult een pagina die nog niet in de opgeslagen instellingen stond met de standaardwaarde', () => {
+    // Een export van vóór 'Alle dependencies' kent die sleutel niet. Die hoort
+    // aan te komen als aan, niet als undefined — anders verdwijnt de pagina
+    // stilzwijgend uit de zijbalk voor iedereen die zo'n export terugzet.
+    const uit = migrateAdminSettings({ pages: { heatmap: true, keten: true, team: true, analyse: true } })
+    expect(uit.pages.dependencies).toBe(true)
+    expect(uit.sections.dependencies).toEqual({ filters: true })
+  })
+
+  it('respecteert een bewust uitgezette pagina', () => {
+    expect(migrateAdminSettings({ pages: { dependencies: false } }).pages.dependencies).toBe(false)
+  })
+
+  it("gooit sleutels weg van paginas die niet meer bestaan (Matrix, Netwerk)", () => {
+    const uit = migrateAdminSettings({ pages: { matrix: true, netwerk: false, heatmap: false } })
+    expect(uit.pages.matrix).toBeUndefined()
+    expect(uit.pages.netwerk).toBeUndefined()
+    expect(uit.pages.heatmap).toBe(false)
   })
 })

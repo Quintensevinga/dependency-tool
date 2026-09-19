@@ -303,6 +303,7 @@ export const STRINGS = {
     'lijst.toonMeer': 'Toon meer (nog {{count}})',
     'lijst.toonMinder': 'Toon minder',
     'lijst.geenTeamGevonden': 'Geen team gevonden',
+    'tabel.rijenGetoond': '{{count}} van de {{total}} rijen',
     'party.search': 'Zoek een partij…',
     'party.searchCount': '{{count}} van de {{total}} partijen',
     'party.typeLabel': 'Soort partij',
@@ -313,6 +314,12 @@ export const STRINGS = {
 
     'tab.chain': 'Ketenoverzicht',
     'tab.analyse': 'Analyse',
+    'tab.dependencies': 'Alle dependencies',
+    'dependencies.title': 'Alle dependencies',
+    'dependencies.intro': 'Zoek door alle dependencies van alle teams tegelijk. Klik een rij aan voor het detail.',
+    'dependencies.searchPlaceholder': 'Zoek op titel, toelichting, team, categorie of partij…',
+    'dependencies.count': '{{count}} van de {{total}} dependencies',
+    'dependencies.empty': 'Geen dependency voldoet aan deze zoekopdracht en filters.',
 
     'tour.skip': 'Overslaan',
     'tour.previous': 'Vorige',
@@ -968,6 +975,7 @@ export const STRINGS = {
     'lijst.toonMeer': 'Show more ({{count}} left)',
     'lijst.toonMinder': 'Show less',
     'lijst.geenTeamGevonden': 'No team found',
+    'tabel.rijenGetoond': '{{count}} of {{total}} rows',
     'party.search': 'Search for a party…',
     'party.searchCount': '{{count}} of {{total}} parties',
     'party.typeLabel': 'Party type',
@@ -978,6 +986,12 @@ export const STRINGS = {
 
     'tab.chain': 'Chain overview',
     'tab.analyse': 'Analysis',
+    'tab.dependencies': 'All dependencies',
+    'dependencies.title': 'All dependencies',
+    'dependencies.intro': 'Search every team’s dependencies at once. Click a row for the detail.',
+    'dependencies.searchPlaceholder': 'Search by title, notes, team, category or party…',
+    'dependencies.count': '{{count}} of {{total}} dependencies',
+    'dependencies.empty': 'No dependency matches this search and these filters.',
 
     'tour.skip': 'Skip',
     'tour.previous': 'Previous',

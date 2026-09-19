@@ -15,6 +15,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 // hoofdbundel ongeacht welk tabblad je als eerste opent. De Heatmap is een
 // tabel en blijft gewoon eager — het is ook het startscherm.
 const ChainOverview = lazy(() => import('./components/ChainOverview'))
+const AllDependenciesPage = lazy(() => import('./components/AllDependenciesPage'))
 const AnalysePage = lazy(() => import('./components/AnalysePage'))
 const TeamPage = lazy(() => import('./components/TeamPage'))
 import { exportElementAsPng } from './lib/export'
@@ -85,7 +86,7 @@ function AppContent() {
   // leeg pad valt terug op de laatst bewaarde pagina (zie lib/routes.js).
   const [activeTab, setActiveTab] = useState(() => {
     const restored = navFromPath(window.location.pathname)?.activeTab ?? loadNavState().activeTab
-    return ['heatmap', 'chain', 'analyse'].includes(restored) ? restored : 'heatmap'
+    return ['heatmap', 'chain', 'dependencies', 'analyse'].includes(restored) ? restored : 'heatmap'
   })
   // Drie standen i.p.v. alleen open/smal: 'open' (breed, vast), 'icons'
   // (smal, vast) en 'auto' (bijna volledig verborgen, schuift tijdelijk open
@@ -125,12 +126,23 @@ function AppContent() {
   // exportte voorheen stilzwijgend niets (zie handleExportPng) — B-07.
   const teamPageRef = useRef(null)
 
+  // Staat 'Alle dependencies' uit, dan is /dependencies een doodlopend adres.
+  // In plaats van een melding valt het terug op de heatmap, inclusief de URL --
+  // de pagina staat dan ook niet in de zijbalk, dus er is geen weg terug vanaf
+  // zo'n melding. (De drie oudere pagina's houden bewust hun bestaande
+  // melding; die omzetten is een aparte keuze, niet iets om hier stil mee te
+  // veranderen.) Zet een admin de pagina weer aan, dan werkt het adres weer.
+  const dependenciesUit = adminSettings.pages.dependencies === false
+  const effectiveTab = activeTab === 'dependencies' && dependenciesUit ? 'heatmap' : activeTab
+
   // Bewaart de huidige pagina bij elke navigatiewijziging, zodat een
   // browserherlaad (bv. na een codewijziging tijdens ontwikkelen) op dezelfde
-  // pagina uitkomt i.p.v. terug te vallen op de standaard Heatmap.
+  // pagina uitkomt i.p.v. terug te vallen op de standaard Heatmap. Bewaart de
+  // effectieve pagina: een uitgezette pagina hoort niet als 'laatst geopend'
+  // terug te komen.
   useEffect(() => {
-    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab, teamPageTeamId, chainView }))
-  }, [activeTab, teamPageTeamId, chainView])
+    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab: effectiveTab, teamPageTeamId, chainView }))
+  }, [effectiveTab, teamPageTeamId, chainView])
 
   // URL volgt de navigatiestatus: elke wissel van pagina is een nieuwe
   // history-entry (pushState), zodat terug/vooruit in de browser werkt. De
@@ -139,7 +151,7 @@ function AppContent() {
   // terug-stap weer een nieuwe entry maken en kwam je nooit meer terug.
   const urlSyncRef = useRef({ initial: true, fromPop: false })
   useEffect(() => {
-    const path = pathForNav({ activeTab, teamPageTeamId, chainView })
+    const path = pathForNav({ activeTab: effectiveTab, teamPageTeamId, chainView })
     const sync = urlSyncRef.current
     if (window.location.pathname !== path) {
       if (sync.initial || sync.fromPop) window.history.replaceState(null, '', path)
@@ -147,7 +159,7 @@ function AppContent() {
     }
     sync.initial = false
     sync.fromPop = false
-  }, [activeTab, teamPageTeamId, chainView])
+  }, [effectiveTab, teamPageTeamId, chainView])
   useEffect(() => {
     function handlePop() {
       const nav = navFromPath(window.location.pathname)
@@ -398,7 +410,7 @@ function AppContent() {
       )}
 
       <Sidebar
-        activeTab={activeTab}
+        activeTab={effectiveTab}
         onTabChange={handleTabChange}
         onExportPng={handleExportPng}
         exportingPng={exportingPng}
@@ -422,7 +434,7 @@ function AppContent() {
             op papier hoe dan ook afgekapt. Bij printen worden ze verborgen
             (zie het @media print-blok in index.css) en vervangen door deze
             regel; op het scherm is hij onzichtbaar. */}
-        {(activeTab === 'chain' || teamPageTeamId) && (
+        {(effectiveTab === 'chain' || teamPageTeamId) && (
           <p className="print-only rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-700">{t('print.canvasHint')}</p>
         )}
         <Suspense fallback={<div className="py-10 text-center text-sm text-slate-400">{t('app.loading')}</div>}>
@@ -442,7 +454,7 @@ function AppContent() {
           )
         ) : (
           <div ref={viewRef} className="bg-[#f3f6f9]">
-            {activeTab === 'heatmap' &&
+            {effectiveTab === 'heatmap' &&
               (adminSettings.pages.heatmap ? (
                 <HeatmapView
                   onSelect={setSelectedDependency}
@@ -452,7 +464,7 @@ function AppContent() {
               ) : (
                 <PageDisabledNotice />
               ))}
-            {activeTab === 'chain' &&
+            {effectiveTab === 'chain' &&
               (adminSettings.pages.keten ? (
                 <ChainOverview
                   adminSections={adminSettings.sections.keten}
@@ -463,7 +475,14 @@ function AppContent() {
               ) : (
                 <PageDisabledNotice />
               ))}
-            {activeTab === 'analyse' &&
+            {effectiveTab === 'dependencies' && (
+              <AllDependenciesPage
+                onSelect={setSelectedDependency}
+                onNavigateToTeam={handleNavigateToTeam}
+                adminSections={adminSettings.sections.dependencies}
+              />
+            )}
+            {effectiveTab === 'analyse' &&
               (adminSettings.pages.analyse !== false ? (
                 <AnalysePage onSelect={setSelectedDependency} onNavigateToTeam={handleNavigateToTeam} />
               ) : (

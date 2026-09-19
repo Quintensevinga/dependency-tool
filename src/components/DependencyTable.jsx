@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk, MAX_RISK_SCORE } from '../lib/risk'
@@ -16,18 +16,82 @@ import {
 import FloatingTooltip from './FloatingTooltip'
 import { CategoryIcon } from '../data/categoryIcons'
 
+// Waarop elke sorteerbare kolom vergelijkt. Bewust de getoonde waarde en niet
+// het ruwe veld: de gebruiker sorteert wat hij ziet, en een vertaalde categorie
+// staat in een andere volgorde dan de interne sleutel. Risico sorteert op de
+// score en niet op het niveaulabel, anders komt 'Hoog' voor 'Kritiek'.
+const SORTEERWAARDEN = {
+  team: ({ dependency }, { teamName }) => teamName(dependency.teamId) ?? '',
+  titel: ({ dependency }) => dependency.titel ?? '',
+  categorie: ({ dependency }, { language }) => translateCategorie(dependency.categorie, language),
+  workflowstap: ({ dependency }, { language }) => translateWorkflowStap(dependency.workflowStap, language) || '',
+  effectOpFlow: ({ dependency }, { language }) => translateEffectOpFlow(dependency.effectOpFlow, language) || '',
+  impact: ({ risk }) => risk.breakdown.impactPoints,
+  frequentie: ({ risk }) => risk.breakdown.frequencyPoints,
+  status: ({ dependency }, { language }) => translateStatus(dependency.status, language),
+  risico: ({ risk }) => risk.score,
+}
+
+// Hoeveel rijen er standaard getoond worden voordat 'toon meer' het overneemt.
+// Alleen actief waar de aanroeper erom vraagt (sorteerbaar=true): de bestaande
+// lijsten (heatmap-selectie, teampagina) zijn voorgefilterd en dus kort.
+const MAX_RIJEN = 100
+
 // Gedeelde dependency-tabel: dezelfde kolommen/hover-tooltip op elke plek
-// waar een lijst dependencies getoond wordt (Heatmap-selectie, teampagina),
-// zodat zo'n lijst overal in exact dezelfde vorm verschijnt.
-export default function DependencyTable({ dependencies, onSelect, showTeamColumn = true, emptyLabel, onTeamClick }) {
+// waar een lijst dependencies getoond wordt (Heatmap-selectie, teampagina,
+// de pagina 'Alle dependencies'), zodat zo'n lijst overal in exact dezelfde
+// vorm verschijnt. `sorteerbaar` zet klikbare kolomkoppen en de bovengrens
+// aan; dat is alleen nodig waar de lijst duizenden rijen lang kan worden.
+export default function DependencyTable({ dependencies, onSelect, showTeamColumn = true, emptyLabel, onTeamClick, sorteerbaar = false }) {
   const { teamName } = useAppContext()
   const { t, language } = useLanguage()
   const [hover, setHover] = useState(null)
+  const [sortering, setSortering] = useState({ kolom: null, aflopend: false })
+  const [alleRijen, setAlleRijen] = useState(false)
 
-  const rows = dependencies.map((dependency) => ({ dependency, risk: calculateRisk(dependency) }))
+  const alleRows = useMemo(() => {
+    const basis = dependencies.map((dependency) => ({ dependency, risk: calculateRisk(dependency) }))
+    if (!sorteerbaar || !sortering.kolom) return basis
+    const waardeVan = SORTEERWAARDEN[sortering.kolom]
+    if (!waardeVan) return basis
+    // Stabiel sorteren op een vergelijkbare waarde. Tekst vergelijken met
+    // localeCompare, zodat 'Éen' niet achter 'Zeta' belandt; getallen (score)
+    // gewoon numeriek.
+    const richting = sortering.aflopend ? -1 : 1
+    return [...basis].sort((a, b) => {
+      const va = waardeVan(a, { teamName, language })
+      const vb = waardeVan(b, { teamName, language })
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * richting
+      return String(va).localeCompare(String(vb), language === 'en' ? 'en' : 'nl') * richting
+    })
+  }, [dependencies, sorteerbaar, sortering, teamName, language])
 
-  if (rows.length === 0) {
+  const rows = sorteerbaar && !alleRijen ? alleRows.slice(0, MAX_RIJEN) : alleRows
+  const verborgen = alleRows.length - rows.length
+
+  function sorteerOp(kolom) {
+    setSortering((vorige) => (vorige.kolom === kolom ? { kolom, aflopend: !vorige.aflopend } : { kolom, aflopend: false }))
+  }
+
+  if (alleRows.length === 0) {
     return <div className="px-4 py-10 text-center text-sm text-slate-400">{emptyLabel ?? t('tabel.empty')}</div>
+  }
+
+  // Kolomkop: klikbaar zodra de tabel sorteerbaar is, anders precies zoals hij
+  // altijd was.
+  const Kop = ({ kolom, label, className = '' }) => {
+    const actief = sortering.kolom === kolom
+    if (!sorteerbaar || !SORTEERWAARDEN[kolom]) return <th className={`px-5 py-2.5 font-medium ${className}`}>{label}</th>
+    return (
+      <th className={`px-5 py-2.5 font-medium ${className}`} aria-sort={actief ? (sortering.aflopend ? 'descending' : 'ascending') : 'none'}>
+        <button type="button" onClick={() => sorteerOp(kolom)} className={`inline-flex items-center gap-1 uppercase tracking-wide ${actief ? 'text-[#2a5f8a]' : 'hover:text-slate-600'}`}>
+          {label}
+          <span aria-hidden="true" className={actief ? '' : 'text-slate-300'}>
+            {actief ? (sortering.aflopend ? '▾' : '▴') : '▴'}
+          </span>
+        </button>
+      </th>
+    )
   }
 
   return (
@@ -35,20 +99,20 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
       <table className="min-w-full text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-400">
-            {showTeamColumn && <th className="px-5 py-2.5 font-medium">{t('tabel.col.team')}</th>}
-            <th className="px-5 py-2.5 font-medium">{t('tabel.col.titel')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('tabel.col.categorie')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('tabel.col.workflowstap')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('tabel.col.effectOpFlow')}</th>
+            {showTeamColumn && <Kop kolom="team" label={t('tabel.col.team')} />}
+            <Kop kolom="titel" label={t('tabel.col.titel')} />
+            <Kop kolom="categorie" label={t('tabel.col.categorie')} />
+            <Kop kolom="workflowstap" label={t('tabel.col.workflowstap')} />
+            <Kop kolom="effectOpFlow" label={t('tabel.col.effectOpFlow')} />
             {/* Impact en frequentie zijn de twee ingrediënten van de
                 risicoscore die rechts al vastgepind staat, en de hover-tooltip
                 toont de hele berekening. Op smallere schermen duwden ze juist
                 de kolommen met eigen informatie (workflowstap, effect, status)
                 buiten beeld; daar wegen ze het minst. */}
-            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('tabel.col.impact')}</th>
-            <th className="hidden px-5 py-2.5 font-medium 2xl:table-cell">{t('tabel.col.frequentie')}</th>
-            <th className="px-5 py-2.5 font-medium">{t('tabel.col.status')}</th>
-            <th className="sticky right-0 border-l border-slate-200 bg-white px-5 py-2.5 font-medium">{t('tabel.col.risico')}</th>
+            <Kop kolom="impact" label={t('tabel.col.impact')} className="hidden 2xl:table-cell" />
+            <Kop kolom="frequentie" label={t('tabel.col.frequentie')} className="hidden 2xl:table-cell" />
+            <Kop kolom="status" label={t('tabel.col.status')} />
+            <Kop kolom="risico" label={t('tabel.col.risico')} className="sticky right-0 border-l border-slate-200 bg-white" />
           </tr>
         </thead>
         <tbody>
@@ -111,6 +175,15 @@ export default function DependencyTable({ dependencies, onSelect, showTeamColumn
           })}
         </tbody>
       </table>
+
+      {sorteerbaar && (verborgen > 0 || alleRijen) && (
+        <div className="border-t border-slate-100 px-5 py-3">
+          <button type="button" onClick={() => setAlleRijen((v) => !v)} className="text-xs font-medium text-[#2a5f8a] hover:underline">
+            {alleRijen ? t('lijst.toonMinder') : t('lijst.toonMeer', { count: verborgen })}
+          </button>
+          <span className="ml-2 text-xs text-slate-400">{t('tabel.rijenGetoond', { count: rows.length, total: alleRows.length })}</span>
+        </div>
+      )}
 
       {hover && (
         <FloatingTooltip x={hover.x} y={hover.y}>

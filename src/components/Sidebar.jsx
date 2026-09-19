@@ -36,11 +36,22 @@ function AnalyseIcon() {
   )
 }
 
+function DependenciesIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+      <path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="18.5" cy="18" r="2.6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="m20.6 20.1 1.4 1.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 // Platte navigatielijst: elk item is één hoofdtabblad (activeTab in App.jsx),
 // in de door de gebruiker gevraagde volgorde.
 const NAV_ITEMS = [
   { key: 'heatmap', tab: 'heatmap', icon: HeatmapIcon, labelKey: 'tab.heatmap' },
   { key: 'chain', tab: 'chain', icon: ChainIcon, labelKey: 'tab.chain' },
+  { key: 'dependencies', tab: 'dependencies', icon: DependenciesIcon, labelKey: 'tab.dependencies' },
   { key: 'analyse', tab: 'analyse', icon: AnalyseIcon, labelKey: 'tab.analyse' },
 ]
 
@@ -342,6 +353,7 @@ export default function Sidebar({ activeTab, onTabChange, onExportPng, exporting
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.key === 'heatmap') return adminSettings.pages.heatmap !== false
     if (item.key === 'chain') return adminSettings.pages.keten
+    if (item.key === 'dependencies') return adminSettings.pages.dependencies !== false
     if (item.key === 'analyse') return adminSettings.pages.analyse !== false
     return true
   })
