@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
 import { APP_VERSION, BUILD_TIME } from '../lib/appVersion'
 import { useLanguage } from '../context/LanguageContext'
+import { splitsArchief } from '../lib/changeLog'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
 import { emptyTeamWorkflow, validateImportShape, telOnvolledigeNamen } from '../lib/storage'
 import { useModalA11y } from '../lib/a11y'
@@ -498,6 +499,7 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     deleteTeam,
     adminSettings,
     updateAdminSettings,
+    verwijderLogregels,
     externalParties,
     changeLog,
     addExternalParty,
@@ -574,6 +576,32 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     // back-up — na terugzetten waren het tabblad 'Gesloten' en de
     // sluitingshistorie op de analysepagina leeg.
     return { teams, dependencies: alleDependencies, teamWorkflows, externalParties, changeLog, usingMockData, schemaVersion, adminSettings }
+  }
+
+  // Archiveren gaat in twee stappen, en dat is geen omslachtigheid: de
+  // downloadroute maakt een blob en klikt een link aan, maar geeft geen
+  // bevestiging terug dat het bestand ook echt is opgeslagen. De app kan dus
+  // niet zelf vaststellen dat de gebruiker het archief heeft. Daarom eerst
+  // downloaden, dan pas -- na een expliciete 'ik heb het bestand' -- wissen.
+  const [archief, setArchief] = useState(null)
+  const [archiefKlaar, setArchiefKlaar] = useState(0)
+  const teArchiveren = splitsArchief(changeLog, alleDependencies)
+
+  function handleArchiveerDownload() {
+    const { archief: regels, oudsteResterend } = splitsArchief(changeLog, alleDependencies)
+    if (regels.length === 0) return
+    exportDataAsJson(
+      { gearchiveerdOp: new Date().toISOString(), aantal: regels.length, changeLog: regels },
+      `dependency-insight-logarchief-${new Date().toISOString().slice(0, 10)}.json`,
+    )
+    setArchief({ ids: regels.map((r) => r.id), aantal: regels.length, oudsteResterend })
+  }
+
+  function handleArchiveerBevestig() {
+    if (!archief) return
+    verwijderLogregels(archief.ids)
+    setArchiefKlaar(archief.aantal)
+    setArchief(null)
   }
 
   function handleExportJson() {
@@ -706,6 +734,54 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
           >
             {t('settings.exportJson')}
           </button>
+          {/* Archiveren van oude logregels: downloaden en pas na een
+              expliciete bevestiging wissen. De knop staat bewust hier, naast
+              de exportknoppen -- een volledige export is de enige echte
+              vangnet, en die maak je op dezelfde plek. */}
+          <button
+            type="button"
+            onClick={handleArchiveerDownload}
+            disabled={teArchiveren.archief.length === 0 || Boolean(archief)}
+            className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-50 disabled:text-slate-400 disabled:hover:bg-slate-50"
+          >
+            {teArchiveren.archief.length === 0
+              ? t('settings.archiveLogNothing')
+              : t('settings.archiveLog', { count: teArchiveren.archief.length })}
+          </button>
+          {archief && (
+            <div className="space-y-2 rounded-md border border-[#c98a2e]/40 bg-[#c98a2e]/10 p-3">
+              <p className="text-[11px] leading-relaxed text-[#8a5a12]">
+                {t('settings.archiveLogDownloaded', { count: archief.aantal })}
+              </p>
+              <p className="text-[11px] leading-relaxed text-[#8a5a12]">{t('settings.archiveLogExportFirst')}</p>
+              <p className="text-[11px] leading-relaxed text-slate-600">
+                {archief.oudsteResterend
+                  ? t('settings.archiveLogKeepsFrom', {
+                      datum: archief.oudsteResterend.toLocaleDateString(language === 'en' ? 'en-GB' : 'nl-NL', {
+                        day: 'numeric',
+                        month: 'long',
+                        year: 'numeric',
+                      }),
+                    })
+                  : t('settings.archiveLogKeepsNothing')}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleArchiveerBevestig}
+                  className="rounded-md bg-[#9a3b2e] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#7e2f24]"
+                >
+                  {t('settings.archiveLogConfirm')}
+                </button>
+                <button type="button" onClick={() => setArchief(null)} className="text-xs font-medium text-slate-500 hover:underline">
+                  {t('form.cancel')}
+                </button>
+              </div>
+            </div>
+          )}
+          {archiefKlaar > 0 && !archief && (
+            <p className="px-0.5 text-[11px] text-slate-500">{t('settings.archiveLogDone', { count: archiefKlaar })}</p>
+          )}
           {/* Ouderdom van de laatste back-up. Alle data staat uitsluitend in
               deze ene browser, dus dit is geen detail: bij 14 dagen of langer,
               en bij 'nog nooit', kleurt de regel in de waarschuwkleur. */}
