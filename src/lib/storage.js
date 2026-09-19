@@ -30,8 +30,6 @@ export const SCHEMA_VERSION = 6
 // (node-scripts), waar de define niet bestaat.
 export const MOCK_DATA_SIGNATURE = typeof __MOCK_DATA_SIGNATURE__ === 'string' ? __MOCK_DATA_SIGNATURE__ : 'dev'
 
-export const MAX_SNAPSHOTS_PER_TEAM = 10
-
 export { slugify, uniqueSlug }
 
 function todayIso() {
@@ -372,7 +370,6 @@ export function migrateState(raw, report) {
   if (report) report.skippedDependencies = ruweDependencies.length - bruikbaar.length
   const dependencies = bruikbaar.map((dep) => migrateDependency(dep, teamsState))
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
-  const teamSnapshots = migrateTeamSnapshots(source.teamSnapshots, teamsState.teams)
   const externalParties = migrateExternalParties(source.externalParties)
   const changeLog = migrateChangeLog(source.changeLog)
 
@@ -383,7 +380,6 @@ export function migrateState(raw, report) {
     teams: teamsState.teams,
     dependencies,
     teamWorkflows,
-    teamSnapshots,
     externalParties,
     changeLog,
     usingMockData: Boolean(source.usingMockData),
@@ -483,15 +479,6 @@ function migrateExternalParties(raw) {
       updatedAt: p.updatedAt ?? todayIso(),
       voorgesteldDoorTeamId: p.voorgesteldDoorTeamId ?? null,
     }))
-}
-
-function migrateTeamSnapshots(rawSnapshots, teams) {
-  const source = rawSnapshots && typeof rawSnapshots === 'object' ? rawSnapshots : {}
-  const result = {}
-  for (const team of teams) {
-    result[team.id] = Array.isArray(source[team.id]) ? source[team.id] : []
-  }
-  return result
 }
 
 // Wijzigingenlog voor de admin-logpagina: één entry per aangemaakte
@@ -610,7 +597,6 @@ function emptyState() {
     teams: [],
     dependencies: [],
     teamWorkflows: {},
-    teamSnapshots: {},
     externalParties: [],
     changeLog: [],
     usingMockData: false,

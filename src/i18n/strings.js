@@ -244,7 +244,7 @@ export const STRINGS = {
     'update.reload': 'Herladen',
     'update.dismiss': 'Later',
 
-    'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data of verwijder oude momentopnamen.',
+    'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data en maak ruimte vrij.',
     'saveError.dismiss': 'Sluiten',
 
     'corrupted.message': 'De opgeslagen data kon niet gelezen worden en is teruggevallen op demodata. De onleesbare data is bewaard — download die hieronder voordat je verdergaat, anders kan die alsnog verloren gaan.',
@@ -895,7 +895,7 @@ export const STRINGS = {
     'update.reload': 'Reload',
     'update.dismiss': 'Later',
 
-    'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data or delete old snapshots.',
+    'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data and free up space.',
     'saveError.dismiss': 'Close',
 
     'corrupted.message': 'The stored data could not be read and has fallen back to demo data. The unreadable data has been kept — download it below before continuing, otherwise it may be lost.',

@@ -479,7 +479,6 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     alleDependencies,
     teams,
     teamWorkflows,
-    teamSnapshots,
     schemaVersion,
     usingMockData,
     loadMockData,
@@ -568,7 +567,7 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     // back-up die de gesloten records met hun historie weglaat, is geen
     // back-up — na terugzetten waren het tabblad 'Gesloten' en de
     // sluitingshistorie op de analysepagina leeg.
-    return { teams, dependencies: alleDependencies, teamWorkflows, teamSnapshots, externalParties, changeLog, usingMockData, schemaVersion, adminSettings }
+    return { teams, dependencies: alleDependencies, teamWorkflows, externalParties, changeLog, usingMockData, schemaVersion, adminSettings }
   }
 
   function handleExportJson() {
