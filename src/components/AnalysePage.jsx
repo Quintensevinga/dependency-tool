@@ -297,6 +297,36 @@ const TEKST = {
     kCycli: 'Cycli in de keten',
     uCycli: 'Teams die via koppelingen bij zichzelf terugkomen. Eén cyclus aan het eind is normaal; meer cycli maken de keten onleesbaar.',
     geenCycli: 'Geen cycli.',
+    sigFilterErnst: 'Ernst',
+    sigFilterSoort: 'Soort',
+    sigFilterAlleSoorten: 'Alle soorten',
+    sigFilterZoek: 'Zoek in de signalen…',
+    sigAantal: '{{n}} van de {{total}} signalen',
+    sigGeenNaFilter: 'Geen signaal voldoet aan deze filters.',
+    sig_blokkerendVerouderd: 'Blokkerend en verouderd',
+    sig_dubbeleRegistratie: 'Dubbele registratie',
+    sig_geaccepteerdHoog: 'Geaccepteerd maar hoog risico',
+    sig_gedeeldeApp: 'Gedeelde applicatie',
+    sig_gemitigeerdNietGesloten: 'Gemitigeerd, niet gesloten',
+    sig_hardeDeadlineZonderAfspraak: 'Deadline zonder afspraak',
+    sig_heropend: 'Heropend',
+    sig_hoogVerouderd: 'Hoog en verouderd',
+    sig_kennisBusFactor: 'Kennisconcentratie',
+    sig_ketenRisico: 'Hoog ketenrisico',
+    sig_kritiekZonderAfspraak: 'Kritiek zonder afspraak',
+    sig_langBlokkerend: 'Lang blokkerend',
+    sig_partijGeweigerd: 'Partij geweigerd',
+    sig_partijHub: 'Partij raakt veel teams',
+    sig_reviewOud: 'Review blijft liggen',
+    sig_slapendTeam: 'Slapend team',
+    sig_sluimerend: 'Sluimerend',
+    sig_spofZonderDetail: 'Kwetsbare applicatie zonder detail',
+    sig_stilRisico: 'Stil risico',
+    sig_teamVerouderd: 'Team met verouderde records',
+    sig_teruggevallen: 'Teruggevallen',
+    sig_verslechterd: 'Verslechterd',
+    sig_verzoekOud: 'Koppelverzoek blijft liggen',
+    sig_wederzijds: 'Wederzijdse afhankelijkheid',
     cycliAfgekapt: 'Meer dan {{n}} cycli gevonden; alleen de eerste {{n}} zijn doorzocht en worden hier getoond.',
     kLos: 'Losse inputs en onbenutte outputs',
     uLos: 'Inputs zonder koppeling of partij, en outputs die niemand afneemt. Niet fout, wel een teken van een onvolledige kaart.',
@@ -644,6 +674,36 @@ const TEKST = {
     kCycli: 'Cycles in the chain',
     uCycli: 'Teams that come back to themselves via links. One cycle at the end is normal; more cycles make the chain unreadable.',
     geenCycli: 'No cycles.',
+    sigFilterErnst: 'Severity',
+    sigFilterSoort: 'Type',
+    sigFilterAlleSoorten: 'All types',
+    sigFilterZoek: 'Search the signals…',
+    sigAantal: '{{n}} of {{total}} signals',
+    sigGeenNaFilter: 'No signal matches these filters.',
+    sig_blokkerendVerouderd: 'Blocking and stale',
+    sig_dubbeleRegistratie: 'Duplicate registration',
+    sig_geaccepteerdHoog: 'Accepted but high risk',
+    sig_gedeeldeApp: 'Shared application',
+    sig_gemitigeerdNietGesloten: 'Mitigated, not closed',
+    sig_hardeDeadlineZonderAfspraak: 'Deadline without agreement',
+    sig_heropend: 'Reopened',
+    sig_hoogVerouderd: 'High and stale',
+    sig_kennisBusFactor: 'Knowledge concentration',
+    sig_ketenRisico: 'High chain risk',
+    sig_kritiekZonderAfspraak: 'Critical without agreement',
+    sig_langBlokkerend: 'Blocking for a long time',
+    sig_partijGeweigerd: 'Party rejected',
+    sig_partijHub: 'Party touches many teams',
+    sig_reviewOud: 'Review left waiting',
+    sig_slapendTeam: 'Dormant team',
+    sig_sluimerend: 'Simmering',
+    sig_spofZonderDetail: 'Vulnerable application without detail',
+    sig_stilRisico: 'Silent risk',
+    sig_teamVerouderd: 'Team with stale records',
+    sig_teruggevallen: 'Fallen back',
+    sig_verslechterd: 'Worsened',
+    sig_verzoekOud: 'Link request left waiting',
+    sig_wederzijds: 'Mutual dependency',
     cycliAfgekapt: 'More than {{n}} cycles found; only the first {{n}} were searched and are shown here.',
     kLos: 'Loose inputs and unused outputs',
     uLos: 'Inputs without link or party, and outputs nobody consumes. Not wrong, but a sign of an incomplete map.',
@@ -1056,31 +1116,129 @@ function Uitklap({ label, aantal, children }) {
 }
 
 const ERNST_LABEL = { hoog: 'ernstHoog', midden: 'ernstMidden', laag: 'ernstLaag' }
+// Korte naam per signaalsoort staat in het TEKST-blok als sig_<key>; ontbreekt
+// die, dan valt tx() terug op de kale sleutel en blijft de knop leesbaar.
+const SOORT_LABEL_KEY = (key) => `sig_${key}`
+
+// Standaard staan alleen hoog en midden aan: de lage signalen zijn hygiene-
+// meldingen die de belangrijkste tussen zich in laten verdwijnen zodra er
+// tientallen teams zijn. Ze zijn met een klik terug te halen.
+const ERNST_STANDAARD = ['hoog', 'midden']
 
 function Waarschuwingen({ signalen, ctx, onSelect, onNavigateToTeam, tx }) {
   const [alle, setAlle] = useState(false)
+  const [ernsten, setErnsten] = useState(ERNST_STANDAARD)
+  const [soort, setSoort] = useState('')
+  const [zoek, setZoek] = useState('')
+
+  // De zin wordt pas bij het renderen samengesteld, dus zoeken gebeurt op de
+  // uitkomst van signaalZin en niet op de ruwe parameters.
+  const metZin = useMemo(() => signalen.map((sig) => ({ sig, zin: signaalZin(sig, ctx) })), [signalen, ctx])
+
+  const perErnst = useMemo(() => {
+    const telling = { hoog: 0, midden: 0, laag: 0 }
+    for (const { sig } of metZin) telling[sig.ernst] = (telling[sig.ernst] ?? 0) + 1
+    return telling
+  }, [metZin])
+
+  // Alleen soorten die er echt zijn, met hun aantal erachter: een keuzelijst
+  // met dertig soorten waarvan er drie voorkomen helpt niemand.
+  const soorten = useMemo(() => {
+    const telling = new Map()
+    for (const { sig } of metZin) telling.set(sig.key, (telling.get(sig.key) ?? 0) + 1)
+    return [...telling.entries()]
+      .map(([key, n]) => ({ key, n, label: tx(SOORT_LABEL_KEY(key)) }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metZin])
+
+  const naald = zoek.trim().toLowerCase()
+  const gefilterd = useMemo(
+    () =>
+      metZin.filter(({ sig, zin }) => {
+        if (!ernsten.includes(sig.ernst)) return false
+        if (soort && sig.key !== soort) return false
+        if (naald && !zin.toLowerCase().includes(naald)) return false
+        return true
+      }),
+    [metZin, ernsten, soort, naald],
+  )
+
+  function wisselErnst(e) {
+    setErnsten((vorig) => (vorig.includes(e) ? vorig.filter((x) => x !== e) : [...vorig, e]))
+  }
+
   if (signalen.length === 0) return <p className="text-xs text-slate-400">{tx('waarschuwingenGeen')}</p>
-  const zichtbaar = alle ? signalen : signalen.slice(0, 25)
+
+  const zichtbaar = alle ? gefilterd : gefilterd.slice(0, 25)
   return (
     <div>
+      <div className="mb-2.5 flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-100 pb-2.5">
+        <span className="text-xs font-medium text-slate-600">{tx('sigAantal', { n: gefilterd.length, total: signalen.length })}</span>
+        <span className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{tx('sigFilterErnst')}</span>
+          {['hoog', 'midden', 'laag'].map((e) => {
+            const aan = ernsten.includes(e)
+            return (
+              <button
+                key={e}
+                type="button"
+                onClick={() => wisselErnst(e)}
+                aria-pressed={aan}
+                className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase transition-colors ${
+                  aan ? ERNST_STIJL[e] : 'border-slate-200 text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                {tx(ERNST_LABEL[e])} {perErnst[e] ?? 0}
+              </button>
+            )
+          })}
+        </span>
+        <label className="flex items-center gap-1.5">
+          <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{tx('sigFilterSoort')}</span>
+          <select
+            value={soort}
+            onChange={(e) => setSoort(e.target.value)}
+            className="max-w-[220px] truncate rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 focus:border-[#2a5f8a] focus:outline-none"
+          >
+            <option value="">{tx('sigFilterAlleSoorten')}</option>
+            {soorten.map((so) => (
+              <option key={so.key} value={so.key}>
+                {so.label} ({so.n})
+              </option>
+            ))}
+          </select>
+        </label>
+        <input
+          type="search"
+          value={zoek}
+          onChange={(e) => setZoek(e.target.value)}
+          placeholder={tx('sigFilterZoek')}
+          aria-label={tx('sigFilterZoek')}
+          className="min-w-[160px] flex-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+        />
+      </div>
+      {gefilterd.length === 0 && <p className="text-xs text-slate-400">{tx('sigGeenNaFilter')}</p>}
       <ul className="divide-y divide-slate-100">
-        {zichtbaar.map((s, i) => {
-          const dep = s.params?.dep
-          const teamId = s.params?.teamId ?? s.params?.teamIdA
+        {zichtbaar.map(({ sig, zin }, i) => {
+          const dep = sig.params?.dep
+          const teamId = sig.params?.teamId ?? sig.params?.teamIdA
           const klik = dep ? () => onSelect(dep) : teamId ? () => onNavigateToTeam(teamId) : null
           return (
-            <li key={`${s.key}:${dep?.id ?? teamId ?? ''}:${i}`}>
+            <li key={`${sig.key}:${dep?.id ?? teamId ?? ''}:${i}`}>
               <button type="button" disabled={!klik} onClick={klik ?? undefined} className="flex w-full items-start gap-2 py-1.5 text-left text-xs hover:bg-slate-50 disabled:cursor-default disabled:hover:bg-transparent">
-                <span className={`mt-px shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${ERNST_STIJL[s.ernst]}`}>{tx(ERNST_LABEL[s.ernst])}</span>
-                <span className="text-slate-700">{signaalZin(s, ctx)}</span>
+                <span className={`mt-px shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase ${ERNST_STIJL[sig.ernst]}`}>{tx(ERNST_LABEL[sig.ernst])}</span>
+                <span className="text-slate-700">{zin}</span>
               </button>
             </li>
           )
         })}
       </ul>
-      {signalen.length > 25 && (
+      {/* Het aantal na filteren, niet het totaal: anders belooft de knop meer
+          dan er onder dit filter te zien is. */}
+      {gefilterd.length > 25 && (
         <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
-          {alle ? tx('toonMinder') : tx('toonAlle', { n: signalen.length })}
+          {alle ? tx('toonMinder') : tx('toonAlle', { n: gefilterd.length })}
         </button>
       )}
     </div>
