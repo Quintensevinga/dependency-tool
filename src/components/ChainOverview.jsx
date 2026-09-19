@@ -10,15 +10,23 @@ import {
   getSmoothStepPath,
   internalsSymbol,
   useNodesInitialized,
+  useViewport,
   useReactFlow,
   useStoreApi,
   useUpdateNodeInternals,
 } from 'reactflow'
-// Volledige ELK-bundel op de hoofdthread: een ketenlay-out van enkele
-// tientallen nodes rekent in milliseconden, een web worker is de complexiteit
-// (Vite-workerconfiguratie) hier niet waard. Komt alleen in de lazy chunk van
-// dit scherm terecht (zie App.jsx).
-import ELK from 'elkjs/lib/elk.bundled.js'
+// ELK rekent in een aparte rekendraad, niet op de hoofdthread. Dat was eerder
+// andersom, met als redenering dat een lay-out van enkele tientallen nodes in
+// milliseconden klaar is. Die aanname is gemeten en klopt niet: met de
+// voorbeelddata (8 teams, 31 kaarten) kost een berekening 353 ms, met 40 teams
+// (63 kaarten) 545 ms, en met een processorvertraging van 4x loopt dat op tot
+// 4,6 seconde -- allemaal ruim boven de 200 ms waarboven het scherm merkbaar
+// vastloopt. Dat is bovendien per berekening twee ELK-rondes (zie het effect in
+// ChainCanvas). Beide bestanden komen alleen in de lazy chunk van dit scherm
+// terecht (zie App.jsx); de gebundelde versie wordt pas opgehaald als de
+// rekendraad niet start.
+import ELKApi from 'elkjs/lib/elk-api.js'
+import ElkRekendraad from 'elkjs/lib/elk-worker.min.js?worker'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
@@ -75,6 +83,14 @@ const BACK_EDGE_STYLE = { strokeDasharray: '5 4' }
 const AGG_COLOR = '#64748b'
 // Hoeveel ketenstappen vanaf het focusteam maximaal in beeld komen.
 const MAX_DEPTH = 3
+
+// Onder deze zoomfactor staan er alleen nog blokjes op het canvas en is de
+// tekst op de kaarten weg. 0,2 is niet willekeurig: dat was tot nu toe de
+// ondergrens voor uitzoomen, dus de melding verschijnt precies zodra je verder
+// uitzoomt dan vroeger uberhaupt kon. Hoger kan niet: dit scherm past zichzelf
+// bij de voorbeelddata al op 0,32 tot 0,42 in, dus een drempel van bijvoorbeeld
+// 0,55 (de schatting in de opdracht) zou de melding permanent laten staan.
+const LEESBARE_ZOOM = 0.2
 
 function ExternalPartyNode({ id, data }) {
   const { t, language } = useLanguage()
@@ -390,11 +406,17 @@ function TeamsMenu({ teams, teamLabels, selectedIds, onToggle, onSelectAll, onSe
 // fitView-prop werkt alleen bij de eerste render. Fit houdt rekening met de
 // eigen footprint van deze toolbar als kleine safe area (lib/flowFit.js),
 // zodat er nooit een kaart onder de knoppen verdwijnt.
+function ChainBusyLabel() {
+  const { t } = useLanguage()
+  return <span>{t('chain.layoutBusy')}</span>
+}
+
 function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   const instance = useReactFlow()
   const store = useStoreApi()
   const { t } = useLanguage()
   const toolbarRef = useRef(null)
+  const { zoom } = useViewport()
 
   const fit = useCallback(() => {
     const el = toolbarRef.current
@@ -405,7 +427,10 @@ function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
       safeAreaWidth,
       safeAreaHeight,
       padding: 0.12,
-      minZoom: 0.2,
+      // 0,05 en niet de standaard 0,2: bij enkele tientallen teams past de
+      // tekening niet binnen 0,2, en dan maakt 'passend maken' stilzwijgend
+      // niet passend -- je krijgt een uitsnede zonder dat iets dat zegt.
+      minZoom: 0.05,
       maxZoom: 1.5,
       duration: 200,
     })
@@ -438,6 +463,11 @@ function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   const btnClass = 'flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700'
   return (
     <Panel position="bottom-left">
+      {zoom < LEESBARE_ZOOM && (
+        <div className="mb-1.5 max-w-[190px] rounded-lg border border-slate-200 bg-white/95 px-2 py-1.5 text-[11px] leading-snug text-[#2a5f8a] shadow-md backdrop-blur-sm">
+          {t('chain.zoomUnreadable')}
+        </div>
+      )}
       <div ref={toolbarRef} className="flex flex-col items-center gap-0.5 rounded-lg border border-slate-200 bg-white/95 p-1 shadow-md backdrop-blur-sm">
         <button type="button" onClick={() => instance.zoomOut()} title={t('teampage.canvasZoomOut')} aria-label={t('teampage.canvasZoomOut')} className={btnClass}>
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -500,7 +530,54 @@ function ChainCanvasToolbar({ fitKey, onFullscreen, isFullscreen }) {
   )
 }
 
-const elk = new ELK()
+// De rekendraad, met terugval op de hoofdthread. Die terugval is er niet voor
+// de sier: een omgeving die geen workers kan starten (of een build waarin het
+// workerbestand ontbreekt) zou anders helemaal geen tekening meer opleveren.
+// Na een mislukking wordt er niet telkens opnieuw een rekendraad geprobeerd --
+// dan zou elke tekening die omweg maken.
+let rekendraadElk = null
+let rekendraadKapot = false
+let hoofdthreadElk = null
+
+function geefRekendraad() {
+  if (rekendraadKapot) return null
+  if (!rekendraadElk) {
+    try {
+      rekendraadElk = new ELKApi({ workerFactory: () => new ElkRekendraad() })
+    } catch (error) {
+      rekendraadKapot = true
+      console.warn('Ketenoverzicht: rekendraad niet gestart, lay-out draait op de hoofdthread', error)
+      return null
+    }
+  }
+  return rekendraadElk
+}
+
+async function geefHoofdthread() {
+  if (!hoofdthreadElk) {
+    const { default: ELKBundled } = await import('elkjs/lib/elk.bundled.js')
+    hoofdthreadElk = new ELKBundled()
+  }
+  return hoofdthreadElk
+}
+
+// Eerst de rekendraad; lukt dat niet, dan een keer opnieuw op de hoofdthread.
+// Een fout in de rekendraad kan ook aan de graaf liggen in plaats van aan de
+// draad zelf; die tweede poging maakt het onderscheid overbodig, want faalt de
+// hoofdthread ook, dan valt de aanroeper terug op de noodlay-out.
+async function layoutGraaf(elkInvoer) {
+  const draad = geefRekendraad()
+  if (draad) {
+    try {
+      return await draad.layout(elkInvoer)
+    } catch (error) {
+      rekendraadKapot = true
+      console.warn('Ketenoverzicht: rekendraad mislukt, lay-out gaat verder op de hoofdthread', error)
+    }
+  }
+  const lokaal = await geefHoofdthread()
+  return lokaal.layout(elkInvoer)
+}
 
 // Leest de door React Flow gemeten afmetingen en handle-posities uit zijn
 // interne administratie (nodeInternals). Levert null zolang nog niet elke
@@ -550,6 +627,11 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
   const store = useStoreApi()
   const nodesInitialized = useNodesInitialized()
   const [layout, setLayout] = useState({ version: 0, graph: null, positions: new Map(), points: new Map() })
+  // Zolang dit aanstaat is er een lay-out onderweg en staan er nog geen (of nog
+  // oude) posities. Kaarten zonder positie zijn onzichtbaar, dus zonder deze
+  // melding kijk je tijdens het rekenen naar een leeg canvas zonder te weten of
+  // er iets gebeurt -- bij tientallen teams duurt dat merkbaar lang.
+  const [bezig, setBezig] = useState(false)
   const runRef = useRef(0)
 
   // Gemeten afmetingen per node, bijgehouden uit React Flow's 'dimensions'-
@@ -559,15 +641,65 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
   // terugkoppeling verloor elke kaart na de eerste lay-out zijn maat en
   // sloeg React Flow alle lijnen stilzwijgend over (getest).
   const [dims, setDims] = useState(() => new Map())
-  const onNodesChange = useCallback((changes) => {
-    const measured = changes.filter((change) => change.type === 'dimensions' && change.dimensions)
-    if (measured.length === 0) return
-    setDims((prev) => {
-      const next = new Map(prev)
-      for (const change of measured) next.set(change.id, change.dimensions)
-      return next
-    })
-  }, [])
+  // Binnengekomen maten die nog verwerkt moeten worden. React Flow meldt per
+  // kaart een aparte maat; één setDims per melding zou het lay-out-effect
+  // hieronder net zo vaak starten als er kaarten in beeld staan. Ze worden
+  // daarom verzameld en één keer aan het eind van het beeldframe verwerkt,
+  // zodat één tekening ook één lay-outberekening oplevert.
+  const pendingDims = useRef(new Map())
+  const flushFrame = useRef(0)
+  useEffect(
+    () => () => {
+      if (flushFrame.current) window.cancelAnimationFrame(flushFrame.current)
+    },
+    [],
+  )
+
+  const onNodesChange = useCallback(
+    (changes) => {
+      let gemeten = false
+      for (const change of changes) {
+        if (change.type !== 'dimensions' || !change.dimensions) continue
+        pendingDims.current.set(change.id, change.dimensions)
+        gemeten = true
+      }
+      if (!gemeten || flushFrame.current) return
+      // Welke kaarten er nú in de tekening zitten, vastgelegd op het moment
+      // van melden: één frame later kan `graph` alweer een andere zijn.
+      const huidigeIds = new Set(graph.nodes.map((node) => node.id))
+      flushFrame.current = window.requestAnimationFrame(() => {
+        flushFrame.current = 0
+        const binnen = pendingDims.current
+        pendingDims.current = new Map()
+        setDims((prev) => {
+          const next = new Map(prev)
+          let gewijzigd = false
+          // Maten van kaarten die niet meer in de tekening zitten weggooien,
+          // anders rekent de eerste ronde na een wisseling van weergave nog
+          // op resten van de vorige tekening.
+          for (const id of [...next.keys()]) {
+            if (huidigeIds.has(id) || binnen.has(id)) continue
+            next.delete(id)
+            gewijzigd = true
+          }
+          // Op waarde vergelijken, niet klakkeloos overnemen: React Flow
+          // meldt een maat ook opnieuw als er niets aan veranderd is (en dat
+          // gebeurt bij elke nieuwe nodes-array). Zonder deze vergelijking is
+          // elke melding een nieuwe Map, en dus een nieuwe lay-outronde.
+          for (const [id, maat] of binnen) {
+            const vorige = next.get(id)
+            if (vorige && vorige.width === maat.width && vorige.height === maat.height) continue
+            next.set(id, maat)
+            gewijzigd = true
+          }
+          // Dezelfde referentie terug wanneer er niets veranderd is: dan ziet
+          // React geen nieuwe waarde en blijft het lay-out-effect staan.
+          return gewijzigd ? next : prev
+        })
+      })
+    },
+    [graph],
+  )
 
   useEffect(() => {
     if (!nodesInitialized || graph.nodes.length === 0) return
@@ -582,14 +714,14 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
     // zodat ze naast elkaar aankomen. Zonder zo'n punt volstaat de eerste
     // ronde. Elke ronde krijgt een verse ELK-invoer: ELK schrijft in het
     // object dat het krijgt.
-    elk
-      .layout(buildElkGraph(graph, sizes))
+    setBezig(true)
+    layoutGraaf(buildElkGraph(graph, sizes))
       .then((first) => {
         if (run !== runRef.current) return null
         const firstLayout = applyElkLayout(first, graph)
         const fanIn = fanInOffsets(graph, sizes, firstLayout.positions)
         if (fanIn.size === 0) return firstLayout
-        return elk.layout(buildElkGraph(graph, sizes, ELK_LAYOUT_OPTIONS, fanIn)).then((second) => (run === runRef.current ? applyElkLayout(second, graph) : null))
+        return layoutGraaf(buildElkGraph(graph, sizes, ELK_LAYOUT_OPTIONS, fanIn)).then((second) => (run === runRef.current ? applyElkLayout(second, graph) : null))
       })
       .then((result) => {
         if (!result || run !== runRef.current) return
@@ -599,6 +731,9 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
         if (run !== runRef.current) return
         console.error('Ketenoverzicht: ELK-lay-out mislukt, noodlay-out gebruikt', error)
         setLayout({ version: run, graph, positions: fallbackPositions(graph, sizes), points: new Map() })
+      })
+      .finally(() => {
+        if (run === runRef.current) setBezig(false)
       })
     // `dims` hoort in de deps: een kaart die van maat verandert zonder dat de
     // structuur wijzigt (bv. een nagemeten handle-set) krijgt zo ook een
@@ -651,9 +786,30 @@ function ChainCanvas({ graph, nodes, edges, fitKey, onFullscreen, isFullscreen, 
       elevateEdgesOnSelect
       nodesDraggable={false}
       hideControls
+      // Zelfde ondergrens als 'passend maken' hierboven, zodat handmatig
+      // uitzoomen net zo ver komt als de knop.
+      minZoom={0.05}
+      // De minikaart staat rechtsonder in het canvas; daar is het vrij (de
+      // knoppenbalk zit linksonder, de canvasbalk linksboven, de legenda
+      // rechtsboven en het detailvak onder het canvas).
+      showMinimap
       onNodesChange={onNodesChange}
       {...handlers}
     >
+      {bezig && (
+        // Onderaan en niet bovenaan: bovenin ligt de canvasbalk, die zich over
+        // de volle breedte uitstrekt en de melding zou overdekken. Onderin is
+        // het midden vrij (knoppenbalk linksonder, minikaart rechtsonder).
+        <Panel position="bottom-center">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white/95 px-3 py-1.5 text-xs text-slate-600 shadow-md backdrop-blur-sm">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="animate-spin text-[#2a5f8a]">
+              <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+              <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
+            </svg>
+            <ChainBusyLabel />
+          </div>
+        </Panel>
+      )}
       <ChainCanvasToolbar fitKey={`${layout.version}:${fitKey}`} onFullscreen={onFullscreen} isFullscreen={isFullscreen} />
       {children}
     </PannableFlowCanvas>
@@ -1455,6 +1611,10 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
     [focusChainTrace, depth, filteredTeams, chainEdgesAll],
   )
 
+  // Vallen er teams buiten de tekening? Alleen mogelijk in de weergave
+  // 'Één team': daar bepaalt de dieptemeter hoeveel kolommen er meekomen.
+  const teamsBuitenBeeld = visibleTeams.length < activeTeams.length
+
   // Hoogste risico per kaart (badge op ingeklapte kaarten), over álle
   // dependencies van het team: team- én ketenniveau samen, zonder risicofilter
   // — dependencies zijn hier geen invoer, dus zo'n filter had hier niets te
@@ -1766,6 +1926,17 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
             t('chain.depthLabel'),
             t('chain.depthHint'),
           )}
+          {/* Alleen in deze weergave zegt geen enkele teller wat er getekend
+              wordt: de tekening rolt vanaf het focusteam uit en wordt op de
+              diepte afgekapt, dus er kunnen teams buiten beeld vallen zonder
+              dat iets dat meldt. Bij 'Hele keten' en 'Meerdere teams' is wat
+              gekozen is precies wat getekend wordt. */}
+          <span
+            className={`whitespace-nowrap text-[11px] ${teamsBuitenBeeld ? 'font-medium text-[#2a5f8a]' : 'text-slate-400'}`}
+          >
+            {t('chain.teamsInView', { count: visibleTeams.length, total: activeTeams.length })}
+            {teamsBuitenBeeld && <span className="font-normal"> · {t('chain.teamsInViewHint')}</span>}
+          </span>
         </div>
       )}
       {view.mode === 'teams' && (
