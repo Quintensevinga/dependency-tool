@@ -3572,6 +3572,27 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // Drieledige splitsing per de Ontwikkelflow/Applicatieflow-scheiding:
   // legacy-data zonder flowtype blijft expliciet zichtbaar i.p.v. geraden.
   const legacyFlowDeps = useMemo(() => visibleTeamDependencies.filter((d) => !d.flowtype), [visibleTeamDependencies])
+  // Records die op het canvas niet getekend worden. Ze verdwenen alle drie
+  // stilzwijgend, waardoor het canvas compleet leek terwijl het dat niet was.
+  //
+  // 1. Dependencies zonder flowtype: die staan al apart in de lijst onder het
+  //    canvas, maar op het canvas zelf ontbraken ze zonder een woord.
+  // 2. Applicatieverbindingen die naar een inmiddels verwijderde applicatie
+  //    wijzen: de lay-out slaat zo'n verbinding over zodra de bijbehorende
+  //    bannernode ontbreekt (zie applicatieflowConnecties in
+  //    computeWorkflowLayout), zonder melding.
+  const verweesdeAppConnecties = useMemo(() => {
+    const bestaandeAppIds = new Set((workflow.applications ?? []).map((a) => a.id))
+    return (workflow.applicatieflow?.connecties ?? []).filter((c) => !bestaandeAppIds.has(c.van) || !bestaandeAppIds.has(c.naar))
+  }, [workflow.applications, workflow.applicatieflow])
+
+  // Capaciteitsregels zonder fase werden bij het opbouwen van het canvas
+  // overgeslagen (`if (!row.fase) continue`), terwijl het veld in het
+  // formulier 'Fase (optioneel)' heet — mensen laten het met recht leeg en
+  // vonden hun regel daarna nergens terug. Het veld blijft optioneel heten;
+  // deze regels krijgen een eigen strook onder het canvas.
+  const capaciteitZonderFase = useMemo(() => (workflow.capacity ?? []).filter((row) => !row.fase), [workflow.capacity])
+
   const ontwikkelflowDeps = useMemo(
     () => visibleTeamDependencies.filter((d) => d.flowtype === 'ontwikkelflow'),
     [visibleTeamDependencies],
@@ -4569,6 +4590,17 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                 deze rij precies de ruimte vullen die de omsluitende kaart nog
                 over heeft ná de kop- en toolbar-rijen erboven — vast bepaald
                 door de kaarthoogte hierboven, niet los geschat. */}
+            {/* Wat er niet op het canvas staat, en waarom — met een verwijzing
+                naar de sectie in de lijst eronder. Zonder deze regel leek het
+                canvas compleet terwijl er records ontbraken. */}
+            {(legacyFlowDeps.length > 0 || verweesdeAppConnecties.length > 0) && (
+              <p className="mb-2 rounded-md border border-[#9a3b2e]/20 bg-[#9a3b2e]/5 px-3 py-2 text-[11px] text-[#9a3b2e]">
+                {t('teampage.nietOpCanvas', { count: legacyFlowDeps.length + verweesdeAppConnecties.length })}
+                {legacyFlowDeps.length > 0 && ' ' + t('teampage.nietOpCanvasFlowtype', { count: legacyFlowDeps.length })}
+                {verweesdeAppConnecties.length > 0 && ' ' + t('teampage.nietOpCanvasVerbinding', { count: verweesdeAppConnecties.length })}
+              </p>
+            )}
+
             <div className="flex min-h-0 flex-1 items-stretch gap-3">
               <div
                 ref={canvasPaneRef}
@@ -4735,6 +4767,26 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   )
                 })()}
             </div>
+
+            {/* (6) Capaciteitsregels zonder fase: eerder werden die bij het
+                opbouwen van het canvas overgeslagen en waren ze nergens te
+                vinden. Ze krijgen hier een eigen strook; het veld blijft in het
+                formulier gewoon 'Fase (optioneel)' heten. */}
+            {capaciteitZonderFase.length > 0 && (
+              <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-[11px] font-medium text-slate-500">
+                  {t('teampage.capaciteitZonderFase', { count: capaciteitZonderFase.length })}
+                </p>
+                <ul className="mt-1 flex flex-wrap gap-1.5">
+                  {capaciteitZonderFase.map((row) => (
+                    <li key={row.id} className="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] text-slate-700">
+                      {row.rol || '—'}
+                      {row.aantal ? ` · ${row.aantal}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
 
           {appDetailId &&

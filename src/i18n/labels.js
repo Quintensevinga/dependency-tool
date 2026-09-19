@@ -155,6 +155,9 @@ export const WORKFLOW_STAP_LABELS = {
   acceptatie: { nl: 'Acceptatie', en: 'Acceptance' },
   release_overdracht: { nl: 'Release/overdracht', en: 'Release/handover' },
   beheer_nazorg: { nl: 'Beheer/nazorg', en: 'Operations/aftercare' },
+  // Expliciete keuze voor werk dat niet aan één fase gebonden is (zie
+  // PROCESOVERSTIJGEND in data/constants.js).
+  procesoverstijgend: { nl: 'Procesoverstijgend — niet aan één fase gebonden', en: 'Process-wide — not tied to one phase' },
 }
 
 export const EFFECT_OP_FLOW_LABELS = {

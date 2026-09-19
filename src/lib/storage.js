@@ -6,7 +6,7 @@ import {
   MOCK_CHANGE_LOG,
   MOCK_ADMIN_SETTINGS,
 } from '../data/mockData'
-import { WORKFLOW_STAGES, BRON_TYPES, EXTERNAL_PARTY_STATUS, LINK_STATUS } from '../data/constants'
+import { WORKFLOW_STAGES, WORKFLOW_STAP_LEVELS, PROCESOVERSTIJGEND, BRON_TYPES, EXTERNAL_PARTY_STATUS, LINK_STATUS } from '../data/constants'
 import { slugify, uniqueSlug } from './slug'
 
 export const STORAGE_KEY = 'dependency-insight:v1'
@@ -280,12 +280,28 @@ function migrateDependency(raw, teamsState) {
   // Ontwikkelflow. Een eventuele (legacy/vervuilde) waarde wordt hier, bij de
   // bron, genegeerd i.p.v. per view apart genegeerd, zodat canvas, lijst,
   // filters en detailpaneel nooit meer een andere indeling kunnen tonen.
-  const workflowStap =
+  const ruweStap =
     flowtype === 'applicatieflow'
       ? null
       : raw.workflowStap
         ? (LEGACY_WORKFLOWSTAP_MIGRATION[raw.workflowStap] ?? raw.workflowStap)
         : null
+  // Eenmalige omzetting: een Ontwikkelflow-dependency met een ontbrekende of
+  // onbekende werkstap kreeg op het canvas de lane 'Proces-overstijgend'
+  // toegewezen, puur omdat de lookup niets opleverde. Een gat zag er daardoor
+  // hetzelfde uit als een keuze. Zo'n record krijgt nu die keuze expliciet.
+  //
+  // Alleen ontwikkelflow: een Applicatieflow-record heeft zijn werkstap BEWUST
+  // leeg (hierboven al op null gezet, en het formulier wist 'm bij het
+  // opslaan). Zou deze voorwaarde ook die records pakken, dan kregen honderden
+  // records een werkstap die daar conceptueel niet bestaat, verschenen ze op
+  // de verkeerde plek op het canvas en in de filters, en was dat alleen nog
+  // per record met de hand terug te draaien.
+  //
+  // Idempotent: PROCESOVERSTIJGEND staat zelf in WORKFLOW_STAP_LEVELS, dus een
+  // al omgezet record valt bij een volgende migratie buiten deze voorwaarde.
+  const workflowStap =
+    flowtype === 'ontwikkelflow' && !WORKFLOW_STAP_LEVELS.includes(ruweStap) ? PROCESOVERSTIJGEND : ruweStap
   return {
     ...rest,
     teamId,

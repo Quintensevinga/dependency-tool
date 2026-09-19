@@ -55,6 +55,13 @@ export function categoriesForScope(scope) {
 // canvas-only fase (alleen bereikt via capaciteit), geen moment waarop een
 // dependency zelf wordt vastgelegd. Zo komt wat je in het formulier kiest
 // 1-op-1 overeen met de kolom waar de dependency straks verschijnt.
+// Expliciete keuze voor werk dat niet aan één fase gebonden is. Stond er
+// eerder niet in: de app leidde 'procesoverstijgend' af uit een lege of
+// onbekende workflowstap en zette zo'n dependency in de lane
+// 'Proces-overstijgend' op het canvas. Daarmee zag een gat er hetzelfde uit
+// als een keuze. Nu kiest de invuller dit zelf.
+export const PROCESOVERSTIJGEND = 'procesoverstijgend'
+
 export const WORKFLOW_STAP_LEVELS = [
   'analyse_refinement',
   'ontwikkeling_configuratie',
@@ -62,6 +69,7 @@ export const WORKFLOW_STAP_LEVELS = [
   'acceptatie',
   'release_overdracht',
   'beheer_nazorg',
+  PROCESOVERSTIJGEND,
 ]
 
 export const EFFECT_OP_FLOW_LEVELS = [
@@ -85,7 +93,13 @@ export const FLOWTYPE_LEVELS = ['ontwikkelflow', 'applicatieflow']
 // WORKFLOW_STAP_LEVELS hierboven); deze map is een identity-map zodat de
 // bestaande WORKFLOW_STAP_TO_STAGE[dep.workflowStap]-lookups door de rest
 // van de app heen ongewijzigd kunnen blijven werken.
-export const WORKFLOW_STAP_TO_STAGE = Object.fromEntries(WORKFLOW_STAP_LEVELS.map((stap) => [stap, stap]))
+// PROCESOVERSTIJGEND hoort hier bewust NIET in: er is geen stagekolom met die
+// naam. Een lookup levert daardoor undefined op, en precies daarop selecteert
+// het canvas de 'Proces-overstijgend'-lane — het verschil is dat die lane nu
+// een gekozen waarde weergeeft in plaats van een gat.
+export const WORKFLOW_STAP_TO_STAGE = Object.fromEntries(
+  WORKFLOW_STAP_LEVELS.filter((stap) => stap !== PROCESOVERSTIJGEND).map((stap) => [stap, stap]),
+)
 
 // --- Teamworkflow-bord (teampagina, ketenoverzicht) ---
 // Vaste, globale werkstappen-reeks (niet per team aanpasbaar in v1).

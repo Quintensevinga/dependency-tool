@@ -174,6 +174,64 @@ describe('validateImportShape — schemaversie', () => {
   })
 })
 
+// Punt 27 — 'procesoverstijgend' is een expliciete keuze geworden. Een
+// Ontwikkelflow-record met een ontbrekende of onbekende werkstap kreeg op het
+// canvas de lane 'Proces-overstijgend' toegewezen omdat de lookup niets
+// opleverde; een gat zag er zo hetzelfde uit als een keuze. De omzetting mag
+// uitsluitend ontwikkelflow-records raken.
+describe('migrateState — omzetting naar procesoverstijgend', () => {
+  function dep(extra) {
+    return { id: 'd', teamId: 'team-alfa', titel: 'x', ...extra }
+  }
+  function migreer(d) {
+    return migrateState({ teams: [{ id: 'team-alfa', naam: 'Team Alfa' }], dependencies: [d] }).dependencies[0]
+  }
+
+  it('zet een ontwikkelflow-record met een ontbrekende werkstap om', () => {
+    expect(migreer(dep({ flowtype: 'ontwikkelflow' })).workflowStap).toBe('procesoverstijgend')
+  })
+
+  it('zet een ontwikkelflow-record met een lege werkstap om', () => {
+    expect(migreer(dep({ flowtype: 'ontwikkelflow', workflowStap: '' })).workflowStap).toBe('procesoverstijgend')
+  })
+
+  it('zet een ontwikkelflow-record met een onbekende werkstap om', () => {
+    expect(migreer(dep({ flowtype: 'ontwikkelflow', workflowStap: 'oude_stap' })).workflowStap).toBe('procesoverstijgend')
+  })
+
+  it('laat een bekende werkstap ongemoeid', () => {
+    expect(migreer(dep({ flowtype: 'ontwikkelflow', workflowStap: 'testen' })).workflowStap).toBe('testen')
+  })
+
+  it('vertaalt een legacy-werkstap eerst en zet die dus NIET om', () => {
+    expect(migreer(dep({ flowtype: 'ontwikkelflow', workflowStap: 'build' })).workflowStap).toBe('ontwikkeling_configuratie')
+  })
+
+  // Het controlegeval dat niet aangeraakt mag worden: applicatieflow kent
+  // conceptueel geen werkstap en heeft die bewust leeg.
+  it('laat een applicatieflow-record volledig met rust', () => {
+    const d = migreer(dep({ flowtype: 'applicatieflow', workflowStap: '' }))
+    expect(d.flowtype).toBe('applicatieflow')
+    expect(d.workflowStap).toBeNull()
+  })
+
+  it('laat ook een applicatieflow-record met een vervuilde werkstap met rust', () => {
+    expect(migreer(dep({ flowtype: 'applicatieflow', workflowStap: 'oude_stap' })).workflowStap).toBeNull()
+  })
+
+  // Zonder flowtype is het geen ontwikkelflow-record: die horen in de sectie
+  // onder het canvas, niet stilzwijgend in een lane.
+  it('laat een record zonder flowtype en zonder werkstap met rust', () => {
+    const d = migreer(dep({}))
+    expect(d.flowtype).toBeNull()
+    expect(d.workflowStap).toBeNull()
+  })
+
+  it('is idempotent op een al omgezet record', () => {
+    expect(migreer(dep({ flowtype: 'ontwikkelflow', workflowStap: 'procesoverstijgend' })).workflowStap).toBe('procesoverstijgend')
+  })
+})
+
 // TEST 5 — idempotentie. De migratie draait bij élke keer dat de app opent
 // opnieuw, ook over data die al gemigreerd is. Twee keer draaien moet dus exact
 // hetzelfde opleveren als één keer.

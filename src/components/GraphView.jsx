@@ -303,7 +303,13 @@ export default function GraphView({
         if (d.geaccepteerd) return false
         if (!selectedTeamIds.includes(d.teamId) || !selectedRiskLevels.includes(calculateRisk(d).level)) return false
         if (scope !== 'alle' && d.scope !== scope) return false
-        if (!selectedWorkflowStap.includes(d.workflowStap ?? '')) return false
+        // Een waarde die noch bekend noch leeg is (bv. een werkstap uit een
+        // oude export) viel door beide mazen: het filter biedt de bekende
+        // stappen aan plus 'niet ingevuld', en zo'n record hoorde bij geen van
+        // beide, dus verdween het stil uit de heatmap. Onbekend telt nu als
+        // 'niet ingevuld', zodat het in elk geval via dat vinkje te vinden is.
+        const stap = WORKFLOW_STAP_LEVELS.includes(d.workflowStap) ? d.workflowStap : ''
+        if (!selectedWorkflowStap.includes(stap)) return false
         return true
       }),
     [dependencies, selectedTeamIds, selectedRiskLevels, scope, selectedWorkflowStap],
