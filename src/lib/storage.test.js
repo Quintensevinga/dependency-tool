@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { migrateState, validateImportShape, SCHEMA_VERSION } from './storage'
+import { migrateState, validateImportShape, telOnvolledigeNamen, SCHEMA_VERSION } from './storage'
 
 // Een oude export zoals die vóór de huidige schemaversie uit de app kwam:
 // teams als losse tekst, en een dependency met uitsluitend oude waarden. Geen
@@ -229,6 +229,58 @@ describe('migrateState — omzetting naar procesoverstijgend', () => {
 
   it('is idempotent op een al omgezet record', () => {
     expect(migreer(dep({ flowtype: 'ontwikkelflow', workflowStap: 'procesoverstijgend' })).workflowStap).toBe('procesoverstijgend')
+  })
+})
+
+// I8 — naamcontrole bij importeren. De naamplicht uit I2 geldt voor wat iemand
+// nieuw invoert; wat er al was komt gewoon mee. Een importbestand gaat van hand
+// tot hand en is daarmee vaak de enige kopie, dus weggooien zou definitief
+// zijn. Tellen en melden dus, niet weigeren.
+describe('telOnvolledigeNamen', () => {
+  const bestand = {
+    teams: [{ id: 'team-a', naam: 'Team A' }, { id: 'team-b', naam: 'Team B' }],
+    dependencies: [],
+    teamWorkflows: {
+      'team-a': {
+        inputs: [{ id: 'i1', label: 'Met naam' }, { id: 'i2', label: '' }, { id: 'i3', label: '   ' }],
+        outputs: [{ id: 'o1', label: '' }],
+        capacity: [{ id: 'c1', rol: 'Tester' }, { id: 'c2', rol: '' }],
+      },
+      'team-b': {
+        inputs: [{ id: 'i4', label: 'Prima' }],
+        outputs: [],
+        capacity: [{ id: 'c3', rol: 'Architect' }],
+      },
+    },
+  }
+
+  it('telt items zonder naam, inclusief namen van alleen spaties', () => {
+    const uitkomst = telOnvolledigeNamen(bestand)
+    expect(uitkomst.ioItems).toBe(3)
+    expect(uitkomst.capaciteitsregels).toBe(1)
+    expect(uitkomst.totaal).toBe(4)
+  })
+
+  it('noemt alleen de teams waar iets mist, met hun naam', () => {
+    const { perTeam } = telOnvolledigeNamen(bestand)
+    expect(perTeam).toEqual([{ teamId: 'team-a', teamNaam: 'Team A', ioItems: 3, capaciteitsregels: 1 }])
+  })
+
+  it('geeft nul terug op een schoon bestand', () => {
+    const uitkomst = telOnvolledigeNamen({ teams: [], dependencies: [], teamWorkflows: {} })
+    expect(uitkomst.totaal).toBe(0)
+    expect(uitkomst.perTeam).toEqual([])
+  })
+
+  it('valt niet om op ontbrekende of rommelige velden', () => {
+    expect(() => telOnvolledigeNamen({})).not.toThrow()
+    expect(() => telOnvolledigeNamen({ teamWorkflows: { x: null, y: 'tekst' } })).not.toThrow()
+    expect(telOnvolledigeNamen(undefined).totaal).toBe(0)
+  })
+
+  // Het blijft tellen, niet weigeren: de import moet gewoon doorgaan.
+  it('laat een bestand met naamloze items gewoon door de importcontrole', () => {
+    expect(() => validateImportShape(bestand)).not.toThrow()
   })
 })
 

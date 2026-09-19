@@ -3,7 +3,7 @@ import { useAppContext } from '../context/AppContext'
 import { APP_VERSION, BUILD_TIME } from '../lib/appVersion'
 import { useLanguage } from '../context/LanguageContext'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
-import { emptyTeamWorkflow, validateImportShape } from '../lib/storage'
+import { emptyTeamWorkflow, validateImportShape, telOnvolledigeNamen } from '../lib/storage'
 import { useModalA11y } from '../lib/a11y'
 import { BRON_TYPES } from '../data/constants'
 import { translateBronType } from '../i18n/labels'
@@ -515,6 +515,8 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
   // Ingelezen en goedgekeurd bestand dat op bevestiging wacht. Zolang dit
   // gevuld is, is er nog niets gewijzigd — annuleren gooit het gewoon weg.
   const [pendingImport, setPendingImport] = useState(null)
+  // Uitkomst van de laatste import: hoeveel records er zonder naam binnenkwamen.
+  const [importOnvolledig, setImportOnvolledig] = useState(null)
   const [lastExport, setLastExport] = useState(() => readLastExport())
   const lastExportWaarschuwt = !lastExport || dagenGeleden(lastExport) >= EXPORT_WAARSCHUWING_DAGEN
   const fileInputRef = useRef(null)
@@ -598,6 +600,9 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
         externalParties: Array.isArray(parsed.externalParties) ? parsed.externalParties.length : 0,
         changeLog: Array.isArray(parsed.changeLog) ? parsed.changeLog.length : 0,
         schemaVersion: typeof parsed.schemaVersion === 'number' ? parsed.schemaVersion : null,
+        // Records zonder naam worden geteld, niet geweigerd — zie
+        // telOnvolledigeNamen in lib/storage.js.
+        onvolledig: telOnvolledigeNamen(parsed),
       })
     } catch (err) {
       // Een JSON-parsefout (SyntaxError) is voor de gebruiker onleesbaar
@@ -617,6 +622,10 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
       // verkeerde bestand gekozen, dan staat de vorige toestand al op schijf.
       exportDataAsJson(exportPayload(), `voor-import-${new Date().toISOString().slice(0, 10)}.json`)
       importState(pendingImport.data)
+      // Na afloop melden hoeveel er binnenkwamen zonder naam, en bij welke
+      // teams ze staan. Zonder die verwijzing weet je wel dát er iets
+      // onvolledig is, maar niet waar je het moet repareren.
+      setImportOnvolledig(pendingImport.onvolledig?.totaal > 0 ? pendingImport.onvolledig : null)
       setPendingImport(null)
     } catch (err) {
       setImportError(err instanceof Error ? err.message : t('settings.importGenericError'))
@@ -740,6 +749,11 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
                 <li>{t('settings.importCountParties', { count: pendingImport.externalParties })}</li>
                 <li>{t('settings.importCountLog', { count: pendingImport.changeLog })}</li>
                 <li>{t('settings.importSchemaVersion', { version: pendingImport.schemaVersion ?? '—' })}</li>
+                {pendingImport.onvolledig?.totaal > 0 && (
+                  <li className="font-medium text-[#9a3b2e]">
+                    {t('settings.importZonderNaam', { count: pendingImport.onvolledig.totaal })}
+                  </li>
+                )}
               </ul>
               <p className="text-[11px] text-slate-500">{t('settings.importBackupNote')}</p>
               <div className="flex gap-2">
@@ -765,6 +779,22 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
             <p role="alert" className="rounded-md bg-[#9a3b2e]/5 px-2.5 py-2 text-xs text-[#9a3b2e]">
               {importError}
             </p>
+          )}
+
+          {importOnvolledig && (
+            <div role="status" className="space-y-1 rounded-md border border-[#9a3b2e]/20 bg-[#9a3b2e]/5 px-2.5 py-2 text-xs text-[#9a3b2e]">
+              <p className="font-medium">{t('settings.importZonderNaamNa', { count: importOnvolledig.totaal })}</p>
+              <ul className="space-y-0.5 text-[11px]">
+                {importOnvolledig.perTeam.map((rij) => (
+                  <li key={rij.teamId}>
+                    {rij.teamNaam}: {t('settings.importZonderNaamRegel', { io: rij.ioItems, cap: rij.capaciteitsregels })}
+                  </li>
+                ))}
+              </ul>
+              <button type="button" onClick={() => setImportOnvolledig(null)} className="font-medium underline">
+                {t('settings.importZonderNaamSluiten')}
+              </button>
+            </div>
           )}
         </div>
 

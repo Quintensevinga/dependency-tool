@@ -575,6 +575,33 @@ export function validateImportShape(parsed) {
   }
 }
 
+// Telt records die binnenkomen zonder naam. Bewust TELLEN en niet weigeren of
+// weggooien: de naamplicht geldt voor wat iemand nieuw invoert, niet voor wat
+// er al was. Bij een bestand dat van hand tot hand gaat is de import bovendien
+// de enige kopie — weggooien is dan definitief, en bestaande lege records
+// moeten juist te openen en te repareren blijven.
+//
+// Dependencies zitten er niet bij: die worden bij het inlezen al gewéigerd als
+// de titel ontbreekt (validateImportShape hierboven), en dat blijft zo.
+export function telOnvolledigeNamen(parsed) {
+  const teams = new Map((Array.isArray(parsed?.teams) ? parsed.teams : []).map((tm) => [tm?.id ?? tm, tm?.naam ?? tm]))
+  const perTeam = []
+  let ioItems = 0
+  let capaciteitsregels = 0
+
+  for (const [teamId, wf] of Object.entries(parsed?.teamWorkflows ?? {})) {
+    if (!wf || typeof wf !== 'object') continue
+    const io = [...(wf.inputs ?? []), ...(wf.outputs ?? [])].filter((item) => item && !item.label?.trim()).length
+    const cap = (wf.capacity ?? []).filter((row) => row && !row.rol?.trim()).length
+    if (io === 0 && cap === 0) continue
+    ioItems += io
+    capaciteitsregels += cap
+    perTeam.push({ teamId, teamNaam: teams.get(teamId) ?? teamId, ioItems: io, capaciteitsregels: cap })
+  }
+
+  return { ioItems, capaciteitsregels, totaal: ioItems + capaciteitsregels, perTeam }
+}
+
 // --- publieke API ---
 
 function emptyState() {
