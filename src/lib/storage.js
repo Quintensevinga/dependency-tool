@@ -43,10 +43,6 @@ function isoDatumOf(value) {
   return typeof value === 'string' && value && !Number.isNaN(Date.parse(value)) ? value : null
 }
 
-export function deepClone(value) {
-  return JSON.parse(JSON.stringify(value))
-}
-
 export function emptyApplicatieflow() {
   return { connecties: [], details: {}, layout: {} }
 }
@@ -100,11 +96,13 @@ export const DEFAULT_ADMIN_SETTINGS = {
     heatmap: true,
     keten: true,
     team: true,
+    dependencies: true,
     analyse: true,
   },
   sections: {
     heatmap: { categorieUitleg: true, selectiepaneel: true, filters: true },
     keten: { filters: true, legenda: true },
+    dependencies: { filters: true },
     team: {
       applicatieflow: true,
       ontwikkelflow: true,

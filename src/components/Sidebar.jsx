@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import SettingsPanel from './SettingsPanel'
 import { useAppContext } from '../context/AppContext'
 import { useLanguage } from '../context/LanguageContext'
+import { LijstZoekveld, ToonMeerKnop, useZoekbareLijst } from './ZoekbareLijst'
 
 function ChainIcon() {
   return (
@@ -35,11 +36,22 @@ function AnalyseIcon() {
   )
 }
 
+function DependenciesIcon() {
+  return (
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none">
+      <path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <circle cx="18.5" cy="18" r="2.6" stroke="currentColor" strokeWidth="1.6" />
+      <path d="m20.6 20.1 1.4 1.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 // Platte navigatielijst: elk item is één hoofdtabblad (activeTab in App.jsx),
 // in de door de gebruiker gevraagde volgorde.
 const NAV_ITEMS = [
   { key: 'heatmap', tab: 'heatmap', icon: HeatmapIcon, labelKey: 'tab.heatmap' },
   { key: 'chain', tab: 'chain', icon: ChainIcon, labelKey: 'tab.chain' },
+  { key: 'dependencies', tab: 'dependencies', icon: DependenciesIcon, labelKey: 'tab.dependencies' },
   { key: 'analyse', tab: 'analyse', icon: AnalyseIcon, labelKey: 'tab.analyse' },
 ]
 
@@ -251,6 +263,14 @@ function TeamsSection({ activeTeamId, onNavigateToTeam }) {
   const { activeTeams } = useAppContext()
   const { t } = useLanguage()
   const [open, setOpen] = useState(true)
+  // Het team waar je nu op staat blijft altijd in de lijst, ook voorbij de
+  // afkapgrens: anders verdwijnt de pagina waar je op kijkt uit de navigatie.
+  const lijst = useZoekbareLijst({
+    items: activeTeams,
+    labelVan: (team) => team.naam,
+    isGekozen: (team) => team.id === activeTeamId,
+    zichtbaar: open,
+  })
 
   return (
     <div className="mt-1">
@@ -266,12 +286,29 @@ function TeamsSection({ activeTeamId, onNavigateToTeam }) {
 
       {open && (
         <div>
+          {lijst.zoekveldZichtbaar && (
+            <LijstZoekveld
+              waarde={lijst.zoek}
+              onChange={lijst.setZoek}
+              label={t('lijst.zoekTeam')}
+              className="mb-1.5 w-full rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-slate-200 placeholder:text-slate-500 focus:border-white/30 focus:outline-none"
+            />
+          )}
           <ul className="max-h-72 space-y-0.5 overflow-y-auto px-1">
             {activeTeams.length === 0 && <li className="px-2 py-1.5 text-xs text-slate-500">{t('team.noTeams')}</li>}
-            {activeTeams.map((team) => (
+            {activeTeams.length > 0 && lijst.getoond.length === 0 && (
+              <li className="px-2 py-1.5 text-xs text-slate-500">{t('lijst.geenTeamGevonden')}</li>
+            )}
+            {lijst.getoond.map((team) => (
               <TeamRow key={team.id} team={team} active={team.id === activeTeamId} onNavigateToTeam={onNavigateToTeam} />
             ))}
           </ul>
+          <ToonMeerKnop
+            verborgen={lijst.verborgen}
+            uitgeklapt={lijst.uitgeklapt}
+            onToggle={() => lijst.setUitgeklapt((v) => !v)}
+            className="mt-1 px-3 py-1 text-xs font-medium text-slate-400 hover:text-slate-200"
+          />
         </div>
       )}
     </div>
@@ -316,6 +353,7 @@ export default function Sidebar({ activeTab, onTabChange, onExportPng, exporting
   const visibleNavItems = NAV_ITEMS.filter((item) => {
     if (item.key === 'heatmap') return adminSettings.pages.heatmap !== false
     if (item.key === 'chain') return adminSettings.pages.keten
+    if (item.key === 'dependencies') return adminSettings.pages.dependencies !== false
     if (item.key === 'analyse') return adminSettings.pages.analyse !== false
     return true
   })

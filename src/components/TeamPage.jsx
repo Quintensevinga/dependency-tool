@@ -2053,6 +2053,11 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
                   externalParties={externalParties}
                   addExternalParty={addExternalParty}
                   currentTeamId={currentTeamId}
+                  teams={teams}
+                  // Het soort is hierboven al gekozen (de bron/bestemming van
+                  // dit item); die vraag hoeft het aanmaakvenster niet opnieuw
+                  // te stellen.
+                  defaultType={type}
                   t={t}
                   language={language}
                 />

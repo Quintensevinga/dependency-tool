@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { LijstZoekveld, ToonMeerKnop, useZoekbareLijst } from './ZoekbareLijst'
 import { useLanguage } from '../context/LanguageContext'
 import { useAppContext } from '../context/AppContext'
 import { RISK_LEVELS } from '../data/constants'
@@ -45,11 +46,27 @@ function AllNoneFooter({ onSelectAll, onSelectNone, t }) {
   )
 }
 
-function CheckboxGroup({ title, options, selected, onToggle, renderLabel, renderDot, footer, defaultOpen = false }) {
+// `zoekbaar` zet het zoekveld en de afkapping aan. Alleen de teamlijst gebruikt
+// dat: risiconiveaus, workflowstappen en scope zijn vaste, korte lijstjes.
+function CheckboxGroup({ title, options, selected, onToggle, renderLabel, renderDot, footer, defaultOpen = false, zoekbaar = false }) {
   const [open, setOpen] = useState(defaultOpen)
+  const { t } = useLanguage()
   // Ook 'niets geselecteerd' (Geen) is een actief filter — op het ingeklapte
   // paneel is dit stipje de enige aanwijzing waarom de weergave leeg is.
   const narrowed = selected.length < options.length
+
+  const waardeVan = (opt) => (typeof opt === 'string' ? opt : opt.id)
+  const labelTekstVan = (opt) => {
+    const label = renderLabel ? renderLabel(opt) : typeof opt === 'string' ? opt : opt.naam
+    return typeof label === 'string' ? label : waardeVan(opt)
+  }
+  const lijst = useZoekbareLijst({
+    items: options,
+    labelVan: labelTekstVan,
+    isGekozen: (opt) => selected.includes(waardeVan(opt)),
+    zichtbaar: open,
+  })
+  const zichtbareOpties = zoekbaar ? lijst.getoond : options
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -67,9 +84,18 @@ function CheckboxGroup({ title, options, selected, onToggle, renderLabel, render
       </button>
       {open && (
         <div className="px-4 pb-4">
+          {zoekbaar && lijst.zoekveldZichtbaar && (
+            <LijstZoekveld
+              waarde={lijst.zoek}
+              onChange={lijst.setZoek}
+              label={t('lijst.zoekTeam')}
+              className="mb-2 w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+            />
+          )}
           <div className="space-y-2">
-            {options.map((opt) => {
-              const value = typeof opt === 'string' ? opt : opt.id
+            {zoekbaar && zichtbareOpties.length === 0 && <p className="text-xs text-slate-400">{t('lijst.geenTeamGevonden')}</p>}
+            {zichtbareOpties.map((opt) => {
+              const value = waardeVan(opt)
               const label = renderLabel ? renderLabel(opt) : typeof opt === 'string' ? opt : opt.naam
               return (
                 <label key={value} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
@@ -85,6 +111,14 @@ function CheckboxGroup({ title, options, selected, onToggle, renderLabel, render
               )
             })}
           </div>
+          {zoekbaar && (
+            <ToonMeerKnop
+              verborgen={lijst.verborgen}
+              uitgeklapt={lijst.uitgeklapt}
+              onToggle={() => lijst.setUitgeklapt((v) => !v)}
+              className="mt-2 text-xs font-medium text-[#2a5f8a] hover:underline"
+            />
+          )}
           {footer}
         </div>
       )}
@@ -150,6 +184,7 @@ export default function TeamFilterPanel({
         options={teams}
         selected={selected}
         onToggle={onToggle}
+        zoekbaar
         defaultOpen
         renderLabel={(team) => {
           const naam = teamLabels[team.id] ?? team.naam

@@ -54,6 +54,12 @@ const ADMIN_PAGE_CONFIG = [
     ],
   },
   {
+    key: 'dependencies',
+    labelNl: 'Alle dependencies',
+    labelEn: 'All dependencies',
+    sections: [{ key: 'filters', labelNl: 'Filters', labelEn: 'Filters' }],
+  },
+  {
     key: 'analyse',
     labelNl: 'Analyse',
     labelEn: 'Analysis',

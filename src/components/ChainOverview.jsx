@@ -28,6 +28,7 @@ import {
 import ELKApi from 'elkjs/lib/elk-api.js'
 import ElkRekendraad from 'elkjs/lib/elk-worker.min.js?worker'
 import { useAppContext } from '../context/AppContext'
+import { LijstZoekveld, ToonMeerKnop, useZoekbareLijst } from './ZoekbareLijst'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
 import { riskStyle } from '../lib/riskStyles'
@@ -374,6 +375,31 @@ function TeamsMenu({ teams, teamLabels, selectedIds, onToggle, onSelectAll, onSe
       highlight={selected.size === 0}
       hint={t('chain.teamsMenuHint')}
     >
+      <TeamsMenuPaneel
+        teams={teams}
+        teamLabels={teamLabels}
+        selected={selected}
+        onToggle={onToggle}
+        onSelectAll={onSelectAll}
+        onSelectNone={onSelectNone}
+      />
+    </BarMenu>
+  )
+}
+
+// De inhoud van dat menu staat bewust in een eigen component: BarMenu rendert
+// zijn kinderen alleen zolang het menu openstaat, dus zo verdwijnt de
+// zoekopdracht bij het dichtklappen en begint een volgende keer weer met de
+// volledige lijst.
+function TeamsMenuPaneel({ teams, teamLabels, selected, onToggle, onSelectAll, onSelectNone }) {
+  const { t } = useLanguage()
+  const lijst = useZoekbareLijst({
+    items: teams,
+    labelVan: (team) => teamLabels[team.id] ?? team.naam,
+    isGekozen: (team) => selected.has(team.id),
+  })
+  return (
+    <>
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{t('chain.teamsMenuHint')}</span>
         <span className="flex shrink-0 gap-2 text-xs">
@@ -385,15 +411,30 @@ function TeamsMenu({ teams, teamLabels, selectedIds, onToggle, onSelectAll, onSe
           </button>
         </span>
       </div>
+      {lijst.zoekveldZichtbaar && (
+        <LijstZoekveld
+          waarde={lijst.zoek}
+          onChange={lijst.setZoek}
+          label={t('lijst.zoekTeam')}
+          className="mb-2 w-full rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+        />
+      )}
       <div className="max-h-64 space-y-1.5 overflow-y-auto pr-1">
-        {teams.map((team) => (
+        {lijst.getoond.length === 0 && <p className="text-xs text-slate-400">{t('lijst.geenTeamGevonden')}</p>}
+        {lijst.getoond.map((team) => (
           <label key={team.id} className="flex cursor-pointer items-center gap-2 text-sm text-slate-700">
             <input type="checkbox" checked={selected.has(team.id)} onChange={() => onToggle(team.id)} className="h-3.5 w-3.5 shrink-0 rounded border-slate-300 accent-[#2a5f8a]" />
             <span className="min-w-0 flex-1 truncate">{teamLabels[team.id] ?? team.naam}</span>
           </label>
         ))}
       </div>
-    </BarMenu>
+      <ToonMeerKnop
+        verborgen={lijst.verborgen}
+        uitgeklapt={lijst.uitgeklapt}
+        onToggle={() => lijst.setUitgeklapt((v) => !v)}
+        className="mt-1.5 text-xs font-medium text-[#2a5f8a] hover:underline"
+      />
+    </>
   )
 }
 

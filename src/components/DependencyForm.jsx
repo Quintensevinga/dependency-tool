@@ -28,6 +28,7 @@ import {
   getCategoryDescription,
 } from '../i18n/labels'
 import PartyPicker from './PartyPicker'
+import { LijstZoekveld, ToonMeerKnop, useZoekbareLijst } from './ZoekbareLijst'
 import SegmentedField from './form/SegmentedField'
 import { bepaalKwadrant } from '../lib/analysis'
 
@@ -327,6 +328,13 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
   // records.
   const archivedSelectedTeams = teams.filter((tm) => !tm.actief && form.teamIds.includes(tm.id))
   const teamChoices = archivedSelectedTeams.length > 0 ? [...activeTeams, ...archivedSelectedTeams] : activeTeams
+  // Aangevinkte teams blijven altijd zichtbaar, ook voorbij de afkapgrens:
+  // anders staat er straks '3 teams gekozen' zonder dat je ziet welke.
+  const teamLijst = useZoekbareLijst({
+    items: teamChoices,
+    labelVan: (tm) => teamLabels[tm.id] ?? tm.naam,
+    isGekozen: (tm) => form.teamIds.includes(tm.id),
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
@@ -406,21 +414,40 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                     <p className="text-xs text-slate-400">{t('form.teamsEmpty')}</p>
                   ) : (
                     <div className="space-y-0.5 rounded-md border border-slate-300 bg-white p-1.5">
-                      {teamChoices.map((tm) => {
-                        const checked = form.teamIds.includes(tm.id)
-                        return (
-                          <label key={tm.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 hover:bg-slate-50">
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleTeamId(tm.id)}
-                              className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
-                            />
-                            {teamLabels[tm.id] ?? tm.naam}
-                            {!tm.actief ? ` (${t('settings.archived')})` : ''}
-                          </label>
-                        )
-                      })}
+                      {teamLijst.zoekveldZichtbaar && (
+                        <LijstZoekveld
+                          waarde={teamLijst.zoek}
+                          onChange={teamLijst.setZoek}
+                          label={t('lijst.zoekTeam')}
+                          className="mb-1 w-full rounded border border-slate-200 px-2 py-1 text-xs text-slate-700 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+                        />
+                      )}
+                      {/* Zonder afkapping groeide deze lijst onbeperkt door en
+                          duwde hij de rest van het formulier weg. */}
+                      <div className="max-h-56 space-y-0.5 overflow-y-auto">
+                        {teamLijst.getoond.length === 0 && <p className="px-1.5 py-1 text-xs text-slate-400">{t('lijst.geenTeamGevonden')}</p>}
+                        {teamLijst.getoond.map((tm) => {
+                          const checked = form.teamIds.includes(tm.id)
+                          return (
+                            <label key={tm.id} className="flex items-center gap-2 rounded px-1.5 py-1 text-sm text-slate-700 hover:bg-slate-50">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleTeamId(tm.id)}
+                                className="h-3.5 w-3.5 rounded border-slate-300 accent-[#2a5f8a]"
+                              />
+                              {teamLabels[tm.id] ?? tm.naam}
+                              {!tm.actief ? ` (${t('settings.archived')})` : ''}
+                            </label>
+                          )
+                        })}
+                      </div>
+                      <ToonMeerKnop
+                        verborgen={teamLijst.verborgen}
+                        uitgeklapt={teamLijst.uitgeklapt}
+                        onToggle={() => teamLijst.setUitgeklapt((v) => !v)}
+                        className="mt-1 px-1.5 text-xs font-medium text-[#2a5f8a] hover:underline"
+                      />
                     </div>
                   )}
                   {form.teamIds.length > 1 && (
@@ -603,6 +630,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                       externalParties={externalParties}
                       addExternalParty={addExternalParty}
                       currentTeamId={form.teamIds[0] ?? defaultTeamId ?? null}
+                      teams={teams}
                       t={t}
                       language={language}
                     />
