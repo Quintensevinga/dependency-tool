@@ -19,12 +19,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node 22 en niet 20: vitest 5 vereist ^22.12.0 || ^24.0.0 || >=26.0.0, en
-      # vite, rolldown en oxlint vragen ^20.19.0 || >=22.12.0. Op Node 20 draaide
-      # deze workflow dus op een versie die de toolchain zelf niet ondersteunt.
+      # Node 24, om twee redenen. Ten eerste vereist vitest 5 minimaal
+      # ^22.12.0 || ^24.0.0 || >=26.0.0, dus Node 20 (waar dit eerst op stond)
+      # is uitgesloten. Ten tweede, en dat is de reden dat deze workflow nooit
+      # geslaagd is: Node 22 brengt npm 10 mee, en npm 10 en npm 11 schrijven de
+      # gebundelde subafhankelijkheden van @tailwindcss/oxide-wasm32-wasi
+      # verschillend. Op een lockfile die met npm 11 is gemaakt viel npm 10 om
+      # met 'Missing: @emnapi/runtime@1.11.3 from lock file' (EUSAGE). Node 24
+      # brengt npm 11 mee en is daarmee dezelfde combinatie als waarop hier
+      # ontwikkeld wordt.
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       # npm ci en niet npm install: alleen een installatie vanaf nul met een
