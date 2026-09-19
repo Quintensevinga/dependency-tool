@@ -1843,8 +1843,20 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
     update(mode === 'intern' ? clearParty : clearLink)
   }
 
+  // Alleen de NAAM is verplicht, bewust niet de bron: meer verplichte velden
+  // verleiden mensen tot 'xx' invullen. Spaties tellen niet mee — een naam van
+  // alleen spaties ontsnapte zelfs aan het streepje op het canvas en zag eruit
+  // als een weergavefout.
+  const naamOntbreekt = !draft.label?.trim()
+  const [naamAangeraakt, setNaamAangeraakt] = useState(false)
+
   function handleSubmit(e) {
     e.preventDefault()
+    if (naamOntbreekt) {
+      setNaamAangeraakt(true)
+      document.getElementById('io-item-naam')?.focus()
+      return
+    }
     onSave(draft)
   }
 
@@ -1869,12 +1881,22 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">{isInput ? t('teampage.ioNameInput') : t('teampage.ioNameOutput')}</label>
             <input
+              id="io-item-naam"
               autoFocus
               value={draft.label}
               onChange={(e) => update({ label: e.target.value })}
+              onBlur={() => setNaamAangeraakt(true)}
+              aria-describedby={naamAangeraakt && naamOntbreekt ? 'io-item-naam-fout' : undefined}
               placeholder={isInput ? t('teampage.ioNamePlaceholderInput') : t('teampage.ioNamePlaceholderOutput')}
-              className={`${FIELD_CLASS} text-slate-800 placeholder:text-slate-400`}
+              className={`${FIELD_CLASS} text-slate-800 placeholder:text-slate-400 ${
+                naamAangeraakt && naamOntbreekt ? 'border-[#9a3b2e]' : ''
+              }`}
             />
+            {naamAangeraakt && naamOntbreekt && (
+              <p id="io-item-naam-fout" role="alert" className="mt-1 text-xs font-medium text-[#9a3b2e]">
+                {t('form.required')}
+              </p>
+            )}
           </div>
 
           <div>
@@ -1956,7 +1978,17 @@ function IoItemModal({ kind, item, onSave, onRemove, onClose, teams, currentTeam
                       onChange={(e) =>
                         e.target.value === NEW_LINK_ITEM
                           ? update({ [linkedIdField]: '', linkNieuw: true })
-                          : update({ [linkedIdField]: e.target.value, linkNieuw: false })
+                          : update({
+                              [linkedIdField]: e.target.value,
+                              linkNieuw: false,
+                              // Naam van het gekozen item overnemen zolang er
+                              // nog geen eigen naam staat: dan kost de
+                              // naamplicht geen extra denkstap. Een al
+                              // ingevulde naam blijft staan.
+                              ...(draft.label?.trim()
+                                ? {}
+                                : { label: linkedItems.find((x) => x.id === e.target.value)?.label ?? '' }),
+                            })
                       }
                       className={FIELD_CLASS}
                     >
@@ -2169,9 +2201,77 @@ function emptyCapacityRow() {
 }
 
 // Klein modal-formulier voor één capaciteitsrij.
+// Vraagt eerst om een naam en maakt de applicatie pas daarna aan. Eerder werd
+// het record al weggeschreven op het moment dat je op de knop klikte — dus
+// vóórdat het venster überhaupt open was, en een keer wegklikken liet een
+// naamloze applicatie achter.
+function ApplicationNameModal({ onCreate, onClose, t }) {
+  const [naam, setNaam] = useState('')
+  const [aangeraakt, setAangeraakt] = useState(false)
+  const ontbreekt = !naam.trim()
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (ontbreekt) {
+      setAangeraakt(true)
+      return
+    }
+    onCreate(naam.trim())
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
+      <div role="dialog" aria-modal="true" className="w-full max-w-sm rounded-xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+          <h3 className="text-base font-semibold text-slate-900">{t('teampage.applicationsAdd')}</h3>
+          <button type="button" onClick={onClose} aria-label={t('form.close')} className="text-slate-400 hover:text-slate-600">
+            ✕
+          </button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-3 px-5 py-4">
+          <div>
+            <label htmlFor="nieuwe-applicatie-naam" className="mb-1 block text-xs font-medium text-slate-600">
+              {t('teampage.applicationNameLabel')}
+            </label>
+            <input
+              id="nieuwe-applicatie-naam"
+              autoFocus
+              value={naam}
+              onChange={(e) => setNaam(e.target.value)}
+              onBlur={() => setAangeraakt(true)}
+              aria-describedby={aangeraakt && ontbreekt ? 'nieuwe-applicatie-fout' : undefined}
+              placeholder={t('teampage.applicationsPlaceholder')}
+              className={`w-full rounded-md border bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none ${
+                aangeraakt && ontbreekt ? 'border-[#9a3b2e]' : 'border-slate-300 focus:border-[#2a5f8a]'
+              }`}
+            />
+            {aangeraakt && ontbreekt && (
+              <p id="nieuwe-applicatie-fout" role="alert" className="mt-1 text-xs font-medium text-[#9a3b2e]">
+                {t('form.required')}
+              </p>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button type="button" onClick={onClose} className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+              {t('form.cancel')}
+            </button>
+            <button type="submit" className="rounded-md bg-[#2a5f8a] px-3 py-1.5 text-sm font-medium text-white hover:bg-[#1f4a6c]">
+              {t('form.save')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function CapacityRowModal({ row, onSave, onRemove, onClose, t, language }) {
   const [draft, setDraft] = useState(() => ({ ...emptyCapacityRow(), ...row }))
   const isEditing = Boolean(row)
+  // Zelfde regel als bij een input/output-item: zonder rol is de regel op het
+  // canvas en in de lijst niet te herkennen. Spaties tellen niet mee.
+  const rolOntbreekt = !draft.rol?.trim()
+  const [rolAangeraakt, setRolAangeraakt] = useState(false)
 
   function update(fields) {
     setDraft((d) => ({ ...d, ...fields }))
@@ -2179,6 +2279,11 @@ function CapacityRowModal({ row, onSave, onRemove, onClose, t, language }) {
 
   function handleSubmit(e) {
     e.preventDefault()
+    if (rolOntbreekt) {
+      setRolAangeraakt(true)
+      document.getElementById('capaciteit-rol')?.focus()
+      return
+    }
     onSave(draft)
   }
 
@@ -2197,11 +2302,22 @@ function CapacityRowModal({ row, onSave, onRemove, onClose, t, language }) {
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-600">{t('teampage.capacityRolPlaceholder')}</label>
             <input
+              id="capaciteit-rol"
+              autoFocus
               value={draft.rol ?? ''}
               onChange={(e) => update({ rol: e.target.value })}
+              onBlur={() => setRolAangeraakt(true)}
+              aria-describedby={rolAangeraakt && rolOntbreekt ? 'capaciteit-rol-fout' : undefined}
               placeholder={t('teampage.capacityRolPlaceholder')}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#2a5f8a] focus:outline-none"
+              className={`w-full rounded-md border bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none ${
+                rolAangeraakt && rolOntbreekt ? 'border-[#9a3b2e]' : 'border-slate-300 focus:border-[#2a5f8a]'
+              }`}
             />
+            {rolAangeraakt && rolOntbreekt && (
+              <p id="capaciteit-rol-fout" role="alert" className="mt-1 text-xs font-medium text-[#9a3b2e]">
+                {t('form.required')}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -2623,12 +2739,24 @@ function LinkRequestsPanel({ requests, workflow, teamName, onAccept, onReject, t
             key={`${req.teamId}:${req.kind}:${req.item.id}`}
             className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm text-slate-700"
           >
-            <span className="min-w-0 flex-1">{describe(req)}</span>
+            <span className="min-w-0 flex-1">
+              {describe(req)}
+              {/* Nieuwe naamloze verzoeken kunnen niet meer ontstaan (de naam
+                  is verplicht bij de verzender), maar bestaande data kan er nog
+                  hebben. De controle hoort bij de bron, dus hier alleen
+                  uitleggen waarom er niets te accepteren valt — anders klikt
+                  dit team op Accepteren en gebeurt er zichtbaar niets. */}
+              {!req.item.label?.trim() && (
+                <span className="mt-0.5 block text-[11px] font-medium text-[#9a3b2e]">{t('teampage.linkRequestNoName')}</span>
+              )}
+            </span>
             <span className="flex shrink-0 gap-2">
               <button
                 type="button"
                 onClick={() => onAccept(req)}
-                className="rounded-md bg-[#2a5f8a] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#1f4a6c]"
+                disabled={!req.item.label?.trim()}
+                title={!req.item.label?.trim() ? t('teampage.linkRequestNoName') : undefined}
+                className="rounded-md bg-[#2a5f8a] px-2.5 py-1 text-xs font-medium text-white hover:bg-[#1f4a6c] disabled:cursor-not-allowed disabled:bg-slate-300 disabled:hover:bg-slate-300"
               >
                 {t('teampage.linkRequestAccept')}
               </button>
@@ -3254,6 +3382,9 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const [activeColor, setActiveColor] = useState(ANNOTATION_PALETTE[1].value)
   const [capacityModalRow, setCapacityModalRow] = useState(undefined)
   const [appDetailId, setAppDetailId] = useState(null)
+  // Staat het 'nieuwe applicatie'-venster open? Het record ontstaat pas bij
+  // opslaan daarin, niet bij het klikken op de knop.
+  const [nieuweAppOpen, setNieuweAppOpen] = useState(false)
   // Applicatie die op verwijderen wacht, mét telling van wat eraan hangt.
   const [appToDelete, setAppToDelete] = useState(null)
   // IO-item aangeklikt op het canvas: opent dezelfde IoItemModal als de
@@ -4109,9 +4240,13 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     patch({ capacity: workflow.capacity.filter((c) => c.id !== id) })
   }
 
-  function addApplication() {
+  // Neemt de naam mee: het record wordt pas aangelegd zodra die er is (zie
+  // ApplicationNameModal). Zonder naam komt er niets bij.
+  function addApplication(naam) {
+    const schoon = (naam ?? '').trim()
+    if (!schoon) return null
     const id = generateId()
-    patch({ applications: [...workflow.applications, { id, naam: '' }] })
+    patch({ applications: [...workflow.applications, { id, naam: schoon }] })
     return id
   }
   function updateApplication(id, fields) {
@@ -4428,7 +4563,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                             <button
                               type="button"
                               onClick={() => {
-                                setAppDetailId(addApplication())
+                                setNieuweAppOpen(true)
                                 setAddMenuOpen(false)
                               }}
                               className="flex w-full items-center rounded-md px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50"
@@ -4789,6 +4924,18 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
             )}
           </div>
 
+          {nieuweAppOpen && (
+            <ApplicationNameModal
+              t={t}
+              onClose={() => setNieuweAppOpen(false)}
+              onCreate={(naam) => {
+                setNieuweAppOpen(false)
+                const id = addApplication(naam)
+                if (id) setAppDetailId(id)
+              }}
+            />
+          )}
+
           {appDetailId &&
             (() => {
               const app = workflow.applications.find((a) => a.id === appDetailId)
@@ -5098,7 +5245,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                   action={
                     <button
                       type="button"
-                      onClick={() => setAppDetailId(addApplication())}
+                      onClick={() => setNieuweAppOpen(true)}
                       className="shrink-0 rounded-md border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-600 hover:bg-slate-50"
                     >
                       {t('teampage.applicationsAdd')}
