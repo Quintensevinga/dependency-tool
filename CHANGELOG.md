@@ -3,6 +3,177 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-19
+- **Beurt 8 samengevoegd: analyse en opslag** (Lars Hoogland)
+
+  19  -- cyclusdetectie begrensd op 200 en het teamfilter voor de zware stap;
+         8411 ms -> 15 ms bij het openen van de Analysepagina met 40 teams.
+  20  -- de gedeelde analysetabel krijgt 15 regels met 'toon alle N' en klikbare,
+         op de ruwe waarde sorterende kolomkoppen; vier stille afkappingen noemen
+         nu hun werkelijke aantal.
+  21  -- filters boven de signalenlijst: ernst, soort en een zoekveld, met
+         'X van Y signalen' erboven.
+  16  -- bovengrens van 2.000 op het wijzigingenlog, met een archiveerknop die in
+         twee stappen werkt.
+  17  -- opslaggebruik met balkje in Instellingen, gekleurd boven 60%.
+
+- **Punt 17: opslaggebruik tonen in Instellingen, met een waarschuwing boven 60%** (Lars Hoogland)
+
+  Instellingen toonde de versie en het buildmoment, maar niets over de opslag. De
+  enige melding over het quotum kwam pas nadat opslaan al mislukt was -- en dan is
+  die wijziging al weg.
+
+  - een regel met balkje in de kop van het paneel: 'Opslag in gebruik: 559 kB van
+    circa 5,0 MB (11%)'. Gemeten op de lengte van de opgeslagen tekst maal twee,
+    want browsers bewaren localStorage als UTF-16;
+  - een uitsplitsing in twee posten: het wijzigingenlog en de overige data;
+  - boven 60% kleurt de regel en komt er een advies bij dat naar exporteren en
+    naar het archiveren van oude logregels wijst (punt 16);
+  - de 5 MB staat als zichtbare constante, met de kanttekening dat dat een
+    gangbare waarde is en geen harde belofte van de browser;
+  - de bestaande waarschuwing bij een mislukte opslagactie wijst nu ook naar het
+    archiveren. (Het advies over momentopnamen was in punt 26 al weg.)
+
+  Onder 1 MB tonen de posten in kB in plaats van MB. Met een decimaal in MB stond
+  er '0,1 MB + 0,5 MB' onder een totaal van '0,5 MB' -- dat telt zichtbaar niet op
+  en dan lijkt de uitsplitsing fout terwijl alleen de afronding grof was. In kB is
+  het 90 + 469 = 559.
+
+  Gecontroleerd tegen de console: totaal 559 kB op het scherm en 559 kB gemeten,
+  wijzigingenlog 90 kB en 90 kB, en de twee posten tellen op tot het totaal. Na de
+  opslag op te blazen tot 3,6 MB staat er 72%, is de regel en de balk gekleurd en
+  staat het advies erbij; na een kleine wijziging valt het vulveld weg (de laadlaag
+  bouwt de state op uit alleen bekende velden) en zakt het terug naar 11% zonder
+  waarschuwing. Ook in het Engels.
+
+- **Punt 16: bovengrens op het wijzigingenlog, met een archiveerknop ernaast** (Lars Hoogland)
+
+  Het log groeide onbeperkt. Op tien plekken komt er een regel bij en nergens
+  stond een maximum of een opschoning. Een regel is ruwweg 200 tot 300 tekens, dus
+  tienduizend regels is al 2 tot 3 MB van een opslagbudget dat rond de 5 MB ligt.
+  Het is de enige post die met de tijd blijft doorgroeien: teams, dependencies en
+  werkstromen groeien mee met de organisatie, het log met de kalender.
+
+  - bovengrens van 2.000 regels op een plek: in persist(), waar alle tien de
+    toevoegingen langskomen. De nieuwste blijven staan -- nieuwe regels komen
+    achteraan, dus dat zijn de laatste 2.000, niet de eerste;
+  - archiveerknop in Instellingen, naast de exportknoppen: alles ouder dan twaalf
+    maanden gaat als JSON-bestand naar de downloadmap. Twee stappen, want de
+    downloadroute geeft geen bevestiging terug dat het bestand er echt staat --
+    eerst downloaden, dan pas na 'ik heb het bestand' uit de opslag verwijderen.
+    De bevestiging noemt het aantal regels en vanaf welke datum de analyse daarna
+    nog gegevens heeft, en wijst op een volledige export als vangnet;
+  - twaalf maanden is ruim gekozen: de analyse kijkt het verst terug over 12 weken
+    en drie maanden, slapende teams over 60 dagen.
+
+  De reviewwachtrij wordt nooit afgekapt, zoals de opdracht eist. Die uitzondering
+  bleek in de browser wel de hele bovengrens buiten werking te kunnen zetten:
+  migrateChangeLog zet elke 'dependency_created' zonder geldige status terug op
+  'pending', dus een oude import levert duizenden regels op die overal als wachtrij
+  tellen maar nergens te zien zijn. Gemeten: 3164 regels bleven staan waar er 2000
+  hadden moeten overblijven. De uitzondering is nu precies zo scherp als de
+  beheerpagina zelf -- alleen regels waarvan de dependency nog bestaat.
+
+  Gecontroleerd in de browser: log opgeblazen tot 3164 regels met datums tot 2017,
+  na een kleine wijziging exact 2000 over met de nieuwste datum intact en de drie
+  wachtende reviewregels er nog; de knop meldt 'Archiveer 1836 oude logregels',
+  het bestand staat in de downloadmap met die 1836 regels erin, de opslag is op
+  dat moment nog onveranderd, en pas na bevestigen zakt het naar 164. De melding
+  zei 'De analyse houdt daarna gegevens vanaf 22 mei 2026' -- ruim binnen wat de
+  trendgrafieken nodig hebben, en die blijven inderdaad gevuld.
+
+  Dertien tests in src/lib/changeLog.test.js, waaronder de richting van de
+  afkapping (omgedraaid laat die drie tests vallen) en de wees-regels hierboven.
+
+- **Punt 21: filters boven de signalenlijst** (Lars Hoogland)
+
+  De signalenlijst had precies een bediening: 'toon alles'. Filteren op ernst, op
+  team of op soort kon niet, terwijl de gegevens er wel lagen -- elk signaal heeft
+  een key, een ernst en een prioriteit. Bij tientallen teams verdwijnen de
+  belangrijkste signalen zo tussen de rest.
+
+  - drie ernstknoppen met het aantal erachter; standaard staan hoog en midden aan;
+  - een keuzelijst met de soorten die er echt zijn, elk met hun aantal. Korte
+    namen staan in het TEKST-blok als sig_<key>, met de kale key als terugval
+    zodat een nieuw soort nooit als lege knop verschijnt;
+  - een zoekveld op de tekst van het signaal. Die tekst wordt pas bij het renderen
+    samengesteld, dus er wordt gezocht op de uitkomst van signaalZin en niet op de
+    ruwe parameters;
+  - 'X van de Y signalen' boven de lijst, en 'Toon alle N' noemt het aantal na
+    filteren in plaats van het totaal.
+
+  Onderweg bleek mijn eerste lijst met soortnamen uit de verkeerde functie te
+  komen: push() in analytics.js levert constateringen, add() de signalen. Daardoor
+  had ik zes labels die nooit voorkomen en ontbrak ketenRisico -- die verscheen in
+  de keuzelijst als 'sig_ketenRisico'. Dat liet meteen zien dat de terugval werkt,
+  maar de lijst is nu gelijk aan wat de code echt uitgeeft (24 soorten).
+
+  Gecontroleerd op de voorbeelddata (154 signalen): beginstand '104 van de 154'
+  met geen enkel laag signaal in de lijst, de drie knoppen tellen op tot 154, laag
+  aanzetten brengt het op 154 en hoog uitzetten op 140 zonder hoge signalen in
+  beeld, een soort kiezen laat er 12 over, zoeken op een woord uit een zin laat
+  precies de 3 regels met dat woord staan, 'Toon alle 104' klapt uit naar 104
+  regels, en in het Engels staat er '104 of 154 signals' met nette soortnamen.
+
+- **Punt 20: analysetabel een limiet en sortering, stille afkappingen benoemd** (Lars Hoogland)
+
+  De gedeelde tabel op de Analysepagina kende geen maximum en geen sortering: hij
+  rendert simpelweg alle rijen in de volgorde waarin de rekencode ze aanlevert.
+  Die component wordt negentien keer gebruikt, dus elke per-team-tabel groeit een
+  regel per team. Daarnaast kapten vier kaarten stil af, zonder ergens te melden
+  hoeveel regels er werkelijk zijn.
+
+  - standaard 15 regels met 'Toon alle N' eronder, en geen knop bij 15 of minder;
+  - klikbare kolomkoppen, oplopend en aflopend, met een pijltje op de actieve
+    kolom. Sorteren gebeurt op de ruwe waarde: een kolom kan een eigen
+    `sorteer(rij)` meegeven. Dat is precies wat de factorkolom ('3x') en de
+    partnerkolom ('2/5') nodig hebben -- alfabetisch zet '10x' voor '2x';
+  - de vier kaarten die afkapten noemen nu het werkelijke aantal in hun kop:
+    'top 12 van 113' bij hotspots, 'top 15 van 185' bij kwetsbare applicaties en
+    'top 10 van 16' respectievelijk 'top 10 van 18' bij de twee flowverlies-
+    kaarten.
+
+  Gecontroleerd met 40 teams: de per-team-tabel toont 15 regels met 'Toon alle 40'
+  en precies 40 na uitklappen; de partnerkolom sorteert op het totaal (2,2,2,3,3
+  oplopend en 8,8,8,6,6 aflopend) in plaats van alfabetisch; de factorkolom loopt
+  numeriek (1.7x, 2.3x ... 4x) en niet als tekst; een tekstkolom sorteert
+  alfabetisch; en een klik op de eerste rij na sorteren komt nog steeds bij het
+  team van die rij uit. In het Engels staat er 'top 15 of 185' en nergens een kale
+  sleutelnaam.
+
+- **Punt 19: cyclusdetectie begrenzen en het teamfilter voor de zware stap** (Lars Hoogland)
+
+  De zoektocht naar cycli is de zwaarste berekening van de analyse en draaide
+  zonder rem: vanaf elk team, tot zes teams diep, zonder bovengrens op het aantal
+  gevonden cycli. De kosten groeien niet met het aantal teams maar met het aantal
+  ketenpartners per team -- ruwweg teams x partners^6.
+
+  - harde bovengrens van 200 cycli; de zoektocht breekt af en geeft een vlag terug
+    waarmee het scherm meldt dat er afgekapt is;
+  - met een gekozen team wordt er alleen nog vanaf dat team gezocht. Een cyclus
+    waar dat team in zit kun je altijd vanaf dat team zelf lopen, dus er gaat er
+    geen verloren. Het filter achteraf blijft als vangnet staan;
+  - de lijst op het scherm toont 25 regels met 'Toon alle N' eronder, zoals de
+    signalenlijst al deed.
+
+  Gemeten met het kopieerscript uit punt 35 (40 teams) plus het partnerscript uit
+  deze opdracht, tijd van analyseer() bij het openen van de pagina:
+
+    +6 partners per team     206 ms  ->  14 ms
+    +12 partners per team   8411 ms  ->  15 ms
+    +12 partners, met teamfilter        5 ms
+
+  Op het scherm: 25 regels, knop 'Toon alle 200', na uitklappen precies 200, en de
+  melding 'Meer dan 200 cycli gevonden'. Met een teamfilter bevatten alle getoonde
+  cycli dat team.
+
+  Punt (4) -- de ketenberekening pas draaien als het tabblad 'Keten' open is --
+  heb ik NIET gebouwd, en dat is een bewuste keuze. Het rapport op het tabblad
+  Overzicht (de standaardtab) noemt het aantal cycli in lopende tekst
+  (analyseTeksten.js:520), en de tegel 'verzoeken' op datzelfde tabblad leest ook
+  uit ketenKengetallen. Uitstellen zou dus of dat getal stilzwijgend veranderen,
+  of alsnog bij het openen draaien. Met de twee remmen hierboven is de aanleiding
+  bovendien weg: 15 ms bij het openen, waar het 8,4 seconden was.
+
 - **Beurt 7 samengevoegd: register en lange lijsten** (Lars Hoogland)
 
   Drie keer hetzelfde probleem -- een lijst die te lang wordt om in te kiezen --
