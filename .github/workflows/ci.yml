@@ -52,7 +52,7 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           # En als annotatie: dat is de enige uitvoer die zonder login op te
           # halen is. Regel voor regel, dan hoeft er niets ge-escaped te worden.
-          { node -v; npm -v; echo "--- npm ci ---"; tail -12 /tmp/npm-ci.log; } | while IFS= read -r r; do
+          { ls -l package.json package-lock.json; echo "--- reden ---"; head -20 /tmp/npm-ci.log; } | while IFS= read -r r; do
             echo "::error::$r"
           done
 
