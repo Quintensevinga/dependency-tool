@@ -204,6 +204,10 @@ export const STRINGS = {
     'print.canvasHint': 'Deze weergave is een tekening op een eigen canvas en wordt niet afgedrukt. Gebruik Instellingen → "Exporteer huidige weergave als afbeelding (PNG)" om hem als afbeelding te bewaren.',
     'settings.exportPngBusy': 'Bezig met exporteren…',
     'settings.exportPngError': 'PNG-export is mislukt. Probeer het opnieuw; blijft het misgaan, ververs dan de pagina.',
+    'settings.storageUsed': 'Opslag in gebruik: {{gebruikt}} van circa {{budget}} ({{pct}}%)',
+    'settings.storageBreakdown': 'Wijzigingenlog {{log}} · overige data {{rest}}',
+    'settings.storageBudgetNote': 'Circa 5 MB is de gangbare ruimte in een browser, geen harde belofte — het kan per browser en profiel verschillen.',
+    'settings.storageWarning': 'De opslag raakt vol. Exporteer je data en archiveer oude logregels hieronder om ruimte vrij te maken.',
     'settings.archiveLog': 'Archiveer {{count}} oude logregels',
     'settings.archiveLogNothing': 'Geen logregels ouder dan een jaar',
     'settings.archiveLogDownloaded': 'Het archiefbestand met {{count}} regels is gedownload. Controleer of het in je downloadmap staat — pas daarna worden de regels uit de opslag verwijderd.',
@@ -252,7 +256,7 @@ export const STRINGS = {
     'update.reload': 'Herladen',
     'update.dismiss': 'Later',
 
-    'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data en maak ruimte vrij.',
+    'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data en archiveer oude logregels via Instellingen om ruimte vrij te maken.',
     'saveError.dismiss': 'Sluiten',
 
     'corrupted.message': 'De opgeslagen data kon niet gelezen worden en is teruggevallen op demodata. De onleesbare data is bewaard — download die hieronder voordat je verdergaat, anders kan die alsnog verloren gaan.',
@@ -884,6 +888,10 @@ export const STRINGS = {
     'print.canvasHint': 'This view is drawn on its own canvas and is not printed. Use Settings → "Export current view as image (PNG)" to save it as an image.',
     'settings.exportPngBusy': 'Exporting…',
     'settings.exportPngError': 'PNG export failed. Try again; if it keeps failing, reload the page.',
+    'settings.storageUsed': 'Storage in use: {{gebruikt}} of about {{budget}} ({{pct}}%)',
+    'settings.storageBreakdown': 'Change log {{log}} · other data {{rest}}',
+    'settings.storageBudgetNote': 'About 5 MB is the usual room in a browser, not a hard promise — it can differ per browser and profile.',
+    'settings.storageWarning': 'Storage is filling up. Export your data and archive old log entries below to free up room.',
     'settings.archiveLog': 'Archive {{count}} old log entries',
     'settings.archiveLogNothing': 'No log entries older than a year',
     'settings.archiveLogDownloaded': 'The archive file with {{count}} entries has been downloaded. Check that it is in your downloads folder — only then will the entries be removed from storage.',
@@ -932,7 +940,7 @@ export const STRINGS = {
     'update.reload': 'Reload',
     'update.dismiss': 'Later',
 
-    'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data and free up space.',
+    'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data and archive old log entries in Settings to free up room.',
     'saveError.dismiss': 'Close',
 
     'corrupted.message': 'The stored data could not be read and has fallen back to demo data. The unreadable data has been kept — download it below before continuing, otherwise it may be lost.',
