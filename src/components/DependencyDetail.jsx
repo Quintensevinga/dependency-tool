@@ -21,6 +21,7 @@ import {
   translateDeadline,
   getCategoryDescription,
 } from '../i18n/labels'
+import { STATUS_LEVELS } from '../data/constants'
 import { CategoryIcon } from '../data/categoryIcons'
 
 function Field({ label, value }) {
@@ -155,6 +156,30 @@ export default function DependencyDetail({ dependency, onClose, onEdit, onDelete
                 {t('detail.effectOpFlow')}: {translateEffectOpFlow(dependency.effectOpFlow, language)}
               </span>
             )}
+          </div>
+
+          {/* Status rechtstreeks aanpasbaar: dit is de handeling die een team
+              wekelijks doet, en daar was tot nu toe het hele formulier voor
+              nodig. Loopt via updateDependency, dezelfde weg als het
+              formulier, zodat de historie en het wijzigingenlog gevuld
+              blijven. De risicoscore hieronder beweegt meteen mee, want de
+              statuscorrectie zit in die berekening. */}
+          <div className="rounded-lg border border-slate-200 px-3.5 py-3">
+            <label htmlFor="detail-status" className="text-xs font-medium uppercase tracking-wide text-slate-400">
+              {t('detail.statusLabel')}
+            </label>
+            <select
+              id="detail-status"
+              value={dependency.status}
+              onChange={(e) => updateDependency(dependency.id, { status: e.target.value })}
+              className="mt-1.5 w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+            >
+              {STATUS_LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {translateStatus(lvl, language)}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-slate-50 px-3.5 py-3">

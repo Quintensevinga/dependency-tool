@@ -70,6 +70,7 @@ export const STRINGS = {
     'filter.effectOpFlow': 'Effect op flow',
     'filter.notSet': 'Niet ingevuld',
 
+    'detail.statusLabel': 'Status',
     'detail.riskCalc': 'Risicoberekening',
     'detail.baseFormula': 'Impact ({{impact}}) × frequentie ({{frequentie}}) = {{impactPoints}} × {{frequencyPoints}} =',
     'detail.statusCorrection': 'Statuscorrectie ({{status}}):',
@@ -716,6 +717,7 @@ export const STRINGS = {
     'filter.effectOpFlow': 'Effect on flow',
     'filter.notSet': 'Not set',
 
+    'detail.statusLabel': 'Status',
     'detail.riskCalc': 'Risk calculation',
     'detail.baseFormula': 'Impact ({{impact}}) × frequency ({{frequentie}}) = {{impactPoints}} × {{frequencyPoints}} =',
     'detail.statusCorrection': 'Status correction ({{status}}):',
