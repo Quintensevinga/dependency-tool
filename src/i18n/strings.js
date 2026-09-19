@@ -299,6 +299,12 @@ export const STRINGS = {
     'party.approve': 'Goedkeuren',
     'party.reject': 'Weigeren',
     'party.rejectedWarning': "Partij '{{naam}}' is geweigerd door de admin. Deze koppeling blijft zichtbaar totdat je een andere partij kiest.",
+    'party.search': 'Zoek een partij…',
+    'party.searchCount': '{{count}} van de {{total}} partijen',
+    'party.typeLabel': 'Soort partij',
+    'party.duplicate': "Bestaat al: '{{naam}}'.",
+    'party.duplicateWithTeam': "Bestaat al: '{{naam}}', voorgesteld door {{team}}.",
+    'party.duplicateUse': 'Deze gebruiken',
 
 
     'tab.chain': 'Ketenoverzicht',
@@ -954,6 +960,12 @@ export const STRINGS = {
     'party.approve': 'Approve',
     'party.reject': 'Reject',
     'party.rejectedWarning': "Party '{{naam}}' was rejected by the admin. This link stays visible until you pick a different party.",
+    'party.search': 'Search for a party…',
+    'party.searchCount': '{{count}} of {{total}} parties',
+    'party.typeLabel': 'Party type',
+    'party.duplicate': "Already exists: '{{naam}}'.",
+    'party.duplicateWithTeam': "Already exists: '{{naam}}', proposed by {{team}}.",
+    'party.duplicateUse': 'Use that one',
 
 
     'tab.chain': 'Chain overview',

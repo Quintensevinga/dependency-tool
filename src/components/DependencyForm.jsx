@@ -603,6 +603,7 @@ export default function DependencyForm({ defaultTeamId, initialData, prefill, on
                       externalParties={externalParties}
                       addExternalParty={addExternalParty}
                       currentTeamId={form.teamIds[0] ?? defaultTeamId ?? null}
+                      teams={teams}
                       t={t}
                       language={language}
                     />
