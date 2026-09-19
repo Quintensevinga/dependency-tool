@@ -256,6 +256,7 @@ const TEKST = {
     kEffect: 'Per effect op de flow',
     uVerdeling: 'Aantal open dependencies.',
     kHotspots: 'Hotspots team × categorie',
+    topVan: 'top {{n}} van {{total}}',
     uHotspots: 'Cellen met de meeste dependencies; factor = aantal gedeeld door het gemiddelde van alle gevulde cellen.',
     factor: 'factor',
     hoogste: 'hoogste',
@@ -604,6 +605,7 @@ const TEKST = {
     kEffect: 'Per effect on the flow',
     uVerdeling: 'Number of open dependencies.',
     kHotspots: 'Hotspots team × category',
+    topVan: 'top {{n}} of {{total}}',
     uHotspots: 'Cells with the most dependencies; factor = count divided by the average of all filled cells.',
     factor: 'factor',
     hoogste: 'highest',
@@ -907,22 +909,86 @@ function Staven({ punten, reeksen, hoogte = 140 }) {
   )
 }
 
+// Hoeveel regels een analysetabel standaard toont. Eronder komt 'toon alle N';
+// negentien tabellen op deze pagina delen dit component, en verschillende
+// daarvan groeien met een regel per team of per record.
+const TABEL_MAX = 15
+
+// De sorteerwaarde van een cel. Bewust niet de weergegeven tekst: kolommen als
+// de factor ('3x') en het partnerpaar ('2/5') zijn opgemaakte strings, en
+// alfabetisch komt '10x' dan voor '2x'. Een kolom kan daarom een eigen
+// `sorteer(rij)` meegeven; zonder dat wordt de ruwe celwaarde gebruikt.
+function sorteerWaarde(kolom, rij) {
+  if (typeof kolom.sorteer === 'function') return kolom.sorteer(rij)
+  const waarde = rij[kolom.key]
+  return waarde ?? ''
+}
+
 function Tabel({ kolommen, rijen, leeg }) {
+  const { language } = useLanguage()
+  const tx = (key, vars) => vul(TEKST[language]?.[key] ?? TEKST.nl[key] ?? key, vars)
+  const [sortering, setSortering] = useState({ key: null, aflopend: false })
+  const [alle, setAlle] = useState(false)
+
+  // Kolommen zonder zinnige ordening (een knop, een badge) zetten
+  // sorteerbaar: false; de rest is sorteerbaar.
+  const kanSorteren = (k) => k.sorteerbaar !== false
+
+  const gesorteerd = useMemo(() => {
+    const kolom = kolommen.find((k) => k.key === sortering.key)
+    if (!kolom) return rijen
+    const richting = sortering.aflopend ? -1 : 1
+    return [...rijen].sort((a, b) => {
+      const va = sorteerWaarde(kolom, a)
+      const vb = sorteerWaarde(kolom, b)
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * richting
+      return String(va).localeCompare(String(vb), language === 'en' ? 'en' : 'nl', { numeric: true }) * richting
+    })
+  }, [rijen, kolommen, sortering, language])
+
   if (rijen.length === 0) return <p className="text-xs text-slate-400">{leeg ?? '—'}</p>
+
+  const zichtbaar = alle ? gesorteerd : gesorteerd.slice(0, TABEL_MAX)
+
+  function klikKop(k) {
+    if (!kanSorteren(k)) return
+    setSortering((vorig) => (vorig.key === k.key ? { key: k.key, aflopend: !vorig.aflopend } : { key: k.key, aflopend: false }))
+  }
+
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-xs">
         <thead>
           <tr className="text-left text-[10px] uppercase tracking-wide text-slate-400">
-            {kolommen.map((k) => (
-              <th key={k.key} className={`pb-1.5 pr-3 font-medium ${k.rechts ? 'text-right' : ''}`}>
-                {k.label}
-              </th>
-            ))}
+            {kolommen.map((k) => {
+              const actief = sortering.key === k.key
+              return (
+                <th
+                  key={k.key}
+                  className={`pb-1.5 pr-3 font-medium ${k.rechts ? 'text-right' : ''}`}
+                  aria-sort={actief ? (sortering.aflopend ? 'descending' : 'ascending') : 'none'}
+                >
+                  {kanSorteren(k) ? (
+                    <button
+                      type="button"
+                      onClick={() => klikKop(k)}
+                      className={`inline-flex items-center gap-1 uppercase tracking-wide ${actief ? 'text-[#2a5f8a]' : 'hover:text-slate-600'}`}
+                    >
+                      {k.label}
+                      <span aria-hidden="true" className={actief ? '' : 'text-slate-300'}>
+                        {actief && sortering.aflopend ? '▾' : '▴'}
+                      </span>
+                    </button>
+                  ) : (
+                    k.label
+                  )}
+                </th>
+              )
+            })}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {rijen.map((rij, i) => (
+          {zichtbaar.map((rij, i) => (
             <tr key={rij.key ?? i} className={rij.onClick ? 'cursor-pointer hover:bg-slate-50' : ''} onClick={rij.onClick}>
               {kolommen.map((k) => (
                 <td key={k.key} className={`py-1.5 pr-3 text-slate-700 ${k.rechts ? 'text-right tabular-nums' : ''}`}>
@@ -933,6 +999,11 @@ function Tabel({ kolommen, rijen, leeg }) {
           ))}
         </tbody>
       </table>
+      {rijen.length > TABEL_MAX && (
+        <button type="button" onClick={() => setAlle((v) => !v)} className="mt-1.5 text-[11px] font-medium text-[#2a5f8a] hover:underline">
+          {alle ? tx('toonMinder') : tx('toonAlle', { n: rijen.length })}
+        </button>
+      )}
     </div>
   )
 }
@@ -1586,13 +1657,13 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
             <Kaart titel={tx('kEffect')} uitleg={tx('uVerdeling')}>
               <Balken rijen={a.port.perEffect.map(([e, n]) => ({ label: translateEffectOpFlow(e, language), waarde: n, kleur: WARM }))} />
             </Kaart>
-            <Kaart titel={tx('kHotspots')} uitleg={tx('uHotspots')}>
+            <Kaart titel={`${tx('kHotspots')} · ${tx('topVan', { n: 12, total: a.hotspots.length })}`} uitleg={tx('uHotspots')}>
               <Tabel
                 kolommen={[
                   { key: 'team', label: tx('team') },
                   { key: 'categorie', label: tx('categorie') },
                   { key: 'aantal', label: tx('aantal'), rechts: true },
-                  { key: 'factor', label: tx('factor'), rechts: true },
+                  { key: 'factor', label: tx('factor'), rechts: true, sorteer: (r) => r.factorWaarde },
                   { key: 'hoogste', label: tx('hoogste') },
                 ]}
                 rijen={a.hotspots.slice(0, 12).map((c) => ({
@@ -1601,6 +1672,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                   categorie: translateCategorie(c.categorie, language),
                   aantal: c.aantal,
                   factor: `${c.factor}×`,
+                  factorWaarde: c.factor,
                   hoogste: translateRiskLevel(c.hoogste, language),
                   onClick: () => onSelect(c.deps[0]),
                 }))}
@@ -1797,9 +1869,9 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                   { key: 'team', label: tx('team') },
                   { key: 'inkomend', label: tx('inkomend'), rechts: true },
                   { key: 'uitgaand', label: tx('uitgaand'), rechts: true },
-                  { key: 'partners', label: tx('partners'), rechts: true },
+                  { key: 'partners', label: tx('partners'), rechts: true, sorteer: (r) => r.partnersWaarde },
                 ]}
-                rijen={a.keten.perTeam.map((r) => ({ key: r.teamId, team: teamName(r.teamId), inkomend: r.inkomend, uitgaand: r.uitgaand, partners: `${r.partnersIn}/${r.partnersUit}`, onClick: () => onNavigateToTeam(r.teamId) }))}
+                rijen={a.keten.perTeam.map((r) => ({ key: r.teamId, team: teamName(r.teamId), inkomend: r.inkomend, uitgaand: r.uitgaand, partners: `${r.partnersIn}/${r.partnersUit}`, partnersWaarde: r.partnersIn + r.partnersUit, onClick: () => onNavigateToTeam(r.teamId) }))}
               />
             </Kaart>
             <Kaart titel={tx('kCycli')} uitleg={tx('uCycli')}>
@@ -1869,7 +1941,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                 </div>
               </div>
             </Kaart>
-            <Kaart titel={tx('kSpof')} uitleg={tx('uSpof')} breed>
+            <Kaart titel={`${tx('kSpof')} · ${tx('topVan', { n: 15, total: a.keten.spof.length })}`} uitleg={tx('uSpof')} breed>
               <Tabel
                 kolommen={[
                   { key: 'team', label: tx('team') },
@@ -2006,10 +2078,10 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
             <Kaart titel={tx('kFlowTeam')} uitleg={tx('uFlow')}>
               <Balken rijen={a.flowverlies.perTeam.map((r) => ({ label: teamName(r.teamId), waarde: r.som, tekst: `${r.som}${r.onvolledig ? ` (${r.onvolledig} ${tx('onvolledig')})` : ''}`, kleur: WARM }))} />
             </Kaart>
-            <Kaart titel={tx('kFlowCategorie')} uitleg={tx('uFlow')}>
+            <Kaart titel={`${tx('kFlowCategorie')} · ${tx('topVan', { n: 10, total: a.flowverlies.perCategorie.length })}`} uitleg={tx('uFlow')}>
               <Balken rijen={a.flowverlies.perCategorie.slice(0, 10).map((r) => ({ label: translateCategorie(r.categorie, language), waarde: r.som, kleur: WARM }))} />
             </Kaart>
-            <Kaart titel={tx('kFlowPartij')} uitleg={tx('uFlow')}>
+            <Kaart titel={`${tx('kFlowPartij')} · ${tx('topVan', { n: 10, total: a.flowverlies.perPartij.filter((r) => r.som > 0).length })}`} uitleg={tx('uFlow')}>
               <Balken rijen={a.flowverlies.perPartij.filter((r) => r.som > 0).slice(0, 10).map((r) => ({ label: r.naam, waarde: r.som, kleur: WARM }))} />
             </Kaart>
           </div>
