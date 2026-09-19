@@ -19,9 +19,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Node 22 en niet 20: vitest 5 vereist ^22.12.0 || ^24.0.0 || >=26.0.0, en
+      # vite, rolldown en oxlint vragen ^20.19.0 || >=22.12.0. Op Node 20 draaide
+      # deze workflow dus op een versie die de toolchain zelf niet ondersteunt.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
       # npm ci en niet npm install: alleen een installatie vanaf nul met een
