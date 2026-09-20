@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { useLanguage } from '../context/LanguageContext'
 
 // Generieke spotlight-rondleiding: verduistert het scherm behalve een
@@ -9,11 +9,43 @@ export default function SpotlightTour({ steps, onClose }) {
   const { t } = useLanguage()
   const [stepIndex, setStepIndex] = useState(0)
   const [rect, setRect] = useState(null)
-  const step = steps[stepIndex]
+  // Alleen de stappen waarvan het doelelement er echt staat. Op een leeg team
+  // wees de rondleiding naar secties die nog niet bestaan: een verduisterd
+  // scherm met een tekstkaart over iets wat je nergens ziet. Staat er niets
+  // van de rondleiding op de pagina, dan gaat hij meteen dicht in plaats van
+  // een leeg scherm te tonen.
+  //
+  // useLayoutEffect en niet tijdens de render: dit component wordt samen met
+  // de pagina eromheen gerenderd, dus tijdens die render staat de rest nog
+  // niet in de DOM en zou querySelector alles wegfilteren.
+  const [zichtbareStappen, setZichtbareStappen] = useState(null)
+  useLayoutEffect(() => {
+    const aanwezig = steps.filter((s) => document.querySelector(`[data-tour="${s.target}"]`))
+    if (aanwezig.length === 0) {
+      onClose()
+      return
+    }
+    setZichtbareStappen(aanwezig)
+    // Eenmalig bij het openen: de rondleiding hoort niet halverwege van
+    // samenstelling te veranderen doordat er iets bijkomt op de pagina.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Escape sluit de rondleiding. Zonder dit was 'Overslaan' in de kaart de
+  // enige uitweg, en die staat niet altijd in beeld.
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const step = zichtbareStappen?.[stepIndex]
 
   useEffect(() => {
     let cancelled = false
-    const el = document.querySelector(`[data-tour="${step.target}"]`)
+    const el = step ? document.querySelector(`[data-tour="${step.target}"]`) : null
     if (!el) {
       setRect(null)
       return
@@ -35,9 +67,9 @@ export default function SpotlightTour({ steps, onClose }) {
       cancelled = true
       cancelAnimationFrame(raf)
     }
-  }, [stepIndex, step.target])
+  }, [stepIndex, step])
 
-  const isLast = stepIndex === steps.length - 1
+  const isLast = stepIndex === (zichtbareStappen?.length ?? 0) - 1
   const pad = 8
 
   const cutout = rect
@@ -57,6 +89,10 @@ export default function SpotlightTour({ steps, onClose }) {
       : cutout.top + cutout.height + 16
     : window.innerHeight / 2 - 90
   const tooltipLeft = cutout ? Math.min(Math.max(16, cutout.left), window.innerWidth - 336) : window.innerWidth / 2 - 160
+
+  // Zolang nog niet bepaald is welke stappen er zijn: niets tekenen. Anders
+  // flitst er een verduisterd scherm voorbij dat daarna leeg blijkt.
+  if (!zichtbareStappen || !step) return null
 
   return (
     <div className="fixed inset-0 z-[100]">
@@ -78,7 +114,7 @@ export default function SpotlightTour({ steps, onClose }) {
 
       <div className="absolute w-80 rounded-xl bg-white p-4 shadow-2xl" style={{ top: tooltipTop, left: tooltipLeft }}>
         <div className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
-          {stepIndex + 1} / {steps.length}
+          {stepIndex + 1} / {zichtbareStappen.length}
         </div>
         <h3 className="mb-1.5 text-sm font-semibold text-slate-900">{step.title}</h3>
         <p className="mb-4 text-xs leading-relaxed text-slate-600">{step.body}</p>

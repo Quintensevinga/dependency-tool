@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAppContext } from '../context/AppContext'
-import { APP_VERSION, BUILD_TIME } from '../lib/appVersion'
+import { APP_VERSION, BUILD_TIME, wisAlleLokaleOpslag } from '../lib/appVersion'
 import { useLanguage } from '../context/LanguageContext'
 import { splitsArchief } from '../lib/changeLog'
 import { openKoppelverzoeken } from '../lib/koppelverzoeken'
@@ -1226,6 +1226,13 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
                 <button
                   type="button"
                   onClick={() => {
+                    // Eerst alles met het voorvoegsel 'dependency-insight:'
+                    // weg, dan pas de lege state wegschrijven. clearAllData
+                    // raakt alleen de data-sleutel, dus zonder deze regel bleef
+                    // onder meer het 'rondleiding al gezien'-vlaggetje staan en
+                    // begon een verse tool zonder rondleiding. Dezelfde routine
+                    // als de resetlink gebruikt.
+                    wisAlleLokaleOpslag()
                     clearAllData()
                     setConfirmingReset(false)
                   }}
