@@ -13,6 +13,7 @@ import {
 } from '../lib/storage'
 import { buildTeamLabels } from '../lib/teamLabels'
 import { begrensLog } from '../lib/changeLog'
+import { plan as planApplicatieregister, voerUit as voerApplicatieregisterUit } from '../lib/applicatieregister'
 
 const AppContext = createContext(null)
 
@@ -828,6 +829,49 @@ export function AppProvider({ children }) {
   // nadat de gebruiker in Instellingen heeft bevestigd dat het archiefbestand
   // op zijn schijf staat -- de downloadroute geeft zelf geen bevestiging terug,
   // dus die stap kan de app niet zelf vaststellen.
+  const hernoemApplicatie = useCallback(
+    (id, naam) => {
+      const trimmed = naam.trim()
+      if (!trimmed) return
+      const vandaag = new Date().toISOString().slice(0, 10)
+      persistData((prev) => ({
+        ...prev,
+        applicatieregister: prev.applicatieregister.map((a) => (a.id === id ? { ...a, naam: trimmed, updatedAt: vandaag } : a)),
+        // De naam staat ook in de werkstroom van elk team dat 'm gebruikt;
+        // zonder dit zou het register een andere naam tonen dan het canvas.
+        teamWorkflows: Object.fromEntries(
+          Object.entries(prev.teamWorkflows).map(([teamId, wf]) => [
+            teamId,
+            { ...wf, applications: (wf.applications ?? []).map((app) => (app.id === id ? { ...app, naam: trimmed } : app)) },
+          ]),
+        ),
+      }))
+    },
+    [persistData],
+  )
+
+  const zetApplicatieStatus = useCallback(
+    (id, status) => {
+      const vandaag = new Date().toISOString().slice(0, 10)
+      persistData((prev) => ({
+        ...prev,
+        applicatieregister: prev.applicatieregister.map((a) => (a.id === id ? { ...a, status, updatedAt: vandaag } : a)),
+      }))
+    },
+    [persistData],
+  )
+
+  // Punt 30, de omzetting naar het centrale applicatieregister. Twee standen,
+  // en die scheiding is de hele veiligheid: planApplicatieregister raakt niets
+  // aan, voerApplicatieregisterUit schrijft weg en is onomkeerbaar. Instellingen
+  // toont eerst het plan en vraagt pas daarna om bevestiging.
+  const applicatieregisterPlan = useCallback(() => planApplicatieregister(stateRef.current), [])
+  const voerApplicatieregisterOmzettingUit = useCallback(() => {
+    const { state: next, rapport } = voerApplicatieregisterUit(stateRef.current)
+    persistData(() => next)
+    return rapport
+  }, [persistData])
+
   const verwijderLogregels = useCallback(
     (ids) => {
       const weg = new Set(ids)
@@ -862,6 +906,11 @@ export function AppProvider({ children }) {
       adminSettings: state.adminSettings,
       updateAdminSettings,
       verwijderLogregels,
+      applicatieregister: state.applicatieregister,
+      hernoemApplicatie,
+      zetApplicatieStatus,
+      applicatieregisterPlan,
+      voerApplicatieregisterOmzettingUit,
       currentTeamId,
       setCurrentTeamId,
       teamName,
@@ -921,6 +970,10 @@ export function AppProvider({ children }) {
       rejectLinkRequest,
       updateAdminSettings,
       verwijderLogregels,
+      applicatieregisterPlan,
+      voerApplicatieregisterOmzettingUit,
+      hernoemApplicatie,
+      zetApplicatieStatus,
       addExternalParty,
       renameExternalParty,
       approveExternalParty,

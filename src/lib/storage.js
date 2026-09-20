@@ -15,7 +15,7 @@ export const STORAGE_KEY = 'dependency-insight:v1'
 // 6: dependencies kennen een wijzigingshistorie (historie) en een sluitdatum
 // (gesloten_op); koppelingsverzoeken kennen voorstel-/besluitdatums; de
 // wijzigingenlog kent naast review-entries ook losse gebeurtenissen.
-export const SCHEMA_VERSION = 6
+export const SCHEMA_VERSION = 7
 
 // Los van SCHEMA_VERSION: die volgt de datastructuur, dit volgt de inhoud
 // van de meegeleverde voorbeelddata (data/mockData.js). Het is een hash van
@@ -373,6 +373,9 @@ export function migrateState(raw, report) {
   const dependencies = bruikbaar.map((dep) => migrateDependency(dep, teamsState))
   const teamWorkflows = migrateTeamWorkflows(source.teamWorkflows, teamsState.teams)
   const externalParties = migrateExternalParties(source.externalParties)
+  // Leeg bij gegevens van voor het register: de omzetting (lib/applicatieregister)
+  // vult 'm, en die wordt bewust met de hand gestart -- zie punt 30.
+  const applicatieregister = migrateApplicatieregister(source.applicatieregister)
   const changeLog = migrateChangeLog(source.changeLog)
 
   const adminSettings = migrateAdminSettings(source.adminSettings)
@@ -383,6 +386,7 @@ export function migrateState(raw, report) {
     dependencies,
     teamWorkflows,
     externalParties,
+    applicatieregister,
     changeLog,
     usingMockData: Boolean(source.usingMockData),
     adminSettings,
@@ -468,6 +472,32 @@ function migrateTeamWorkflows(rawWorkflows, teams) {
 // omgeving/stakeholder) met een goedkeuring/weigering-workflow. Onbekend
 // type/status vallen terug op een veilige default i.p.v. de import te
 // blokkeren — zelfde filosofie als de rest van deze migratielaag.
+// Centraal applicatieregister, naar het model van de externe partijen: een
+// eigen lijst met een eigen id, zodat twaalf teams die dezelfde gateway
+// gebruiken naar één record wijzen in plaats van twaalf losse records op te
+// leveren die de tool nergens met elkaar in verband kan brengen.
+//
+// De teams houden hun eigen `applications`-lijst, maar de ids daarin zijn
+// voortaan registerids. Dat scheelt het omschrijven van dertig plekken die nu
+// al met applicatie-ids werken (dependencies, input/output-items, de
+// applicatieflow en de bewaarde canvasposities) -- die blijven werken, alleen
+// wijzen twee teams nu naar hetzelfde id.
+export const APPLICATIE_STATUS = ['actief', 'vervallen']
+
+function migrateApplicatieregister(raw) {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((a) => a && typeof a === 'object' && typeof a.naam === 'string' && a.naam.trim())
+    .map((a) => ({
+      id: a.id ? String(a.id) : generateId(),
+      naam: a.naam.trim(),
+      eigenaar: typeof a.eigenaar === 'string' ? a.eigenaar.trim() : '',
+      status: APPLICATIE_STATUS.includes(a.status) ? a.status : 'actief',
+      createdAt: a.createdAt ?? todayIso(),
+      updatedAt: a.updatedAt ?? todayIso(),
+    }))
+}
+
 function migrateExternalParties(raw) {
   if (!Array.isArray(raw)) return []
   return raw
@@ -600,6 +630,7 @@ function emptyState() {
     dependencies: [],
     teamWorkflows: {},
     externalParties: [],
+    applicatieregister: [],
     changeLog: [],
     usingMockData: false,
     adminSettings: migrateAdminSettings(),
