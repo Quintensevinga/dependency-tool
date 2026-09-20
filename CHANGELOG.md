@@ -3,6 +3,46 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-20
+- **Beurt 13 samengevoegd: het centrale applicatieregister** (Lars Hoogland)
+
+  Punt 30 (applicatieregister met eenmalige omzetting) plus het herstel van
+  DependencyRow, dat bij de opsplitsing van punt 34 uit TeamPage was gevallen.
+
+- **Punt 30: centraal applicatieregister met eenmalige omzetting** (Lars Hoogland)
+
+  Een applicatie bestond alleen als regel in de werkstroom van één team,
+  met een eigen willekeurig id. Twaalf teams die dezelfde gateway gebruiken
+  leverden twaalf losse records op die nergens met elkaar in verband stonden,
+  en daarmee was 'welke applicatie is een gedeeld knelpunt' niet te
+  beantwoorden.
+
+  - src/lib/applicatieregister.js: plan() rapporteert alleen, voerUit()
+    schrijft pas weg. Namen worden vergeleken met dezelfde regel als de
+    partijkiezer (lib/namen.js). Namen die op elkaar lijken maar niet gelijk
+    zijn worden gemeld als twijfelgeval en nooit automatisch samengevoegd --
+    samenvoegen is onomkeerbaar, melden kost niets.
+  - schemaversie 6 -> 7, met migratie van het register.
+  - Instellingen krijgt een subtab Applicaties (achter het beheerderswachtwoord):
+    het register met hernoemen en vervallen zetten, plus de omzetting met
+    droogloop, rapport en een aparte bevestiging.
+  - Analyse, tab Keten en proces: 'Applicaties gebruikt door meerdere teams'.
+
+  Gecontroleerd in de browser: de droogloop schrijft niets weg, teamcanvassen
+  tellen na de omzetting evenveel kaarten als ervoor (55/85/49), de
+  analysekaart toont Polis Gateway bij de juiste teams, de export draagt
+  schemaversie 7 en een bestand van een nieuwere versie wordt nog steeds
+  geweigerd.
+
+- **Herstel: DependencyRow ontbrak in TeamPage na de opsplitsing van punt 34** (Lars Hoogland)
+
+  Bij het verplaatsen van de datablokken naar src/components/team/ ging
+  DependencyRow mee, maar één gebruik bleef achter in TeamPage: de lijst
+  van afhankelijkheden zonder bepaald flowtype. Die tak rendert alleen als
+  zo'n afhankelijkheid bestaat, dus build en lint kwamen er niet op uit --
+  in de browser klapte de hele teampagina om in de foutmelding.
+
+  Gevonden tijdens de browsercontrole van punt 30.
+
 - **Beurt 12 samengevoegd: de rest van de schaalbaarheidslijst** (Lars Hoogland)
 
   23 -- weergavekeuzes bewaren (ketendiepte, lijnschakelaars, weggeklikte
