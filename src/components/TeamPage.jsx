@@ -57,6 +57,11 @@ const STANDAARD_CANVASFILTERS = {
   showApplicaties: true,
   showCapaciteit: true,
   showWorkflowfasen: true,
+  // Wat er met niet-gerelateerde kaarten gebeurt zodra je iets aanklikt.
+  // Verbergen is de standaard: alleen vervagen laat ze even groot en op
+  // dezelfde plek staan, dus de tekening wordt er niet kleiner van en je moet
+  // nog steeds zelf rondslepen om de opgelichte kaarten bij elkaar te krijgen.
+  focusVerbergt: true,
 }
 
 // Een bewaarde stand uit een oudere versie kan velden missen of onzin bevatten.
@@ -3498,7 +3503,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
       setCanvasFilters((vorige) => ({ ...vorige, [naam]: typeof waarde === 'function' ? waarde(vorige[naam]) : waarde })),
     [setCanvasFilters],
   )
-  const { showIO, showOverstijgend, showGeaccepteerd, riskFilterOn, showExternalTeams, showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen } =
+  const { showIO, showOverstijgend, showGeaccepteerd, riskFilterOn, showExternalTeams, showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen, focusVerbergt } =
     canvasFilters
   const setShowIO = useMemo(() => zetFilter('showIO'), [zetFilter])
   const setShowOverstijgend = useMemo(() => zetFilter('showOverstijgend'), [zetFilter])
@@ -3509,6 +3514,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   const setShowApplicaties = useMemo(() => zetFilter('showApplicaties'), [zetFilter])
   const setShowCapaciteit = useMemo(() => zetFilter('showCapaciteit'), [zetFilter])
   const setShowWorkflowfasen = useMemo(() => zetFilter('showWorkflowfasen'), [zetFilter])
+  const setFocusVerbergt = useMemo(() => zetFilter('focusVerbergt'), [zetFilter])
   const [legendOpen, setLegendOpen] = useState(false)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const legendRef = useRef(null)
@@ -3981,7 +3987,10 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // applicaties, IO, notities, Weergeven-toggles), nodes.length vangt de
   // rest. Bewust geen dependency op de nodes-array zelf: die verandert ook
   // tijdens slepen, wat dan bij elke muisbeweging opnieuw zou fitten.
-  const canvasFitKey = `${nodes.length}:${canvasWidth}:${canvasHeight}:${splitApplicaties}`
+  // De focuskeuze hoort in dit signaal: verbergen verandert het aantal
+  // berekende kaarten niet, dus zonder deze toevoeging gaat het automatisch
+  // passend maken niet af en blijft het beeld staan waar het stond.
+  const canvasFitKey = `${nodes.length}:${canvasWidth}:${canvasHeight}:${splitApplicaties}:${canvasFocus?.id ?? ''}:${focusVerbergt}`
 
   // Lijnen worden pas duidelijk als niet-gerelateerde relaties wegvallen
   // zodra je iets aanwijst — zelfde hover-dim-patroon als HeatmapView.jsx
@@ -4032,9 +4041,15 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     })
     return nodes.map((n) => {
       if (!DIMMABLE_NODE_TYPES.has(n.type)) return n
-      return { ...n, style: { ...n.style, opacity: relatedIds.has(n.id) ? 1 : 0.3 } }
+      if (relatedIds.has(n.id)) return n
+      // `hidden` en niet uit de lijst filteren: fitViewAvoidingCorner slaat
+      // verborgen kaarten over (lib/flowFit.js), dus het beeld wordt daarna
+      // passend gemaakt op alleen wat je overhoudt. Eruit filteren zou React
+      // Flow de node laten vergeten, inclusief zijn gemeten maat.
+      if (focusVerbergt) return { ...n, hidden: true }
+      return { ...n, style: { ...n.style, opacity: 0.3 } }
     })
-  }, [nodes, edges, focusNodeId, focusIsEdge])
+  }, [nodes, edges, focusNodeId, focusIsEdge, focusVerbergt])
 
   // Canvas-filters: verbergt hele elementtypes ná de layoutberekening, zodat
   // je gericht op een deelverzameling kunt focussen (bv. voor een gesprek)
@@ -4056,8 +4071,11 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
     return displayNodes.filter((n) => canvasTypeFilters[n.type] !== false)
   }, [displayNodes, canvasTypeFilters])
   const filteredEdges = useMemo(() => {
-    if (filteredNodes === displayNodes) return displayEdges
-    const visibleIds = new Set(filteredNodes.map((n) => n.id))
+    // Zelfde controle als voorheen, maar nu ook op `hidden`: een lijn naar een
+    // verborgen kaart zou anders in beeld blijven hangen en naar niets meer
+    // lopen.
+    const visibleIds = new Set(filteredNodes.filter((n) => !n.hidden).map((n) => n.id))
+    if (visibleIds.size === filteredNodes.length && filteredNodes === displayNodes) return displayEdges
     return displayEdges.filter((e) => visibleIds.has(e.source) && visibleIds.has(e.target))
   }, [displayEdges, filteredNodes, displayNodes])
 
@@ -4760,6 +4778,7 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
                         ...(adminSections.ontwikkelflow
                           ? [{ key: 'showWorkflowfasen', label: t('teampage.viewFilterShowWorkflowfasen'), value: showWorkflowfasen, onChange: setShowWorkflowfasen }]
                           : []),
+                        { key: 'focusVerbergt', label: t('teampage.viewFilterFocusVerbergt'), value: focusVerbergt, onChange: setFocusVerbergt },
                       ]}
                       flowtypeFilter={flowtypeFilter}
                       setFlowtypeFilter={setFlowtypeFilter}
