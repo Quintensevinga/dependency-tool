@@ -3,6 +3,60 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-20
+- **Beurt 10 samengevoegd: start en rondleiding** (Lars Hoogland)
+
+  I11 -- strook bovenaan zolang je naar voorbeelddata kijkt, met een knop om met
+         eigen gegevens te beginnen (met bevestiging).
+  I10 -- Escape sluit de rondleiding, stappen zonder doelelement vallen weg, en
+         de wisknop in Instellingen neemt het 'al gezien'-vlaggetje mee.
+
+- **I10: rondleiding met Escape weg te klikken, en stappen zonder doel overslaan** (Lars Hoogland)
+
+  Drie dingen:
+
+  - Escape sluit de rondleiding. 'Overslaan' in de tekstkaart was de enige uitweg
+    en die staat niet altijd in beeld.
+  - Stappen waarvan het doelelement niet op de pagina staat vallen weg. Dat is
+    geen theoretisch geval: de stap over de tabs onder het canvas blijft bestaan
+    zolang *een* van de teamsecties aanstaat, maar het element eronder verschijnt
+    alleen als de sectie 'Dependencies van dit team' zelf aanstaat. Zet een admin
+    die uit, dan wees de rondleiding naar iets wat er niet is.
+    Staat er helemaal niets van de rondleiding op de pagina, dan gaat hij meteen
+    dicht in plaats van een leeg verduisterd scherm te tonen.
+  - De rode wisknop in Instellingen wist nu eerst alles met het voorvoegsel
+    'dependency-insight:' (dezelfde routine als de resetlink) en schrijft daarna
+    pas de lege state weg. clearAllData raakt alleen de datasleutel, dus zonder
+    die regel bleef het 'rondleiding al gezien'-vlaggetje staan en begon een verse
+    tool zonder rondleiding.
+
+  Gecontroleerd: op een gevuld team start de rondleiding met 7 stappen en sluit
+  Escape hem; na wissen via Instellingen is het vlaggetje weg (null) en staan er 0
+  teams, en op een nieuw team start de rondleiding weer. Met de sectie
+  'Dependencies van dit team' uit bevat de pagina alleen toolbar, workflow-canvas
+  en canvas-toolbar: de rondleiding biedt dan 6 stappen. Zonder het filter zijn
+  dat er 7, inclusief die ene die nergens naar wijst.
+
+- **I11: strook bij voorbeelddata** (Lars Hoogland)
+
+  Wie de link voor het eerst krijgt landt op acht verzonnen teams, zonder dat
+  ergens staat dat het voorbeelddata is en zonder route naar eigen gegevens.
+
+  Een balk bovenaan zolang usingMockData waar is, met het werkelijke aantal teams
+  erin en een knop 'Beginnen met eigen gegevens' die de bestaande wisactie
+  gebruikt -- met bevestiging, want wissen is onomkeerbaar.
+
+  Bewust als balk in de bestaande rij meldingen en met dezelfde uitsluitingen: die
+  staan allemaal fixed op dezelfde hoogte, dus twee tegelijk vallen over elkaar.
+  Deze staat achteraan in de rangorde; een kapotte opslag of een mislukte
+  opslagactie is dringender dan de mededeling dat je naar demodata kijkt.
+
+  Gecontroleerd: op een verse opslag staat de strook er met '8 verzonnen teams';
+  na een wijziging (team toevoegen) is hij weg en staat usingMockData op false; de
+  knop vraagt eerst om bevestiging en laat daarna 0 teams en 0 dependencies achter
+  met de strook verdwenen.
+
+  MSG
+
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
 
 - **CI werkend maken: npm install in plaats van npm ci** (Lars Hoogland)
