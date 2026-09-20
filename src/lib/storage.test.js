@@ -40,7 +40,12 @@ afterEach(() => {
 describe('migrateState — oude export', () => {
   it('zet de schemaversie op de huidige', () => {
     expect(migrateState(oudeExport()).schemaVersion).toBe(SCHEMA_VERSION)
-    expect(SCHEMA_VERSION).toBe(6)
+    // Bewust een hard getal: het nummer zelf is de afspraak met de
+    // versieweigering (punt 5) en met elke export die al bij iemand op schijf
+    // staat. Verandert het, dan hoort deze regel bewust meegewijzigd te worden
+    // en niet stilzwijgend mee te bewegen. 6 -> 7 bij het applicatieregister
+    // (punt 30), dat de opslagvorm verandert.
+    expect(SCHEMA_VERSION).toBe(7)
   })
 
   it('maakt van de teamtekst een team met een geslugd id', () => {

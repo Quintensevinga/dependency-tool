@@ -6,6 +6,7 @@ import { constateringZin, bouwRapport } from '../lib/analyseTeksten'
 import { slugify } from '../lib/slug'
 import { calculateRisk } from '../lib/risk'
 import { vindScheefstand } from '../lib/scheefstand'
+import { applicatiesMetMeerdereTeams } from '../lib/applicatieregister'
 import { riskStyle } from '../lib/riskStyles'
 import {
   translateCategorie,
@@ -26,7 +27,7 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
   // activeTeams i.p.v. teams: een gearchiveerd team hoort niet als 'slapend'
   // of in de scorekaart op te duiken; zijn dependencies blijven wel meetellen
   // in de totalen (ze bestaan nog).
-  const { activeTeams: teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamName, adminSettings } = useAppContext()
+  const { activeTeams: teams, alleDependencies, teamWorkflows, externalParties, changeLog, teamName, adminSettings, applicatieregister } = useAppContext()
   const { language } = useLanguage()
   const [teamFilter, setTeamFilter] = useState('')
   const [weken, setWeken] = useState(26)
@@ -69,6 +70,14 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
   // een naamloos item of een dubbele partij is geen risicosignaal maar een
   // slordigheid in de invoer. Zelfde functie als scripts/audit-relations.mjs
   // gebruikt, zodat het scherm en het controleprogramma niet uit elkaar lopen.
+  // Applicaties die meerdere teams raken. Kon vóór het centrale register
+  // (punt 30) niet: elke applicatie was een eigen record per team, dus deelde
+  // niemand er ooit een.
+  const gedeeldeApps = useMemo(
+    () => applicatiesMetMeerdereTeams({ teamWorkflows, applicatieregister }),
+    [teamWorkflows, applicatieregister],
+  )
+
   const scheef = useMemo(
     () => vindScheefstand({ teams, dependencies: alleDependencies, teamWorkflows, externalParties }),
     [teams, alleDependencies, teamWorkflows, externalParties],
@@ -766,6 +775,31 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                   </ul>
                 </div>
               </div>
+            </Kaart>
+            <Kaart titel={`${tx('kGedeeldeApps')} · ${gedeeldeApps.length}`} uitleg={tx('uGedeeldeApps')} breed>
+              <Tabel
+                kolommen={[
+                  { key: 'app', label: tx('applicatie') },
+                  { key: 'teams', label: tx('aantalTeams'), rechts: true, sorteer: (r) => r.teamsWaarde },
+                  { key: 'hoogste', label: tx('hoogste') },
+                  { key: 'namen', label: tx('team') },
+                ]}
+                rijen={gedeeldeApps.map((g) => {
+                  const deps = a.open.filter((d) => (d.applicatieIds ?? []).includes(g.id))
+                  // Hoogste risiconiveau van de dependencies die aan deze applicatie hangen.
+                  const scores = deps.map((d) => calculateRisk(d)).sort((x, y) => y.score - x.score)
+                  const hoogste = scores[0]?.level ?? null
+                  return {
+                    key: g.id,
+                    app: g.naam,
+                    teams: g.aantalTeams,
+                    teamsWaarde: g.aantalTeams,
+                    hoogste: hoogste ? translateRiskLevel(hoogste, language) : '—',
+                    namen: g.teamIds.map(teamName).join(', '),
+                  }
+                })}
+                leeg={tx('geenGedeeldeApps')}
+              />
             </Kaart>
             <Kaart titel={`${tx('kSpof')} · ${tx('topVan', { n: 15, total: a.keten.spof.length })}`} uitleg={tx('uSpof')} breed>
               <Tabel

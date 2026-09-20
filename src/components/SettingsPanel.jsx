@@ -4,6 +4,7 @@ import { APP_VERSION, BUILD_TIME, wisAlleLokaleOpslag } from '../lib/appVersion'
 import { useLanguage } from '../context/LanguageContext'
 import { splitsArchief } from '../lib/changeLog'
 import { openKoppelverzoeken } from '../lib/koppelverzoeken'
+import { applicatiesMetMeerdereTeams } from '../lib/applicatieregister'
 import { STORAGE_KEY } from '../lib/storage'
 import { exportDataAsJson, readJsonFile } from '../lib/export'
 import { emptyTeamWorkflow, validateImportShape, telOnvolledigeNamen } from '../lib/storage'
@@ -141,10 +142,11 @@ const SETTINGS_TABS = [
   { key: 'wachtrij', labelKey: 'settings.tab.wachtrij' },
   { key: 'data', labelKey: 'settings.tab.data' },
   { key: 'partijen', labelKey: 'settings.tab.partijen' },
+  { key: 'applicaties', labelKey: 'settings.tab.applicaties' },
   { key: 'zichtbaarheid', labelKey: 'settings.tab.zichtbaarheid' },
   { key: 'log', labelKey: 'settings.tab.log' },
 ]
-const ADMIN_TABS = ['partijen', 'zichtbaarheid', 'log']
+const ADMIN_TABS = ['partijen', 'applicaties', 'zichtbaarheid', 'log']
 
 // Hoeveel regels de wachtrij toont voordat 'toon meer' het overneemt.
 const WACHTRIJ_MAX = 50
@@ -668,6 +670,155 @@ function Reviewwachtrij() {
   )
 }
 
+// Het centrale applicatieregister, en de eenmalige omzetting ernaartoe.
+//
+// De omzetting is onomkeerbaar: applicaties worden samengevoegd en ids worden
+// overal omgehangen. Daarom drie drempels, en alle drie met opzet:
+//   1. een droogloop die alleen rapporteert en niets wegschrijft;
+//   2. het rapport wordt getoond voordat er iets kan gebeuren;
+//   3. pas daarna een aparte, expliciete bevestiging.
+// Twijfelgevallen worden gemeld en nooit automatisch samengevoegd.
+function Applicatieregister({ register, teamWorkflows, teams, planFn, voerUitFn, onRename, onStatus, t }) {
+  const [rapport, setRapport] = useState(null)
+  const [klaar, setKlaar] = useState(null)
+  const [bewerkt, setBewerkt] = useState(null)
+  const [naam, setNaam] = useState('')
+
+  const gedeeld = applicatiesMetMeerdereTeams({ teamWorkflows, applicatieregister: register })
+  const teamNaam = (id) => teams.find((tm) => tm.id === id)?.naam ?? id
+
+  return (
+    <div className="space-y-3">
+      {register.length === 0 ? (
+        <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.apps.leeg')}</p>
+      ) : (
+        <div className="max-h-64 divide-y divide-slate-100 overflow-y-auto rounded-md border border-slate-200 bg-white">
+          {register.map((app) => {
+            const teamsVanApp = gedeeld.find((g) => g.id === app.id)
+            return (
+              <div key={app.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5">
+                {bewerkt === app.id ? (
+                  <form
+                    className="flex flex-1 items-center gap-1.5"
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      onRename(app.id, naam)
+                      setBewerkt(null)
+                    }}
+                  >
+                    <input
+                      autoFocus
+                      value={naam}
+                      onChange={(e) => setNaam(e.target.value)}
+                      className="w-full rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-800 focus:border-[#2a5f8a] focus:outline-none"
+                    />
+                    <button type="submit" className="shrink-0 text-xs font-medium text-[#2a5f8a] hover:underline">
+                      {t('settings.save')}
+                    </button>
+                  </form>
+                ) : (
+                  <>
+                    <span className={`min-w-0 flex-1 truncate text-xs ${app.status === 'actief' ? 'text-slate-700' : 'text-slate-400 line-through'}`} title={app.naam}>
+                      {app.naam}
+                      {teamsVanApp && <span className="ml-1.5 text-[10px] text-[#2a5f8a]">{t('settings.apps.teams', { count: teamsVanApp.aantalTeams })}</span>}
+                    </span>
+                    <span className="flex shrink-0 gap-2 text-xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNaam(app.naam)
+                          setBewerkt(app.id)
+                        }}
+                        className="font-medium text-slate-500 hover:underline"
+                      >
+                        {t('settings.rename')}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onStatus(app.id, app.status === 'actief' ? 'vervallen' : 'actief')}
+                        className="font-medium text-slate-500 hover:underline"
+                      >
+                        {app.status === 'actief' ? t('settings.apps.vervallen') : t('settings.apps.actief')}
+                      </button>
+                    </span>
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="space-y-2 border-t border-slate-100 pt-3">
+        <p className="text-[11px] font-semibold text-slate-700">{t('settings.apps.omzettingTitel')}</p>
+        <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.apps.omzettingUitleg')}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setKlaar(null)
+            setRapport(planFn())
+          }}
+          className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+        >
+          {t('settings.apps.droogloop')}
+        </button>
+
+        {rapport && (
+          <div className="space-y-2 rounded-md border border-[#c98a2e]/40 bg-[#c98a2e]/10 p-3">
+            <p className="text-[11px] font-medium text-[#8a5a12]">
+              {t('settings.apps.rapportKop', { totaal: rapport.totaalApplicaties, samen: rapport.samenvoegingen.length, weg: rapport.verdwijnendeRecords })}
+            </p>
+            {rapport.samenvoegingen.length > 0 && (
+              <ul className="space-y-0.5 text-[11px] text-slate-700">
+                {rapport.samenvoegingen.map((g) => (
+                  <li key={g.sleutel}>
+                    <b>{g.naam}</b> — {g.records.length} records bij {g.teams.map(teamNaam).join(', ')}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {rapport.twijfel.length > 0 && (
+              <>
+                <p className="text-[11px] font-medium text-[#8a5a12]">{t('settings.apps.twijfel')}</p>
+                <ul className="space-y-0.5 text-[11px] text-slate-700">
+                  {rapport.twijfel.map((tw) => (
+                    <li key={tw.namen.join('|')}>{tw.namen.join('  ·  ')}</li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <p className="text-[11px] leading-relaxed text-[#8a5a12]">{t('settings.apps.exportEerst')}</p>
+            {rapport.samenvoegingen.length > 0 && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const uit = voerUitFn()
+                    setKlaar(uit)
+                    setRapport(null)
+                  }}
+                  className="rounded-md bg-[#9a3b2e] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#7e2f24]"
+                >
+                  {t('settings.apps.uitvoeren')}
+                </button>
+                <button type="button" onClick={() => setRapport(null)} className="text-xs font-medium text-slate-500 hover:underline">
+                  {t('form.cancel')}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {klaar && (
+          <p className="text-[11px] leading-relaxed text-slate-600">
+            {t('settings.apps.gedaan', { samen: klaar.samenvoegingen.length, weg: klaar.verdwijnendeRecords })}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
   const {
     alleDependencies,
@@ -687,6 +838,11 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     adminSettings,
     updateAdminSettings,
     verwijderLogregels,
+    applicatieregister,
+    applicatieregisterPlan,
+    voerApplicatieregisterOmzettingUit,
+    hernoemApplicatie,
+    zetApplicatieStatus,
     externalParties,
     changeLog,
     addExternalParty,
@@ -1313,6 +1469,18 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
                       </label>
                       <p className="text-[11px] leading-relaxed text-slate-400">{t('settings.queue.toggleHint')}</p>
                     </>
+                  )}
+                  {tab === 'applicaties' && (
+                    <Applicatieregister
+                      register={applicatieregister}
+                      teamWorkflows={teamWorkflows}
+                      teams={teams}
+                      planFn={applicatieregisterPlan}
+                      voerUitFn={voerApplicatieregisterOmzettingUit}
+                      onRename={hernoemApplicatie}
+                      onStatus={zetApplicatieStatus}
+                      t={t}
+                    />
                   )}
                   {tab === 'log' && <AdminLogPage />}
                   {tab === 'partijen' && <PartySection
