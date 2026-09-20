@@ -196,7 +196,7 @@ export function LinkRequestsPanel({ requests, workflow, teamName, onAccept, onRe
 // rendercycli in lijsten van tientallen dependencies. Alles wat ze uit de
 // pagina nodig hebben komt via één stabiel ctx-object (rowContext in TeamPage),
 // zodat de memo hieronder daadwerkelijk iets oplevert.
-const DependencyRow = memo(function DependencyRow({ dep, showAppPicker, ctx }) {
+export const DependencyRow = memo(function DependencyRow({ dep, showAppPicker, ctx }) {
   const { t, language, uitgebreideAnalyse, applications, onSelect, onAddApplicatie, onRemoveApplicatie } = ctx
   const risk = calculateRisk(dep)
   const style = riskStyle(risk.level)
