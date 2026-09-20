@@ -3,6 +3,50 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-20
+- **Beurt 11 samengevoegd: scheefstand zichtbaar maken** (Lars Hoogland)
+
+  I12 -- controles op naamloze records en dubbele partijnamen, in zowel de
+         analysepagina als scripts/audit-relations.mjs, uit een gedeelde bron.
+
+- **I12: scheefstand zichtbaar maken** (Lars Hoogland)
+
+  Alle regels die deze opdracht toevoegt werken vooruit: ze voorkomen dat er nieuwe
+  naamloze records of dubbele partijen bijkomen. Wat er al stond bleef onvindbaar.
+
+  Twee controles, in src/lib/scheefstand.js zodat het scherm en het
+  controleprogramma dezelfde uitkomst geven:
+
+  - records zonder naam: teams, dependencies, externe partijen, input/output-items,
+    applicaties en capaciteitsregels. Een streepje of punt telt wel als naam --
+    dat is magere maar bewuste invoer, geen gat;
+  - externe partijen die onder de vergelijkingsregel uit I3 dezelfde naam hebben
+    (hoofdletters, streepjes, spaties en onderstrepingen negeren). Geweigerde
+    partijen tellen mee: die staan nog in de lijst en kunnen nog gekoppeld zijn.
+    Naamloze partijen niet -- anders is elk naamloos paar 'dubbel', terwijl het
+    probleem is dat ze geen naam hebben, en dat meldt de eerste controle al.
+
+  Bewust een aparte, zachtere sectie naast de bestaande controle op verdwenen
+  verwijzingen. Die gaat over kapotte data; deze over slordigheid waar de app
+  gewoon mee doorwerkt. In het controleprogramma betekent dat ook letterlijk
+  zachter: scheefstand bepaalt de afsluitcode niet. Anders ziet iemand met twintig
+  historische slordigheden de audit nooit meer groen en kijkt hij er niet meer
+  naar.
+
+  Alleen rapporteren, nooit repareren: een naamloos item weggooien of twee
+  partijen samenvoegen is per geval een keuze, en de verkeerde is onomkeerbaar.
+
+  Harde afspraak met beurt 3 gecontroleerd: een record met workflowStap
+  'procesoverstijgend' wordt nergens als onvolledig aangemerkt. De bestaande check
+  toetst op `!d.workflowStap` en punt 27 maakt er een echte waarde van, dus die
+  valt er niet meer onder; de nieuwe controle kijkt alleen naar namen (met een
+  test die dat vastlegt).
+
+  Gecontroleerd met de export uit de opdracht -- een naamloos item en twee
+  partijen die alleen in schrijfwijze verschillen -- en beide worden gemeld: het
+  controleprogramma meldt 5 naamloze records en 1 dubbele partij met afsluitcode
+  0, en met een wees-referentie erbij nog steeds 1. Op de voorbeelddata staat er
+  'Niets gevonden', zoals de opdracht voorspelde. Tien tests erbij.
+
 - **Beurt 10 samengevoegd: start en rondleiding** (Lars Hoogland)
 
   I11 -- strook bovenaan zolang je naar voorbeelddata kijkt, met een knop om met
