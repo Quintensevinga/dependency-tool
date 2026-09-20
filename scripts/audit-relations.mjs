@@ -1,15 +1,28 @@
 #!/usr/bin/env node
-// Eenmalige audit van referentie-consistentie in een Dependency Insight
-// JSON-export (Instellingen → Exporteren JSON). Controleert of alle
-// verwijzingen (teamId, extraTeamIds, geraaktPartijId, applicatieIds,
-// linkedTeam/linkedOutputId/linkedInputId, externalPartyId, changeLog-
-// verwijzingen) nog naar bestaande records wijzen. Rapporteert alleen —
-// repareert niets automatisch, want dat vereist een keuze per geval.
+// Eenmalige audit van een Dependency Insight JSON-export (Instellingen →
+// Exporteren JSON). Twee controles, bewust gescheiden:
+//
+//   1. Wezen-referenties — verwijzingen (teamId, extraTeamIds, geraaktPartijId,
+//      applicatieIds, linkedTeam/linkedOutputId/linkedInputId, externalPartyId,
+//      changeLog-verwijzingen) die naar een verdwenen record wijzen. Dat is
+//      kapotte data: er is iets stuk.
+//
+//   2. Scheefstand — records zonder naam en externe partijen die onder de
+//      vergelijkingsregel twee keer voorkomen. Dat is geen kapotte data maar
+//      slordigheid die je wilt zien; de app blijft gewoon werken.
+//
+// Die tweede is daarom zachter: hij bepaalt de afsluitcode niet. Anders zou
+// iemand met twintig historische slordigheden de audit nooit meer groen zien en
+// er dus ook niet meer naar kijken.
+//
+// Rapporteert alleen — repareert niets automatisch, want dat vereist een keuze
+// per geval.
 //
 // Gebruik:
 //   node scripts/audit-relations.mjs pad/naar/export.json
 
 import fs from 'node:fs'
+import { vindScheefstand } from '../src/lib/scheefstand.js'
 
 const file = process.argv[2]
 if (!file) {
@@ -105,20 +118,56 @@ for (const entry of changeLog) {
   }
 }
 
+// --- 1. wezen-referenties -----------------------------------------------
+
 if (findings.length === 0) {
   console.log(`Geen wezen-referenties gevonden (${dependencies.length} dependencies, ${teams.length} teams, ${externalParties.length} externe partijen, ${changeLog.length} logregels gecontroleerd).`)
-  process.exit(0)
+} else {
+  console.log(`${findings.length} wezen-referentie(s) gevonden:\n`)
+  const byCategory = {}
+  for (const f of findings) {
+    if (!byCategory[f.category]) byCategory[f.category] = []
+    byCategory[f.category].push(f.ref)
+  }
+  for (const [category, refs] of Object.entries(byCategory)) {
+    console.log(`${category} (${refs.length}):`)
+    for (const ref of refs) console.log(`  - ${ref}`)
+    console.log('')
+  }
 }
 
-console.log(`${findings.length} wezen-referentie(s) gevonden:\n`)
-const byCategory = {}
-for (const f of findings) {
-  if (!byCategory[f.category]) byCategory[f.category] = []
-  byCategory[f.category].push(f.ref)
+// --- 2. scheefstand ------------------------------------------------------
+
+const scheef = vindScheefstand(data)
+
+console.log('---')
+if (scheef.totaal === 0) {
+  console.log('Geen scheefstand gevonden: elk record heeft een naam en geen twee externe partijen heten hetzelfde.')
+} else {
+  console.log(`${scheef.totaal} melding(en) over scheefstand. Dit is geen kapotte data — de app werkt gewoon door. Opruimen is een keuze per geval.\n`)
+
+  if (scheef.naamloos.length > 0) {
+    console.log(`records zonder naam (${scheef.naamloos.length}):`)
+    const perSoort = {}
+    for (const x of scheef.naamloos) {
+      if (!perSoort[x.soort]) perSoort[x.soort] = []
+      perSoort[x.soort].push(x.team ? `${x.omschrijving} (bij ${x.team})` : x.omschrijving)
+    }
+    for (const [soort, regels] of Object.entries(perSoort)) {
+      console.log(`  ${soort} (${regels.length}):`)
+      for (const r of regels) console.log(`    - ${r}`)
+    }
+    console.log('')
+  }
+
+  if (scheef.dubbelePartijen.length > 0) {
+    console.log(`externe partijen die dubbel voorkomen (${scheef.dubbelePartijen.length}):`)
+    for (const groep of scheef.dubbelePartijen) {
+      console.log(`  - ${groep.namen.join(' / ')}  [${groep.ids.join(', ')}]`)
+    }
+    console.log('')
+  }
 }
-for (const [category, refs] of Object.entries(byCategory)) {
-  console.log(`${category} (${refs.length}):`)
-  for (const ref of refs) console.log(`  - ${ref}`)
-  console.log('')
-}
-process.exit(1)
+
+// Alleen wezen-referenties bepalen de afsluitcode; zie de toelichting bovenaan.
+process.exit(findings.length === 0 ? 0 : 1)
