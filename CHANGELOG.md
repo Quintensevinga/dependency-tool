@@ -3,6 +3,218 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-20
+- **Beurt 12 samengevoegd: de rest van de schaalbaarheidslijst** (Lars Hoogland)
+
+  23 -- weergavekeuzes bewaren (ketendiepte, lijnschakelaars, weggeklikte
+        partijen, heatmapfilters, teampaginafilters per team) en een leesbaar
+        webadres /team/<id>/<naam> dat zichzelf bijwerkt na hernoemen.
+  25 -- focus op het teamcanvas verbergt niet-gerelateerde kaarten echt en maakt
+        het beeld passend op wat overblijft, met een schakelaar naar vervagen.
+  34 -- TeamPage 5.634 -> 3.216 regels, AnalysePage 2.433 -> 1.066,
+        ChainOverview 2.309 -> 1.787, verdeeld over zeven nieuwe bestanden.
+
+- **Punt 34 stap 6: graafberekening van het ketenoverzicht naar src/lib/** (Lars Hoogland)
+
+  computeChainGraph staat nu in src/lib/chainGraph.js, naast chainLayout.js waar
+  de rest van de ketenwiskunde al zat. Meeverhuisd: partyNode en externalEdgeData
+  (alleen daar gebruikt) en de kleuren en streepjespatronen -- die laatste
+  geexporteerd, want de legenda tekent er zijn voorbeeldlijntjes mee en mag nooit
+  uit de pas lopen met de tekening.
+
+  ChainOverview.jsx: 2.309 -> 1.794 regels.
+
+  Onderweg brak ik het scherm en dat is precies waar de opdracht voor waarschuwt.
+  Bij het opruimen van ongebruikte imports haalde ik een hele importregel weg
+  terwijl alleen het eerste item ervan ongebruikt was; buildElkGraph, applyElkLayout
+  en vier andere gingen mee. De build bleef schoon en het ketenoverzicht was leeg
+  -- 0 kaarten, met alleen een fout in de browserconsole. Hersteld en opnieuw
+  gecontroleerd.
+
+  Browsercontrole na herstel: hele keten 31 kaarten en 90 lijnen, een team 25 en
+  59 met de diepte in de URL, wisselen van weergave werkt, de legenda opent, niets
+  op 0,0 en geen consolefouten.
+
+- **Punt 34 stap 5: teksten en bouwstenen van de Analysepagina eruit** (Lars Hoogland)
+
+  AnalysePage.jsx telde 2.433 regels, waarvan bijna achthonderd de woordenlijst:
+  je scrolde door de hele vertaling voordat je bij de eerste component was.
+
+  - src/components/analyse/teksten.js: het TEKST-blok (nl en en), de ernst-stijlen
+    en de invulhulp vul();
+  - src/components/analyse/Bouwstenen.jsx: sectie, kaart, tegel, de twee
+    grafieken, de tabel, de lijsten, de signalenlijst, het rapport en de tabstrip.
+
+  AnalysePage.jsx: 2.433 -> 1.066 regels.
+
+  Wat ik hier NIET heb gedaan is elk van de zes tabbladen een eigen bestand geven,
+  zoals de opdracht als eindbeeld schetst. Die tabbladen leven in de render van
+  een component en lezen tientallen lokale waarden; ze eruit tillen betekent een
+  grote proplijst bouwen, en dat is een verbouwing waar de opdracht zelf een harde
+  regel tegen stelt. De bouwstenen en teksten eruit halen levert het grootste deel
+  van de winst zonder dat risico. De splitsing per tabblad kan daarna als eigen
+  stap, met de bouwstenen al op hun plek.
+
+  Gecontroleerd zoals de opdracht vraagt: alle zes tabbladen een voor een geopend,
+  in het Nederlands en in het Engels. Elk tabblad vult zich (10 tot 24 kaarten,
+  3.500 tot 15.500 tekens), er is geen enkele kale sleutel in beeld en geen fout
+  in de console.
+
+- **Punt 34 stap 4: canvas-toolbar en filtermenu naar src/components/team/** (Lars Hoogland)
+
+  De zwevende knoppenbalk op het teamcanvas en het filtermenu ernaast staan nu in
+  src/components/team/CanvasToolbar.jsx. useClickOutside wordt door beide
+  bestanden gebruikt en staat daarom in src/lib/useClickOutside.js.
+
+  Twee dingen opgeruimd die van mijn eigen eerdere stappen kwamen: de
+  commentaarblokken van TeamDataBlock en PuntenEditor waren in TeamPage
+  achtergebleven terwijl de functies verhuisd waren, en de re-export van
+  computeWorkflowLayout kon weg -- die bestond zodat de berekening ook zonder
+  browser aan te roepen was, en dat kan nu rechtstreeks uit lib/teamCanvasLayout.
+
+  TeamPage.jsx: 5.634 -> 3.219 regels. Daarnaast staan er nu vier bestanden naast:
+  teamCanvasLayout.js (1.214), CanvasNodes.jsx (465), CanvasToolbar.jsx (431) en
+  TeamDataBlocks.jsx (360).
+
+  Zelfde browsercontrole, zelfde uitkomst, geen consolefouten.
+
+- **Punt 34 stap 3: de blokken onder het canvas naar src/components/team/** (Lars Hoogland)
+
+  De teamgegevens-secties, de dependencylijsten, het vak met koppelingsverzoeken
+  en de kleine editors die daarbij horen staan nu in
+  src/components/team/TeamDataBlocks.jsx: PuntenEditor, RequestActions, IoListRow,
+  LinkRequestsPanel, DependencyRow, StageGroupedDeps, FlatDeps en TeamDataBlock.
+
+  Wat ik hier bewust NIET heb gedaan: het JSX-blok in de render zelf naar een
+  eigen component tillen. Dat zou dertig props moeten doorgeven en is daarmee een
+  verbouwing, niet een verplaatsing -- en de opdracht stelt daar een harde regel
+  over. De componenten verplaatsen levert dezelfde winst zonder dat risico.
+
+  TeamPage gaat van 3.992 naar 3.648 regels.
+
+  Browsercontrole: canvas, slepen, zoomen, volledig scherm, focus, zoekveld; het
+  tabblad Teamgegevens toont Applicaties, Capaciteit, Input en Output, en de
+  dependencylijst op het andere tabblad vult zich (28 elementen). Geen
+  consolefouten.
+
+- **Punt 34 stap 2: kaartcomponenten van het canvas naar src/components/team/** (Lars Hoogland)
+
+  Alle node-types die computeWorkflowLayout oplevert (stage, ioItem, annotation,
+  capacityBadge, dependencyMarker, applicatieflowBanner, laneGroup, flowZone,
+  externalTeam, flowAnchor), de edge-renderer en de twee registers die React Flow
+  nodig heeft, staan nu in src/components/team/CanvasNodes.jsx.
+
+  Meeverhuisd omdat ze erbij horen: ColorSwatchRow en LINK_STATUS_CHIP (die
+  laatste wordt ook door een modal in TeamPage gebruikt en is daarom geexporteerd).
+
+  Verplaatst, niet verbouwd. TeamPage gaat van 4.439 naar 3.992 regels.
+
+  Zelfde browsercontrole als na stap 1 en met dezelfde uitkomst: canvas tekent (41
+  kaarten, 30 lijnen, niets op 0,0), slepen en zoomen, volledig scherm, focus (16
+  kaarten, 7 lijnen), zoekveld en het tabblad Teamgegevens. Geen consolefouten.
+
+- **Punt 34 stap 1: lay-outberekening van het teamcanvas naar src/lib/** (Lars Hoogland)
+
+  TeamPage.jsx telde 5.634 regels met tientallen componenten, de volledige
+  lay-outberekening, alle formuliervensters en de teamgegevens door elkaar. Eerste
+  stap van de opsplitsing: de berekening eruit.
+
+  computeWorkflowLayout is een zuivere berekening (invoer erin, kaarten en lijnen
+  eruit) zonder React, dus die staat nu in src/lib/teamCanvasLayout.js -- los te
+  lezen en los te testen. Meeverhuisd omdat ze nergens anders gebruikt worden: de
+  canvas-constanten (STAGE_GAP, IO_Y_GAP, IO_COLUMN_STEP, ...), gutterRoute en
+  canvasHeightFor.
+
+  Verplaatst, niet verbouwd: de inhoud is regel voor regel dezelfde. TeamPage gaat
+  van 5.634 naar 4.439 regels.
+
+  Gecontroleerd in de browser op een team met data, zoals de opdracht na elke stap
+  vraagt: het canvas tekent zichzelf (41 kaarten, 30 lijnen, niets op 0,0), slepen
+  en zoomen werken, volledig scherm heen en terug werkt, een kaart aanklikken zet
+  de focus (16 kaarten, 7 lijnen), het zoekveld onder het canvas werkt en het
+  tabblad Teamgegevens opent. Geen enkele fout in de browserconsole.
+
+- **Punt 25: focus op het teamcanvas verbergt echt en laat het beeld meebewegen** (Lars Hoogland)
+
+  Een kaart aanklikken zette niet-gerelateerde kaarten op doorzichtigheid 0,3.
+  Ze bleven even groot, op dezelfde plek, en namen evenveel ruimte in: de tekening
+  werd niet kleiner en het beeld sprong niet naar wat je had aangeklikt. Bij een
+  vol canvas betekende dat rondslepen om de opgelichte kaarten bij elkaar te
+  krijgen.
+
+  - niet-gerelateerde kaarten krijgen nu `hidden` in plaats van doorzichtigheid.
+    Bewust die vlag en niet uit de lijst filteren: fitViewAvoidingCorner slaat
+    verborgen kaarten over, dus het beeld wordt daarna passend gemaakt op alleen
+    wat overblijft -- en React Flow houdt de kaart (met zijn gemeten maat) intact;
+  - lijnen naar een verborgen kaart verdwijnen mee, via dezelfde controle die er
+    al stond voor het wegfilteren van hele elementtypes;
+  - de focuskeuze zit in het signaal voor automatisch passend maken. Zonder die
+    toevoeging gaat dat niet af: verbergen verandert het aantal berekende kaarten
+    niet;
+  - een schakelaar 'Bij focus: niet-gerelateerde kaarten verbergen' in het
+    weergavemenu, standaard aan, voor wie de omgeving in beeld wil houden. Hij
+    wordt per team bewaard, net als de andere weergavefilters (punt 23).
+
+  Gemeten op Team Asgard: een kaart aanklikken brengt 41 kaarten en 30 lijnen
+  terug naar 16 en 7, de tekening vult daarna 82% van de breedte in plaats van
+  70%, en er blijft geen enkele lijn naar niets hangen. Naast het canvas klikken
+  zet alles terug en maakt het beeld opnieuw passend. Op 'vervagen' blijven alle
+  41 kaarten staan met 25 vervaagd. Een lijn aanklikken laat de twee verbonden
+  elementen over. Volledig scherm heen en terug houdt de focus vast, en vijf
+  kaarten snel achter elkaar aanklikken laat het beeld stabiel achter.
+
+  Eén ding om te weten: 'alleen die lijn en de twee elementen' geldt voor de
+  inhoudelijke kaarten. De structurele elementen -- zones, lanes en workflowfasen
+  -- blijven staan, precies zoals ze dat bij kaartfocus al deden; dat zijn de
+  vaste orientatiepunten van het canvas en zonder die blijft er een zwevend paar
+  kaarten over. Vandaar 16 en niet 2. Wil je die ook weg, dan is dat een aparte
+  keuze.
+
+- **Punt 23: weergavekeuzes bewaren, en een leesbaar webadres voor de teampagina** (Lars Hoogland)
+
+  DEEL 1 -- bewaren. Bijna alles wat je instelt om een groot scherm hanteerbaar te
+  maken was na een keer verversen weg. Nu bewaard, in dezelfde losse sleutel als
+  de navigatiestand (weergave is geen inhoud en hoort niet mee in een export):
+
+  - ketendiepte, en die zit nu ook in het pad: /ketenoverzicht/<team>/<diepte>.
+    Daarvoor is depth uit de component naar de ketenweergave (chainView) verhuisd,
+    naast de stand en de teamkeuze die er al in zaten;
+  - de twee lijnschakelaars en de weggeklikte externe partijen;
+  - teamselectie, risiconiveau, workflowstap en scope van de Heatmap;
+  - de negen weergavefilters van de teampagina, per team apart -- team A en team B
+    hebben verschillende canvassen en dus verschillende redenen om iets te
+    verbergen. Als een object onder een sleutel per team, niet negen losse
+    sleutels; dat scheelt bij dertig teams 270 regels in de opslag.
+
+  De twee valkuilen uit de opdracht:
+
+  - de teamselectie bewaart de AFWIJKINGEN, niet de uitkomst. useTeamSelection
+    leidt de standaard elke render opnieuw uit de data af; wie de uitkomst bewaart
+    ziet een later toegevoegd team nooit meer vanzelf verschijnen. In de opslag
+    staat dus [["team-tiem",false]] en geen lijst van alles wat aanstaat.
+  - elke bewaarde waarde heeft een eigen terugval (saneerLijst/saneerKeuze/
+    saneerVlag in lib/weergave.js, met tests). Een lege lijst valt bewust NIET
+    terug: 'alles uitgevinkt' is een keuze van de gebruiker, en die bij het
+    verversen terugdraaien zou hem verbaasd achterlaten. Alleen onzin valt terug.
+
+  Onderweg gerepareerd: App.jsx schreef de nav-sleutel met setItem en gooide
+  daarmee bij elke navigatie de zojuist bewaarde weergavekeuzes weg. Dat gaat nu
+  via schrijfNav, dat samenvoegt.
+
+  DEEL 2 -- het webadres. /team/<id> werd /team/<id>/<huidige-naam>. Het id komt
+  uit de naam van toen en hernoemen laat het ongemoeid, dus een team dat ooit
+  'Polis' heette hield voorgoed /team/polis: leesbaar en onwaar. Het staartje is
+  versiering en wordt bij het herkennen genegeerd, dus oude links blijven werken.
+
+  Gecontroleerd: diepte 1 en een uitgezette lijnschakelaar staan na verversen nog
+  zo (URL /ketenoverzicht/team-tiem/1); twee uitgevinkte teams en een versmald
+  risiconiveau op de Heatmap ook; Asgard houdt zijn eigen twee uitgezette filters
+  terwijl Wakanda niets bewaard heeft. Een export bevat geen van deze keuzes.
+  Terugval getest met een zelf aangemaakt team: na verwijderen valt zowel de oude
+  keten-URL als de oude team-URL netjes terug op /ketenoverzicht/team, zonder lege
+  pagina en zonder fout. En na hernoemen komt het oude adres
+  /team/team-equinox/team-asgard uit op dezelfde pagina en corrigeert de balk
+  zichzelf naar /team/team-equinox/team-valhalla, zonder lus bij terug/vooruit.
+
 - **Beurt 11 samengevoegd: scheefstand zichtbaar maken** (Lars Hoogland)
 
   I12 -- controles op naamloze records en dubbele partijnamen, in zowel de
