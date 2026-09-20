@@ -3,6 +3,12 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-20
+- **Notitie: de twee punten die alleen opgeschreven moesten worden** (Lars Hoogland)
+
+  I14 (vier categorienamen met een dubbele betekenis) en het doorwerken van
+  het hernoemen van een externe partij. Allebei hangen ze aan het nog niet
+  genomen datastructuurbesluit; vastgelegd zodat ze niet verdwijnen.
+
 - **Beurt 13 samengevoegd: het centrale applicatieregister** (Lars Hoogland)
 
   Punt 30 (applicatieregister met eenmalige omzetting) plus het herstel van
