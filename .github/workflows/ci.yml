@@ -19,46 +19,43 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Node 24, om twee redenen. Ten eerste vereist vitest 5 minimaal
-      # ^22.12.0 || ^24.0.0 || >=26.0.0, dus Node 20 (waar dit eerst op stond)
-      # is uitgesloten. Ten tweede, en dat is de reden dat deze workflow nooit
-      # geslaagd is: Node 22 brengt npm 10 mee, en npm 10 en npm 11 schrijven de
-      # gebundelde subafhankelijkheden van @tailwindcss/oxide-wasm32-wasi
-      # verschillend. Op een lockfile die met npm 11 is gemaakt viel npm 10 om
-      # met 'Missing: @emnapi/runtime@1.11.3 from lock file' (EUSAGE). Node 24
-      # brengt npm 11 mee en is daarmee dezelfde combinatie als waarop hier
-      # ontwikkeld wordt.
+      # Node 24: vitest 5 vereist ^22.12.0 || ^24.0.0 || >=26.0.0, dus de
+      # oorspronkelijke Node 20 was uitgesloten. 24 is bovendien de versie
+      # waarop hier ontwikkeld wordt, dus CI test dezelfde combinatie.
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: npm
 
-      # npm ci en niet npm install: alleen een installatie vanaf nul met een
-      # lege node_modules legt bloot dat een pakket wel geïmporteerd wordt maar
-      # niet (of in de verkeerde sectie) in package.json staat.
+      # npm install en niet npm ci, en dat is een bewuste concessie.
+      #
+      # npm ci eist dat de lockfile compleet is, en dat is hij hier niet: de
+      # tailwind-keten bevat een optioneel wasm-pakket (@tailwindcss/oxide-
+      # wasm32-wasi) dat op geen enkele machine hier gebruikt wordt, maar dat
+      # wel een afhankelijkheid @emnapi/runtime declareert. npm op Windows laat
+      # die bij het genereren van de lock weg -- ook met --include=optional en
+      # met een geforceerd Linux-platform -- en npm ci op de runner weigert dan:
+      #
+      #   npm error Missing: @emnapi/runtime@1.11.3 from lock file
+      #   npm error code EUSAGE
+      #
+      # Daar is op deze machines niet omheen te komen zonder een pakket aan
+      # package.json toe te voegen dat de app nergens gebruikt. npm install doet
+      # op een lege node_modules hetzelfde werk (en legt dus nog steeds bloot
+      # dat iets geimporteerd wordt zonder in package.json te staan); het vult
+      # alleen dat ene gat zelf aan in plaats van te stoppen.
       - name: Installeren
         run: |
           set -o pipefail
-          npm ci 2>&1 | tee /tmp/npm-ci.log
+          npm install --no-audit --no-fund 2>&1 | tee /tmp/npm-ci.log
 
-      # Tijdelijk: de foutuitvoer van npm staat alleen in de CI-log, en die is
-      # niet zonder login te lezen. Het job summary komt wel publiek terug via
-      # de API, dus daar zetten we 'm bij een mislukking neer. Weghalen zodra
-      # de oorzaak bekend is.
-      - name: Npm-uitvoer bij mislukking
+      # Bij een mislukking de reden als annotatie wegschrijven. De CI-log zelf
+      # is niet zonder GitHub-login te lezen; annotaties wel. Dat schaaft bij
+      # een volgende storing een paar blinde rondes af.
+      - name: Reden bij mislukking
         if: failure()
         run: |
-          echo '### npm ci' >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          tail -80 /tmp/npm-ci.log >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo '### omgeving' >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          { node -v; npm -v; ls -la; } >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          # En als annotatie: dat is de enige uitvoer die zonder login op te
-          # halen is. Regel voor regel, dan hoeft er niets ge-escaped te worden.
-          { ls -l package.json package-lock.json; echo "--- reden ---"; head -20 /tmp/npm-ci.log; } | while IFS= read -r r; do
+          { node -v; npm -v; echo '--- installatie ---'; head -20 /tmp/npm-ci.log; } | while IFS= read -r r; do
             echo "::error::$r"
           done
 
