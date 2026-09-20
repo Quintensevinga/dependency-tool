@@ -23,6 +23,7 @@ import { exportElementAsPng } from './lib/export'
 import { getCorruptRawData, clearCorruptRawData, getFutureVersionRawData, SCHEMA_VERSION } from './lib/storage'
 import { buildDuplicatePrefill } from './lib/duplicateDependency'
 import { pathForNav, navFromPath, sanitizeChainView, DEFAULT_CHAIN_VIEW } from './lib/routes'
+import { leesNav, schrijfNav } from './lib/weergave'
 import { useNieuwereVersieBeschikbaar } from './lib/appVersion'
 
 // Bewust géén silent no-op als een pagina via Admin uitgezet is (bv. een
@@ -52,15 +53,7 @@ function PageDisabledNotice({ onBack }) {
 // een eigen, kleine localStorage-sleutel i.p.v. onderdeel van de hoofdstate
 // (STORAGE_KEY in lib/storage.js): dit is navigatiestatus, geen inhoudelijke
 // data, en hoeft niet mee in exports/imports of de schema-migratie daarvan.
-const NAV_STORAGE_KEY = 'dependency-insight:nav'
-
-function loadNavState() {
-  try {
-    return JSON.parse(localStorage.getItem(NAV_STORAGE_KEY)) ?? {}
-  } catch {
-    return {}
-  }
-}
+const loadNavState = leesNav
 
 function AppContent() {
   const {
@@ -147,7 +140,10 @@ function AppContent() {
   // effectieve pagina: een uitgezette pagina hoort niet als 'laatst geopend'
   // terug te komen.
   useEffect(() => {
-    localStorage.setItem(NAV_STORAGE_KEY, JSON.stringify({ activeTab: effectiveTab, teamPageTeamId, chainView }))
+    // schrijfNav en niet setItem: deze sleutel draagt sinds punt 23 ook de
+    // bewaarde weergavekeuzes (filters, schakelaars). Rechtstreeks
+    // overschrijven gooide die elke navigatie weer weg.
+    schrijfNav({ activeTab: effectiveTab, teamPageTeamId, chainView })
   }, [effectiveTab, teamPageTeamId, chainView])
 
   // URL volgt de navigatiestatus: elke wissel van pagina is een nieuwe
@@ -157,7 +153,14 @@ function AppContent() {
   // terug-stap weer een nieuwe entry maken en kwam je nooit meer terug.
   const urlSyncRef = useRef({ initial: true, fromPop: false })
   useEffect(() => {
-    const path = pathForNav({ activeTab: effectiveTab, teamPageTeamId, chainView })
+    // De actuele naam gaat mee in het pad; opent iemand een oude link met een
+    // verouderd staartje, dan corrigeert dit effect het adres vanzelf.
+    const path = pathForNav({
+      activeTab: effectiveTab,
+      teamPageTeamId,
+      chainView,
+      teamNaam: teamPageTeamId ? (teams.find((tm) => tm.id === teamPageTeamId)?.naam ?? null) : null,
+    })
     const sync = urlSyncRef.current
     if (window.location.pathname !== path) {
       if (sync.initial || sync.fromPop) window.history.replaceState(null, '', path)

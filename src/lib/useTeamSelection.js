@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
+import { useBewaardeStand } from './weergave'
 
 // Teamselectie voor de filterpanelen (Heatmap, Ketenoverzicht).
 // De standaard per team volgt uit de data: actieve teams aan,
@@ -8,8 +9,29 @@ import { useCallback, useMemo, useState } from 'react'
 // (Instellingen is een overlay; de weergave blijft gemount) werkt zo meteen
 // door in de selectie. Alleen een expliciete keuze van de gebruiker
 // (aan-/uitvinken, Alles, Geen) overschrijft die standaard, per team.
-export function useTeamSelection(teams, { includeArchived = false } = {}) {
-  const [overrides, setOverrides] = useState(() => new Map())
+// `bewaarSleutel` bewaart de keuze over verversen heen. Bewust de AFWIJKINGEN
+// en niet de uitkomst: de standaard wordt hierboven elke render opnieuw uit de
+// data afgeleid, dus als je de uitkomst zou bewaren verschijnt een team dat
+// later wordt toegevoegd nooit meer vanzelf in de selectie.
+export function useTeamSelection(teams, { includeArchived = false, bewaarSleutel = null } = {}) {
+  const [afwijkingen, setAfwijkingen] = useBewaardeStand(
+    bewaarSleutel ?? 'weergave.zonderSleutel',
+    [],
+    // Een bewaarde afwijking voor een inmiddels verwijderd team valt gewoon
+    // weg; hier hoeft niets voor te gebeuren omdat de lijst hieronder alleen
+    // tegen bestaande teams wordt gelegd. Alleen onzin valt terug op leeg.
+    (opgeslagen) => (Array.isArray(opgeslagen) ? opgeslagen.filter((x) => Array.isArray(x) && x.length === 2) : []),
+  )
+  const overrides = useMemo(() => new Map(afwijkingen), [afwijkingen])
+  const setOverrides = useCallback(
+    (bijwerken) => {
+      setAfwijkingen((vorige) => {
+        const nieuw = typeof bijwerken === 'function' ? bijwerken(new Map(vorige)) : bijwerken
+        return [...(nieuw instanceof Map ? nieuw : new Map(nieuw))]
+      })
+    },
+    [setAfwijkingen],
+  )
 
   const defaultSelected = useCallback((team) => includeArchived || team.actief, [includeArchived])
 

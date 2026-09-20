@@ -12,6 +12,7 @@ import DependencyTable from './DependencyTable'
 import ScopeToggle from './ScopeToggle'
 import { useModalA11y } from '../lib/a11y'
 import { useTeamSelection } from '../lib/useTeamSelection'
+import { useBewaardeStand, saneerLijst, saneerKeuze } from '../lib/weergave'
 
 function highestRisk(deps) {
   let best = { level: 'Laag', score: 0 }
@@ -45,13 +46,17 @@ export default function HeatmapView({ onSelect, adminSections, onNavigateToTeam 
   const [hover, setHover] = useState(null) // { x, y, payload: { label?, categorie?, deps } }
   // Gearchiveerde teams staan standaard uit, maar blijven aan te vinken zodat
   // historische data opvraagbaar blijft — zie useTeamSelection.
-  const { selectedTeamIds, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams)
-  const [selectedRiskLevels, setSelectedRiskLevels] = useState(RISK_LEVELS)
-  const [selectedWorkflowStap, setSelectedWorkflowStap] = useState([...WORKFLOW_STAP_LEVELS, ''])
+  const { selectedTeamIds, toggleTeam, selectAll: selectAllTeams, selectNone: selectNoTeams } = useTeamSelection(teams, { bewaarSleutel: 'heatmap.teams' })
+  const [selectedRiskLevels, setSelectedRiskLevels] = useBewaardeStand('heatmap.risico', RISK_LEVELS, (o, std) =>
+    saneerLijst(o, std, RISK_LEVELS),
+  )
+  const [selectedWorkflowStap, setSelectedWorkflowStap] = useBewaardeStand('heatmap.workflowstap', [...WORKFLOW_STAP_LEVELS, ''], (o, std) =>
+    saneerLijst(o, std, [...WORKFLOW_STAP_LEVELS, '']),
+  )
   // Lokale scope-filter die standaard alles toont: mixen van Teamniveau/
   // Ketenniveau was hier altijd al het gedrag, dit voegt enkel de
   // mogelijkheid toe om te versmallen.
-  const [scope, setScope] = useState('alle')
+  const [scope, setScope] = useBewaardeStand('heatmap.scope', 'alle', (o, std) => saneerKeuze(o, std, ['alle', 'intern', 'extern']))
   // Kolom-/rij-/cel-hover: presentatie-only, dimt/markeert cellen buiten/
   // binnen de gehoverde kolom, rij of losse cel. Een cel-hover wint van
   // rij/kolom-hover (spotlight op precies één cel i.p.v. de hele rij/kolom).

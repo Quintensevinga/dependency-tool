@@ -2,37 +2,54 @@
 // het delen van een link op dezelfde pagina uitkomen. Bewust zonder
 // router-library: drie tabbladen en een teampagina rechtvaardigen geen extra
 // dependency. Paden:
-//   /heatmap · /dependencies · /analyse · /instellingen · /team/<team-id>
+//   /heatmap · /dependencies · /analyse · /instellingen
+//   /team/<team-id>/<teamnaam>        het staartje is versiering, genegeerd
 //   /ketenoverzicht                       hele keten
 //   /ketenoverzicht/team                  één team, nog niet gekozen
-//   /ketenoverzicht/<team-id>             één team (focus)
+//   /ketenoverzicht/<team-id>/<diepte>    één team (focus), met ketendiepte
 //   /ketenoverzicht/teams/<id>,<id>,…     meerdere teams
 // De overlays (dependency-detail, formulier) zijn tijdelijke
 // toestand en krijgen bewust geen eigen URL. Op Vercel zorgt vercel.json
 // ervoor dat elk pad index.html serveert (single-page app); de Vite dev-server
 // doet dat standaard al.
 const TAB_PATHS = { heatmap: '/heatmap', chain: '/ketenoverzicht', dependencies: '/dependencies', analyse: '/analyse', instellingen: '/instellingen' }
+import { slugify } from './slug'
+
 const CHAIN_VIEW_MODES = ['chain', 'team', 'teams']
 
-export const DEFAULT_CHAIN_VIEW = { mode: 'chain', teamId: '', teamIds: [] }
+// depth hoort bij de weergave en niet bij de component: zo staat hij in het
+// pad (deelbaar) en in de bewaarde navigatiestand, net als de stand en de
+// teamkeuze.
+export const MAX_CHAIN_DEPTH = 3
+export const DEFAULT_CHAIN_VIEW = { mode: 'chain', teamId: '', teamIds: [], depth: MAX_CHAIN_DEPTH }
 
 // Maakt van willekeurige invoer (URL, localStorage) een geldige weergave:
 // bekende stand, bestaande team-ids.
 export function sanitizeChainView(raw, teams) {
   const exists = (id) => typeof id === 'string' && teams.some((tm) => tm.id === id)
   const mode = CHAIN_VIEW_MODES.includes(raw?.mode) ? raw.mode : 'chain'
+  const depth = Number.isInteger(raw?.depth) && raw.depth >= 1 && raw.depth <= MAX_CHAIN_DEPTH ? raw.depth : MAX_CHAIN_DEPTH
   return {
     mode,
     teamId: mode === 'team' && exists(raw?.teamId) ? raw.teamId : '',
     teamIds: mode === 'teams' && Array.isArray(raw?.teamIds) ? raw.teamIds.filter(exists) : [],
+    depth,
   }
 }
 
-export function pathForNav({ activeTab, teamPageTeamId, chainView }) {
-  if (teamPageTeamId) return `/team/${encodeURIComponent(teamPageTeamId)}`
+export function pathForNav({ activeTab, teamPageTeamId, chainView, teamNaam = null }) {
+  // /team/<id>/<huidige-naam>. Alleen het id telt; het staartje is versiering
+  // en wordt bij het herkennen genegeerd. Zonder dat staartje ziet het adres
+  // er leesbaar uit en liegt het: het id komt uit de naam van toen, en
+  // hernoemen laat het id ongemoeid. Een team dat ooit 'Polis' heette houdt zo
+  // voorgoed /team/polis.
+  if (teamPageTeamId) {
+    const staart = teamNaam ? `/${encodeURIComponent(slugify(teamNaam))}` : ''
+    return `/team/${encodeURIComponent(teamPageTeamId)}${staart}`
+  }
   if (activeTab === 'chain' && chainView) {
     const base = TAB_PATHS.chain
-    if (chainView.mode === 'team') return chainView.teamId ? `${base}/${encodeURIComponent(chainView.teamId)}` : `${base}/team`
+    if (chainView.mode === 'team') return chainView.teamId ? `${base}/${encodeURIComponent(chainView.teamId)}/${chainView.depth ?? MAX_CHAIN_DEPTH}` : `${base}/team`
     if (chainView.mode === 'teams') return chainView.teamIds.length > 0 ? `${base}/teams/${chainView.teamIds.map(encodeURIComponent).join(',')}` : `${base}/teams`
   }
   return TAB_PATHS[activeTab] ?? TAB_PATHS.heatmap
@@ -53,7 +70,7 @@ export function navFromPath(pathname) {
       return null
     }
   }
-  const team = path.match(/^\/team\/([^/]+)$/)
+  const team = path.match(/^\/team\/([^/]+)(?:\/[^/]*)?$/)
   if (team) {
     const id = decode(team[1])
     return id ? { activeTab: null, teamPageTeamId: id } : null
@@ -65,10 +82,11 @@ export function navFromPath(pathname) {
     const ids = (multi[1] ?? '').split(',').map(decode).filter(Boolean)
     return { activeTab: 'chain', teamPageTeamId: null, chainView: { mode: 'teams', teamId: '', teamIds: ids } }
   }
-  const single = path.match(/^\/ketenoverzicht\/([^/]+)$/)
+  const single = path.match(/^\/ketenoverzicht\/([^/]+)(?:\/(\d+))?$/)
   if (single) {
     const id = decode(single[1])
-    return id ? { activeTab: 'chain', teamPageTeamId: null, chainView: { mode: 'team', teamId: id, teamIds: [] } } : null
+    const depth = single[2] ? Number(single[2]) : MAX_CHAIN_DEPTH
+    return id ? { activeTab: 'chain', teamPageTeamId: null, chainView: { mode: 'team', teamId: id, teamIds: [], depth } } : null
   }
   const tab = Object.entries(TAB_PATHS).find(([, tabPath]) => tabPath === path)?.[0]
   return tab ? { activeTab: tab, teamPageTeamId: null } : null
