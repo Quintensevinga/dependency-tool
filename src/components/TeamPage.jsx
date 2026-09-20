@@ -43,8 +43,33 @@ import SpotlightTour from './SpotlightTour'
 import FloatingTooltip from './FloatingTooltip'
 import PartyPicker from './PartyPicker'
 import { openKoppelverzoeken } from '../lib/koppelverzoeken'
+import { useBewaardeStand } from '../lib/weergave'
 
 const TOUR_SEEN_KEY = 'dependency-insight:team-tour-seen'
+
+const STANDAARD_CANVASFILTERS = {
+  showIO: true,
+  showOverstijgend: true,
+  showGeaccepteerd: true,
+  riskFilterOn: false,
+  showExternalTeams: false,
+  showDependencies: true,
+  showApplicaties: true,
+  showCapaciteit: true,
+  showWorkflowfasen: true,
+}
+
+// Een bewaarde stand uit een oudere versie kan velden missen of onzin bevatten.
+// Per veld terugvallen en niet in één keer het hele object weggooien: dan
+// overleeft de rest van iemands instelling een toevoeging van een nieuw filter.
+function saneerCanvasFilters(opgeslagen) {
+  if (!opgeslagen || typeof opgeslagen !== 'object') return STANDAARD_CANVASFILTERS
+  const uit = {}
+  for (const [naam, standaard] of Object.entries(STANDAARD_CANVASFILTERS)) {
+    uit[naam] = typeof opgeslagen[naam] === 'boolean' ? opgeslagen[naam] : standaard
+  }
+  return uit
+}
 
 // Sluit een floating dropdown/popover zodra er ergens buiten geklikt wordt —
 // naast de eigen toggle-knop, die al werkt via de gewone onClick. Gebruikt
@@ -3455,22 +3480,35 @@ export default function TeamPage({ teamId, onBack, adminSections, sidebarCollaps
   // niet bewaard, zodat teams met veel applicaties de stapel compact kunnen
   // houden zonder een onleesbare muur aan lanes.
   const [collapsedLaneIds, setCollapsedLaneIds] = useState(() => new Set())
-  // Weergave-filters voor het Teamcanvas: puur presentatie, niet bewaard.
-  const [showIO, setShowIO] = useState(true)
-  const [showOverstijgend, setShowOverstijgend] = useState(true)
-  // Standaard aan: geaccepteerde afhankelijkheden blijven op het teamcanvas
-  // staan (ze zijn wel uit de organisatiebrede Heatmap gefilterd).
-  const [showGeaccepteerd, setShowGeaccepteerd] = useState(true)
-  const [riskFilterOn, setRiskFilterOn] = useState(false)
-  const [showExternalTeams, setShowExternalTeams] = useState(false)
-  // Losstaand van de bovenstaande showIO (die de onderliggende layoutdata al
-  // leegt): deze vier verbergen alleen ná de layoutberekening welke
+  // Weergave-filters voor het Teamcanvas. Per team apart bewaard: team A en
+  // team B hebben verschillende canvassen en dus verschillende redenen om iets
+  // te verbergen. Als één object onder één sleutel, niet als negen losse
+  // sleutels -- dat scheelt bij dertig teams 270 regels in de opslag.
+  //
+  // Standaard aan voor showGeaccepteerd: geaccepteerde afhankelijkheden blijven
+  // op het teamcanvas staan (ze zijn wel uit de organisatiebrede Heatmap
+  // gefilterd). De laatste vier verbergen alleen ná de layoutberekening welke
   // canvas-elementtypes zichtbaar zijn, zodat je gericht op een deelverzameling
   // kunt focussen zonder dat de rest van het canvas herpositioneert.
-  const [showDependencies, setShowDependencies] = useState(true)
-  const [showApplicaties, setShowApplicaties] = useState(true)
-  const [showCapaciteit, setShowCapaciteit] = useState(true)
-  const [showWorkflowfasen, setShowWorkflowfasen] = useState(true)
+  const [canvasFilters, setCanvasFilters] = useBewaardeStand(`teampagina.${teamId}`, STANDAARD_CANVASFILTERS, saneerCanvasFilters)
+  // Setters met dezelfde vorm als useState, zodat elke aanroeper hieronder
+  // onveranderd blijft werken -- inclusief de functionele variant (v => !v).
+  const zetFilter = useCallback(
+    (naam) => (waarde) =>
+      setCanvasFilters((vorige) => ({ ...vorige, [naam]: typeof waarde === 'function' ? waarde(vorige[naam]) : waarde })),
+    [setCanvasFilters],
+  )
+  const { showIO, showOverstijgend, showGeaccepteerd, riskFilterOn, showExternalTeams, showDependencies, showApplicaties, showCapaciteit, showWorkflowfasen } =
+    canvasFilters
+  const setShowIO = useMemo(() => zetFilter('showIO'), [zetFilter])
+  const setShowOverstijgend = useMemo(() => zetFilter('showOverstijgend'), [zetFilter])
+  const setShowGeaccepteerd = useMemo(() => zetFilter('showGeaccepteerd'), [zetFilter])
+  const setRiskFilterOn = useMemo(() => zetFilter('riskFilterOn'), [zetFilter])
+  const setShowExternalTeams = useMemo(() => zetFilter('showExternalTeams'), [zetFilter])
+  const setShowDependencies = useMemo(() => zetFilter('showDependencies'), [zetFilter])
+  const setShowApplicaties = useMemo(() => zetFilter('showApplicaties'), [zetFilter])
+  const setShowCapaciteit = useMemo(() => zetFilter('showCapaciteit'), [zetFilter])
+  const setShowWorkflowfasen = useMemo(() => zetFilter('showWorkflowfasen'), [zetFilter])
   const [legendOpen, setLegendOpen] = useState(false)
   const [addMenuOpen, setAddMenuOpen] = useState(false)
   const legendRef = useRef(null)

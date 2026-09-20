@@ -28,6 +28,7 @@ import {
 import ELKApi from 'elkjs/lib/elk-api.js'
 import ElkRekendraad from 'elkjs/lib/elk-worker.min.js?worker'
 import { useAppContext } from '../context/AppContext'
+import { useBewaardeSet, useBewaardeStand, saneerVlag } from '../lib/weergave'
 import { LijstZoekveld, ToonMeerKnop, useZoekbareLijst } from './ZoekbareLijst'
 import { useLanguage } from '../context/LanguageContext'
 import { calculateRisk } from '../lib/risk'
@@ -1579,15 +1580,23 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   // wordt bewaard); zonder keuze toont dit scherm teamtegels om te kiezen —
   // bewust geen automatisch gekozen team meer, dat oogde als een eigen keuze
   // die het niet was.
-  const [depth, setDepth] = useState(MAX_DEPTH)
-  const [showBackflow, setShowBackflow] = useState(true)
+  // Bewaard: de dieptemeter en de twee lijnschakelaars. Wie de keten op diepte
+  // 1 zet om hem leesbaar te houden, wil dat na verversen niet opnieuw doen.
+  // Diepte komt uit de weergave (view) en niet uit eigen state: zo staat hij in
+  // het pad en in de bewaarde navigatiestand, net als de stand en de teamkeuze.
+  const depth = view.depth ?? MAX_DEPTH
+  const setDepth = useCallback((n) => changeView({ ...view, depth: n }), [changeView, view])
+  const [showBackflow, setShowBackflow] = useBewaardeStand('keten.terugkoppelingen', true, saneerVlag)
   // Externe partijen (systemen, leveranciers, CAB, …): standaard als eigen
   // kaartjes in beeld. Eén regel: aangevinkt in het menu 'Partijen' = kaartje,
   // uitgevinkt = weg. Daarnaast één schakelaar voor de afhankelijkheden (de
   // gestippelde lijnen), zodat de algemene partijen in één keer uit het beeld
   // kunnen zonder ze stuk voor stuk uit te vinken.
-  const [showPartyDependencies, setShowPartyDependencies] = useState(true)
-  const [hiddenPartyKeys, setHiddenPartyKeys] = useState(() => new Set())
+  const [showPartyDependencies, setShowPartyDependencies] = useBewaardeStand('keten.afhankelijkheden', true, saneerVlag)
+  // Weggeklikte partijen worden als lijst bewaard; een partij die later
+  // verdwijnt staat er hooguit nog als onbruikbare sleutel in en filtert dan
+  // niets meer weg -- geen leeg scherm, geen fout.
+  const [hiddenPartyKeys, setHiddenPartyKeys] = useBewaardeSet('keten.verborgenPartijen')
   // Eén selectie tegelijk: een kaart ({type:'card'}), een lijn ({type:'edge',
   // id = koppeling of bundel}), een externe partij ({type:'party'}) of één
   // input-/outputitem ({type:'item'}). De selectie bepaalt mede wat er
@@ -1625,16 +1634,16 @@ export default function ChainOverview({ sidebarMode, view, onViewChange }) {
   }
   // 'Focus op dit team' (detailvak) en de dropdown: altijd de stand Eén team.
   function changeFocus(teamId) {
-    changeView({ mode: 'team', teamId, teamIds: [] })
+    changeView({ ...view, mode: 'team', teamId, teamIds: [] })
   }
   // Wissel van stand. Eén team houdt een eerder gekozen focus; Meerdere teams
   // begint met álle teams aangevinkt (dat is hetzelfde beeld als Hele keten,
   // vanwaar je wegvinkt wat je niet wilt zien).
   function changeMode(mode) {
     if (mode === view.mode) return
-    if (mode === 'chain') changeView({ mode, teamId: '', teamIds: [] })
-    else if (mode === 'team') changeView({ mode, teamId: view.teamId, teamIds: [] })
-    else changeView({ mode, teamId: '', teamIds: activeTeams.map((tm) => tm.id) })
+    if (mode === 'chain') changeView({ ...view, mode, teamId: '', teamIds: [] })
+    else if (mode === 'team') changeView({ ...view, mode, teamId: view.teamId, teamIds: [] })
+    else changeView({ ...view, mode, teamId: '', teamIds: activeTeams.map((tm) => tm.id) })
   }
   const toggleTeamInView = (teamId) =>
     changeView({ ...view, teamIds: view.teamIds.includes(teamId) ? view.teamIds.filter((id) => id !== teamId) : [...view.teamIds, teamId] })
