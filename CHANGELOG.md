@@ -2,6 +2,38 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-20
+- **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
+
+- **CI werkend maken: npm install in plaats van npm ci** (Lars Hoogland)
+
+  De werkelijke oorzaak van alle mislukte runs, uit de CI-annotatie:
+
+    npm error Missing: @emnapi/runtime@1.11.3 from lock file
+    npm error code EUSAGE
+
+  npm ci eist een complete lockfile. De tailwind-keten bevat een optioneel
+  wasm-pakket (@tailwindcss/oxide-wasm32-wasi) dat hier op geen enkele machine
+  gebruikt wordt, maar dat wel @emnapi/runtime als afhankelijkheid declareert. npm
+  op Windows laat die bij het genereren van de lock weg -- ook met
+  --include=optional, ook met een geforceerd Linux-platform, en ook na de lock
+  volledig opnieuw te genereren. Op de Linux-runner weigert npm ci dan, nog voor
+  lint, build of tests draaien.
+
+  npm install doet op een lege node_modules hetzelfde werk en legt dus nog steeds
+  bloot dat iets geimporteerd wordt zonder in package.json te staan; het vult dat
+  ene gat alleen zelf aan in plaats van te stoppen. Het alternatief was
+  @emnapi/runtime aan package.json toevoegen, een pakket dat de app nergens
+  gebruikt -- dat leek me een slechtere ruil.
+
+  Twee eerdere pogingen stonden erin en waren niet de oorzaak; de Node-versie is
+  wel blijven staan omdat 20 sowieso te oud is voor vitest 5. Het commentaar
+  daarover is teruggebracht tot wat klopt.
+
+  Blijft staan: bij een mislukking schrijft CI de reden nu als annotatie weg. De
+  log zelf is niet zonder GitHub-login te lezen, annotaties wel -- dat scheelde
+  hier een paar blinde rondes.
+
 ## 2026-09-19
 - **Merge branch 'main' of https://github.com/Quintensevinga/dependency-tool** (Lars Hoogland)
 
