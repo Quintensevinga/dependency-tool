@@ -275,6 +275,10 @@ export const STRINGS = {
 
     'saveError.message': 'Opslaan is niet gelukt (bijvoorbeeld door een vol opslagquotum). Je laatste wijziging is mogelijk niet bewaard — exporteer je data en archiveer oude logregels via Instellingen om ruimte vrij te maken.',
     'saveError.dismiss': 'Sluiten',
+    'demo.message': 'Je kijkt naar voorbeelddata: {{teams}} verzonnen teams om de tool mee uit te proberen. Zodra je zelf iets wijzigt, verdwijnt deze melding.',
+    'demo.start': 'Beginnen met eigen gegevens',
+    'demo.confirm': 'Dit wist de voorbeelddata en start met een lege tool.',
+    'demo.confirmButton': 'Wissen en beginnen',
 
     'corrupted.message': 'De opgeslagen data kon niet gelezen worden en is teruggevallen op demodata. De onleesbare data is bewaard — download die hieronder voordat je verdergaat, anders kan die alsnog verloren gaan.',
     'corrupted.download': 'Onleesbare data downloaden',
@@ -976,6 +980,10 @@ export const STRINGS = {
 
     'saveError.message': 'Saving failed (e.g. a full storage quota). Your latest change may not have been saved — export your data and archive old log entries in Settings to free up room.',
     'saveError.dismiss': 'Close',
+    'demo.message': 'You are looking at example data: {{teams}} made-up teams to try the tool with. This notice disappears as soon as you change anything yourself.',
+    'demo.start': 'Start with your own data',
+    'demo.confirm': 'This wipes the example data and starts with an empty tool.',
+    'demo.confirmButton': 'Wipe and start',
 
     'corrupted.message': 'The stored data could not be read and has fallen back to demo data. The unreadable data has been kept — download it below before continuing, otherwise it may be lost.',
     'corrupted.download': 'Download unreadable data',

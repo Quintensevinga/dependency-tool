@@ -73,6 +73,8 @@ function AppContent() {
     deleteDependency,
     adminSettings,
     saveError,
+    usingMockData,
+    clearAllData,
     dismissSaveError,
     corruptedOnLoad,
     dismissCorruptedNotice,
@@ -104,6 +106,9 @@ function AppContent() {
     return restored && teams.some((tm) => tm.id === restored) ? restored : null
   })
   const [exportingPng, setExportingPng] = useState(false)
+  // Wissen is onomkeerbaar, dus ook hier twee stappen -- net als bij importeren
+  // en bij de gevarenzone in Instellingen.
+  const [demoWisBevestigen, setDemoWisBevestigen] = useState(false)
   // Weergave van het ketenoverzicht: hele keten, één team (focus) of
   // meerdere teams — een expliciete keuze van de gebruiker (geen automatisch
   // gekozen team: dat oogde als een eigen keuze die het niet was), in de URL
@@ -407,6 +412,53 @@ function AppContent() {
           >
             {t('saveError.dismiss')}
           </button>
+        </div>
+      )}
+
+      {/* Wie de link voor het eerst krijgt, landt op verzonnen teams zonder dat
+          ergens staat dat het voorbeelddata is. Deze strook zegt het, en biedt
+          meteen de weg naar eigen gegevens. Hij verdwijnt vanzelf: usingMockData
+          gaat op false zodra iemand iets wijzigt (zie AppContext).
+
+          Bewust als balk in dezelfde rij als de andere meldingen en met dezelfde
+          uitsluitingen: die staan allemaal fixed op dezelfde hoogte, dus twee
+          tegelijk zouden over elkaar heen vallen. Deze staat achteraan in de rij
+          -- een kapotte opslag of een mislukte opslagactie is dringender dan de
+          mededeling dat je naar demodata kijkt. */}
+      {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && !saveError && !nieuwereVersie && usingMockData && (
+        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
+          <span>{t('demo.message', { teams: teams.length })}</span>
+          {demoWisBevestigen ? (
+            <span className="flex flex-wrap items-center gap-2">
+              <span>{t('demo.confirm')}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  clearAllData()
+                  setDemoWisBevestigen(false)
+                  setTeamPageTeamId(null)
+                }}
+                className="shrink-0 rounded-md bg-white px-2.5 py-1 font-medium text-[#2a5f8a] hover:bg-slate-100"
+              >
+                {t('demo.confirmButton')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDemoWisBevestigen(false)}
+                className="shrink-0 rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+              >
+                {t('form.cancel')}
+              </button>
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setDemoWisBevestigen(true)}
+              className="shrink-0 rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+            >
+              {t('demo.start')}
+            </button>
+          )}
         </div>
       )}
 
