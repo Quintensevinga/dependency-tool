@@ -6,6 +6,7 @@ import { signaalZin, constateringZin, bouwRapport, rapportAlsTekst, rapportAlsMa
 import { exportTextAsFile } from '../lib/export'
 import { slugify } from '../lib/slug'
 import { calculateRisk } from '../lib/risk'
+import { vindScheefstand } from '../lib/scheefstand'
 import { riskStyle } from '../lib/riskStyles'
 import {
   translateCategorie,
@@ -380,6 +381,19 @@ const TEKST = {
     kOoitBlokkerend: 'Escalatiegeschiedenis',
     uOoitBlokkerend: 'Dependencies die in hun historie een of meer keer naar actief blokkerend zijn gegaan.',
     // kwaliteit
+    kScheef: 'Scheefstand in bestaande records',
+    uScheef: 'Twee controles op wat er al staat: records zonder naam, en externe partijen die onder dezelfde vergelijkingsregel als het formulier dubbel voorkomen. Alleen gemeld, nooit automatisch opgeruimd — dat is een keuze per geval.',
+    scheefGeen: 'Niets gevonden: elk record heeft een naam en geen twee externe partijen heten hetzelfde.',
+    scheefNaamloos: 'Records zonder naam',
+    scheefDubbel: 'Externe partijen die dubbel voorkomen',
+    scheefZacht: 'Dit is geen kapotte data — de app werkt gewoon door.',
+    scheefSoortTeam: 'team',
+    scheefSoortDependency: 'dependency',
+    scheefSoortPartij: 'externe partij',
+    scheefSoortInput: 'input',
+    scheefSoortOutput: 'output',
+    scheefSoortApplicatie: 'applicatie',
+    scheefSoortCapaciteit: 'capaciteitsregel',
     kChecks: 'Hygiënecontroles op dependencies',
     uChecks: 'Elke regel is een simpele check op velden; klik om de records te zien.',
     hFlowtype: 'Zonder flowtype',
@@ -753,6 +767,19 @@ const TEKST = {
     uLangstBlokkerend: 'Open dependencies with the most days in status actively blocking.',
     kOoitBlokkerend: 'Escalation history',
     uOoitBlokkerend: 'Dependencies that went to actively blocking one or more times in their history.',
+    kScheef: 'Drift in existing records',
+    uScheef: 'Two checks on what is already there: records without a name, and external parties that appear twice under the same comparison rule the form uses. Reported only, never cleaned up automatically — that is a case-by-case choice.',
+    scheefGeen: 'Nothing found: every record has a name and no two external parties share one.',
+    scheefNaamloos: 'Records without a name',
+    scheefDubbel: 'External parties appearing twice',
+    scheefZacht: 'This is not broken data — the app keeps working.',
+    scheefSoortTeam: 'team',
+    scheefSoortDependency: 'dependency',
+    scheefSoortPartij: 'external party',
+    scheefSoortInput: 'input',
+    scheefSoortOutput: 'output',
+    scheefSoortApplicatie: 'application',
+    scheefSoortCapaciteit: 'capacity row',
     kChecks: 'Hygiene checks on dependencies',
     uChecks: 'Each rule is a simple field check; click to see the records.',
     hFlowtype: 'Without flow type',
@@ -1405,6 +1432,14 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
   const stageLabel = (s) => translateWorkflowStage(s, language)
   const ctx = useMemo(() => ({ language, teamName }), [language, teamName])
   const rapport = useMemo(() => bouwRapport(a, ctx), [a, ctx])
+  // Scheefstand kijkt naar de rauwe records en niet naar de analyse-uitkomst:
+  // een naamloos item of een dubbele partij is geen risicosignaal maar een
+  // slordigheid in de invoer. Zelfde functie als scripts/audit-relations.mjs
+  // gebruikt, zodat het scherm en het controleprogramma niet uit elkaar lopen.
+  const scheef = useMemo(
+    () => vindScheefstand({ teams, dependencies: alleDependencies, teamWorkflows, externalParties }),
+    [teams, alleDependencies, teamWorkflows, externalParties],
+  )
   const constateringZinnen = useMemo(() => Object.fromEntries(a.constateringen.map((c) => [c.key, constateringZin(c, ctx)])), [a, ctx])
   const rapportTitel = `${tx('rapportTitel')} · ${teamFilter ? teamName(teamFilter) : tx('alleTeams')}`
   // Bestandsnaam draagt het bereik en de dag, zodat twee downloads naast elkaar te leggen zijn.
@@ -2260,6 +2295,36 @@ export default function AnalysePage({ onSelect, onNavigateToTeam }) {
                   </Uitklap>
                 ))}
               </div>
+            </Kaart>
+            <Kaart titel={`${tx('kScheef')}${scheef.totaal > 0 ? ` · ${scheef.totaal}` : ''}`} uitleg={tx('uScheef')}>
+              {scheef.totaal === 0 ? (
+                <p className="text-xs text-slate-400">{tx('scheefGeen')}</p>
+              ) : (
+                <div className="space-y-2">
+                  {/* Zachter dan de controles ernaast, en dat staat er ook bij:
+                      die gaan over kapotte verwijzingen, deze over slordigheid.
+                      Zonder dat onderscheid gaat iemand met twintig historische
+                      slordigheden er nooit meer naar kijken. */}
+                  <p className="text-[11px] text-slate-400">{tx('scheefZacht')}</p>
+                  <Uitklap label={tx('scheefNaamloos')} aantal={scheef.naamloos.length}>
+                    <ul className="text-xs text-slate-700">
+                      {scheef.naamloos.map((x) => (
+                        <li key={`${x.soort}:${x.id}`}>
+                          {tx(`scheefSoort${x.soort.charAt(0).toUpperCase()}${x.soort.slice(1)}`)} · {x.omschrijving}
+                          {x.team ? ` · ${x.team}` : ''}
+                        </li>
+                      ))}
+                    </ul>
+                  </Uitklap>
+                  <Uitklap label={tx('scheefDubbel')} aantal={scheef.dubbelePartijen.length}>
+                    <ul className="text-xs text-slate-700">
+                      {scheef.dubbelePartijen.map((g) => (
+                        <li key={g.sleutel}>{g.namen.join(' / ')}</li>
+                      ))}
+                    </ul>
+                  </Uitklap>
+                </div>
+              )}
             </Kaart>
             <Kaart titel={tx('kIoChecks')} uitleg={tx('uIoChecks')}>
               <div className="space-y-2">
