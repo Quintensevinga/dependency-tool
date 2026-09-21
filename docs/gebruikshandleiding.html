@@ -140,6 +140,14 @@
     color: #6b5645;
     font-weight: 600;
   }
+  code {
+    background: #f6f1e7;
+    padding: 1px 4px;
+    border-radius: 3px;
+    font-size: 9pt;
+  }
+  ol.stappen { padding-left: 20px; margin: 4px 0 14px 0; }
+  ol.stappen li { margin-bottom: 5px; }
   footer.pagefoot {
     font-size: 8pt;
     color: #b8a08e;
@@ -160,7 +168,7 @@
     <div class="principle"><b>Geen persoonsgegevens</b>Alleen rollen en teamniveau-informatie, nooit namen.</div>
     <div class="principle"><b>Transparant</b>Elke risicoscore is uit te leggen — nooit een black box.</div>
   </div>
-  <p class="meta">Versie juli 2026 &nbsp;·&nbsp; Nederlands / English</p>
+  <p class="meta">Versie september 2026 &nbsp;·&nbsp; Nederlands / English</p>
 </div>
 
 <!-- ===================== TOC ===================== -->
@@ -170,31 +178,34 @@
   <li><a href="#h1">Basisnavigatie</a></li>
   <li><a href="#h2">Heatmap</a></li>
   <li><a href="#h3">Ketenoverzicht</a></li>
-  <li><a href="#h4">Een dependency toevoegen of bewerken</a></li>
-  <li><a href="#h5">Team-navigatie</a></li>
-  <li><a href="#h6">Teampagina — workflow</a></li>
-  <li><a href="#h7">Teampagina — applicaties en input/output</a></li>
-  <li><a href="#h8">Teampagina — capaciteit</a></li>
-  <li><a href="#h9">Teampagina — aantekeningen (Miro-achtig)</a></li>
-  <li><a href="#h10">Instellingen &amp; privacy</a></li>
-  <li><a href="#h11">Analyse</a></li>
+  <li><a href="#h4">Alle dependencies</a></li>
+  <li><a href="#h5">Een dependency toevoegen of bewerken</a></li>
+  <li><a href="#h6">Het detailpaneel en de risicoscore</a></li>
+  <li><a href="#h7">Een team aanmaken en beheren</a></li>
+  <li><a href="#h8">Teampagina — het canvas</a></li>
+  <li><a href="#h9">Teampagina — teamgegevens</a></li>
+  <li><a href="#h10">Een koppeling tussen twee teams</a></li>
+  <li><a href="#h11">Aantekeningen op het canvas</a></li>
+  <li><a href="#h12">Instellingen &amp; privacy</a></li>
+  <li><a href="#h13">Analyse</a></li>
+  <li><a href="#hA">Bijlage — git in het kort</a></li>
 </ol>
 </div>
 
 <!-- ===================== 1. NAVIGATIE ===================== -->
 <section class="chapter" id="h1">
   <h2><span class="num">1</span>Basisnavigatie</h2>
-  <p class="lead">Elk scherm deelt dezelfde koptekst — dit is het startpunt voor alle functionaliteit.</p>
+  <p class="lead">Elk scherm heeft dezelfde omlijsting: een zijbalk links en een koptekst bovenaan.</p>
   <img class="shot" src="img/01-heatmap.png">
+  <p class="shot-caption">Het startscherm bij een eerste bezoek, met de blauwe melding over voorbeelddata.</p>
   <ul>
-    <li><b>Zijbalk</b> — de weergaven bovenaan, daaronder de teamlijst waarmee je naar een teampagina navigeert. Met de twee knoppen erboven klap je de zijbalk in tot iconen of laat je hem automatisch wegschuiven.</li>
-    <li><b>Teamniveau / Ketenniveau / Alles</b> — beperk de weergave tot interne (team) of externe (keten) dependencies, of toon ze allebei.</li>
-    <li><b>+ Nieuwe dependency</b> — open het formulier om een dependency toe te voegen.</li>
-    <li><b>NL / EN</b> — wissel de taal van de hele applicatie.</li>
-    <li>Elke pagina heeft een eigen adres (<code>/heatmap</code>, <code>/ketenoverzicht</code>, <code>/analyse</code>, <code>/team/…</code>): verversen, terug/vooruit in de browser en het delen van een link komen op dezelfde pagina uit.</li>
-    <li><b>Instellingen &amp; privacy</b> (onderaan de zijbalk) — export/import, mockdata, alles wissen (hoofdstuk 10).</li>
-    <li>Drie weergaven: <b>Heatmap</b>, <b>Ketenoverzicht</b> en <b>Analyse</b> (hoofdstuk 11) — elk hoofdstuk hieronder behandelt er één.</li>
+    <li><b>Zijbalk</b> — bovenaan vier weergaven: <b>Heatmap</b>, <b>Ketenoverzicht</b>, <b>Alle dependencies</b> en <b>Analyse</b>. Daaronder de teamlijst waarmee je naar een teampagina gaat. Onderaan <b>Instellingen &amp; privacy</b>; het gele getal daarnaast is het aantal regels dat op beoordeling wacht (hoofdstuk 10).</li>
+    <li>Met de twee knoppen bovenin de zijbalk klap je hem in tot iconen, of zet je hem vast zodat hij niet meer automatisch wegschuift.</li>
+    <li><b>Koptekst</b> — het aantal kritieke dependencies over de hele organisatie, het aantal teams, de knop <b>+ Nieuwe dependency</b> (hoofdstuk 5) en de taalknoppen <b>NL / EN</b> voor de hele applicatie.</li>
+    <li>Elke pagina heeft een eigen adres — <code>/heatmap</code>, <code>/ketenoverzicht</code>, <code>/dependencies</code>, <code>/analyse</code>, <code>/instellingen</code> en <code>/team/…</code>. Verversen, terug en vooruit in de browser, en het delen van een link komen op dezelfde pagina uit.</li>
+    <li><b>Voorbeelddata</b> — wie de tool voor het eerst opent, ziet acht verzonnen teams en een blauwe balk die dat zegt. De balk verdwijnt vanzelf zodra je zelf iets wijzigt; met <b>Beginnen met eigen gegevens</b> wis je de demo in één keer.</li>
   </ul>
+  <div class="note"><b>Let op:</b> zolang die blauwe balk in beeld staat, dekt hij de bovenste regel van de werkbalk gedeeltelijk af. Scroll een klein stukje, of begin met eigen gegevens.</div>
 </section>
 
 <!-- ===================== 2. HEATMAP ===================== -->
@@ -204,8 +215,9 @@
   <ul>
     <li>Elke <b>rij</b> is een team, elke <b>kolom</b> een categorie. Het getal in een cel is het aantal open dependencies; de kleur is het hoogste risico daarbinnen. Een lege cel betekent: geen dependencies in die combinatie — geen foutstatus.</li>
     <li>Beweeg over een cel voor de verdeling over de risiconiveaus; de rest van de tabel dimt zodat de cel eruit springt. Hetzelfde geldt voor een hele rij of kolom via de kop.</li>
-    <li><b>Klik</b> op een cel, een teamnaam of een kolomkop voor de bijbehorende dependencies in een tabel eronder. Klik daarin een regel aan voor het volledige detailpaneel (hoofdstuk 4), of op een teamnaam om naar die teampagina te gaan. Escape of "Wis selectie" sluit de tabel weer.</li>
-    <li>Filter rechts op <b>team</b>, <b>risiconiveau</b> en <b>workflowstap</b>, en bovenaan op team- of ketenniveau. Gearchiveerde teams staan standaard uit maar blijven aan te vinken.</li>
+    <li><b>Klik</b> op een cel, een teamnaam of een kolomkop voor de bijbehorende dependencies in een tabel eronder. Klik daarin een regel aan voor het volledige detailpaneel (hoofdstuk 6), of op een teamnaam om naar die teampagina te gaan. Escape of "Wis selectie" sluit de tabel weer.</li>
+    <li>Bovenaan staan een zoekveld en de keuze <b>Alles / Teamniveau / Ketenniveau</b>, waarmee je de weergave beperkt tot interne of externe dependencies.</li>
+    <li>Rechts filter je op <b>team</b>, <b>risiconiveau</b> (met een snelknop "Verberg lage risico's") en <b>workflowstap</b>. Gearchiveerde teams staan standaard uit maar blijven aan te vinken.</li>
     <li>Geaccepteerde (bewust afgehandelde) dependencies tellen hier niet mee — die blijven wel staan op de teampagina.</li>
     <li><b>Toon categorie-uitleg</b> onderaan klapt de lijst met categorie-iconen open.</li>
   </ul>
@@ -214,136 +226,237 @@
 <!-- ===================== 3. KETENOVERZICHT ===================== -->
 <section class="chapter" id="h3">
   <h2><span class="num">3</span>Ketenoverzicht</h2>
-  <p class="lead">Toont hoe teams elkaars werk als input/output doorgeven — de "keten" achter de dependencies.</p>
-  <img class="shot" src="img/03-ketenoverzicht.png">
+  <p class="lead">Toont hoe teams elkaars werk als input en output doorgeven — de "keten" achter de dependencies.</p>
+  <img class="shot" src="img/02-ketenoverzicht.png">
+  <p class="shot-caption">Hele keten: elk team ingeklapt, met de externe partijen eromheen.</p>
   <ul>
-    <li>Linksboven kies je de <b>weergave</b>: <b>Hele keten</b> (elk team ingeklapt, in ketenvolgorde, met de externe partijen erbij — dit zie je bij het openen), <b>Eén team</b> (kies een focusteam in de gemarkeerde dropdown; de keten rolt vanaf dat team naar rechts uit) of <b>Meerdere teams</b> (vink aan welke teams meedoen). Elke stand heeft een eigen adres, bijv. <code>/ketenoverzicht/…</code>. Bij Eén team begrens je met <b>Diepte</b> (1–3) begrens je hoeveel ketenstappen er vanaf dat team in beeld komen en met <b>Terugkoppelingen</b> verberg je koppelingen terug naar een eerder team. Rechtsboven zit de <b>legenda</b> (i-knop) met alle lijnsoorten en de bediening; linksonder de knoppen voor zoomen, centreren/passend maken en volledig scherm, zoals op de teampagina. Het canvas vult de hele vensterhoogte.</li>
-    <li>In rust toont alleen het focusteam al zijn input- en outputblokjes; de andere teams zijn ingeklapt tot titel, tellers en hoogste risico. Elke kolom is één stap verder in de keten. De indeling wordt volledig berekend (kaarten zijn niet versleepbaar) en lijnen lopen om de kaarten heen, nooit erdoorheen.</li>
-    <li>Gekleurde lijnen zijn koppelingen op itemniveau en lopen door tot op het input-/outputblokje zelf; een grijze lijn met teller bundelt alle koppelingen tussen twee ingeklapte teams (een amber punt op de teller = minstens één verzoek wacht nog op akkoord). Klik op een kaart om die uit te klappen — de buren tonen dan alleen de items die eraan hangen — of op een lijn om de onderliggende koppelingen te zien. De focus verleggen doe je via <b>Focus op dit team</b> in het detailvak.</li>
-    <li>Klik op <b>één input- of outputblokje</b> om zijn <b>stroom</b> door de keten te zien: waar het naartoe gaat, door de ontvangende teams heen, tot zover de dieptemeter reikt (plus waar het zelf rechtstreeks vandaan komt). De rest van de tekening dimt. Hetzelfde werkt voor een externe partij.</li>
-    <li><b>Externe partijen</b> (systemen, leveranciers, CAB, …) staan standaard als eigen kaartje naast de teams die ze raken, met een lijn naar elk item dat ze noemt; een gestippelde lijn is een afhankelijkheid op teamniveau. Klik op een partij voor haar stroom door de keten.</li>
-    <li>Een lijn tussen een output- en inputblokje is een <b>expliciete koppeling</b>, gelegd op de teampagina (hoofdstuk 7) — nooit automatisch geraden.</li>
-    <li>Losse (nog niet gekoppelde) blokjes zijn normaal — geen foutstatus.</li>
-    <li>Geen filterpaneel op dit scherm: alle actieve teams doen mee. Op de balk staat onder <b>Lijnen</b> een vinkje voor terugkoppelingen en één voor afhankelijkheden (de gestippelde lijnen, meestal de algemene partijen); onder <b>Externe partijen</b> kies je welke partijen als kaartje staan, met een zoekveld en per partij een vinkje en een <i>alleen</i>-knop. In het detailvak van een geselecteerd team staan uitgevinkte partijen grijs; klik erop om ze terug te halen.</li>
+    <li>Linksboven kies je de <b>weergave</b>: <b>Hele keten</b> (elk team ingeklapt, in ketenvolgorde, met de externe partijen erbij — dit zie je bij het openen), <b>Eén team</b> of <b>Meerdere teams</b>. Elke stand heeft een eigen adres, dus een link deelt precies wat jij ziet.</li>
+    <li>Bij <b>Eén team</b> kies je een focusteam in de dropdown ernaast. Met <b>Diepte</b> (1, 2 of 3) bepaal je hoeveel ketenstappen er vanaf dat team in beeld komen; ernaast staat hoeveel van de teams daarmee zichtbaar zijn.</li>
+    <li>Onder <b>Lijnen</b> zet je <b>Terugkoppelingen</b> (koppelingen terug naar een eerder team) en <b>Afhankelijkheden</b> (de gestippelde lijnen) aan of uit. Onder <b>Externe partijen</b> kies je met een zoekveld welke partijen als kaartje meedoen.</li>
+    <li>Rechtsboven zit de <b>legenda</b> (i-knop) met alle lijnsoorten. Linksonder de knoppen voor zoomen, passend maken en volledig scherm; rechtsonder een klein overzichtskaartje van de hele tekening.</li>
+    <li>De indeling wordt volledig berekend — kaarten zijn niet versleepbaar — en lijnen lopen om de kaarten heen, nooit erdoorheen.</li>
+    <li>Gekleurde lijnen zijn koppelingen op itemniveau en lopen door tot op het input- of outputblokje zelf. Een grijze lijn met een teller bundelt alle koppelingen tussen twee ingeklapte teams; een amberkleurig puntje op die teller betekent dat er nog minstens één verzoek op akkoord wacht.</li>
+    <li>Klik op een <b>kaart</b> om die uit te klappen, of op een <b>lijn</b> om de onderliggende koppelingen te zien. Klik op één <b>input- of outputblokje</b> om zijn stroom door de keten te volgen; de rest van de tekening dimt. Hetzelfde werkt voor een externe partij.</li>
+    <li>Een lijn tussen een output- en een inputblokje is een <b>expliciete koppeling</b>, gelegd op de teampagina (hoofdstuk 10) — nooit automatisch geraden. Losse, nog niet gekoppelde blokjes zijn normaal en geen foutstatus.</li>
   </ul>
+  <img class="shot" src="img/03-ketenoverzicht-een-team.png">
+  <p class="shot-caption">Eén team: het focusteam staat uitgeklapt met al zijn in- en uitgaande items.</p>
 </section>
 
-<!-- ===================== 4. DEPENDENCY FORM ===================== -->
+<!-- ===================== 4. ALLE DEPENDENCIES ===================== -->
 <section class="chapter" id="h4">
-  <h2><span class="num">4</span>Een dependency toevoegen of bewerken</h2>
-  <p class="lead">Hetzelfde formulier voor aanmaken en bewerken, bereikbaar via "+ Nieuwe dependency" of vanuit een detailpaneel.</p>
-  <img class="shot" src="img/05-nieuwe-dependency-formulier.png">
-  <table class="fieldtable">
-    <tr><th>Veld</th><th>Toelichting</th></tr>
-    <tr><td>Team, Scope, Categorie, Titel, Rol/betrokkene</td><td>Verplicht. De categorielijst is vast en hangt af van de scope: acht interne categorie&euml;n, twaalf externe. Eigen categorie&euml;n toevoegen kan niet.</td></tr>
-    <tr><td>Impact / Frequentie / Status</td><td>Verplicht — bepalen samen de risicoscore (zie detailpaneel).</td></tr>
-    <tr><td>Waar in de workflow, Van wie/wat, Effect op de flow, Zelf oplosbaar</td><td>Optioneel. Vullen deze in? Dan verschijnt de dependency automatisch op de teampagina bij de juiste workflow-fase.</td></tr>
-    <tr><td>Toelichting / Mitigatie</td><td>Optionele vrije tekst.</td></tr>
-  </table>
-  <div class="note"><b>Detailpaneel:</b> elke dependency toont zijn risicoberekening in gewone taal (impact × frequentie + statuscorrectie) — nooit een black box.</div>
-  <img class="shot" src="img/06-dependency-detail.png">
+  <h2><span class="num">4</span>Alle dependencies</h2>
+  <p class="lead">Eén doorzoekbare lijst van alle dependencies van alle teams tegelijk — handig als je wél weet wát je zoekt, maar niet meer bij welk team het stond.</p>
+  <img class="shot" src="img/04-alle-dependencies.png">
+  <ul>
+    <li>Het <b>zoekveld</b> kijkt naar titel, toelichting, teamnaam, categorie en betrokken partij tegelijk.</li>
+    <li>Daarnaast de keuze <b>Alles / Teamniveau / Ketenniveau</b>, en eronder een teller ("198 van de 198 dependencies") zodat altijd zichtbaar is hoeveel er wegvalt door je filters.</li>
+    <li>Klik op een kolomkop om te sorteren, op een regel voor het detailpaneel (hoofdstuk 6), of op een teamnaam om naar die teampagina te gaan.</li>
+    <li>Rechts staat hetzelfde teamfilter als op de heatmap.</li>
+  </ul>
 </section>
 
-<!-- ===================== 5. TEAM NAV ===================== -->
+<!-- ===================== 5. DEPENDENCY FORM ===================== -->
 <section class="chapter" id="h5">
-  <h2><span class="num">5</span>Team-navigatie</h2>
-  <p class="lead">Via het hamburgermenu (☰) bereik je de teampagina van elk team.</p>
-  <img class="shot" src="img/04-team-navigatie.png">
-  <ul>
-    <li>Klik een teamnaam om naar de bijbehorende teampagina te gaan.</li>
-    <li><b>+ Team</b> onderaan voegt een nieuw, leeg team toe.</li>
-    <li>Wisselen tussen teams ververst de teampagina volledig — geen restjes van het vorige team.</li>
-  </ul>
+  <h2><span class="num">5</span>Een dependency toevoegen of bewerken</h2>
+  <p class="lead">Hetzelfde formulier voor aanmaken en bewerken, bereikbaar via "+ Nieuwe dependency" of vanuit een detailpaneel.</p>
+  <img class="shot" src="img/06-formulier.png">
+  <p>Het formulier staat in vier blokken. Een sterretje betekent verplicht.</p>
+  <table class="fieldtable">
+    <tr><th>Blok</th><th>Velden</th></tr>
+    <tr>
+      <td><b>Wat is het</b></td>
+      <td><b>Team*</b> — of klik "Selecteer meerdere teams": dan wordt per team een eigen, apart te beheren kopie aangemaakt.<br>
+          <b>Titel*</b> — korte omschrijving.<br>
+          <b>Scope</b> — Team of Keten. Dit bepaalt welke categorielijst je krijgt: acht interne of twaalf externe categorie&euml;n. De lijst ligt vast; eigen categorie&euml;n toevoegen kan niet.<br>
+          <b>Flowtype*</b> — Ontwikkelflow (speelt in het ontwikkelproces) of Applicatieflow (gaat over draaiende applicaties, koppelingen of datastromen).<br>
+          <b>Categorie*</b> — met een korte uitleg per keuze.<br>
+          <b>Toelichting</b> — optionele vrije tekst.</td>
+    </tr>
+    <tr>
+      <td><b>Waar in de flow</b></td>
+      <td><b>Workflowstap</b> — verplicht bij Ontwikkelflow: waar in de flow merk je deze afhankelijkheid? De dependency verschijnt daarna vanzelf bij die fase op de teampagina. Bij Applicatieflow is dit veld niet van toepassing; daar label je op de teampagina met een applicatie.</td>
+    </tr>
+    <tr>
+      <td><b>Hoe erg &amp; wat kost het</b></td>
+      <td><b>Impact*</b>, <b>Frequentie*</b> en <b>Status*</b> bepalen samen de risicoscore (hoofdstuk 6).<br>
+          <b>Wachttijd</b> en <b>Urgentie / deadline</b> zijn optioneel — maar hoe voller dit blok, hoe bruikbaarder de analyse.</td>
+    </tr>
+    <tr>
+      <td><b>Wat doen we ermee</b></td>
+      <td><b>Oplosbaarheid</b> — op welk niveau is dit op te lossen (teamlid, meerdere teams, organisatorisch …).<br>
+          <b>Actie / afspraak</b> en <b>Mitigatie</b> — optionele vrije tekst.</td>
+    </tr>
+  </table>
 </section>
 
-<!-- ===================== 6. TEAMPAGINA WORKFLOW ===================== -->
+<!-- ===================== 6. DETAILPANEEL ===================== -->
 <section class="chapter" id="h6">
-  <h2><span class="num">6</span>Teampagina — workflow</h2>
-  <p class="lead">Een vaste, kleurgecodeerde fasereeks (analyse/refinement t/m beheer/nazorg) met een sleepbaar Miro-achtig canvas.</p>
-  <img class="shot" src="img/07-teampagina-workflow.png">
+  <h2><span class="num">6</span>Het detailpaneel en de risicoscore</h2>
+  <p class="lead">Klik een dependency aan — waar dan ook in de tool — en het paneel schuift rechts open.</p>
+  <img class="shot" src="img/05-dependency-detail.png">
   <ul>
-    <li>Input komt binnen links, stroomt door de fases, en verlaat het team rechts als output.</li>
-    <li>Capaciteit (hoofdstuk 8) en dependencies met een ingevulde workflow-fase verschijnen automatisch als badges onder de betreffende fase.</li>
-    <li>Bovenaan: de aantekeningen-toolbar (hoofdstuk 9).</li>
-    <li><b>Wis teampagina</b> (rechtsboven) reset de hele workflow van dit team — dependencies blijven bestaan.</li>
+    <li>Bovenaan het risiconiveau, het team, de scope en de categorie, met chips voor flowtype, workflowstap en effect op de flow.</li>
+    <li>De <b>status</b> pas je direct in het paneel aan, zonder het formulier te openen.</li>
+    <li><b>Risicoberekening</b> — altijd voluit uitgeschreven: <i>impact × frequentie + statuscorrectie</i>, met de gebruikte waarden en de eindscore erbij. Nooit een black box.</li>
+    <li><b>Uitgebreide analyse</b> — afgeleide labels zoals flowverlies, urgentie, "stil risico" en "quick win". Dit blok kan in Instellingen uitgezet worden.</li>
+    <li>Daaronder de ingevulde tekstvelden, de aanmaak- en wijzigingsdatum, en de <b>historie</b>: wie wat wanneer veranderde.</li>
+    <li>Onderin: <b>Bewerken</b>, <b>Dupliceren</b>, <b>Afsluiten</b> of <b>Heropenen</b>, en <b>Verwijderen</b>.</li>
   </ul>
 </section>
 
-<!-- ===================== 7. APPLICATIES + IO ===================== -->
+<!-- ===================== 7. TEAM AANMAKEN ===================== -->
 <section class="chapter" id="h7">
-  <h2><span class="num">7</span>Teampagina — applicaties en input/output</h2>
-  <p class="lead">Drie lijsten die precies vastleggen wat het team beheert en hoe werk in- en uitstroomt.</p>
-  <img class="shot" src="img/08-teampagina-applicaties-io.png">
+  <h2><span class="num">7</span>Een team aanmaken en beheren</h2>
+  <p class="lead">Teams beheer je op één plek: Instellingen &amp; privacy → tabblad Teams.</p>
+  <img class="shot" src="img/11-teams-beheren.png">
+  <ol class="stappen">
+    <li>Klik onderin de zijbalk op <b>Instellingen &amp; privacy</b>.</li>
+    <li>Open het tabblad <b>Teams</b>.</li>
+    <li>Typ de naam in het veld "Naam nieuw team" en klik <b>Toevoegen</b>. Het team verschijnt meteen in de zijbalk, met een lege teampagina.</li>
+  </ol>
   <ul>
-    <li><b>Applicaties in beheer/ontwikkeling</b> — welke systemen dit team draaiende houdt.</li>
-    <li><b>Input</b> — hoe werk binnenkomt; optioneel een <b>bron</b> (team/rol/persoon/systeem/omgeving/stakeholder), die het blokje op het canvas kleurt.</li>
-    <li><b>Output</b> — wat het team oplevert.</li>
-    <li>Een input kan <b>expliciet gekoppeld</b> worden aan de output van een ander team — dit vult automatisch het ketenoverzicht (hoofdstuk 3).</li>
-    <li>Met <b>Split per applicatie</b> aan staat een input-/outputitem dat aan een applicatie gekoppeld is op de hoogte van de eigen lane van die applicatie, i.p.v. gecentreerd over de hele Applicatieflow-zone — de lijn ernaartoe loopt zo nooit meer over een andere lane of chip heen. Koppelingen tussen applicaties (uit de Applicatieflow-vragenlijst) lopen als een 'bus' door de lege gang links van de lanes, om diezelfde reden.</li>
+    <li><b>Hernoemen, archiveren of verwijderen</b> kan in dezelfde lijst, en ook rechtstreeks in de zijbalk: beweeg over een teamnaam en er verschijnen drie kleine knopjes.</li>
+    <li><b>Archiveren</b> haalt het team uit de heatmap, het ketenoverzicht en de analyse, maar de dependencies blijven bestaan en blijven meetellen in de totalen. Dit is de veilige keuze voor een team dat is opgeheven.</li>
+    <li><b>Verwijderen</b> kan alleen als er niets meer aan hangt. Heeft het team nog dependencies of ketenkoppelingen, dan meldt de tool dat en biedt archiveren aan — zo verdwijnen er nooit stilzwijgend gegevens van anderen.</li>
   </ul>
 </section>
 
-<!-- ===================== 8. CAPACITEIT ===================== -->
+<!-- ===================== 8. TEAMPAGINA CANVAS ===================== -->
 <section class="chapter" id="h8">
-  <h2><span class="num">8</span>Teampagina — capaciteit</h2>
-  <p class="lead">Wie zit er in het team, en wat gebeurt er als deze persoon wegvalt?</p>
-  <img class="shot" src="img/09-teampagina-capaciteit.png">
+  <h2><span class="num">8</span>Teampagina — het canvas</h2>
+  <p class="lead">Klik een team in de zijbalk en je krijgt de werkstroom van dat team als tekening. Rechtsboven zit een <b>?</b> die een korte rondleiding start.</p>
+  <img class="shot" src="img/07-teampagina-canvas.png">
   <ul>
-    <li><b>Rol</b> — kies uit gebruikelijke agile-rollen, of voeg een eigen rol toe (blijft daarna overal beschikbaar).</li>
-    <li><b>Senioriteit</b> — junior / medior / senior.</li>
-    <li><b>Fase</b> (optioneel) — koppelt de rol aan een workflow-fase, zichtbaar als badge op het canvas.</li>
-    <li><b>Risico bij wegvallen</b> — ja/nee, met een toelichtingsveld voor de reden (bijv. enige kennishouder van een systeem).</li>
-    <li>Onderaan dezelfde pagina: de <b>dependencies van dit team</b>, met risicoscore — klik voor het detailpaneel.</li>
+    <li>Het canvas heeft drie zones. Links komen de <b>inputs</b> binnen, rechts vertrekken de <b>outputs</b>. Daartussen staat bovenaan de <b>applicatieflow</b> — één baan per applicatie die het team beheert — en onderaan de <b>ontwikkelflow</b>: de vaste fasereeks van Analyse/refinement tot Beheer/nazorg.</li>
+    <li>Dependencies verschijnen automatisch als gekleurde chip bij hun applicatie of bij hun workflowstap; capaciteit verschijnt als badge bij de fase waaraan de rol gekoppeld is.</li>
+    <li>Past een record niet op het canvas — bijvoorbeeld omdat het flowtype nog ontbreekt — dan staat er een melding boven het canvas en vind je het record in de sectie eronder. Er verdwijnt dus nooit iets uit beeld zonder dat het gezegd wordt.</li>
+    <li><b>+ Toevoegen</b> opent een kort formuliertje voor een applicatie, een verbinding tussen twee applicaties, input, output of een rol.</li>
+    <li>Met <b>Split per applicatie</b> / <b>Samengevoegd</b> kies je of input- en outputitems op de hoogte van hun eigen applicatiebaan staan of gebundeld in het midden. De eerste stand voorkomt dat lijnen over andere banen heen lopen.</li>
+    <li>De twee zoekvelden lichten een dependency of applicatie op het canvas op. Onder <b>Weergeven</b> zet je onderdelen van de tekening aan of uit.</li>
+    <li>Linksonder de knoppen voor zoomen, passend maken en volledig scherm.</li>
+    <li>Onder het canvas staan twee tabbladen: <b>Dependencies van dit team</b> (met tellers voor actief, geaccepteerd en gesloten, en een eigen filtermenu) en <b>Teamgegevens</b> (hoofdstuk 9).</li>
   </ul>
 </section>
 
-<!-- ===================== 9. MIRO TOOLBAR ===================== -->
+<!-- ===================== 9. TEAMGEGEVENS ===================== -->
 <section class="chapter" id="h9">
-  <h2><span class="num">9</span>Teampagina — aantekeningen (Miro-achtig)</h2>
-  <p class="lead">Vrije aantekeningen bovenop de vaste workflow, voor context die niet in een veld past.</p>
-  <img class="shot" src="img/11-miro-toolbar.png">
+  <h2><span class="num">9</span>Teampagina — teamgegevens</h2>
+  <p class="lead">Vijf uitklapbare blokken die vastleggen wat het team beheert en hoe werk in- en uitstroomt. Alles wat je hier invult, tekent het canvas en het ketenoverzicht.</p>
+  <img class="shot" src="img/08-teampagina-teamgegevens.png">
   <ul>
-    <li><b>+ Notitie</b> — een gekleurd tekstvak, direct te bewerken.</li>
-    <li><b>+ Rechthoek / + Cirkel / + Ruit</b> — vormen met korte labeltekst.</li>
-    <li><b>🖇 Lijn</b> — activeer, klik daarna twee elementen om ze te verbinden.</li>
-    <li>Kleurkeuze per element — dezelfde kleuren als de "bron"-codering bij input-items (hoofdstuk 7), zodat aantekeningen en input dezelfde beeldtaal spreken.</li>
-    <li>Verwijderen via het ✕-knopje dat verschijnt bij het aanwijzen van een element.</li>
+    <li><b>Applicaties</b> — welke systemen dit team draaiende houdt of ontwikkelt. Elke applicatie krijgt een eigen baan op het canvas.</li>
+    <li><b>Applicatieverbindingen</b> — welke applicaties gegevens met elkaar uitwisselen, met een korte vragenlijst per verbinding.</li>
+    <li><b>Input</b> — hoe werk binnenkomt. Optioneel met een <b>bron</b> (team, rol, persoon, systeem, omgeving of stakeholder), die het blokje op het canvas kleurt, en optioneel gekoppeld aan de output van een ander team (hoofdstuk 10).</li>
+    <li><b>Output</b> — wat het team oplevert, op dezelfde manier te koppelen.</li>
+    <li><b>Capaciteit</b> — wie er in het team zit en wat er gebeurt als die wegvalt: <b>rol</b> (vrij in te typen, bijvoorbeeld "Senior tester"), <b>aantal</b>, <b>senioriteit</b> (junior, medior of senior), optioneel een <b>fase</b>, en <b>risico bij wegvallen</b> met een toelichtingsveld voor de reden.</li>
   </ul>
+  <div class="note"><b>Geen namen.</b> Capaciteit gaat over rollen en aantallen, niet over personen. De analyse groepeert op fase, senioriteit, aantal en uitvalrisico — een naam voegt daar niets aan toe en hoort niet in deze tool.</div>
 </section>
 
-<!-- ===================== 10. INSTELLINGEN ===================== -->
+<!-- ===================== 10. KOPPELVERZOEK ===================== -->
 <section class="chapter" id="h10">
-  <h2><span class="num">10</span>Instellingen &amp; privacy</h2>
-  <p class="lead">Bereikbaar via "Instellingen &amp; privacy" onderaan de zijbalk.</p>
-  <img class="shot" src="img/12-instellingen.png">
-  <ul>
-    <li>Alle data blijft <b>lokaal in de browser</b> — er wordt niets naar een server verstuurd.</li>
-    <li><b>Exporteer als PNG</b> — slaat de huidige weergave op als afbeelding, handig voor presentaties.</li>
-    <li><b>Exporteer/importeer als JSON</b> — volledige back-up of overdracht naar een collega.</li>
-    <li><b>Terug naar mockdata</b> — herstelt de fictieve demo-data (alleen zichtbaar bij eigen data).</li>
-    <li><b>Wis alle data</b> — verwijdert alles definitief, met bevestigingsstap.</li>
-  </ul>
+  <h2><span class="num">10</span>Een koppeling tussen twee teams</h2>
+  <p class="lead">Dit is het enige moment waarop twee teams op elkaar moeten wachten. Een koppeling wordt nooit geraden: het ontvangende team moet er zelf ja op zeggen.</p>
+  <img class="shot" src="img/10-wachtrij.png">
+  <p class="shot-caption">De wachtrij in Instellingen: nieuwe externe partijen en koppelverzoeken, elk met goedkeuren of weigeren.</p>
+  <ol class="stappen">
+    <li>Team A opent op zijn teampagina een <b>input</b> of <b>output</b> en kiest bij <b>Gekoppeld aan</b> het andere team en het bijbehorende item. Bestaat dat item daar nog niet, dan kies je <b>"+ Nieuw item voorstellen bij …"</b>.</li>
+    <li>Bij het item van team A staat vanaf dat moment <b>"Wacht op akkoord van …"</b>. Zolang dat er staat telt de koppeling nog niet als ketenkoppeling.</li>
+    <li>Team B ziet het verzoek op twee plekken: in het blok <b>Koppelingsverzoeken</b> op zijn eigen teampagina, en in <b>Instellingen → Wachtrij</b>. Het getal naast "Instellingen &amp; privacy" in de zijbalk telt hoeveel er openstaan.</li>
+    <li>Team B klikt <b>Accepteren</b> of <b>Afwijzen</b>. Na accepteren verschijnt de koppeling in de lijst van beide teams en als lijn in het ketenoverzicht.</li>
+  </ol>
+  <div class="note"><b>Waarom deze stap?</b> Accepteren voorkomt dubbele registratie: het item staat daarna één keer geregistreerd in plaats van bij elk team apart. En het voorkomt dat team A in de kaart zet wat team B volgens zichzelf helemaal niet levert.</div>
+  <p>In dezelfde wachtrij staan ook nieuw voorgestelde <b>externe partijen</b>. Die werken hetzelfde: iemand stelt een partij voor tijdens het invullen, een beheerder keurt goed of weigert. Zo blijft de partijenlijst schoon in plaats van dat dezelfde leverancier onder vijf schrijfwijzen ontstaat.</p>
 </section>
 
-<!-- ===================== 11. ANALYSE ===================== -->
+<!-- ===================== 11. AANTEKENINGEN ===================== -->
 <section class="chapter" id="h11">
-  <h2><span class="num">11</span>Analyse</h2>
+  <h2><span class="num">11</span>Aantekeningen op het canvas</h2>
+  <p class="lead">Vrije aantekeningen bovenop de vaste werkstroom, voor context die niet in een veld past.</p>
+  <ul>
+    <li><b>+ Notitie</b> in de werkbalk van de teampagina zet een gekleurd tekstvak op het canvas, direct te bewerken.</li>
+    <li>De kleur kies je met de rondjes ernaast — dezelfde kleuren als de bron-codering bij input-items (hoofdstuk 9), zodat aantekeningen en input dezelfde beeldtaal spreken.</li>
+    <li>Een notitie is te verslepen. Verwijderen gaat met het ✕-knopje dat verschijnt als je de notitie aanwijst.</li>
+  </ul>
+  <div class="note"><b>Eén soort aantekening.</b> Er is bewust geen tekengereedschap voor rechthoeken, cirkels, ruiten of losse verbindingslijnen. De structuur van de tekening komt uit de gegevens; een notitie is voor wat daar níet in past.</div>
+</section>
+
+<!-- ===================== 12. INSTELLINGEN ===================== -->
+<section class="chapter" id="h12">
+  <h2><span class="num">12</span>Instellingen &amp; privacy</h2>
+  <p class="lead">Een eigen pagina (<code>/instellingen</code>), bereikbaar onderaan de zijbalk, met acht tabbladen.</p>
+  <img class="shot" src="img/09-instellingen.png">
+  <p>Alle data blijft <b>lokaal in de browser</b> van dit apparaat. Er wordt niets naar een server verstuurd; de applicatie werkt volledig offline.</p>
+  <table class="fieldtable">
+    <tr><th>Tabblad</th><th>Wat je er doet</th></tr>
+    <tr><td><b>Algemeen</b></td><td>Welke versie draait en wanneer die gebouwd is, hoeveel opslag in gebruik is (van de circa 5 MB die een browser geeft), en of je naar voorbeelddata kijkt. Een link met <code>?reset=1</code> erachter wist de lokale data en start met verse voorbeelddata.</td></tr>
+    <tr><td><b>Teams</b></td><td>Teams toevoegen, hernoemen, archiveren en verwijderen (hoofdstuk 7).</td></tr>
+    <tr><td><b>Wachtrij</b></td><td>Openstaande koppelverzoeken en voorgestelde externe partijen goedkeuren of weigeren (hoofdstuk 10).</td></tr>
+    <tr><td><b>Data</b></td><td>Exporteren als afbeelding (PNG) of als JSON, importeren uit JSON, logregels ouder dan een jaar archiveren, een teampagina leegmaken, en alles wissen. De JSON-export is de volledige back-up en de manier om je werk aan een collega over te dragen.</td></tr>
+    <tr><td><b>Partijen</b></td><td>Het register van externe partijen: hernoemen, samenvoegen, op vervallen zetten.</td></tr>
+    <tr><td><b>Applicaties</b></td><td>Het centrale applicatieregister: alle applicaties van alle teams in één lijst, met het aantal teams dat er gebruik van maakt.</td></tr>
+    <tr><td><b>Zichtbaarheid</b></td><td>Pagina's en losse onderdelen aan- of uitzetten voor de hele tool.</td></tr>
+    <tr><td><b>Log</b></td><td>Het wijzigingslogboek: wat er wanneer veranderd is.</td></tr>
+  </table>
+  <div class="note"><b>De laatste vier tabbladen zijn beheerderstabbladen</b> en vragen eenmalig om een wachtwoord. Dat is geen beveiliging — alles staat immers lokaal — maar een drempel tegen per ongeluk wijzigen.</div>
+  <div class="note"><b>Over de PNG-knop:</b> die legt vast wat er op dat moment als weergave open staat. Omdat Instellingen zelf een pagina is, levert de knop nu een afbeelding van de instellingenpagina op. Wil je een heatmap of ketenoverzicht als plaatje, gebruik dan voorlopig een schermafdruk van je besturingssysteem.</div>
+  <div class="note"><b>Wis alle data</b> verwijdert alles definitief, met een bevestigingsstap. Maak eerst een JSON-export als je nog iets wilt kunnen terughalen — er is geen andere weg terug.</div>
+</section>
+
+<!-- ===================== 13. ANALYSE ===================== -->
+<section class="chapter" id="h13">
+  <h2><span class="num">13</span>Analyse</h2>
   <p class="lead">Eén pagina die alles uit de data haalt wat erin zit: metrieken, trends, constateringen en hygiënecontroles. Bewust zo volledig mogelijk — schrap wat je niet gebruikt.</p>
+  <img class="shot" src="img/12-analyse.png">
   <ul>
     <li><b>Filters</b> bovenaan: een team (alles wordt dan tot dat team teruggebracht, inclusief keten en applicaties) en de periode van de trendgrafieken (13, 26 of 52 weken). De filters gelden voor alle tabbladen tegelijk.</li>
-    <li><b>Zes tabbladen</b> daaronder: Overzicht, Signalen, Trends, Risico, Keten en proces, en Data en beheer. Elk tabblad bevat twee of drie van de onderdelen hieronder, met dezelfde kop erboven. Alleen het geopende tabblad wordt getoond — ook bij een PNG-export.</li>
+    <li><b>Zes tabbladen</b>: Overzicht, Signalen, Trends, Risico, Keten en proces, en Data en beheer. Alleen het geopende tabblad wordt getoond.</li>
     <li><b>Overzicht</b> — kerncijfers met het verschil ten opzichte van 30 dagen geleden: open, kritiek, blokkerend, gemiddelde score, verouderd, zonder actie-afspraak, gesloten, nieuw, dagen tot mitigatie en open koppelingsverzoeken.</li>
-    <li><b>Rapport</b> — dezelfde cijfers als lopende tekst: samenvatting, ontwikkeling, risico, teams, keten, applicaties, datakwaliteit en aanbevelingen. Volgt het teamfilter. "Kopieer rapport" zet de tekst op het klembord; "Download" bewaart hem als markdown-bestand met het team en de datum in de bestandsnaam, klaar om in een wiki of document te plakken.</li>
+    <li><b>Rapport</b> — dezelfde cijfers als lopende tekst, in secties van samenvatting tot aanbevelingen. "Kopieer rapport" zet de tekst op het klembord; "Download" bewaart hem als markdown-bestand met het team en de datum in de naam, klaar om in een wiki te plakken.</li>
     <li><b>Waarschuwingen</b> — één zin per geval (dependency, verzoek, applicatie, team of partij), gesorteerd op ernst; klik opent het detail of de teampagina.</li>
-    <li><b>Constateringen</b> — regels die afgaan op de data (harde deadline zonder afspraak, lang blokkerend, stille risico's, hub-partijen, oude verzoeken, kennisconcentratie, mitigaties die geen stand hielden, groeiende voorraad, wederzijdse afhankelijkheid …), met ernst hoog/midden/laag en een samenvattende zin (verdeling over teams, hoogste risico, oudste). Klik een regel open voor de records.</li>
-    <li><b>Trends</b> — per week teruggerekend uit de wijzigingshistorie: open per status, per risiconiveau, nieuw tegenover gesloten, de som van alle scores, verslechterd en verbeterd in 30 dagen, een lineaire projectie en de statusovergangen.</li>
-    <li><b>Risico en urgentie</b> — kwadranten (quick win / opschalen / opruimen / accepteren), stille risico's, deadlines, gemitigeerd-maar-hoog, acuut en chronisch, dekking van actie-afspraken, top 15.</li>
-    <li><b>Verdelingen, hubs en keten</b> — per niveau/status/scope/categorie/effect, hotspots team × categorie, externe partijen als hub, wie blokkeert wie, kennisconcentratie, teamscorekaart met gemiddelde, concentratie (top 3), koppelingen per team, cycli, losse items, verzoeken, kaart tegenover praktijk, ketenrisico stroomop- en -afwaarts, wederzijdse afhankelijkheden, kaartvolledigheid, applicaties als single point of failure en gedeelde applicaties.</li>
-    <li><b>Proces, flowverlies, doorlooptijden</b> — belasting per werkstap tegenover capaciteit, flowverlies per team/categorie/partij, dagen tot mitigatie en sluiting, langst blokkerend, escalatiegeschiedenis.</li>
-    <li><b>Datakwaliteit en beheer</b> — hygiënecontroles op dependencies, input/output en applicaties; registratie per week en per team; de review-wachtrij; laatste activiteit per team en dubbele registraties.</li>
-    <li>Elke kaart heeft een regel uitleg: welke velden en welke formule. Klik op een dependency om het detail te openen, op een team om naar de teampagina te gaan.</li>
-    <li>De pagina kan in Instellingen → Admin → Pagina's uitgezet worden, net als de andere weergaven.</li>
+    <li><b>Constateringen</b> — regels die afgaan op de data: harde deadline zonder afspraak, lang blokkerend, stille risico's, hub-partijen, oude verzoeken, kennisconcentratie, mitigaties die geen stand hielden, groeiende voorraad, wederzijdse afhankelijkheid. Met ernst hoog, midden of laag, en uitklapbaar naar de onderliggende records.</li>
+    <li><b>Trends</b> — per week teruggerekend uit de wijzigingshistorie: open per status en per risiconiveau, nieuw tegenover gesloten, de som van alle scores, verslechterd en verbeterd in 30 dagen, een projectie en de statusovergangen.</li>
+    <li><b>Risico en urgentie</b> — kwadranten (quick win, opschalen, opruimen, accepteren), stille risico's, deadlines, gemitigeerd-maar-hoog, acuut en chronisch, dekking van actie-afspraken, top 15.</li>
+    <li><b>Keten en proces</b> — verdelingen en hotspots, externe partijen als hub, wie blokkeert wie, kennisconcentratie, teamscorekaart, cycli, losse items, ketenrisico stroomop- en -afwaarts, applicaties als single point of failure, en <b>applicaties die door meerdere teams gebruikt worden</b>. Daarnaast belasting per werkstap tegenover capaciteit, flowverlies en doorlooptijden.</li>
+    <li><b>Data en beheer</b> — hygiënecontroles op dependencies, input/output en applicaties; registratie per week en per team; de review-wachtrij; laatste activiteit per team en dubbele registraties.</li>
+    <li>Elke kaart heeft een regel uitleg: welke velden en welke formule. Klik op een dependency voor het detail, op een team om naar de teampagina te gaan.</li>
   </ul>
+</section>
+
+<!-- ===================== BIJLAGE: GIT ===================== -->
+<section class="chapter" id="hA">
+  <h2><span class="num">A</span>Bijlage — git in het kort</h2>
+  <p class="lead">Deze bijlage is voor wie de tool beheert, niet voor wie hem gebruikt. Hij legt in gewone taal uit wat er gebeurt als de code wordt bijgewerkt.</p>
+
+  <h3>De begrippen</h3>
+  <ul>
+    <li><b>Repository (repo)</b> — de projectmap met alle bestanden én de volledige geschiedenis ervan. Die geschiedenis zit in een verborgen mapje <code>.git</code> in het project zelf.</li>
+    <li><b>Commit</b> — een opgeslagen momentopname van je wijzigingen, met een regel uitleg erbij. Elke commit is terug te vinden en terug te draaien. Je maakt er liefst één per afgeronde verandering, niet één per dag.</li>
+    <li><b>Branch (tak)</b> — een aparte lijn om aan te werken, zodat de hoofdlijn ongemoeid blijft tot je klaar bent. De hoofdlijn heet hier <code>main</code>.</li>
+    <li><b>Remote</b> — dezelfde repo, maar dan op een server. Voor dit project is dat GitHub: <code>Quintensevinga/dependency-tool</code>.</li>
+    <li><b>Push / pull</b> — je commits naar de server sturen (push) of die van een ander ophalen (pull). Zonder push staat je werk alleen op je eigen laptop.</li>
+  </ul>
+
+  <h3>De gang van zaken bij dit project</h3>
+  <ol class="stappen">
+    <li>Haal eerst op wat er al is: <code>git pull</code>.</li>
+    <li>Werk aan de code. Kijk met <code>git status</code> wat er gewijzigd is.</li>
+    <li>Sla je werk op: <code>git add .</code> gevolgd door <code>git commit -m "korte uitleg"</code>.</li>
+    <li>Stuur het naar GitHub: <code>git push</code>.</li>
+  </ol>
+
+  <h3>Wat er daarna vanzelf gebeurt</h3>
+  <ul>
+    <li>GitHub draait een <b>controle</b> op elke push: de code wordt gebouwd, de stijlcontrole en de tests draaien. Mislukt er iets, dan krijg je een mail.</li>
+    <li>De <b>CHANGELOG.md</b> wordt automatisch bijgewerkt met de commits van die push. Die hoef je dus nooit met de hand bij te werken.</li>
+    <li>De nieuwe versie wordt automatisch gepubliceerd op <code>https://dependency-tool.vercel.app/</code>. Een paar minuten later ziet iedereen die het adres opent de nieuwe versie.</li>
+  </ul>
+
+  <h3>Met zijn tweeën aan hetzelfde project</h3>
+  <p>Aan dit project wordt <b>om de beurt</b> gewerkt, niet tegelijk: de één doet een blok werk af en pusht, daarna is de ander aan de beurt. Dat scheelt het samenvoegen van twee versies van hetzelfde bestand, wat de meest voorkomende bron van gedoe is. Begin je beurt daarom altijd met <code>git pull</code>.</p>
+
+  <div class="note"><b>Kwijtraken kan bijna niet.</b> Alles wat ooit gecommit en gepusht is, staat op GitHub en is terug te halen — ook als je lokaal iets weggooit. Wat je níet hebt gecommit, bestaat alleen op je eigen laptop. Bij twijfel: committen.</div>
 </section>
 
 </body>
