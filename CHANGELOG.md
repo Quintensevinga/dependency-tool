@@ -2,6 +2,38 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-09-21
+- **Beurt 14 samengevoegd: de handleiding** (Lars Hoogland)
+
+  I13 -- de laatste beurt, met opzet helemaal achteraan omdat de beurten 3, 7, 9,
+  10 en 12 precies de beschreven schermen veranderd hebben.
+
+- **I13: de handleiding kloppend gemaakt** (Lars Hoogland)
+
+  De handleiding werkte actief tegen. Hij beloofde een rollenlijst die niet
+  bestaat, een verplicht veld (Rol/betrokkene) dat verwijderd is, een
+  hamburgermenu dat er niet is, en tekengereedschap waarvan vier van de vijf
+  onderdelen nooit gebouwd zijn. Het enige moment waarop twee teams op elkaar
+  moeten wachten -- een koppelverzoek goedkeuren -- werd nergens uitgelegd, en
+  tien van de elf plaatjes toonden een app van weken geleden.
+
+  - De onjuiste passages eruit. De rollenlijst is NIET teruggebouwd: die is ooit
+    bewust geschrapt en de analyse groepeert op fase, senioriteit, aantal en
+    uitvalrisico, nergens op een roltekst. Alleen de belofte is weg.
+  - Nieuw: een team aanmaken en beheren (hoofdstuk 7), een koppeling tussen twee
+    teams van voorstel tot akkoord (hoofdstuk 10), en de pagina Alle dependencies
+    (hoofdstuk 4), die er bij het vorige schrijven nog niet was.
+  - Bijgewerkt naar de huidige app: vier weergaven in plaats van drie, Instellingen
+    als eigen pagina met acht tabbladen, het formulier in vier blokken, het canvas
+    met zijn applicatieflow- en ontwikkelflowzone, en het applicatieregister.
+  - Twaalf nieuwe schermafbeeldingen; de tien verouderde zijn verwijderd.
+  - De PDF opnieuw gegenereerd uit dezelfde bron (19 pagina's).
+  - Bijlage A: git in gewone taal, op verzoek van Lars.
+
+  Gecontroleerd door de handleiding naast de draaiende app te lopen: 111
+  controles op knoppen, velden, tabbladen en adressen, alle 111 kloppen, 0
+  consolefouten.
+
 ## 2026-09-20
 - **Notitie: de twee punten die alleen opgeschreven moesten worden** (Lars Hoogland)
 
