@@ -107,7 +107,11 @@ html, body {
     height: auto;
     max-height: none;
     overflow: visible;
-    padding-top: 0;
+    /* !important omdat .app-main zijn padding-top inline meekrijgt: die moet
+       meeschuiven met de hoogte van de meldingsstrook (zie App.jsx), en een
+       inline stijl wint het anders van deze regel. Op papier is er geen vaste
+       koptekst en geen strook, dus hoort hier niets bovenaan. */
+    padding-top: 0 !important;
     padding-left: 0;
   }
 

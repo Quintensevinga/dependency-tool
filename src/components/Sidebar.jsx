@@ -401,7 +401,10 @@ export default function Sidebar({ activeTab, onTabChange, onNavigateToTeam, acti
             }
           : undefined
       }
-      className={`no-print fixed bottom-0 left-0 top-[57px] z-30 hidden flex-col gap-1 overflow-y-auto bg-[#16324a] py-3 transition-[width] md:flex ${
+      /* --melding-h komt van de app-schil (zie App.jsx): zonder dit lag de
+         meldingsstrook over de knoppen bovenin de zijbalk heen. */
+      style={{ top: 'calc(57px + var(--melding-h, 0px))' }}
+      className={`no-print fixed bottom-0 left-0 z-30 hidden flex-col gap-1 overflow-y-auto bg-[#16324a] py-3 transition-[width] md:flex ${
         collapsed ? 'w-14 items-center px-2' : 'w-56 px-2.5'
       } ${isAuto ? 'shadow-2xl shadow-black/30' : ''}`}
       aria-label={t('nav.views')}
@@ -468,8 +471,12 @@ export default function Sidebar({ activeTab, onTabChange, onNavigateToTeam, acti
 
       <div className="relative mt-auto">
         <RailButton
+          /* Kort label, volledige naam in de tooltip: 'Instellingen & privacy'
+             paste niet in de zijbalk en werd afgekapt tot 'Instellingen & pr…'.
+             De zijbalk breder maken was geen optie -- dat knijpt de heatmap af.
+             De pagina zelf houdt de volledige kop. */
           title={t('header.settings')}
-          label={t('header.settings')}
+          label={t('nav.settings')}
           active={activeTab === 'instellingen' && !activeTeamId}
           badge={toonWachtend ? wachtend : null}
           onClick={() => {
