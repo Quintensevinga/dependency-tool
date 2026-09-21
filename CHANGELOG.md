@@ -3,6 +3,43 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-09-21
+- **De meldingsstrook en het zijbalklabel opgeruimd** (Lars Hoogland)
+
+  Zichtbare UI-problemen uit de rondgang bij beurt 14: de meldingen bovenaan
+  lagen over de eerste regel van elke pagina, en het zijbalklabel werd afgekapt.
+
+- **De meldingsstrook legt niet langer over de eerste regel van de pagina** (Lars Hoogland)
+
+  De meldingen boven in beeld (opslag kapot, nieuwere versie, overgeslagen
+  records, opslagfout, en de melding dat je naar voorbeelddata kijkt) staan
+  fixed onder de koptekst. Dat hoort ook zo -- ze moeten in beeld blijven --
+  maar ze lagen over de inhoud heen: de knoppen bovenin de zijbalk, de
+  werkbalk van de heatmap en het ketenoverzicht, de filters van de Analyse en
+  de kop van de instellingenpagina waren allemaal voor een deel onzichtbaar
+  zolang zo'n melding stond. Bij de demomelding is dat de hele eerste indruk
+  van de tool.
+
+  - De vijf losse meldingen zitten nu in een strook die zichzelf opmeet
+    (ResizeObserver, want de strook wordt twee regels hoog op een smal venster
+    en verschijnt en verdwijnt tijdens het gebruik).
+  - Die hoogte gaat als --melding-h naar de zijbalk en naar <main>, die er
+    allebei onderuit schuiven. Zonder melding is alles exact zoals het was.
+  - Op papier zet de printstijl de padding weer op nul; dat moest !important
+    worden omdat de waarde nu inline staat.
+
+  Daarnaast: het label onderin de zijbalk werd afgekapt tot 'Instellingen &
+  pr...'. Het heet daar nu kortweg 'Instellingen', met de volledige naam in de
+  tooltip en als kop van de pagina zelf. De zijbalk verbreden was het
+  alternatief, maar dat knijpt de heatmap af -- en die stond al krap.
+
+  Handleiding, plaatjes en PDF bijgewerkt: de waarschuwing over de afdekkende
+  balk kon eruit.
+
+  Gecontroleerd in de browser: 14 metingen op de drie standen (met melding,
+  zonder melding, smal venster), op vier schermen plus de printstand, 0
+  afwijkingen. De 111 controles van de handleiding tegen de app staan nog
+  steeds allemaal op groen.
+
 - **Beurt 14 samengevoegd: de handleiding** (Lars Hoogland)
 
   I13 -- de laatste beurt, met opzet helemaal achteraan omdat de beurten 3, 7, 9,
