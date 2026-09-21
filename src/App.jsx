@@ -125,6 +125,22 @@ function AppContent() {
   // exportte voorheen stilzwijgend niets (zie handleExportPng) — B-07.
   const teamPageRef = useRef(null)
 
+  // De meldingsstrook meet zichzelf op. Een ResizeObserver i.p.v. een eenmalige
+  // meting: de strook verschijnt en verdwijnt tijdens het gebruik (de
+  // demo-melding gaat weg zodra iemand iets wijzigt) en wordt twee regels hoog
+  // als het venster smal is.
+  const meldingRef = useRef(null)
+  const [meldingHoogte, setMeldingHoogte] = useState(0)
+  useEffect(() => {
+    const el = meldingRef.current
+    if (!el) return undefined
+    const meet = () => setMeldingHoogte(el.getBoundingClientRect().height)
+    meet()
+    const ro = new ResizeObserver(meet)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   // Staat 'Alle dependencies' uit, dan is /dependencies een doodlopend adres.
   // In plaats van een melding valt het terug op de heatmap, inclusief de URL --
   // de pagina staat dan ook niet in de zijbalk, dus er is geen weg terug vanaf
@@ -307,7 +323,7 @@ function AppContent() {
   }
 
   return (
-    <div className="app-shell h-screen overflow-hidden bg-[#f3f6f9]">
+    <div className="app-shell h-screen overflow-hidden bg-[#f3f6f9]" style={{ '--melding-h': `${meldingHoogte}px` }}>
       {/* Geen voorgeselecteerd team meer vanaf de globale knop — de gebruiker
           kiest expliciet in het formulier zelf i.p.v. een stil geraden
           standaardteam (zie currentTeamId hierboven, nog wel gebruikt om
@@ -318,9 +334,19 @@ function AppContent() {
           ongeacht welke pagina open staat, want deze meldingen gaan over de
           opslag/versie zelf, niet over één scherm. z-40 i.p.v. z-30: de
           sidebar is óók z-30 en staat later in de DOM, waardoor hij het
-          begin van de melding afdekte. */}
+          begin van de melding afdekte.
+
+          Alle meldingen in één strook, die zichzelf opmeet. De strook staat
+          fixed (hij hoort altijd in beeld te blijven), maar zonder die meting
+          lag hij over de eerste regel van de pagina heen: de knoppen bovenin
+          de zijbalk, de werkbalk van de heatmap en het ketenoverzicht, de
+          filters van de Analyse. De gemeten hoogte gaat als --melding-h naar
+          de zijbalk en naar <main>, die er allebei onderuit schuiven. Meten
+          i.p.v. een vaste waarde, want de strook wordt twee regels hoog zodra
+          het venster smal is (flex-wrap). */}
+      <div ref={meldingRef} className="no-print fixed left-0 right-0 top-[57px] z-40">
       {corruptedOnLoad && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('corrupted.message')}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -345,7 +371,7 @@ function AppContent() {
           overschrijft — alleen een download van de bewaarde kopie, zodat de
           gebruiker 'm mee kan nemen naar een bijgewerkte app. */}
       {futureVersionOnLoad && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('futureVersion.message', { version: futureVersionOnLoad, current: SCHEMA_VERSION })}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -369,7 +395,7 @@ function AppContent() {
           melding hierboven, die over nieuwere DATA gaat). Wijkt uit voor alle
           meldingen die over de opslag zelf gaan: die zijn urgenter. */}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && !saveError && nieuwereVersie && !updateWeggeklikt && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
           <span>{t('update.message')}</span>
           <span className="flex shrink-0 gap-2">
             <button
@@ -394,7 +420,7 @@ function AppContent() {
           andere, minder alarmerende toon en geen downloadknop — er valt niets
           te redden aan een null of een losse tekst. */}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad > 0 && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('skipped.message', { count: skippedOnLoad })}</span>
           <button
             type="button"
@@ -406,7 +432,7 @@ function AppContent() {
         </div>
       )}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && saveError && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#9a3b2e] px-4 py-2 text-xs text-white">
           <span>{t('saveError.message')}</span>
           <button
             type="button"
@@ -429,7 +455,7 @@ function AppContent() {
           -- een kapotte opslag of een mislukte opslagactie is dringender dan de
           mededeling dat je naar demodata kijkt. */}
       {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && !saveError && !nieuwereVersie && usingMockData && (
-        <div className="no-print fixed left-0 right-0 top-[57px] z-40 flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
           <span>{t('demo.message', { teams: teams.length })}</span>
           {demoWisBevestigen ? (
             <span className="flex flex-wrap items-center gap-2">
@@ -465,6 +491,8 @@ function AppContent() {
         </div>
       )}
 
+      </div>
+
       <Sidebar
         activeTab={effectiveTab}
         onTabChange={handleTabChange}
@@ -480,7 +508,8 @@ function AppContent() {
           beschikbare breedte benutten — daar was juist de klacht dat ze te
           smal/gecentreerd stonden. */}
       <main
-        className={`app-main mx-auto h-full max-w-none space-y-4 overflow-y-auto px-6 pb-6 pt-[73px] transition-[padding] ${
+        style={{ paddingTop: 'calc(73px + var(--melding-h, 0px))' }}
+        className={`app-main mx-auto h-full max-w-none space-y-4 overflow-y-auto px-6 pb-6 transition-[padding] ${
           sidebarMode === 'open' ? 'md:pl-60' : sidebarMode === 'icons' ? 'md:pl-16' : 'md:pl-8'
         }`}
       >
