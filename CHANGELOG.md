@@ -3,6 +3,54 @@
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
 ## 2026-10-09
+- **Demoversie als schakelaar in Instellingen** (Lars Hoogland)
+
+  Overschakelen en terugschakelen zonder je eigen kaart kwijt te raken.
+
+- **Demoversie aan- en uitzetten in Instellingen** (Lars Hoogland)
+
+  De demodataset was alleen handmatig te importeren. Dat is tijdens een demo te
+  omslachtig, en het betekende dat je je eigen kaart kwijtraakte: importeren
+  overschrijft. Nu is het een schakelaar.
+
+  Instellingen krijgt een tabblad Demo. Overschakelen zet eerst de eigen kaart
+  apart en laadt daarna de demoset; terugschakelen geeft precies terug wat er
+  stond -- niet verse voorbeelddata, maar de kaart zoals iemand hem achterliet,
+  inclusief de stand van usingMockData. Beide richtingen vragen om bevestiging,
+  want wat er tijdens de demo gewijzigd is, vervalt.
+
+  - Lukt het bewaren niet (geen opslagruimte), dan gebeurt er niets en meldt de
+    app dat. Liever geen demo dan een demo zonder weg terug.
+  - De dataset wordt dynamisch geimporteerd: 220 kB JSON hoort niet in de bundel
+    van iedereen die de tool gewoon gebruikt. Het is nu een eigen chunk van 149 kB
+    die pas bij het overschakelen opgehaald wordt.
+  - Nieuw statusveld demoData, dat meereist in een export. Geen schemaversie-
+    verhoging nodig: oudere data levert false op en een oudere app laat het veld
+    vallen -- in beide richtingen verandert er niets aan de data.
+  - De dataset verhuisde van docs/demo/ naar src/data/demoDataset.json. Het is geen
+    documentatie meer maar app-data.
+
+  Zichtbaarheid, want verzonnen cijfers voor echt aanzien is precies het verwijt
+  dat je in dit gesprek niet wilt: een strook bovenin zolang de demo draait, met
+  een knop terug. Weg te klikken voor tijdens een presentatie, en na verversen
+  staat hij er weer.
+
+  Drie dingen die de weg terug onbruikbaar maakten, en nu dicht zitten:
+  - Het tabblad Algemeen meldde tijdens de demo "Eigen data actief" en bood "Terug
+    naar mock data" aan. Dat was onwaar en haalde je ongemerkt uit de demo, met je
+    eigen kaart als weesbestand achter. Het meldt nu de demoversie en wijst naar
+    het tabblad Demo.
+  - Opnieuw overschakelen overschreef een bestaande kopie. Die blijft nu staan: de
+    oorspronkelijke eigen data is het enige wat echt de moeite van bewaren waard is.
+  - "Wis alle data" liet de kopie staan, terwijl die knop belooft dat alles weg is.
+
+  Gecontroleerd in de browser: 26 stappen over de volledige heen-en-weerweg
+  (overschakelen, wijzigen tijdens de demo, terugschakelen, nog een keer) plus 7
+  controles op de randgevallen -- 0 afwijkingen, 0 consolefouten. De kaart komt er
+  exact zo uit als hij erin ging: 9 teams en 225 records voor en na. Plus 5 nieuwe
+  unittests op het opzijzetten en terughalen, waaronder de gevallen waarin er geen
+  ruimte is of de kopie onleesbaar blijkt.
+
 - **Demomateriaal samengevoegd: dataset, spiekbriefje en beamerpagina** (Lars Hoogland)
 
   Voor de demo van tien minuten aan het management dat beslist of dit initiatief
