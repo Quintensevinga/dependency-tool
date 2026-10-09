@@ -26,6 +26,11 @@
 //   node scripts/demo-dataset.mjs                      -> peildatum = vandaag
 //   node scripts/demo-dataset.mjs --datum=2026-11-03   -> peildatum = die dag
 //   node scripts/demo-dataset.mjs --uit=pad/naar.json
+//
+// De uitvoer gaat naar src/data/demoDataset.json. Dat is geen documentatie maar
+// app-data: Instellingen -> Demo laadt dit bestand in. Het wordt pas opgehaald
+// op het moment dat iemand overschakelt (dynamische import), dus het zit niet
+// in de hoofdbundel.
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -41,7 +46,7 @@ const arg = (naam, standaard) => {
 }
 
 const hier = path.dirname(fileURLToPath(import.meta.url))
-const UIT = path.resolve(hier, '..', arg('uit', 'docs/demo/demo-dataset.json'))
+const UIT = path.resolve(hier, '..', arg('uit', 'src/data/demoDataset.json'))
 const PEILDATUM = new Date(arg('datum', new Date().toISOString().slice(0, 10)))
 if (Number.isNaN(PEILDATUM.getTime())) {
   console.error('Ongeldige peildatum. Gebruik --datum=JJJJ-MM-DD')
@@ -503,7 +508,7 @@ function bouwDependencies() {
   // analyse rekent met "gesloten in de laatste 90 dagen". Daarom sluiten we de
   // lichtste records af -- nooit de eerste drie van een team, want dat zijn de
   // records die in de demo opengeklikt worden.
-  const kandidaten = uit.filter((d, i) => {
+  const kandidaten = uit.filter((d) => {
     const eigenIndex = Number(d.id.slice(-2))
     return eigenIndex > 3 && (d.impact === 'beperkt' || d.impact === 'klein') && d.status !== 'actief blokkerend'
   })
@@ -674,9 +679,13 @@ const ruw = {
   })),
   changeLog: bouwChangeLog(dependencies),
   adminSettings: { uitgebreideAnalyse: true },
-  // Bewust false: dit is geen voorbeelddata meer maar een ingeladen kaart, en
-  // de blauwe demobalk hoort tijdens een presentatie niet in beeld te staan.
+  // Bewust false: dit is geen voorbeelddata in de zin van "je hebt nog niets
+  // ingevuld". Deze set draagt zijn eigen markering hieronder.
   usingMockData: false,
+  // Hieraan herkent de app dat de demoversie actief is. Reist mee in een
+  // export, zodat een los geimporteerd demobestand net zo goed herkenbaar is
+  // als een set die via Instellingen -> Demo is ingeladen.
+  demoData: true,
 }
 
 const gemigreerd = migrateState(ruw)

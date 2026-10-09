@@ -1,5 +1,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { migrateState, migrateAdminSettings, validateImportShape, telOnvolledigeNamen, SCHEMA_VERSION } from './storage'
+import {
+  migrateState,
+  migrateAdminSettings,
+  validateImportShape,
+  telOnvolledigeNamen,
+  SCHEMA_VERSION,
+  bewaarVoorDemo,
+  leesDemoBackup,
+  heeftDemoBackup,
+  wisDemoBackup,
+} from './storage'
 
 // Een oude export zoals die vóór de huidige schemaversie uit de app kwam:
 // teams als losse tekst, en een dependency met uitsluitend oude waarden. Geen
@@ -324,5 +334,76 @@ describe('migrateAdminSettings — pagina-schakelaars', () => {
     expect(uit.pages.matrix).toBeUndefined()
     expect(uit.pages.netwerk).toBeUndefined()
     expect(uit.pages.heatmap).toBe(false)
+  })
+})
+
+// --- Demoversie: de weg terug ---------------------------------------------
+// Overschakelen naar de demo zet de eigen kaart opzij. Die kopie is het enige
+// dat een gebruiker terugkrijgt, dus deze tests gaan vooral over het geval
+// waarin er iets misgaat: geen kopie, of een onleesbare kopie.
+describe('demoversie — de eigen data opzijzetten en terughalen', () => {
+  const opslag = new Map()
+
+  beforeEach(() => {
+    opslag.clear()
+    globalThis.localStorage = {
+      getItem: (k) => (opslag.has(k) ? opslag.get(k) : null),
+      setItem: (k, v) => opslag.set(k, String(v)),
+      removeItem: (k) => opslag.delete(k),
+    }
+  })
+
+  afterEach(() => {
+    delete globalThis.localStorage
+  })
+
+  function eigenKaart() {
+    return migrateState({
+      teams: [{ id: 't1', naam: 'Team Alfa' }],
+      dependencies: [{ id: 'd1', teamId: 't1', titel: 'Eigen record', categorie: 'Kennis-concentratie' }],
+      usingMockData: true,
+    })
+  }
+
+  it('geeft precies terug wat er bewaard is, niet verse voorbeelddata', () => {
+    const eigen = eigenKaart()
+    expect(bewaarVoorDemo(eigen)).toBe(true)
+    const terug = leesDemoBackup()
+    expect(terug.teams).toEqual(eigen.teams)
+    expect(terug.dependencies[0].titel).toBe('Eigen record')
+    // De stand van usingMockData hoort mee terug te komen: wie met mockdata
+    // werkte, moet daar ook weer in landen.
+    expect(terug.usingMockData).toBe(true)
+  })
+
+  it('weet of er iets te herstellen valt', () => {
+    expect(heeftDemoBackup()).toBe(false)
+    bewaarVoorDemo(eigenKaart())
+    expect(heeftDemoBackup()).toBe(true)
+    wisDemoBackup()
+    expect(heeftDemoBackup()).toBe(false)
+  })
+
+  it('geeft null bij een onleesbare kopie in plaats van te crashen', () => {
+    opslag.set('dependency-insight:v1:voor-demo', '{kapot')
+    const stil = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(leesDemoBackup()).toBeNull()
+    stil.mockRestore()
+  })
+
+  it('meldt het als bewaren niet lukt, zodat de aanroeper de demo kan laten', () => {
+    globalThis.localStorage.setItem = () => {
+      throw new Error('quota')
+    }
+    const stil = vi.spyOn(console, 'error').mockImplementation(() => {})
+    expect(bewaarVoorDemo(eigenKaart())).toBe(false)
+    stil.mockRestore()
+  })
+})
+
+describe('migrateState — demomarkering', () => {
+  it('houdt de markering vast en zet hem standaard uit', () => {
+    expect(migrateState({ teams: [], dependencies: [], demoData: true }).demoData).toBe(true)
+    expect(migrateState({ teams: [], dependencies: [] }).demoData).toBe(false)
   })
 })

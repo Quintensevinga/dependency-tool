@@ -4,6 +4,10 @@ import {
   saveState,
   resetToEmpty,
   resetToMockData,
+  bewaarVoorDemo,
+  leesDemoBackup,
+  heeftDemoBackup,
+  wisDemoBackup,
   generateId,
   migrateState,
   validateImportShape,
@@ -774,6 +778,9 @@ export function AppProvider({ children }) {
   // hier levert alleen de uitkomst (gelukt of niet) op voor de
   // opslagwaarschuwing — anders bleef een mislukte reset-opslag onzichtbaar.
   const clearAllData = useCallback(() => {
+    // Ook de kopie van voor de demo: 'wis alle data' belooft dat alles weg is.
+    // Een onzichtbaar gebleven kopie van iemands kaart maakt die belofte onwaar.
+    wisDemoBackup()
     const next = resetToEmpty()
     lastSaveOkRef.current = saveState(next)
     stateRef.current = next
@@ -787,6 +794,49 @@ export function AppProvider({ children }) {
     stateRef.current = next
     setState(next)
     setCurrentTeamId(firstActiveTeamId(next.teams))
+  }, [])
+
+  // --- Demoversie ------------------------------------------------------
+  // Overschakelen mag niets kosten. De eigen data gaat eerst naar een aparte
+  // bewaarplek; pas als dat gelukt is wordt de demoset ingeladen. Lukt het
+  // bewaren niet (geen ruimte), dan gebeurt er niets en krijgt de aanroeper
+  // false terug -- liever geen demo dan een demo zonder weg terug.
+  //
+  // De demoset wordt dynamisch geimporteerd: 220 kB JSON hoort niet in de
+  // hoofdbundel van iedereen die de tool gewoon gebruikt.
+  const startDemo = useCallback(async () => {
+    // Staat er al een kopie, dan die laten staan. Dat is het geval als iemand
+    // de demo niet via de schakelaar maar via 'Terug naar mockdata' heeft
+    // verlaten: de oorspronkelijke eigen data is dan nog het enige wat de
+    // moeite van het bewaren waard is, en die mag niet overschreven worden
+    // door wat er sindsdien staat.
+    if (!stateRef.current.demoData && !heeftDemoBackup() && !bewaarVoorDemo(stateRef.current)) return false
+    const { default: demoset } = await import('../data/demoDataset.json')
+    const next = begrensLog(migrateState({ ...demoset, demoData: true }))
+    const ok = saveState(next)
+    lastSaveOkRef.current = ok
+    stateRef.current = next
+    setState(next)
+    setCurrentTeamId(firstActiveTeamId(next.teams))
+    setSaveError(!ok)
+    return true
+  }, [])
+
+  // Terug naar wat er stond. Niet naar verse voorbeelddata: precies de kaart
+  // die iemand achterliet voordat hij overschakelde, inclusief de stand van
+  // usingMockData. Wat er tijdens de demo gewijzigd is, vervalt -- daarom
+  // vraagt de knop in Instellingen eerst om bevestiging.
+  const stopDemo = useCallback(() => {
+    const vorige = leesDemoBackup()
+    if (!vorige) return false
+    const ok = saveState(vorige)
+    lastSaveOkRef.current = ok
+    stateRef.current = vorige
+    setState(vorige)
+    setCurrentTeamId(firstActiveTeamId(vorige.teams))
+    setSaveError(!ok)
+    wisDemoBackup()
+    return true
   }, [])
 
   // Gooit een fout (met duidelijke NL-boodschap) als het bestand structureel
@@ -907,6 +957,13 @@ export function AppProvider({ children }) {
       updateAdminSettings,
       verwijderLogregels,
       applicatieregister: state.applicatieregister,
+      demoData: state.demoData,
+      startDemo,
+      stopDemo,
+      // Leest localStorage, geen state: Instellingen gebruikt dit om te zien of
+      // terugschakelen uberhaupt kan (een los geimporteerd demobestand heeft
+      // geen bewaarde eigen data achter zich).
+      heeftDemoBackup,
       hernoemApplicatie,
       zetApplicatieStatus,
       applicatieregisterPlan,
@@ -970,6 +1027,8 @@ export function AppProvider({ children }) {
       rejectLinkRequest,
       updateAdminSettings,
       verwijderLogregels,
+      startDemo,
+      stopDemo,
       applicatieregisterPlan,
       voerApplicatieregisterOmzettingUit,
       hernoemApplicatie,

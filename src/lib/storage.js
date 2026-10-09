@@ -389,6 +389,12 @@ export function migrateState(raw, report) {
     applicatieregister,
     changeLog,
     usingMockData: Boolean(source.usingMockData),
+    // Markeert de demoversie (Instellingen -> Demo). Reist mee in een export,
+    // zodat een los geimporteerd demobestand net zo herkenbaar is als een set
+    // die via de schakelaar is ingeladen. Geen schemaversie-verhoging nodig:
+    // een ouder bestand levert hier false op en een oudere app laat het veld
+    // simpelweg vallen -- in beide richtingen verandert er niets aan de data.
+    demoData: Boolean(source.demoData),
     adminSettings,
   }
 }
@@ -702,6 +708,48 @@ const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}:corrupt`
 // bruikbaar — en de eerstvolgende wijziging zou 'm via saveState alsnog
 // overschrijven. Deze kopie is de enige weg terug als dat gebeurt.
 const FUTURE_STORAGE_KEY = `${STORAGE_KEY}:nieuwere-versie`
+
+// Waar de eigen data staat zolang de demoversie actief is. Overschakelen naar
+// de demo mag niets kosten: wat er stond, staat hier onaangeroerd te wachten en
+// komt bij het terugschakelen exact terug -- niet "verse voorbeelddata", maar
+// precies de kaart die iemand achterliet. Zonder deze kopie zou een klik op de
+// demoknop het werk van een middag wissen.
+const DEMO_BACKUP_KEY = `${STORAGE_KEY}:voor-demo`
+
+export function bewaarVoorDemo(state) {
+  try {
+    localStorage.setItem(DEMO_BACKUP_KEY, JSON.stringify({ ...state, schemaVersion: SCHEMA_VERSION }))
+    return true
+  } catch (err) {
+    // Geen ruimte meer? Dan niet alsnog overschakelen -- de aanroeper ziet
+    // false en laat de demo achterwege. Stilzwijgend doorgaan zou betekenen
+    // dat er geen weg terug is.
+    console.error('Bewaren van de eigen data voor de demo is mislukt:', err)
+    return false
+  }
+}
+
+export function heeftDemoBackup() {
+  return localStorage.getItem(DEMO_BACKUP_KEY) !== null
+}
+
+// Geeft de bewaarde state terug, of null als er niets (bruikbaars) staat. Een
+// onleesbare kopie levert null op in plaats van een crash: dan is de weg terug
+// weg, maar de app blijft werken.
+export function leesDemoBackup() {
+  const ruw = localStorage.getItem(DEMO_BACKUP_KEY)
+  if (!ruw) return null
+  try {
+    return migrateState(JSON.parse(ruw))
+  } catch (err) {
+    console.error('De bewaarde data van voor de demo is onleesbaar:', err)
+    return null
+  }
+}
+
+export function wisDemoBackup() {
+  localStorage.removeItem(DEMO_BACKUP_KEY)
+}
 
 // Retourneert { state, corrupted, skipped } i.p.v. alleen de state: een
 // onleesbaar localStorage-record valt terug op demodata (anders crasht de hele
