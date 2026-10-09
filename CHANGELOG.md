@@ -2,6 +2,57 @@
 
 Automatisch bijgehouden overzicht van wijzigingen op main. Nieuwste bovenaan.
 
+## 2026-10-09
+- **Demomateriaal samengevoegd: dataset, spiekbriefje en beamerpagina** (Lars Hoogland)
+
+  Voor de demo van tien minuten aan het management dat beslist of dit initiatief
+  doorgaat.
+
+- **Demomateriaal voor de managementpresentatie** (Lars Hoogland)
+
+  Een demo van tien minuten aan het management dat beslist of dit initiatief
+  doorgaat. De tool geldt daar nu als shadow IT, dus er mag geen echte data in --
+  en juist dat wordt de scherpste zin van de demo: dit is nagebouwd, kijk wat er
+  dan al uitkomt.
+
+  - scripts/demo-dataset.mjs bouwt de dataset: zes teams (Polis, UPA, PLM, WGA,
+    CWS, TET), 120 afhankelijkheden, de keten ertussen en de applicaties. Een
+    generator en geen bevroren bestand, omdat de data datums draagt: na een paar
+    weken klopt "nieuw in de laatste 30 dagen" niet meer. Draai hem op de ochtend
+    zelf opnieuw.
+  - De patronen komen uit de beschrijving van de werkvloer: legacy die over de
+    jaren complex werd, wetgeving die ad hoc ingebouwd moet worden, autorisaties
+    die het onderzoeken van een incident blokkeren, een verplichte externe toetsing
+    voor elke oplevering, broncode bij een externe partij, en kennis die bij
+    enkelingen zit. Teamnamen zijn echt; applicatienamen zijn functienamen, die
+    kunnen niet feitelijk fout zijn.
+  - Geen persoonsnamen. De sleutelrol bij TET staat als rol vastgelegd met een
+    feitelijke toelichting; de zaal maakt de rekensom zelf.
+
+  De dataset is zo opgebouwd dat de conclusies waar de demo op leunt er als
+  rekenresultaat uit komen, niet als bewering:
+    - alle vijf de teams wachten op TET (5 ketenafhankelijkheden)
+    - bus-factor TET 10, bijna het dubbele van elk ander team
+    - "Bespreek de kennisconcentratie bij Team TET" staat letterlijk in de
+      aanbevelingen van het rapport
+    - Datawarehouse en Koppelservice raken allebei vier teams
+    - vijf cycli in de keten, waaronder de terugmelding WGA -> Polis
+
+  De zwaarste afhankelijkheid staat met opzet op Hoog en niet op Kritiek: maximale
+  impact en frequentie, maar status 'bekend risico'. Het gaat nu goed, en dat is
+  precies wat die score zegt.
+
+  Verder: docs/demo/spiekbriefje.html (minuut voor minuut, met de zinnen en de
+  terugvalopties) en docs/demo/presentatie.html (zeven schermen voor de beamer).
+
+  Drie imports in src/lib kregen hun .js-extensie, zodat de generator de echte
+  app-code kan hergebruiken in plaats van die na te bouwen. Vite loste dat al op;
+  kale Node niet.
+
+  Gecontroleerd: build, lint en 175 tests groen, audit-relations schoon op de
+  dataset, en de hele set in de browser doorlopen -- ketenoverzicht, bus-factor,
+  aanbevelingen en gedeelde applicaties kloppen alle vier, 0 consolefouten.
+
 ## 2026-09-21
 - **De meldingsstrook en het zijbalklabel opgeruimd** (Lars Hoogland)
 
