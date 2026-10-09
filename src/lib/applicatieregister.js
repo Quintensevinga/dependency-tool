@@ -1,4 +1,4 @@
-import { vergelijkbareNaam } from './namen'
+import { vergelijkbareNaam } from './namen.js'
 
 // Eenmalige omzetting van applicaties naar het centrale register.
 //

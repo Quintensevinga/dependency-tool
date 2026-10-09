@@ -5,9 +5,9 @@ import {
   MOCK_EXTERNAL_PARTIES,
   MOCK_CHANGE_LOG,
   MOCK_ADMIN_SETTINGS,
-} from '../data/mockData'
-import { WORKFLOW_STAGES, WORKFLOW_STAP_LEVELS, PROCESOVERSTIJGEND, BRON_TYPES, EXTERNAL_PARTY_STATUS, LINK_STATUS } from '../data/constants'
-import { slugify, uniqueSlug } from './slug'
+} from '../data/mockData.js'
+import { WORKFLOW_STAGES, WORKFLOW_STAP_LEVELS, PROCESOVERSTIJGEND, BRON_TYPES, EXTERNAL_PARTY_STATUS, LINK_STATUS } from '../data/constants.js'
+import { slugify, uniqueSlug } from './slug.js'
 
 export const STORAGE_KEY = 'dependency-insight:v1'
 // 5: input-/output-items kennen linkStatus/linkNieuw/punten, applicatie-

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Waar wachten we op?</title>
+<style>
+  :root {
+    --inkt: #f4efe6;
+    --zacht: #a8a096;
+    --accent: #e0a23c;
+    --diep: #141b22;
+    --warm: #c2614a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--diep);
+    color: var(--inkt);
+    font-family: 'Segoe UI', system-ui, -apple-system, Arial, sans-serif;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+  .scherm {
+    position: absolute;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    justify-content: center;
+    padding: 6vh 9vw;
+    opacity: 0;
+    transition: opacity .35s ease;
+  }
+  .scherm.aan { display: flex; opacity: 1; }
+
+  .boven {
+    font-size: clamp(13px, 1.5vw, 20px);
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 3.5vh;
+  }
+  h1 {
+    font-size: clamp(34px, 6.4vw, 104px);
+    line-height: 1.04;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    font-size: clamp(26px, 4vw, 62px);
+    line-height: 1.14;
+    font-weight: 600;
+    letter-spacing: -0.015em;
+  }
+  p.onder {
+    margin-top: 4vh;
+    font-size: clamp(16px, 1.9vw, 30px);
+    color: var(--zacht);
+    max-width: 30ch;
+    line-height: 1.45;
+  }
+  .groot {
+    font-size: clamp(90px, 20vw, 300px);
+    font-weight: 700;
+    line-height: .92;
+    letter-spacing: -0.04em;
+    color: var(--accent);
+  }
+  .cijfers { display: flex; gap: 5vw; flex-wrap: wrap; margin-top: 2vh; width: 100%; max-width: 1500px; justify-content: space-between; }
+  .cijfer { flex: 1 1 0; min-width: 190px; }
+  .cijfer .getal {
+    font-size: clamp(54px, 9vw, 140px);
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.03em;
+    color: var(--accent);
+  }
+  .cijfer .label {
+    margin-top: 1.4vh;
+    font-size: clamp(14px, 1.6vw, 24px);
+    color: var(--zacht);
+    max-width: 19ch;
+    line-height: 1.35;
+  }
+  .streep { color: var(--warm); }
+  .vraag {
+    border-left: 5px solid var(--accent);
+    padding-left: 3vw;
+  }
+  ul.punten { list-style: none; margin-top: 3vh; }
+  ul.punten li {
+    font-size: clamp(17px, 2.2vw, 36px);
+    line-height: 1.5;
+    color: var(--inkt);
+    padding-left: 1.4em;
+    position: relative;
+    margin-bottom: 1.6vh;
+  }
+  ul.punten li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: .62em;
+    width: .55em;
+    height: .55em;
+    border-radius: 2px;
+    background: var(--accent);
+  }
+  .naar-app {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .naar-app h2 { color: var(--zacht); font-weight: 500; }
+
+  .balk {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    height: 3px;
+    background: rgba(255,255,255,.07);
+  }
+  .balk i { display: block; height: 100%; background: var(--accent); transition: width .35s ease; }
+  .teller {
+    position: fixed;
+    right: 2.2vw; bottom: 2.4vh;
+    font-size: 13px;
+    color: #4e5660;
+    letter-spacing: .08em;
+  }
+  .hint {
+    position: fixed;
+    left: 2.2vw; bottom: 2.4vh;
+    font-size: 13px;
+    color: #39404a;
+  }
+  @media print { body { background: #fff; color: #000; } .scherm { position: static; display: flex; page-break-after: always; min-height: 90vh; } }
+</style>
+</head>
+<body>
+
+<section class="scherm aan">
+  <div class="boven">Dependency Insight</div>
+  <h1>Waar wachten<br>we op?</h1>
+  <p class="onder">Een vraag die iedereen hier kan stellen en niemand hier kan beantwoorden.</p>
+</section>
+
+<section class="scherm vraag">
+  <h2>Steek je hand op als een van je teams de afgelopen maand heeft zitten wachten op een ander team.</h2>
+  <p class="onder">— en nu de tweede vraag —</p>
+  <h2 style="margin-top:4vh;">Waaróp precies?<br>En hoe vaak?</h2>
+</section>
+
+<section class="scherm naar-app">
+  <h2>Tien minuten,<br>één afdeling,<br>zes teams.</h2>
+</section>
+
+<section class="scherm">
+  <div class="boven">Wat de kaart zelf uitrekent</div>
+  <div class="cijfers">
+    <div class="cijfer">
+      <div class="getal">5</div>
+      <div class="label">van de vijf teams wachten op hetzelfde expertiseteam</div>
+    </div>
+    <div class="cijfer">
+      <div class="getal">10</div>
+      <div class="label">bus-factor daar — bijna het dubbele van elk ander team</div>
+    </div>
+    <div class="cijfer">
+      <div class="getal">1</div>
+      <div class="label">rol waarop die continuïteit rust</div>
+    </div>
+  </div>
+</section>
+
+<section class="scherm">
+  <div class="boven">Let op de score</div>
+  <h2>Maximale impact.<br>Maximale frequentie.<br>En toch <span class="streep">niet</span> kritiek.</h2>
+  <p class="onder">Omdat de status ‘bekend risico’ is en niet ‘actief blokkerend’. Het gaat nú goed. Dát is wat deze score zegt.</p>
+</section>
+
+<section class="scherm">
+  <div class="boven">Voordat u het vraagt</div>
+  <ul class="punten">
+    <li>Alles draait in de browser op deze laptop.</li>
+    <li>Geen server, geen account, geen persoonsgegevens.</li>
+    <li>De gegevens die u zag zijn verzonnen.</li>
+    <li>Want dit heet nu nog shadow IT.</li>
+  </ul>
+</section>
+
+<section class="scherm">
+  <div class="boven">De vraag</div>
+  <h2>Dit is wat eruit komt als ik het <span class="streep">nábouw</span>.</h2>
+  <p class="onder" style="max-width:36ch;">Mijn vraag is niet of u een tool wilt. Mijn vraag is of u dit beeld over onze continuïteit wilt hebben. Want dan moeten er echte gegevens in mogen.</p>
+</section>
+
+<div class="balk"><i></i></div>
+<div class="teller"></div>
+<div class="hint">← → of spatie</div>
+
+<script>
+  const schermen = Array.from(document.querySelectorAll('.scherm'));
+  const balk = document.querySelector('.balk i');
+  const teller = document.querySelector('.teller');
+  let huidig = 0;
+
+  function toon(n) {
+    huidig = Math.max(0, Math.min(schermen.length - 1, n));
+    schermen.forEach((s, i) => s.classList.toggle('aan', i === huidig));
+    balk.style.width = ((huidig + 1) / schermen.length * 100) + '%';
+    teller.textContent = (huidig + 1) + ' / ' + schermen.length;
+  }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { e.preventDefault(); toon(huidig + 1); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); toon(huidig - 1); }
+    else if (e.key === 'Home') toon(0);
+    else if (e.key === 'End') toon(schermen.length - 1);
+    else if (e.key === 'f') document.documentElement.requestFullscreen?.();
+  });
+  // Klikken werkt ook: handig als je een presenter-klikker gebruikt die als
+  // muis wordt herkend in plaats van als toetsenbord.
+  document.addEventListener('click', (e) => toon(huidig + (e.clientX < innerWidth * 0.25 ? -1 : 1)));
+
+  toon(0);
+</script>
+
+</body>
+</html>

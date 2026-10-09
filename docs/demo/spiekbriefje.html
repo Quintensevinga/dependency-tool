@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>Demo — spiekbriefje</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #241f1a;
+    font-size: 9.5pt;
+    line-height: 1.38;
+    margin: 0;
+  }
+  h1 { font-size: 17pt; margin: 0 0 2px 0; color: #33493c; }
+  h1 + p { margin: 0 0 14px 0; color: #6b5645; font-size: 9pt; }
+  h2 {
+    font-size: 11pt;
+    color: #33493c;
+    border-bottom: 2px solid #33493c;
+    padding-bottom: 3px;
+    margin: 16px 0 8px 0;
+  }
+  .beat {
+    border: 1px solid #e7ded0;
+    border-left: 4px solid #33493c;
+    border-radius: 0 6px 6px 0;
+    padding: 7px 10px;
+    margin-bottom: 7px;
+    page-break-inside: avoid;
+  }
+  .beat .kop { display: flex; align-items: baseline; gap: 8px; margin-bottom: 3px; }
+  .beat .tijd {
+    background: #33493c; color: #fff; font-size: 8pt; font-weight: 600;
+    padding: 1px 7px; border-radius: 999px; white-space: nowrap;
+  }
+  .beat .wat { font-weight: 600; font-size: 10pt; }
+  .beat .waar { color: #8a8378; font-size: 8.5pt; font-style: italic; }
+  .doe { margin: 4px 0 0 0; padding-left: 16px; }
+  .doe li { margin-bottom: 2px; }
+  .zeg {
+    background: #f6f1e7; border-left: 3px solid #c98a2e;
+    padding: 5px 9px; margin: 5px 0 0 0; border-radius: 0 5px 5px 0;
+    font-size: 9pt;
+  }
+  .zeg b { color: #8a5a12; }
+  .cijfers { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin: 4px 0 10px 0; }
+  .cijfers th, .cijfers td { border: 1px solid #e7ded0; padding: 3px 6px; text-align: left; vertical-align: top; }
+  .cijfers th { background: #f6f1e7; color: #6b5645; font-weight: 600; }
+  .cijfers td:first-child { font-weight: 600; white-space: nowrap; }
+  .twee { display: flex; gap: 14px; }
+  .twee > div { flex: 1; }
+  ul.kort { margin: 3px 0 10px 0; padding-left: 16px; }
+  ul.kort li { margin-bottom: 2px; }
+  .waarschuwing {
+    background: #fbf0ee; border-left: 3px solid #9a3b2e;
+    padding: 6px 10px; margin: 6px 0; border-radius: 0 5px 5px 0; font-size: 9pt;
+  }
+  .waarschuwing b { color: #9a3b2e; }
+  code { background: #f1ede5; padding: 1px 4px; border-radius: 3px; font-size: 8.5pt; }
+  .pagina2 { page-break-before: always; }
+  footer { margin-top: 14px; font-size: 8pt; color: #b8a08e; }
+</style>
+</head>
+<body>
+
+<h1>Demo Dependency Insight — spiekbriefje</h1>
+<p>Tien minuten, managementpubliek, go/no-go. Eén verhaal: continuïteit van het werkproces.</p>
+
+<h2>Vooraf — vijf minuten werk</h2>
+<ul class="kort">
+  <li><b>Dataset verversen.</b> <code>node scripts/demo-dataset.mjs</code> op de ochtend zelf. De data draagt datums; na een week klopt "nieuw in de laatste 30 dagen" niet meer. Lees de getallen op deze briefing daarna opnieuw na — ze schuiven mee.</li>
+  <li><b>Importeren.</b> Instellingen → Data → "Importeer data uit JSON" → <code>docs/demo/demo-dataset.json</code>. Controleer daarna dat de kop bovenin "6 Teams" zegt.</li>
+  <li><b>Beamer testen</b> op de stand waarop je presenteert, niet op je laptopscherm. Zijbalk eventueel inklappen tot iconen voor meer ruimte.</li>
+  <li><b>Presentatiepagina openklikken</b> in een tweede tabblad (<code>docs/demo/presentatie.html</code>), zodat je aan het eind niet hoeft te zoeken.</li>
+  <li><b>Paniekknop kennen:</b> <code>?reset=1</code> achter de URL zet alles terug. Daarna moet je wel opnieuw importeren.</li>
+</ul>
+
+<h2>De tien minuten</h2>
+
+<div class="beat">
+  <div class="kop"><span class="tijd">0:00 – 1:00</span><span class="wat">De haak</span><span class="waar">presentatiepagina, scherm 1 en 2</span></div>
+  <ul class="doe">
+    <li>Nog geen tool in beeld. Stel de vraag aan de zaal en laat de stilte vallen.</li>
+  </ul>
+  <p class="zeg"><b>Zeg:</b> "Steek je hand op als een van je teams de afgelopen maand heeft zitten wachten op een ander team." — wachten — "Tweede vraag: wie van jullie kan me zeggen waaróp precies, en hoe vaak?" — stilte — "Daar gaat het hier over. Niet over een tool."</p>
+</div>
+
+<div class="beat">
+  <div class="kop"><span class="tijd">1:00 – 3:00</span><span class="wat">De afdeling in één plaat</span><span class="waar">Ketenoverzicht → Hele keten</span></div>
+  <ul class="doe">
+    <li>Open het Ketenoverzicht. Laat de hele plaat twee tellen staan voor je iets zegt.</li>
+    <li>Wijs de stroom aan: links de partijen buiten de afdeling, dan Polis, dan de verwerkende teams, en rechts waar het uitkomt.</li>
+    <li>Zet dan <b>Eén team</b> aan en kies <b>Team TET</b>. Vijf gekleurde lijnen waaieren uit naar alle vijf de teams.</li>
+  </ul>
+  <p class="zeg"><b>Zeg:</b> "Dit is onze afdeling zoals de tool hem tekent. De teams zijn echt; de systeemnamen heb ik verzonnen, want ik mag hier geen echte gegevens in zetten." … "En dit is TET. Vijf lijnen, naar alle vijf de teams."</p>
+</div>
+
+<div class="beat">
+  <div class="kop"><span class="tijd">3:00 – 4:30</span><span class="wat">Het cijfer erachter</span><span class="waar">Analyse → tabblad Risico → "Kennisconcentratie en bus-factor"</span></div>
+  <ul class="doe">
+    <li>Scrol naar de tabel. TET staat bovenaan met score <b>10</b>, bijna het dubbele van het volgende team.</li>
+    <li>Wijs de formule áán die boven de tabel staat. Lees hem desnoods voor.</li>
+  </ul>
+  <p class="zeg"><b>Zeg:</b> "Deze score is geen oordeel van mij. Hij staat er bij: twee keer de zware kennisafhankelijkheden, plus de rollen waarvan is vastgelegd dat er een probleem ontstaat als ze wegvallen. U kunt er ruzie over maken — en dat is precies de bedoeling."</p>
+</div>
+
+<div class="beat">
+  <div class="kop"><span class="tijd">4:30 – 6:30</span><span class="wat">Het hart van de demo</span><span class="waar">klik de regel "Complexe databasewijzigingen lopen via één rol" open</span></div>
+  <ul class="doe">
+    <li>Het detailpaneel schuift open. Lees de toelichting voor — die vertelt het hele verhaal in drie zinnen.</li>
+    <li>Wijs het blok <b>Risicoberekening</b> aan: impact zwaar × frequentie structureel = 16, statuscorrectie 0, eindscore 16 → Hoog.</li>
+    <li><b>Dit is de zin waar de demo om draait.</b> Neem er de tijd voor.</li>
+  </ul>
+  <p class="zeg"><b>Zeg:</b> "Let op wat hier staat. Maximale impact, maximale frequentie. En tóch staat hij op Hoog en niet op Kritiek. Weet u waarom? Omdat de status 'bekend risico' is en niet 'actief blokkerend'. Het gáát nu goed. Deze score staat op Hoog <i>doordat</i> het goed gaat. Dat is geen geruststelling — dat is de hele kwestie."</p>
+</div>
+
+<div class="beat">
+  <div class="kop"><span class="tijd">6:30 – 7:30</span><span class="wat">De tool trekt zelf de conclusie</span><span class="waar">Analyse → tabblad Overzicht → scrol naar "Aanbevelingen"</span></div>
+  <ul class="doe">
+    <li>Scrol naar de laatste alinea van het rapport. Lees één zin letterlijk voor.</li>
+  </ul>
+  <p class="zeg"><b>Zeg:</b> "Dit heeft niemand getypt." — lees voor — "<i>Bespreek de kennisconcentratie bij Team TET.</i> Dat is de tool, op basis van de records die u net heeft gezien."</p>
+</div>
+
+<div class="beat">
+  <div class="kop"><span class="tijd">7:30 – 8:30</span><span class="wat">Het tweede patroon</span><span class="waar">Analyse → tabblad Keten en proces → "Applicaties gebruikt door meerdere teams"</span></div>
+  <ul class="doe">
+    <li>Twee regels: Datawarehouse bij vier teams, Koppelservice bij vier teams.</li>
+    <li>Kort houden — dit is de bevestiging, niet het hoofdpunt.</li>
+  </ul>
+  <p class="zeg"><b>Zeg:</b> "Hetzelfde patroon, andere vorm. Vier teams op dezelfde voorziening. Zolang niemand dit optelt, is het vijf keer een ongemak in plaats van één keer een risico."</p>
+</div>
+
+<div class="beat">
+  <div class="kop"><span class="tijd">8:30 – 10:00</span><span class="wat">De vraag</span><span class="waar">presentatiepagina, laatste twee schermen</span></div>
+  <ul class="doe">
+    <li>Terug naar de presentatiepagina. Benoem eerst zelf het bezwaar dat in de zaal leeft.</li>
+    <li>Stel dan de vraag, en zwijg.</li>
+  </ul>
+  <p class="zeg"><b>Zeg:</b> "Alles wat u hier zag, draait in de browser op deze laptop. Er gaat niets naar een server, er staan geen persoonsgegevens in, en de gegevens die u zag heb ik verzonnen — want dit heet nu nog shadow IT, dus echte gegevens mag ik er niet in zetten." … "Dat is precies waarom ik hier sta. Dit is wat eruit komt als ik het nábouw. Mijn vraag is niet of u een tool wilt. Mijn vraag is of u dit beeld over onze continuïteit wilt hebben — want dan moeten we hier echte gegevens in mogen zetten."</p>
+</div>
+
+<div class="pagina2"></div>
+
+<h2>De cijfers (peildatum van je laatste generatie)</h2>
+<table class="cijfers">
+  <tr><th>Wat</th><th>Stand</th><th>Waar je het vindt</th></tr>
+  <tr><td>Open afhankelijkheden</td><td>106 bij 6 teams — 2 kritiek, 19 hoog, 50 gemiddeld, 35 laag</td><td>Analyse → Overzicht</td></tr>
+  <tr><td>Actief blokkerend</td><td>19</td><td>Analyse → Overzicht</td></tr>
+  <tr><td>Teams die op TET wachten</td><td>5 van de 5</td><td>Ketenoverzicht, en Alle dependencies (zoek op "TET")</td></tr>
+  <tr><td>Bus-factor</td><td>TET 10 · WGA 6 · Polis 5 · UPA 4 · PLM 4</td><td>Analyse → Risico</td></tr>
+  <tr><td>Rollen met uitvalrisico</td><td>7 over zes teams</td><td>Analyse → Risico</td></tr>
+  <tr><td>Gedeelde applicaties</td><td>Datawarehouse (4 teams), Koppelservice (4 teams)</td><td>Analyse → Keten en proces</td></tr>
+  <tr><td>Ketenkoppelingen</td><td>15 geaccepteerd, 5 cycli</td><td>Analyse → Overzicht, rapporttekst</td></tr>
+  <tr><td>Besluittijd koppelverzoek</td><td>gemiddeld 7 dagen, oudste openstaande 9 dagen</td><td>Analyse → Overzicht, rapporttekst</td></tr>
+  <tr><td>Volledigheid van de kaart</td><td>78%</td><td>Analyse → Overzicht, rapporttekst</td></tr>
+</table>
+<p style="font-size:8.5pt;color:#8a8378;margin:-6px 0 12px 0;">Deze getallen schuiven mee als je de dataset opnieuw genereert. Loop ze één keer na vóór je begint; dan kun je ze uit je hoofd noemen in plaats van ze op te zoeken.</p>
+
+<h2>Als iemand ertussen komt</h2>
+<table class="cijfers">
+  <tr><th>Vraag</th><th>Antwoord in één zin</th></tr>
+  <tr><td>"Waar staat die data?"</td><td>In de browser op dit apparaat. Geen server, geen database, geen account — en dat is precies waarom het nu nog mag.</td></tr>
+  <tr><td>"Staan daar namen in?"</td><td>Nee. De tool kent alleen rollen, senioriteit en aantallen. Hij kán geen namen opslaan.</td></tr>
+  <tr><td>"Wie gaat dit bijhouden?"</td><td>De teams zelf, voor hun eigen plaat. Een kwartier om te vullen, daarna bij wijzigingen. Wat u ziet is het resultaat van zes teams die dat doen.</td></tr>
+  <tr><td>"Is dit niet gewoon een risicologboek?"</td><td>Een logboek is een lijst. Dit telt op over teams heen — dat is de stap die nu niemand zet.</td></tr>
+  <tr><td>"Klopt dit wel?"</td><td>De teams zijn echt, de patronen zijn echt, de systeemnamen heb ik verzonnen. Dat laatste is geen keuze van mij.</td></tr>
+  <tr><td>"Wat kost het?"</td><td>Niets aan licenties. Het kost tijd van teams en een besluit over wat we met de uitkomst doen.</td></tr>
+</table>
+
+<h2>Als er iets hapert</h2>
+<ul class="kort">
+  <li><b>Het ketencanvas blijft leeg.</b> Geef het drie seconden — de indeling wordt berekend. Praat die seconden vol, bijvoorbeeld met de zin over verzonnen systeemnamen.</li>
+  <li><b>De plaat staat te klein.</b> Knop linksonder: passend maken. Niet handmatig zoomen voor publiek.</li>
+  <li><b>Je bent de weg kwijt.</b> Elke pagina heeft een eigen adres. <code>/ketenoverzicht</code> en <code>/analyse</code> brengen je direct terug.</li>
+  <li><b>De data is weg.</b> Importeer opnieuw: Instellingen → Data → Importeer. Dat kost twintig seconden; zeg gewoon wat je doet.</li>
+  <li><b>Een vraag die je niet kunt beantwoorden.</b> "Dat weet ik niet, dat zoek ik uit" is hier een sterk antwoord — je pleit voor beter zicht, niet voor alwetendheid.</li>
+</ul>
+
+<h2>Niet laten zien</h2>
+<ul class="kort">
+  <li>De beheerderstabbladen en het logboek. Kost twee minuten die je niet hebt, en het gesprek gaat dan over functies.</li>
+  <li>Meer dan drie analysetabbladen. Er zijn er zes; vier ervan zijn voor dit publiek ruis.</li>
+  <li>De teampagina met het canvas, tenzij er expliciet om gevraagd wordt. Mooi, maar het is een werkvloerscherm — geen bestuursscherm.</li>
+  <li>De heatmap. Hij is er, hij is sterk, maar hij vertelt hetzelfde verhaal zwakker dan de keten. Houd hem achter de hand voor als er tijd over is.</li>
+</ul>
+
+<h2>Als je maar vijf minuten krijgt</h2>
+<p style="margin-top:2px;">Dat gebeurt. Schrap dan alles behalve deze drie: de keten met de focus op TET (1 min), het opengeklikte record met de risicoberekening (2 min), en de vraag (2 min). De rest is onderbouwing — deze drie zijn het argument.</p>
+
+<footer>Dependency Insight · demo-ondersteuning · hoort bij <code>docs/demo/demo-dataset.json</code></footer>
+
+</body>
+</html>
