@@ -67,6 +67,8 @@ function AppContent() {
     adminSettings,
     saveError,
     usingMockData,
+    demoData,
+    stopDemo,
     clearAllData,
     dismissSaveError,
     corruptedOnLoad,
@@ -117,6 +119,10 @@ function AppContent() {
   // is er niets meer te melden.
   const nieuwereVersie = useNieuwereVersieBeschikbaar()
   const [updateWeggeklikt, setUpdateWeggeklikt] = useState(false)
+  // Alleen voor deze sessie: na verversen staat de markering er weer, want
+  // vergeten dat je naar verzonnen data kijkt is het risico dat ertoe doet.
+  const [demoStrookWeg, setDemoStrookWeg] = useState(false)
+  const [demoTerugBevestigen, setDemoTerugBevestigen] = useState(false)
   const [selectedDependency, setSelectedDependency] = useState(null)
   const [formState, setFormState] = useState(null) // null | { editing, teamId, prefill? }
   const viewRef = useRef(null)
@@ -444,6 +450,60 @@ function AppContent() {
         </div>
       )}
 
+      {/* De demoversie draait: dat hoort zichtbaar te zijn. Zonder markering kan
+          iemand verzonnen cijfers voor echte aanzien, en bij een gesprek over
+          wat deze tool mag is dat precies het verwijt dat je niet wilt. De
+          strook is wel weg te klikken, want tijdens een presentatie wil je het
+          scherm schoon -- de schakelaar in Instellingen blijft de waarheid. */}
+      {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && !saveError && !nieuwereVersie && demoData && !demoStrookWeg && (
+        <div className="flex flex-wrap items-center justify-between gap-2 bg-[#6b5645] px-4 py-2 text-xs text-white">
+          <span>{t('demo.versie.message')}</span>
+          {demoTerugBevestigen ? (
+            <span className="flex flex-wrap items-center gap-2">
+              {/* Dezelfde tussenstap als bij de demodata-balk hierboven: wat
+                  tijdens de demo gewijzigd is, vervalt bij het terugschakelen.
+                  Eén klik zou dat stilzwijgend weggooien. */}
+              <span>{t('demo.versie.bevestig')}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  stopDemo()
+                  setDemoTerugBevestigen(false)
+                  setTeamPageTeamId(null)
+                }}
+                className="shrink-0 rounded-md bg-white px-2.5 py-1 font-medium text-[#6b5645] hover:bg-slate-100"
+              >
+                {t('demo.versie.bevestigKnop')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDemoTerugBevestigen(false)}
+                className="shrink-0 rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+              >
+                {t('form.cancel')}
+              </button>
+            </span>
+          ) : (
+            <span className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={() => setDemoTerugBevestigen(true)}
+                className="rounded-md bg-white px-2.5 py-1 font-medium text-[#6b5645] hover:bg-slate-100"
+              >
+                {t('demo.versie.terug')}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDemoStrookWeg(true)}
+                className="rounded-md border border-white/40 px-2.5 py-1 font-medium hover:bg-white/10"
+              >
+                {t('demo.versie.verberg')}
+              </button>
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Wie de link voor het eerst krijgt, landt op verzonnen teams zonder dat
           ergens staat dat het voorbeelddata is. Deze strook zegt het, en biedt
           meteen de weg naar eigen gegevens. Hij verdwijnt vanzelf: usingMockData
@@ -454,7 +514,7 @@ function AppContent() {
           tegelijk zouden over elkaar heen vallen. Deze staat achteraan in de rij
           -- een kapotte opslag of een mislukte opslagactie is dringender dan de
           mededeling dat je naar demodata kijkt. */}
-      {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && !saveError && !nieuwereVersie && usingMockData && (
+      {!corruptedOnLoad && !futureVersionOnLoad && skippedOnLoad === 0 && !saveError && !nieuwereVersie && !demoData && usingMockData && (
         <div className="flex flex-wrap items-center justify-between gap-2 bg-[#2a5f8a] px-4 py-2 text-xs text-white">
           <span>{t('demo.message', { teams: teams.length })}</span>
           {demoWisBevestigen ? (

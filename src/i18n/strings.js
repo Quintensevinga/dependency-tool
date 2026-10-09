@@ -205,6 +205,36 @@ export const STRINGS = {
     'print.canvasHint': 'Deze weergave is een tekening op een eigen canvas en wordt niet afgedrukt. Gebruik Instellingen → "Exporteer huidige weergave als afbeelding (PNG)" om hem als afbeelding te bewaren.',
     'settings.exportPngBusy': 'Bezig met exporteren…',
     'settings.exportPngError': 'PNG-export is mislukt. Probeer het opnieuw; blijft het misgaan, ververs dan de pagina.',
+    'settings.storageDemo': 'Waarvan {{kb}} kB de bewaarde kopie van je eigen gegevens, zolang de demoversie aanstaat.',
+    'settings.tab.demo': 'Demo',
+    'settings.demo.uitTitel': 'De demoversie staat uit',
+    'settings.demo.uitUitleg':
+      'Je kijkt naar je eigen gegevens. Schakel je over, dan worden die eerst apart bewaard en komen ze bij het terugschakelen precies zo terug.',
+    'settings.demo.actiefTitel': 'De demoversie staat aan',
+    'settings.demo.actiefUitleg':
+      'Alles wat je nu ziet is verzonnen. Je eigen gegevens staan apart bewaard en komen terug zodra je terugschakelt.',
+    'settings.demo.watErinZit':
+      'De demoversie is een complete, verzonnen afdeling: zes teams die elkaar werk aanleveren, hun applicaties, de partijen eromheen en ruim honderd afhankelijkheden. Bedoeld om de tool mee te laten zien zonder echte gegevens te gebruiken.',
+    'settings.demo.aanKnop': 'Overschakelen naar de demoversie',
+    'settings.demo.naarTab': 'Naar het tabblad Demo',
+    'settings.demo.bevestigAan':
+      'Je eigen gegevens worden apart bewaard en daarna vervangen door de demoversie. Terugschakelen kan hier op elk moment.',
+    'settings.demo.bevestigAanKnop': 'Ja, laad de demoversie',
+    'settings.demo.uitKnop': 'Terug naar je eigen gegevens',
+    'settings.demo.bevestigUit':
+      'Je eigen gegevens komen terug zoals je ze achterliet. Wat je tijdens de demo hebt gewijzigd, vervalt.',
+    'settings.demo.bevestigUitKnop': 'Ja, schakel terug',
+    'settings.demo.bezig': 'Bezig met laden…',
+    'settings.demo.geenRuimte':
+      'Je eigen gegevens konden niet bewaard worden — er is te weinig opslagruimte. Er is niets gewijzigd. Maak eerst een JSON-export.',
+    'settings.demo.mislukt': 'De demoversie kon niet geladen worden. Ververs de pagina en probeer het opnieuw.',
+    'settings.demo.geenBackup':
+      'Er staan geen eigen gegevens bewaard om naar terug te keren — deze demoversie is waarschijnlijk als bestand geïmporteerd. Importeer je eigen export om terug te gaan.',
+    'demo.versie.message': 'Je kijkt naar de demoversie: een verzonnen afdeling om de tool mee te laten zien.',
+    'demo.versie.terug': 'Terug naar je eigen gegevens',
+    'demo.versie.verberg': 'Melding verbergen',
+    'demo.versie.bevestig': 'Wat je tijdens de demo hebt gewijzigd, vervalt.',
+    'demo.versie.bevestigKnop': 'Ja, schakel terug',
     'settings.tab.algemeen': 'Algemeen',
     'settings.tab.teams': 'Teams',
     'settings.tab.wachtrij': 'Wachtrij',
@@ -925,6 +955,36 @@ export const STRINGS = {
     'print.canvasHint': 'This view is drawn on its own canvas and is not printed. Use Settings → "Export current view as image (PNG)" to save it as an image.',
     'settings.exportPngBusy': 'Exporting…',
     'settings.exportPngError': 'PNG export failed. Try again; if it keeps failing, reload the page.',
+    'settings.storageDemo': 'Of which {{kb}} kB is the stored copy of your own data, while the demo version is on.',
+    'settings.tab.demo': 'Demo',
+    'settings.demo.uitTitel': 'The demo version is off',
+    'settings.demo.uitUitleg':
+      'You are looking at your own data. If you switch, it is stored separately first and comes back exactly as it was when you switch back.',
+    'settings.demo.actiefTitel': 'The demo version is on',
+    'settings.demo.actiefUitleg':
+      'Everything you see now is fictional. Your own data is stored separately and returns as soon as you switch back.',
+    'settings.demo.watErinZit':
+      'The demo version is a complete, fictional department: six teams that hand work to each other, their applications, the parties around them and over a hundred dependencies. Meant for showing the tool without using real data.',
+    'settings.demo.aanKnop': 'Switch to the demo version',
+    'settings.demo.naarTab': 'Go to the Demo tab',
+    'settings.demo.bevestigAan':
+      'Your own data is stored separately and then replaced by the demo version. You can switch back here at any time.',
+    'settings.demo.bevestigAanKnop': 'Yes, load the demo version',
+    'settings.demo.uitKnop': 'Back to your own data',
+    'settings.demo.bevestigUit':
+      'Your own data comes back as you left it. Anything you changed during the demo is discarded.',
+    'settings.demo.bevestigUitKnop': 'Yes, switch back',
+    'settings.demo.bezig': 'Loading…',
+    'settings.demo.geenRuimte':
+      'Your own data could not be stored — there is not enough storage space. Nothing has changed. Make a JSON export first.',
+    'settings.demo.mislukt': 'The demo version could not be loaded. Refresh the page and try again.',
+    'settings.demo.geenBackup':
+      'There is no stored data to return to — this demo version was probably imported as a file. Import your own export to go back.',
+    'demo.versie.message': 'You are looking at the demo version: a fictional department for showing the tool.',
+    'demo.versie.terug': 'Back to your own data',
+    'demo.versie.verberg': 'Hide notice',
+    'demo.versie.bevestig': 'Anything you changed during the demo is discarded.',
+    'demo.versie.bevestigKnop': 'Yes, switch back',
     'settings.tab.algemeen': 'General',
     'settings.tab.teams': 'Teams',
     'settings.tab.wachtrij': 'Queue',

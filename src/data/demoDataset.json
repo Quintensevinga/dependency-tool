@@ -6624,6 +6624,7 @@
     }
   ],
   "usingMockData": false,
+  "demoData": true,
   "adminSettings": {
     "pages": {
       "heatmap": true,

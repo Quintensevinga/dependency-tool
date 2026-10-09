@@ -4,7 +4,7 @@ Drie dingen die bij elkaar horen, voor een demo van tien minuten aan management.
 
 | Bestand | Wat het is |
 |---|---|
-| `demo-dataset.json` | De dataset die je in de app importeert. Zes teams, 120 afhankelijkheden, de keten ertussen. |
+| `src/data/demoDataset.json` | De dataset zelf. Zes teams, 120 afhankelijkheden, de keten ertussen. Je hoeft dit bestand niet aan te raken: de app laadt het in via Instellingen → Demo. |
 | `spiekbriefje.html` / `.pdf` | De minuut-voor-minuut opbouw: welke knop, welke zin, welke cijfers. Vier pagina's: de eerste twee houd je vast tijdens de demo, de laatste twee zijn naslag. |
 | `presentatie.html` | Zeven schermen voor op de beamer, voor de opening en de afsluiting. Pijltjestoetsen of spatie; `f` voor volledig scherm. |
 
@@ -25,7 +25,21 @@ Wil je oefenen met een andere datum, bijvoorbeeld de dag van de demo:
 node scripts/demo-dataset.mjs --datum=2026-11-03
 ```
 
-Importeren gaat via Instellingen → Data → "Importeer data uit JSON".
+## Aan- en uitzetten in de app
+
+Instellingen → **Demo** → "Overschakelen naar de demoversie". De tool zet je eigen gegevens
+eerst apart en laadt daarna de demoset. Zolang de demo aanstaat, staat er een strook bovenin
+dat je naar verzonnen gegevens kijkt; die is weg te klikken voor tijdens de presentatie.
+
+Terug gaat via dezelfde knop of via de strook. Je krijgt dan **precies terug wat je
+achterliet** — niet verse voorbeelddata, maar de kaart zoals hij was. Wat je tijdens de demo
+hebt gewijzigd, vervalt; daarom vraagt de knop eerst om bevestiging.
+
+Twee dingen om te weten:
+
+- Zolang de demo aanstaat, staat je eigen kaart als tweede kopie in de browseropslag. Het
+  tabblad Algemeen laat zien hoeveel ruimte dat kost.
+- "Wis alle data" ruimt ook die kopie op. Dat is bewust: die knop belooft dat alles weg is.
 
 ## Wat erin zit en wat verzonnen is
 

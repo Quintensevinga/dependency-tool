@@ -107,7 +107,16 @@ function meetOpslag(changeLog) {
     // meten en tonen we de regel gewoon niet.
     return null
   }
-  const totaal = ruw.length * 2
+  // De kopie van voor de demo telt net zo goed mee voor het quotum van de
+  // browser. Hem weglaten betekent dat iemand tegen de grens aanloopt zonder
+  // te kunnen zien waar de ruimte heen is.
+  let demoKopie = 0
+  try {
+    demoKopie = (localStorage.getItem(`${STORAGE_KEY}:voor-demo`) ?? '').length * 2
+  } catch {
+    demoKopie = 0
+  }
+  const totaal = ruw.length * 2 + demoKopie
   if (totaal === 0) return null
   let log = 0
   try {
@@ -119,6 +128,7 @@ function meetOpslag(changeLog) {
     totaal,
     log: Math.min(log, totaal),
     rest: Math.max(0, totaal - Math.min(log, totaal)),
+    demoKopie,
     budget: OPSLAG_BUDGET_BYTES,
     deel: totaal / OPSLAG_BUDGET_BYTES,
   }
@@ -141,6 +151,7 @@ const SETTINGS_TABS = [
   { key: 'teams', labelKey: 'settings.tab.teams' },
   { key: 'wachtrij', labelKey: 'settings.tab.wachtrij' },
   { key: 'data', labelKey: 'settings.tab.data' },
+  { key: 'demo', labelKey: 'settings.tab.demo' },
   { key: 'partijen', labelKey: 'settings.tab.partijen' },
   { key: 'applicaties', labelKey: 'settings.tab.applicaties' },
   { key: 'zichtbaarheid', labelKey: 'settings.tab.zichtbaarheid' },
@@ -819,6 +830,119 @@ function Applicatieregister({ register, teamWorkflows, teams, planFn, voerUitFn,
   )
 }
 
+// De demoversie: een complete, verzonnen afdeling om de tool mee te laten
+// zien. Bewust geen standaard en bewust achter een bevestiging -- overschakelen
+// vervangt alles wat er op dit apparaat staat.
+//
+// Wat er niet gebeurt: data weggooien. De eigen kaart gaat eerst naar een
+// aparte bewaarplek en komt bij het terugschakelen exact terug zoals hij was.
+// Niet "verse voorbeelddata", maar precies wat iemand achterliet.
+function Demoschakelaar({ demoData, onStart, onStop, heeftBackup, t }) {
+  const [bevestigen, setBevestigen] = useState(null)
+  const [bezig, setBezig] = useState(false)
+  const [fout, setFout] = useState('')
+  const kanTerug = heeftBackup()
+
+  async function schakelAan() {
+    setBezig(true)
+    setFout('')
+    try {
+      const ok = await onStart()
+      if (!ok) setFout(t('settings.demo.geenRuimte'))
+    } catch {
+      setFout(t('settings.demo.mislukt'))
+    } finally {
+      setBezig(false)
+      setBevestigen(null)
+    }
+  }
+
+  function schakelUit() {
+    if (!onStop()) setFout(t('settings.demo.geenBackup'))
+    setBevestigen(null)
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className={`rounded-md border p-3 ${demoData ? 'border-[#c98a2e]/50 bg-[#c98a2e]/10' : 'border-slate-200 bg-white'}`}>
+        <p className="text-xs font-semibold text-slate-800">{demoData ? t('settings.demo.actiefTitel') : t('settings.demo.uitTitel')}</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-600">{demoData ? t('settings.demo.actiefUitleg') : t('settings.demo.uitUitleg')}</p>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-slate-500">{t('settings.demo.watErinZit')}</p>
+
+      {!demoData && (
+        <>
+          {bevestigen === 'aan' ? (
+            <div className="space-y-2 rounded-md border border-[#c98a2e]/40 bg-[#c98a2e]/10 p-3">
+              <p className="text-[11px] leading-relaxed text-[#8a5a12]">{t('settings.demo.bevestigAan')}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={schakelAan}
+                  disabled={bezig}
+                  className="rounded-md bg-[#2a5f8a] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#235074] disabled:bg-slate-300"
+                >
+                  {bezig ? t('settings.demo.bezig') : t('settings.demo.bevestigAanKnop')}
+                </button>
+                <button type="button" onClick={() => setBevestigen(null)} className="text-xs font-medium text-slate-500 hover:underline">
+                  {t('form.cancel')}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setBevestigen('aan')}
+              className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {t('settings.demo.aanKnop')}
+            </button>
+          )}
+        </>
+      )}
+
+      {demoData && (
+        <>
+          {bevestigen === 'uit' ? (
+            <div className="space-y-2 rounded-md border border-[#c98a2e]/40 bg-[#c98a2e]/10 p-3">
+              <p className="text-[11px] leading-relaxed text-[#8a5a12]">{t('settings.demo.bevestigUit')}</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={schakelUit}
+                  className="rounded-md bg-[#2a5f8a] px-2.5 py-1.5 text-xs font-medium text-white hover:bg-[#235074]"
+                >
+                  {t('settings.demo.bevestigUitKnop')}
+                </button>
+                <button type="button" onClick={() => setBevestigen(null)} className="text-xs font-medium text-slate-500 hover:underline">
+                  {t('form.cancel')}
+                </button>
+              </div>
+            </div>
+          ) : kanTerug ? (
+            <button
+              type="button"
+              onClick={() => setBevestigen('uit')}
+              className="rounded-md border border-slate-300 px-3 py-2 text-left text-xs font-medium text-slate-700 hover:bg-slate-50"
+            >
+              {t('settings.demo.uitKnop')}
+            </button>
+          ) : (
+            // Kan gebeuren als iemand het demobestand los heeft geimporteerd:
+            // dan is er nooit eigen data opzijgezet om naar terug te keren.
+            <p className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] leading-relaxed text-slate-500">
+              {t('settings.demo.geenBackup')}
+            </p>
+          )}
+        </>
+      )}
+
+      {fout && <p className="text-[11px] font-medium text-[#9a3b2e]">{fout}</p>}
+    </div>
+  )
+}
+
 export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
   const {
     alleDependencies,
@@ -839,6 +963,10 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
     updateAdminSettings,
     verwijderLogregels,
     applicatieregister,
+    demoData,
+    startDemo,
+    stopDemo,
+    heeftDemoBackup,
     applicatieregisterPlan,
     voerApplicatieregisterOmzettingUit,
     hernoemApplicatie,
@@ -1098,6 +1226,9 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
                 rest: toonOmvang(opslag.rest, language),
               })}
             </p>
+            {opslag.demoKopie > 0 && (
+              <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">{t('settings.storageDemo', { kb: Math.round(opslag.demoKopie / 1024) })}</p>
+            )}
             <p className="mt-0.5 text-[11px] leading-relaxed text-slate-400">{t('settings.storageBudgetNote')}</p>
             {opslag.deel >= OPSLAG_WAARSCHUWING && (
               <p className="mt-1.5 text-[11px] font-medium leading-relaxed text-[#9a3b2e]">{t('settings.storageWarning')}</p>
@@ -1105,17 +1236,28 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
           </div>
         )}
 
-        <div className="rounded-md border border-slate-200 px-3 py-2.5">
+        {/* Staat de demoversie aan, dan is 'eigen data actief' onwaar en zou
+            'Terug naar mock data' iemand ongemerkt uit de demo halen -- met de
+            bewaarde kopie van zijn eigen kaart achtergelaten. Dan hoort hier te
+            staan wat er echt aan staat, met de verwijzing naar het tabblad waar
+            de schakelaar zit. */}
+        <div className={`rounded-md border px-3 py-2.5 ${demoData ? 'border-[#c98a2e]/50 bg-[#c98a2e]/10' : 'border-slate-200'}`}>
           <div className="text-xs font-medium text-slate-600">
-            {usingMockData ? t('settings.mockActive') : t('settings.ownActive')}
+            {demoData ? t('settings.demo.actiefTitel') : usingMockData ? t('settings.mockActive') : t('settings.ownActive')}
           </div>
           <p className="mt-0.5 text-xs text-slate-400">
-            {usingMockData ? t('settings.mockActiveDesc') : t('settings.ownActiveDesc')}
+            {demoData ? t('settings.demo.actiefUitleg') : usingMockData ? t('settings.mockActiveDesc') : t('settings.ownActiveDesc')}
           </p>
-          {!usingMockData && (
-            <button type="button" onClick={loadMockData} className="mt-2 text-xs font-medium text-[#2a5f8a] hover:underline">
-              {t('settings.backToMock')}
+          {demoData ? (
+            <button type="button" onClick={() => setTab('demo')} className="mt-2 text-xs font-medium text-[#2a5f8a] hover:underline">
+              {t('settings.demo.naarTab')}
             </button>
+          ) : (
+            !usingMockData && (
+              <button type="button" onClick={loadMockData} className="mt-2 text-xs font-medium text-[#2a5f8a] hover:underline">
+                {t('settings.backToMock')}
+              </button>
+            )
           )}
         </div>
 
@@ -1139,6 +1281,16 @@ export default function SettingsPanel({ onClose, onExportPng, exportingPng }) {
         )}
 
         {tab === 'wachtrij' && <Reviewwachtrij />}
+
+        {tab === 'demo' && (
+          <Demoschakelaar
+            demoData={demoData}
+            onStart={startDemo}
+            onStop={stopDemo}
+            heeftBackup={heeftDemoBackup}
+            t={t}
+          />
+        )}
 
         {tab === 'data' && (
         <>
